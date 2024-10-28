@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Deidentification Tasks</h2>
+    
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Study Name</th>
+                <th>Image Source</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr>
+                <td>{{ task.id }}</td>
+                <td>{{ task.parameters.study_name }}</td>
+                <td>{{ task.parameters.image_source }}</td>
+                <td>
+                    <span class="badge {% if task.status == 'COMPLETED' %}bg-success
+                                     {% elif task.status == 'FAILED' %}bg-danger
+                                     {% elif task.status == 'RUNNING' %}bg-primary
+                                     {% else %}bg-secondary{% endif %}">
+                        {{ task.status }}
+                    </span>
+                </td>
+                <td>{{ task.created_at|date:"Y-m-d H:i:s" }}</td>
+                <td>
+                    {% if task.status == 'FAILED' %}
+                    <form method="POST" action="{% url 'retry_task' task.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-warning">Retry</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center">No tasks found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

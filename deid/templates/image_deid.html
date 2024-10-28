@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block title %}Image De-identification{% endblock %}
+
+{% block content %}
+<div>
+    <h1 class="text-xl flex-1">Image De-identification</h1>
+</div>
+<div class="flex-1 bg-white border-2 border-black rounded-md p-4 ml-4">
+    <div class="text-sm text-black-500">Study Name</div>
+    <input type="text" class="w-full h-full border-2 border-black rounded-md p-2" name="study_name" />
+    <div class="text-sm mt-6 text-black flex items-center space-x-4">
+        <span>
+            Image Source: 
+            <input type="radio" id="image_source_local" name="image_source" value="LOCAL" checked onchange="toggleSourceOptions()"> Local folder
+            <input type="radio" id="image_source_pacs" name="image_source" value="PACS" onchange="toggleSourceOptions()"> PACS
+        </span>
+    </div>
+    <div id="pacs_options" class="hidden mt-4">
+        <div class="text-sm text-gray-500">Input File</div>
+        <div class="flex items-center">
+            <button class="h-6 rounded px-2 py-0.5 bg-white shadow text-sm hover:bg-gray-100 mr-2 mt-2 mb-2 border-2 border-black" onclick="selectFile()">Browse</button>
+            <div class="text-sm text-black ml-4" name="input_file">No file selected</div>
+        </div>
+        <div class="flex items-center">
+            <div class="text-sm mt-4 text-gray-500">Accession column header</div>
+            <input type="text" class="w-40 h-6 ml-4 border-2 border-black rounded-md" name="column_header" />
+        </div>
+    </div>
+    <div id="local_folder_options">
+        <div class="text-sm text-gray-500 mt-4">Input Folder</div>
+        <input type="text" class="w-full h-full border-2 border-black rounded-md p-2" name="input_folder" />
+        <div class="text-sm text-gray-500 mt-4">Output Folder</div>
+        <input type="text" class="w-full h-full border-2 border-black rounded-md p-2" name="output_folder" />
+    </div>
+    <div class="flex items-center mt-4">
+        <button class="text-black" onclick="toggleDeidOptions()">▼</button>
+        <div class="text-sm text-black ml-4">De-identification Options</div>
+    </div>
+    <div id="deid_options" class="mt-4 hidden ml-4">
+        <div class="text-sm text-gray-500">CTP DICOM Filter</div>
+        <textarea class="w-full h-32 border-2 border-black rounded-md p-2 resize-y" name="ctp_dicom_filter"></textarea>
+</div>
+</div>
+<div class="my-4">
+    <button class="mt-4 rounded px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()">Run De-id</button>
+</div>
+
+
+<script>
+    function toggleSourceOptions() {
+        const pacsOptions = document.getElementById('pacs_options');
+        pacsOptions.classList.toggle('hidden');
+    }
+
+    function selectFile() {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.style.display = 'none';
+        fileInput.onchange = function() {
+            if (this.files && this.files[0]) {
+                const fileName = this.files[0].name;
+                document.querySelector('[name="input_file"]').textContent = fileName;
+            }
+        };
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+    }
+
+    function toggleDeidOptions() {
+        const deidOptions = document.getElementById('deid_options');
+        deidOptions.classList.toggle('hidden');
+    }
+
+    async function runDeid() {
+        const data = {
+            study_name: document.querySelector('[name="study_name"]').value,
+            image_source: document.querySelector('input[name="image_source"]:checked').value,
+            input_folder: document.querySelector('[name="input_folder"]').value,
+            output_folder: document.querySelector('[name="output_folder"]').value,
+            ctp_dicom_filter: document.querySelector('[name="ctp_dicom_filter"]').value,
+            // PACS-specific fields
+            input_file: document.querySelector('[name="input_file"]').textContent,
+            column_header: document.querySelector('[name="column_header"]').value
+        };
+
+        try {
+            const response = await fetch('/run_deid', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            console.log('Success:', result);
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+</script>
+{% endblock %}
