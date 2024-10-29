@@ -14,6 +14,13 @@ docker run --rm -v ./my-config.yml:config.yml -v ./my-input:input -v ./my-output
 * `input`: Directory containing DICOMs or a single `input.xlsx` file depending on the job.
 * `output`: Directory where pipeline outputs and logs will be stored.
 
+## How to use from django app
+
+1. Create the `config.yml` file based on user input.
+2. Call the docker command (ie: `subprocess.run(["docker", "run"...], ...)`).
+3. Logs will be written to `output/logs.txt`. You can read that in real time. Progress and errors will be reported there.
+4. Do any post-processing and cleanup necessary.
+
 ### headerqr
 
 `config.yml` template:
