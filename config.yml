@@ -1,0 +1,8 @@
+module: imagedeid
+pacs_ip: host.docker.internal
+pacs_port: 4242
+pacs_aet: ORTHANC
+acc_col: acc
+ctp_filters: |
+  !ImageType.contains("INVALID") +
+  !InstanceNumber.equals("1")
