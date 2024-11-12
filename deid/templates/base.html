@@ -11,7 +11,7 @@
         <header class="fixed w-full z-20 p-4 flex bg-white text-white shadow">
             <div class="flex-1 text-lg my-auto">
                 <a href="/">
-                    <!-- <img src="{% static 'logo.png' %}" width="100px"> -->
+                    <img src="{% static 'logo.png' %}" width="100px">
                 </a>
             </div>
             <div class="flex-initial my-auto text-sm text-gray-700">
@@ -21,8 +21,11 @@
             </div>
         </header>
         <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24">
+            <a href="" class="block px-4 py-2 hover:bg-gray-100" onclick="alert('This feature isn\'t ready yet. We are working on it.'); return false;">DICOM Header Query / Retrieve</a>
+            <a href="" class="block px-4 py-2 hover:bg-gray-100" onclick="alert('This feature isn\'t ready yet. We are working on it.'); return false;">Local Header Extraction</a>
+            <a href="" class="block px-4 py-2 hover:bg-gray-100" onclick="alert('This feature isn\'t ready yet. We are working on it.'); return false;">Image Query / Retrieve</a>
             <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %}">Image De-identification</a>
-            <a href="/tasks" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/tasks/' %}bg-gray-100{% endif %}">Tasks</a>
+            <a href="" class="block px-4 py-2 hover:bg-gray-100" onclick="alert('This feature isn\'t ready yet. We are working on it.'); return false;">Report De-identification</a>
         </section>
         <section class="w-full h-screen pt-24 pl-64">
             <div class="max-w-4xl mx-auto">
