@@ -6,11 +6,6 @@ class Project(models.Model):
     input_folder = models.CharField(max_length=255)
     output_folder = models.CharField(max_length=255)
     ctp_dicom_filter = models.TextField(blank=True)
-    
-    def __str__(self):
-        return self.name
-
-class DeidentificationTask(models.Model):
     class TaskStatus(models.TextChoices):
         PENDING = 'pending', 'Pending'
         RUNNING = 'running', 'Running'
@@ -25,6 +20,9 @@ class DeidentificationTask(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     parameters = models.JSONField()
+    
+    def __str__(self):
+        return self.name
 
     class Meta:
         db_table = 'deid_tasks'

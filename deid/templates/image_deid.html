@@ -31,15 +31,51 @@
         <div class="text-sm text-gray-500 mt-4">Output Folder</div>
         <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
     </div>
-    </div>
     <div class="flex items-center mt-4">
         <button class="text-black" onclick="toggleDeidOptions()" id="deidOptionsButton">▼</button>
         <div class="text-sm text-black ml-4">De-identification Options</div>
     </div>
     <div id="deid_options" class="mt-4 hidden ml-4">
-        <div class="text-sm text-gray-600">CTP DICOM Filter</div>
-        <textarea class="w-full h-32 border-2 border-gray-400 p-2 resize-y" name="ctp_dicom_filter"></textarea>
-</div>
+        <!-- General Filters Section -->
+        <div class="mb-4">
+            <div class="text-sm text-gray-600 mb-2">General Filters</div>
+            {% include 'components/add_filters.html' %}
+        </div>
+
+        <!-- Modality Filters Section -->
+        <div class="mt-4">
+            <div class="flex items-center">
+                <input type="checkbox" 
+                       id="modality-filter-toggle" 
+                       class="mr-2"
+                       onchange="toggleModalityFilters()">
+                <label for="modality-filter-toggle">Filter by Modality</label>
+            </div>
+
+            <!-- Modality options -->
+            <div id="modality-options" class="ml-4 mt-2 hidden">
+                <div class="grid grid-cols-1 gap-2">
+                    {% for modality in modalities %}
+                    <div>
+                        <div class="flex items-center">
+                            <input type="checkbox" 
+                                   id="modality-{{ modality }}" 
+                                   value="{{ modality }}"
+                                   class="modality-checkbox mr-2"
+                                   onchange="handleModalitySelection(this)">
+                            <label for="modality-{{ modality }}">{{ modality }}</label>
+                        </div>
+                        <div id="filters-{{ modality }}" class="ml-4 mt-2 hidden"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Container for modality-specific filters -->
+            <div id="modality-filters-container" class="ml-4 mt-2">
+            </div>
+        </div>
+    </div>
 </div>
 <div class="my-4">
     <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()">Run De-id</button>
@@ -80,24 +116,128 @@
             image_source: document.querySelector('input[name="image_source"]:checked').value,
             input_folder: document.querySelector('[name="input_folder"]').value,
             output_folder: document.querySelector('[name="output_folder"]').value,
-            ctp_dicom_filter: document.querySelector('[name="ctp_dicom_filter"]').value,
-            // PACS-specific fields
+            column_header: document.querySelector('[name="column_header"]').value,
             input_file: document.querySelector('[name="input_file"]').textContent,
-            column_header: document.querySelector('[name="column_header"]').value
+            general_filters: [],
+            modality_filters: {},
         };
 
+        console.log("Starting filter collection...");
+
+        // Get general filters - update the selector to match your template
+        const generalFilterContainer = document.querySelector('#filters-container');  // or whatever class/id you're using
+        console.log("General filter container:", generalFilterContainer);
+        
+        if (generalFilterContainer) {
+            const filterRows = generalFilterContainer.querySelectorAll('.filter-row:not(#filter-template)');
+            filterRows.forEach(filterRow => {
+                const tagSelect = filterRow.querySelector('select[name="tag"]');  // Update if using different element
+                const actionSelect = filterRow.querySelector('select[name="action"]');  // Update if using different element
+                const valueInput = filterRow.querySelector('input[name="value"]');  // Update if using different element
+                
+                if (tagSelect && actionSelect) {
+                    const filter = {
+                        tag: tagSelect.value,
+                        action: actionSelect.value,
+                        value: valueInput ? valueInput.value : ''
+                    };
+                    if (filter.tag && filter.action) {
+                        data.general_filters.push(filter);
+                    }
+                }
+            });
+        }
+
+        // Get modality filters
+        if (document.getElementById('modality-filter-toggle')?.checked) {
+            const checkedModalities = document.querySelectorAll('.modality-checkbox:checked');
+            
+            checkedModalities.forEach(modalityCheckbox => {
+                const modalityId = modalityCheckbox.value;
+                const filterContainer = document.getElementById(`filter-container-${modalityId}`);
+                console.log("Filter container:", filterContainer);
+                
+                if (filterContainer) {
+                    const modalityFilters = [];
+                    const filterRows = filterContainer.querySelectorAll('.filter-row:not(#filter-template)');
+                    
+                    filterRows.forEach(filterRow => {
+                        const filter = {
+                            tag: filterRow.querySelector('select[name="tag"]')?.value,
+                            action: filterRow.querySelector('select[name="action"]')?.value,
+                            value: filterRow.querySelector('input[name="value"]')?.value
+                        };
+                        console.log(`Collected modality filter for ${modalityId}:`, filter);
+                        if (filter.tag && filter.action) {
+                            modalityFilters.push(filter);
+                        }
+                    });
+                    modalityFilters.push({tag: 'Modality', action: 'equals', value: modalityId})
+                    
+                    if (modalityFilters.length > 0) {
+                        data.modality_filters[modalityId] = modalityFilters;
+                    }
+                }
+            });
+        }
+        
         try {
-            const response = await fetch('/run_deid', {
+            console.log("Sending request to /run_deid/");
+            const response = await fetch('/run_deid/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(data)
             });
+            console.log("Request sent, awaiting response...");
             const result = await response.json();
             console.log('Success:', result);
         } catch (error) {
             console.error('Error:', error);
+        }
+    }
+
+    function toggleModalityFilters() {
+        const modalityOptions = document.getElementById('modality-options');
+        modalityOptions.classList.toggle('hidden');
+        
+        if (!document.getElementById('modality-filter-toggle').checked) {
+            document.getElementById('modality-filters-container').innerHTML = '';
+        }
+    }
+
+    function handleModalitySelection(checkbox) {
+        const modalityId = checkbox.value;
+        const filterSection = document.getElementById(`filters-${modalityId}`);
+        
+        if (checkbox.checked) {
+            filterSection.classList.remove('hidden');
+            
+            // Only initialize if empty
+            if (filterSection.children.length === 0) {
+                // Add filter container
+                const filterContainer = document.createElement('div');
+                filterContainer.id = `filter-container-${modalityId}`;
+                filterContainer.classList.add('space-y-2');
+                
+                // Add "Add Filter" button
+                const addButton = document.createElement('button');
+                addButton.textContent = 'Add Filter';
+                addButton.classList.add('mt-2');
+                addButton.onclick = () => {
+                    const template = document.querySelector('#filter-template');
+                    const newFilter = template.cloneNode(true);
+                    newFilter.style.display = 'block';
+                    newFilter.removeAttribute('id');
+                    filterContainer.appendChild(newFilter);
+                };
+                
+                filterSection.appendChild(filterContainer);
+                filterSection.appendChild(addButton);
+            }
+        } else {
+            filterSection.classList.add('hidden');
         }
     }
 

@@ -1,0 +1,73 @@
+<!-- Template filter row (hidden) - Keep this outside the container -->
+<div id="filter-template" class="filter-row w-full flex items-center gap-2" style="display: none;">
+    <!-- Field Selection Dropdown -->
+    <select name="tag" required>
+        {% for field_id, field_name in dicom_fields %}
+            <option value="{{ field_id }}">{{ field_name }}</option>
+        {% endfor %}
+    </select>
+
+    <!-- Operation Dropdown -->
+    <select name="action" required>
+        <option value="equals">Equals</option>
+        <option value="not_equals">Does Not Equal</option>
+        <option value="contains">Contains</option>
+        <option value="not_contains">Does Not Contain</option>
+        <option value="startsWith">Starts With</option>
+        <option value="not_startsWith">Does Not Start With</option>
+        <option value="endsWith">Ends With</option>
+        <option value="not_endsWith">Does Not End With</option>
+        <option value="isLessThan">Less Than</option>
+        <option value="isGreaterThan">Greater Than</option>
+    </select>
+
+    <!-- Value Input -->
+    <input type="text" 
+           name="value" 
+           placeholder="Enter value" 
+           required>
+
+    <!-- Delete Button -->
+    <button type="button" 
+            onclick="removeFilter(this)">
+            X
+    </button>
+</div>
+
+<!-- Separate container for active filters -->
+<div id="filters-container" class="w-full flex-row gap-2">
+</div>
+
+<!-- Add Filter button -->
+<button type="button"
+        onclick="addFilter()">
+    Add Filter
+</button>
+
+<script>
+function addFilter() {
+    // Get the template content
+    const template = document.querySelector('#filter-template');
+    const newFilter = template.cloneNode(true);
+    
+    // Make the new filter visible
+    newFilter.style.display = 'flex';
+    newFilter.removeAttribute('id');
+    
+    // Clear any values in the new filter
+    newFilter.querySelector('input[name="value"]').value = '';
+    
+    // Reset dropdowns to first option
+    newFilter.querySelectorAll('select').forEach(select => {
+        select.selectedIndex = 0;
+    });
+    
+    // Add the new filter to the filters container
+    document.querySelector('#filters-container').appendChild(newFilter);
+}
+
+function removeFilter(button) {
+    button.closest('.filter-row').remove();
+}
+
+</script>
