@@ -56,8 +56,10 @@ def build_image_deid_config(task):
 
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
-    expression_string = preprocess_input(general_filters, modality_filters)
-    config['ctp_filters'] = expression_string
+    # TODO: fix expression_string generation and uncomment. Hardcoding ct filters for now
+    # expression_string = preprocess_input(general_filters, modality_filters)
+    # config['ctp_filters'] = expression_string
+    config['ctp_filters'] = '!ImageType.contains("INVALID") + !InstanceNumber.equals("1")'
 
     # Write config to file
     with open('config.yml', 'w') as f:
