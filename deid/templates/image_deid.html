@@ -3,16 +3,16 @@
 {% block title %}Image De-identification{% endblock %}
 
 {% block content %}
-<div>
+<div class="px-4">
     <h1 class="text-xl flex-1">Image De-identification</h1>
 </div>
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
-    <div class="text-sm text-black-500">Study Name</div>
-    <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="study_name" />
+    <div class="text-sm text-black-5">Study Name</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
     <div class="text-sm mt-6 text-black flex items-center space-x-4">
         Image Source: 
-        <input class="ml-4" type="radio" id="image_source_local" name="image_source" value="LOCAL" checked onchange="toggleSourceOptions()"> Local folder
-        <input class="ml-4" type="radio" id="image_source_pacs" name="image_source" value="PACS" onchange="toggleSourceOptions()"> PACS
+        <input class="ml-4" type="radio" id="image_source_local" name="image_source" value="LOCAL" checked onchange="toggleSourceOptions()"><span>Local folder</span>
+        <input class="ml-4" type="radio" id="image_source_pacs" name="image_source" value="PACS" onchange="toggleSourceOptions()"> <span>PACS</span>
     </div>
     <div id="pacs_options" class="hidden mt-4">
         <div class="text-sm text-gray-500">Input File</div>
@@ -27,9 +27,9 @@
     </div>
     <div id="local_folder_options">
         <div class="text-sm text-gray-500 mt-4">Input Folder</div>
-        <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
+        <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
         <div class="text-sm text-gray-500 mt-4">Output Folder</div>
-        <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
+        <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
     </div>
     <div class="flex items-center mt-4">
         <button class="text-black" onclick="toggleDeidOptions()" id="deidOptionsButton">▼</button>
