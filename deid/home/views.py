@@ -66,6 +66,9 @@ def run_deid(request):
 
 def get_dicom_fields():
     dicom_fields = [
+        ('BurnedInAnnotation', "Burned In Annotation"),
+        ('InstanceNumber', 'Instance Number'),
+        ('ImageType', 'Image Type'),
         ('PatientName', 'Patient Name'),
         ('PatientID', 'Patient ID'),
         ('StudyDate', 'Study Date'),
