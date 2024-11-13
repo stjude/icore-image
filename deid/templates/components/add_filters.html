@@ -1,14 +1,14 @@
 <!-- Template filter row (hidden) - Keep this outside the container -->
-<div id="filter-template" class="filter-row w-full flex items-center gap-2" style="display: none;">
+<div id="filter-template" class="filter-row w-full flex items-center gap-2 mt-2" style="display: none;">
     <!-- Field Selection Dropdown -->
-    <select name="tag" required>
+    <select name="tag" class="h-full border-2 border-gray-400 p-2 bg-white" required>
         {% for field_id, field_name in dicom_fields %}
             <option value="{{ field_id }}">{{ field_name }}</option>
         {% endfor %}
     </select>
 
     <!-- Operation Dropdown -->
-    <select name="action" required>
+    <select name="action" class="h-full border-2 border-gray-400 p-2 bg-white" required>
         <option value="equals">Equals</option>
         <option value="not_equals">Does Not Equal</option>
         <option value="contains">Contains</option>
@@ -25,12 +25,15 @@
     <input type="text" 
            name="value" 
            placeholder="Enter value" 
+           class="h-full border-2 border-gray-400 p-2 bg-white"
            required>
 
     <!-- Delete Button -->
     <button type="button" 
             onclick="removeFilter(this)">
-            X
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>  
     </button>
 </div>
 
@@ -39,9 +42,9 @@
 </div>
 
 <!-- Add Filter button -->
-<button type="button"
+<button type="button" class="mt-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100"
         onclick="addFilter()">
-    Add Filter
+    + Add Filter
 </button>
 
 <script>
