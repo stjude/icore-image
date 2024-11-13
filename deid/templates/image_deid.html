@@ -76,9 +76,56 @@
             <div id="modality-filters-container" class="ml-4 mt-2">
             </div>
         </div>
+
+        <!-- Advanced de-id options section -->
+        <div class="mt-4">
+            <div class="mb-2 text-sm text-gray-600 mb-2">Advanced De-identification Options</div>
+            <div class="flex">
+                <div class="flex-1">
+                    <div class="text-sm text-gray-600 mb-2">To keep</div>
+                    <textarea class="w-full h-full border-2 border-gray-400 p-2">SOPClassUID
+InstanceNumber
+SeriesNumber
+ProtocolName
+ImageType
+Modality
+BodyPartExamined
+ScanOptions
+StudyDescription
+SeriesDescription</textarea>
+                </div>
+                <div class="ml-4 flex-1">
+                    <div class="text-sm text-gray-600 mb-2">To date shift</div>
+                    <textarea class="w-full h-full border-2 border-gray-400 p-2">StudyDate
+SeriesDate
+AcquisitionDate
+ContentDate
+OverlayDate
+CurveDate
+AcquisitionDatetime
+LastMenstrualDate
+DateOfSecondaryCapture
+DateOfLastCalibration</textarea>
+                </div>
+                <div class="ml-4 flex-1">
+                    <div class="text-sm text-gray-600 mb-2">To randomize</div>
+                    <textarea class="w-full h-full border-2 border-gray-400 p-2">AccessionNumber
+PatientID
+StudyInstanceUID
+SeriesInstanceUID
+SOPInstanceUID
+</textarea>
+                </div>
+            </div>
+            <div class="mt-12">
+                Date shift by
+                <input value="-3210" type="text" class="border-2 border-gray-400 px-2 py-1 mx-2">
+                days
+            </div>
+        </div>
     </div>
 </div>
-<div class="my-4">
+<div class="m-4">
     <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()">Run De-id</button>
 </div>
 
