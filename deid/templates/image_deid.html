@@ -75,52 +75,30 @@
             <!-- Container for modality-specific filters -->
             <div id="modality-filters-container" class="ml-4 mt-2">
             </div>
+        
         </div>
 
-        <!-- Advanced de-id options section -->
-        <div class="mt-4">
-            <div class="mb-2 text-sm text-gray-600 mb-2">Advanced De-identification Options</div>
-            <div class="flex">
+        <!-- Advanced De-identification Options Section -->
+        <div class="mt-6">
+            <div class="text-md mb-2">Advanced De-identification Options</div>
+            <div class="flex space-x-4">
                 <div class="flex-1">
-                    <div class="text-sm text-gray-600 mb-2">To keep</div>
-                    <textarea class="w-full h-full border-2 border-gray-400 p-2">SOPClassUID
-InstanceNumber
-SeriesNumber
-ProtocolName
-ImageType
-Modality
-BodyPartExamined
-ScanOptions
-StudyDescription
-SeriesDescription</textarea>
+                    <div class="text-sm text-gray-500">To keep</div>
+                    <textarea class="w-full border-2 border-gray-400 p-4 h-32 overflow-y-auto resize-none" name="tags_to_keep"></textarea>
                 </div>
-                <div class="ml-4 flex-1">
-                    <div class="text-sm text-gray-600 mb-2">To date shift</div>
-                    <textarea class="w-full h-full border-2 border-gray-400 p-2">StudyDate
-SeriesDate
-AcquisitionDate
-ContentDate
-OverlayDate
-CurveDate
-AcquisitionDatetime
-LastMenstrualDate
-DateOfSecondaryCapture
-DateOfLastCalibration</textarea>
+                <div class="flex-1">
+                    <div class="text-sm text-gray-500">To date shift</div>
+                    <textarea class="w-full border-2 border-gray-400 p-4 h-32 overflow-y-auto resize-none" name="tags_to_dateshift"></textarea>
                 </div>
-                <div class="ml-4 flex-1">
-                    <div class="text-sm text-gray-600 mb-2">To randomize</div>
-                    <textarea class="w-full h-full border-2 border-gray-400 p-2">AccessionNumber
-PatientID
-StudyInstanceUID
-SeriesInstanceUID
-SOPInstanceUID
-</textarea>
+                <div class="flex-1">
+                    <div class="text-sm text-gray-500">To randomize</div>
+                    <textarea class="w-full border-2 border-gray-400 p-4 h-32 overflow-y-auto resize-none" name="tags_to_randomize"></textarea>
                 </div>
             </div>
-            <div class="mt-12">
-                Date shift by
-                <input value="-3210" type="text" class="border-2 border-gray-400 px-2 py-1 mx-2">
-                days
+            <div class="flex items-center mt-4">
+                <div class="text-sm text-gray-500">Date shift by</div>
+                <input type="number" class="w-20 mx-2 border-2 border-gray-400 p-1" name="date_shift_days" />
+                <div class="text-sm text-gray-500">days</div>
             </div>
         </div>
     </div>
@@ -159,6 +137,7 @@ SOPInstanceUID
     }
 
     async function runDeid() {
+        const filters = collectFilters('#filters-container');
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             image_source: document.querySelector('input[name="image_source"]:checked').value,
@@ -166,71 +145,14 @@ SOPInstanceUID
             output_folder: document.querySelector('[name="output_folder"]').value,
             column_header: document.querySelector('[name="column_header"]').value,
             input_file: document.querySelector('[name="input_file"]').textContent,
-            general_filters: [],
-            modality_filters: {},
+            tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
+            tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
+            tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,
+            date_shift_days: document.querySelector('[name="date_shift_days"]').value,
+            ...filters
         };
 
-        console.log("Starting filter collection...");
-
-        // Get general filters - update the selector to match your template
-        const generalFilterContainer = document.querySelector('#filters-container');  // or whatever class/id you're using
-        console.log("General filter container:", generalFilterContainer);
-        
-        if (generalFilterContainer) {
-            const filterRows = generalFilterContainer.querySelectorAll('.filter-row:not(#filter-template)');
-            filterRows.forEach(filterRow => {
-                const tagSelect = filterRow.querySelector('select[name="tag"]');  // Update if using different element
-                const actionSelect = filterRow.querySelector('select[name="action"]');  // Update if using different element
-                const valueInput = filterRow.querySelector('input[name="value"]');  // Update if using different element
-                
-                if (tagSelect && actionSelect) {
-                    const filter = {
-                        tag: tagSelect.value,
-                        action: actionSelect.value,
-                        value: valueInput ? valueInput.value : ''
-                    };
-                    if (filter.tag && filter.action) {
-                        data.general_filters.push(filter);
-                    }
-                }
-            });
-        }
-
-        // Get modality filters
-        if (document.getElementById('modality-filter-toggle')?.checked) {
-            const checkedModalities = document.querySelectorAll('.modality-checkbox:checked');
-            
-            checkedModalities.forEach(modalityCheckbox => {
-                const modalityId = modalityCheckbox.value;
-                const filterContainer = document.getElementById(`filter-container-${modalityId}`);
-                console.log("Filter container:", filterContainer);
-                
-                if (filterContainer) {
-                    const modalityFilters = [];
-                    const filterRows = filterContainer.querySelectorAll('.filter-row:not(#filter-template)');
-                    
-                    filterRows.forEach(filterRow => {
-                        const filter = {
-                            tag: filterRow.querySelector('select[name="tag"]')?.value,
-                            action: filterRow.querySelector('select[name="action"]')?.value,
-                            value: filterRow.querySelector('input[name="value"]')?.value
-                        };
-                        console.log(`Collected modality filter for ${modalityId}:`, filter);
-                        if (filter.tag && filter.action) {
-                            modalityFilters.push(filter);
-                        }
-                    });
-                    modalityFilters.push({tag: 'Modality', action: 'equals', value: modalityId})
-                    
-                    if (modalityFilters.length > 0) {
-                        data.modality_filters[modalityId] = modalityFilters;
-                    }
-                }
-            });
-        }
-        
         try {
-            console.log("Sending request to /run_deid/");
             const response = await fetch('/run_deid/', {
                 method: 'POST',
                 headers: {
@@ -238,7 +160,6 @@ SOPInstanceUID
                 },
                 body: JSON.stringify(data)
             });
-            console.log("Request sent, awaiting response...");
             const result = await response.json();
             console.log('Success:', result);
         } catch (error) {
@@ -271,8 +192,8 @@ SOPInstanceUID
                 
                 // Add "Add Filter" button
                 const addButton = document.createElement('button');
-                addButton.textContent = '+ Add Filter';
-                addButton.classList = 'mt-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100';
+                addButton.textContent = 'Add Filter';
+                addButton.classList.add('border-2', 'border-gray-400', 'p-1');
                 addButton.onclick = () => {
                     const template = document.querySelector('#filter-template');
                     const newFilter = template.cloneNode(true);

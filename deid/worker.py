@@ -1,12 +1,11 @@
 import django
 import os
 import time
-import yaml
 import subprocess
-from lark import Lark
+from ruamel.yaml import YAML, scalarstring
 from django.db import transaction
 
-from grammar import preprocess_input
+from grammar import generate_filters_string, generate_anonymizer_script
 
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -56,14 +55,21 @@ def build_image_deid_config(task):
 
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
-    # TODO: fix expression_string generation and uncomment. Hardcoding ct filters for now
-    # expression_string = preprocess_input(general_filters, modality_filters)
-    # config['ctp_filters'] = expression_string
-    config['ctp_filters'] = '!ImageType.contains("INVALID") + !InstanceNumber.equals("1")'
+    expression_string = generate_filters_string(general_filters, modality_filters)
+    config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+
+    tags_to_keep = task.parameters['tags_to_keep']
+    tags_to_dateshift = task.parameters['tags_to_dateshift']
+    tags_to_randomize = task.parameters['tags_to_randomize']
+    date_shift_days = task.parameters['date_shift_days']
+
+    anonymizer_script = generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days)
+    config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
 
     # Write config to file
     with open('config.yml', 'w') as f:
-        yaml.dump(config, f, default_flow_style=False)
+        yaml = YAML()
+        yaml.dump(config, f)
     
     return config
 
