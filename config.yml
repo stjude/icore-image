@@ -6,3 +6,22 @@ acc_col: acc
 ctp_filters: |
   !ImageType.contains("INVALID") +
   !InstanceNumber.equals("1")
+ctp_anonymizer: |
+  <script>
+   <p t="DATEINC">-3210</p>
+   <p t="NOTICE1">IMPORTANT: Be sure to review Series Descriptions for PHI!!</p>
+   <p t="NOTICE2">IMPORTANT: Tags inside of sequences may contain PHI.</p>
+   <p t="PROFILENAME">CTP Clinical Trial Default</p>
+   <p t="PROJECTNAME">Project</p>
+   <p t="SITENAME">SiteName</p>
+   <p t="SITEID">1</p>
+   <p t="TRIALNAME">Trial</p>
+   <p t="SUBJECT">Subject</p>
+   <p t="UIDROOT">1.2.840.113654.2.70.1</p>
+   <e en="T" t="00080005" n="SpecificCharacterSet">@keep()</e>
+   <e en="F" t="00080008" n="ImageType"></e>
+   <e en="T" t="00080012" n="InstanceCreationDate">@incrementdate(this,@DATEINC)</e>
+   <e en="F" t="00080013" n="InstanceCreationTime"></e>
+   <e en="T" t="00080014" n="InstanceCreatorUID">@hashuid(@UIDROOT,this)</e>
+   <e en="T" t="00080016" n="SOPClassUID">@keep()</e>
+  </script>
