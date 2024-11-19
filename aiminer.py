@@ -9,6 +9,7 @@ import requests
 import subprocess
 
 import pandas as pd
+import xml.etree.ElementTree as ET
 
 from lark import Lark
 from threading import Thread
@@ -238,6 +239,11 @@ def save_ctp_filters(ctp_filters):
     with open(os.path.join("ctp", "scripts", "dicom-filter.script"), "w") as f:
         f.write(ctp_filters if ctp_filters is not None else "true.")
 
+def save_ctp_anonymizer(ctp_anonymizer):
+    if ctp_anonymizer is not None:
+        with open(os.path.join("ctp", "scripts", "DicomAnonymizer.script"), "w") as f:
+            f.write(ctp_anonymizer)
+
 def save_config(config):
     with open(os.path.join("ctp", "config.xml"), "w") as f:
         f.write(config)
@@ -286,6 +292,7 @@ def imagedeid_func():
 
 def imagedeid_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
+    save_ctp_anonymizer(config.get("ctp_anonymizer"))
     querying_pacs = os.path.exists(os.path.join("input", "input.xlsx"))
     save_config(IMAGEDEID_PACS_CONFIG if querying_pacs else IMAGEDEID_LOCAL_CONFIG)
     with ctp_workspace(imagedeid_func, {"querying_pacs": querying_pacs}) as logf:
@@ -307,6 +314,12 @@ def validate_ctp_filters(filters):
         parser.parse(filters.strip())
     except Exception as e:
         error_and_exit(f"Invalid CTP filters: {e}")
+
+def validate_ctp_anonymizer(anonymizer):
+    try:
+        ET.fromstring(anonymizer)
+    except ET.ParseError as e:
+        error_and_exit(f"Invalid CTP anonymizer. {e}")
 
 def validate_excel(path, **config):
     acc_col = config.get("acc_col")
@@ -344,6 +357,8 @@ def validate_config(config):
         error_and_exit("Input directory not found.")
     if config.get("ctp_filters") is not None:
         validate_ctp_filters(config.get("ctp_filters"))
+    if config.get("ctp_anonymizer") is not None:
+        validate_ctp_anonymizer(config.get("ctp_anonymizer"))
     if os.listdir("output") != ["log.txt"]:
         error_and_exit("Output directory must be empty.")
     if os.path.exists(os.path.join("input", "input.xlsx")):
@@ -376,6 +391,7 @@ def imageqr(**config):
         date_col (str): Date column name in excel file.
         date_window (int): Number of days to search around the date.
         ctp_filters (str): Filters for the query in the CTP format.
+        ctp_anonymizer (str): Anonymization script in the CTP xml format.
     """
     imageqr_main(**config)
 
@@ -395,6 +411,7 @@ def imagedeid(**config):
         date_col (str): Date column name in excel file.
         date_window (int): Number of days to search around the date.
         ctp_filters (str): Filters for the query in the CTP format.
+        ctp_anonymizer (str): Anonymization script in the CTP xml format.
     """
     imagedeid_main(**config)
 
