@@ -1,9 +1,10 @@
 from django.views.generic import TemplateView, ListView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotFound, HttpResponse
 from django.views.decorators.http import require_http_methods
 import json
+import os
 from django.views.decorators.csrf import csrf_exempt
 from .models import Project, Settings
 
@@ -54,8 +55,31 @@ class SettingsView(TemplateView):
             'CR'
         ]
         return context
+    
+class TaskProgressView(TemplateView):
+    template_name = 'task_progress.html'
 
+def get_log_content(request):
+    try:
+        output_folder = request.GET.get('output_folder')
+        if not output_folder:
+            return HttpResponseBadRequest("No output folder specified")
 
+        # Construct path to log file
+        log_file_path = os.path.join(output_folder, 'log.txt')
+        
+        # Check if file exists
+        if not os.path.exists(log_file_path):
+            return HttpResponseNotFound("Log file not found")
+
+        # Read the log file content
+        with open(log_file_path, 'r') as f:
+            content = f.read()
+            
+        return HttpResponse(content, content_type='text/plain')
+
+    except Exception as e:
+        return HttpResponse(str(e), status=500)
 
 @csrf_exempt
 def run_deid(request):
@@ -71,14 +95,16 @@ def run_deid(request):
             output_folder=data['output_folder'],
             status=Project.TaskStatus.PENDING,
             parameters={
-                'column_header': data['column_header'],
                 'input_file': data['input_file'],
+                'acc_col': data['acc_col'],
+                'mrn_col': data['mrn_col'],
+                'date_col': data['date_col'],
                 'general_filters': data['general_filters'],
                 'modality_filters': data['modality_filters'],
                 'tags_to_keep': data['tags_to_keep'],
                 'tags_to_dateshift': data['tags_to_dateshift'],
                 'tags_to_randomize': data['tags_to_randomize'],
-                'date_shift_days': data['date_shift_days']
+                'date_shift_days': data['date_shift_days'],
             }
         )
         

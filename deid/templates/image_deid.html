@@ -20,9 +20,22 @@
             <button class="h-6 shadow text-sm mr-2 mt-2 mb-2 border-2 border-gray-400" onclick="selectFile()">Browse</button>
             <div class="text-sm text-black ml-4" name="input_file">No file selected</div>
         </div>
-        <div class="flex items-center mt-4">
-            <div class="text-sm text-gray-600">Accession column header</div>
-            <input type="text" class="w-40 ml-4 border-2 border-gray-400" name="column_header" />
+        <div class="flex items-center">
+            <div class="text-sm text-gray-600">Query using:</div>
+            <input class="ml-4" type="radio" id="query_accession" name="query_type" value="accession" checked onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">Accession</span>
+            <input class="ml-4" type="radio" id="query_mrn_date" name="query_type" value="mrn_date" onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">MRN + Date</span>
+        </div>
+        <div class="flex items-center">
+            <div id="accession_input" class="flex items-center">
+                <div class="text-sm text-gray-600">Accession column header</div>
+                <input type="text" class="w-40 ml-4 border-2 border-gray-400" name="accession_column" />
+            </div>
+            <div id="mrn_date_input" class="hidden flex items-center">
+                <div class="text-sm text-gray-600">MRN column header</div>
+                <input type="text" class="w-40 ml-4 border-2 border-gray-400" name="mrn_column" />
+                <div class="text-sm text-gray-600 ml-4">Date column header</div>
+                <input type="text" class="w-40 ml-4 border-2 border-gray-400" name="date_column" />
+            </div>
         </div>
     </div>
     <div id="local_folder_options">
@@ -77,22 +90,22 @@
             </div>
         
         </div>
-
+        
         <!-- Advanced De-identification Options Section -->
         <div class="mt-6">
             <div class="text-md mb-2">Advanced De-identification Options</div>
             <div class="flex space-x-4">
                 <div class="flex-1">
                     <div class="text-sm text-gray-500">To keep</div>
-                    <textarea class="w-full border-2 border-gray-400 p-4 h-32 overflow-y-auto resize-none" name="tags_to_keep"></textarea>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_keep"></textarea>
                 </div>
                 <div class="flex-1">
                     <div class="text-sm text-gray-500">To date shift</div>
-                    <textarea class="w-full border-2 border-gray-400 p-4 h-32 overflow-y-auto resize-none" name="tags_to_dateshift"></textarea>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_dateshift"></textarea>
                 </div>
                 <div class="flex-1">
                     <div class="text-sm text-gray-500">To randomize</div>
-                    <textarea class="w-full border-2 border-gray-400 p-4 h-32 overflow-y-auto resize-none" name="tags_to_randomize"></textarea>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_randomize"></textarea>
                 </div>
             </div>
             <div class="flex items-center mt-4">
@@ -111,7 +124,26 @@
 <script>
     function toggleSourceOptions() {
         const pacsOptions = document.getElementById('pacs_options');
-        pacsOptions.classList.toggle('hidden');
+        const imageSourcePacs = document.getElementById('image_source_pacs')
+        if (imageSourcePacs.checked){
+            pacsOptions.classList.remove('hidden');
+        } else{
+            pacsOptions.classList.add('hidden');
+        }
+    }
+    
+    function toggleQueryTypeInputs() {
+        const accessionInput = document.getElementById('accession_input');
+        const mrnDateInput = document.getElementById('mrn_date_input');
+        const queryAccession = document.getElementById('query_accession');
+        
+        if (queryAccession.checked) {
+            accessionInput.classList.remove('hidden');
+            mrnDateInput.classList.add('hidden');
+        } else {
+            accessionInput.classList.add('hidden');
+            mrnDateInput.classList.remove('hidden');
+        }
     }
 
     function selectFile() {
@@ -138,12 +170,12 @@
 
     async function runDeid() {
         const filters = collectFilters('#filters-container');
+        const isAccessionQuery = document.getElementById('query_accession').checked;
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             image_source: document.querySelector('input[name="image_source"]:checked').value,
             input_folder: document.querySelector('[name="input_folder"]').value,
             output_folder: document.querySelector('[name="output_folder"]').value,
-            column_header: document.querySelector('[name="column_header"]').value,
             input_file: document.querySelector('[name="input_file"]').textContent,
             tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
             tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
@@ -151,6 +183,16 @@
             date_shift_days: document.querySelector('[name="date_shift_days"]').value,
             ...filters
         };
+
+        if (isAccessionQuery) {
+            data.acc_col = document.querySelector('[name="accession_column"]').value;
+            data.mrn_col = '';
+            data.date_col = '';
+        } else {
+            data.acc_col = '';
+            data.mrn_col = document.querySelector('[name="mrn_column"]').value;
+            data.date_col = document.querySelector('[name="date_column"]').value;
+        }
 
         try {
             const response = await fetch('/run_deid/', {
@@ -161,7 +203,12 @@
                 body: JSON.stringify(data)
             });
             const result = await response.json();
-            console.log('Success:', result);
+            if (result.status === 'success') {
+                // Redirect to progress page with output folder path as parameter
+                window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+            } else {
+                console.error('Error starting de-identification:', result);
+            }
         } catch (error) {
             console.error('Error:', error);
         }
@@ -192,8 +239,8 @@
                 
                 // Add "Add Filter" button
                 const addButton = document.createElement('button');
-                addButton.textContent = 'Add Filter';
-                addButton.classList.add('border-2', 'border-gray-400', 'p-1');
+                addButton.textContent = '+ Add Filter';
+                addButton.classList.add('mt-2', 'px-2', 'py-1', 'bg-white', 'shadow', 'text-sm', 'hover:bg-blue-100');
                 addButton.onclick = () => {
                     const template = document.querySelector('#filter-template');
                     const newFilter = template.cloneNode(true);
@@ -209,6 +256,7 @@
             filterSection.classList.add('hidden');
         }
     }
+
 
 </script>
 {% endblock %}

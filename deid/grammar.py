@@ -3,7 +3,11 @@ def generate_filters_string(general_filters, modality_filters):
         if 'not' in f['action']:
             f['tag'] = f'!{f["tag"]}'
             f['action'] = f['action'].replace("not_", "")
-            print(f)
+    for _, filters in modality_filters.items():
+        for f in filters:
+            if 'not' in f['action']:
+                f['tag'] = f'!{f["tag"]}'
+            f['action'] = f['action'].replace("not_", "")
     # Build general filters string
     general_str = "\n* ".join(
         f'{f["tag"]}.{f["action"]}("{f["value"]}")' for f in general_filters

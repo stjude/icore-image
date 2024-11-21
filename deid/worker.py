@@ -6,12 +6,14 @@ from ruamel.yaml import YAML, scalarstring
 from django.db import transaction
 
 from grammar import generate_filters_string, generate_anonymizer_script
-
+from home.models import Project
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
-from home.models import Project
+PACS_IP = 'host.docker.internal'
+PACS_PORT = 4242
+PACS_AET = 'ORTHANC'
 
 def process_image_deid(task):
     print("task: ", task)
@@ -21,13 +23,24 @@ def process_image_deid(task):
     output_folder = task.output_folder
     build_image_deid_config(task)
 
-    docker_cmd = [
-        'docker', 'run', '--rm',
-        '-v', f'{os.path.abspath("config.yml")}:/config.yml',
-        '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_folder)}:/output',
-        'aiminer'
-    ]
+    if task.image_source == 'PACS':
+        docker_cmd = [
+            'docker', 'run', '--rm',
+            '-v', f'{os.path.abspath("config.yml")}:/config.yml',
+            '-v', f'{os.path.abspath(input_folder)}:/input',
+            '-v', f'{os.path.abspath(output_folder)}:/output',
+            '-p', '50001:50001',
+            '-p', f'{PACS_PORT}:{PACS_PORT}',
+            'aiminer'
+        ]
+    else:
+        docker_cmd = [
+            'docker', 'run', '--rm',
+            '-v', f'{os.path.abspath("config.yml")}:/config.yml',
+            '-v', f'{os.path.abspath(input_folder)}:/input',
+            '-v', f'{os.path.abspath(output_folder)}:/output',
+            'aiminer'
+        ]
     
     # Print a shell-ready version of the command
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
@@ -48,15 +61,29 @@ def build_image_deid_config(task):
     # Add PACS configuration if needed
     if task.image_source == 'PACS':
         config.update({
-            'pacs_ip': task.parameters['pacs_ip'],
-            'pacs_port': task.parameters['pacs_port'],
-            'pacs_aet': task.parameters['pacs_aet'],
+            'pacs_ip': PACS_IP,
+            'pacs_port': PACS_PORT,
+            'pacs_aet': PACS_AET
+            # 'pacs_ip': task.parameters['pacs_ip'],
+            # 'pacs_port': task.parameters['pacs_port'],
+            # 'pacs_aet': task.parameters['pacs_aet'],
         })
+        if task.parameters['acc_col'] != '':
+            config.update({
+                'acc_col': task.parameters['acc_col']
+            })
+        elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
+            config.update({
+                'mrn_col': task.parameters['mrn_col'],
+                'date_col': task.parameters['date_col']
+            })
+            
 
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
     expression_string = generate_filters_string(general_filters, modality_filters)
-    config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+    if expression_string != '': 
+        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
 
     tags_to_keep = task.parameters['tags_to_keep']
     tags_to_dateshift = task.parameters['tags_to_dateshift']

@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}De-identification Progress{% endblock %}
+
+{% block content %}
+<div class="px-4">
+    <h1 class="text-xl flex-1">De-identification Progress</h1>
+    <div class="mt-4 bg-black text-white p-4 font-mono text-sm h-96 overflow-y-auto" id="logContent">
+    </div>
+</div>
+
+<script>
+    const outputFolder = new URLSearchParams(window.location.search).get('output_folder');
+    
+    async function fetchLogContent() {
+        try {
+            const response = await fetch(`/get_log_content?output_folder=${encodeURIComponent(outputFolder)}`);
+            const data = await response.text();
+            document.getElementById('logContent').innerHTML = data.replace(/\n/g, '<br>');
+        } catch (error) {
+            console.error('Error fetching log:', error);
+        }
+    }
+
+    // Initial fetch
+    fetchLogContent();
+
+    // Poll every second
+    setInterval(fetchLogContent, 1000);
+</script>
+{% endblock %}
