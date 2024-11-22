@@ -6,10 +6,11 @@ from ruamel.yaml import YAML, scalarstring
 from django.db import transaction
 
 from grammar import generate_filters_string, generate_anonymizer_script
-from home.models import Project
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
+
+from home.models import Project
 
 PACS_IP = 'host.docker.internal'
 PACS_PORT = 4242
