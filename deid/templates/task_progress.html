@@ -16,7 +16,9 @@
         try {
             const response = await fetch(`/get_log_content?output_folder=${encodeURIComponent(outputFolder)}`);
             const data = await response.text();
-            document.getElementById('logContent').innerHTML = data.replace(/\n/g, '<br>');
+            const logContent = document.getElementById('logContent');
+            logContent.innerHTML = data.replace(/\n/g, '<br>');
+            logContent.scrollTop = logContent.scrollHeight;
         } catch (error) {
             console.error('Error fetching log:', error);
         }
