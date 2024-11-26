@@ -28,7 +28,7 @@
         <div class="flex items-center">
             <div id="accession_input" class="flex items-center">
                 <div class="text-sm text-gray-600">Accession column header</div>
-                <input type="text" class="w-40 ml-4 border-2 border-gray-400" name="accession_column" />
+                <input type="text" class="w-40 ml-4 border-2 border-gray-400 p-1" name="accession_column" />
             </div>
             <div id="mrn_date_input" class="hidden flex items-center">
                 <div class="text-sm text-gray-600">MRN column header</div>
@@ -39,8 +39,10 @@
         </div>
     </div>
     <div id="local_folder_options">
-        <div class="text-sm text-gray-500 mt-4">Input Folder</div>
-        <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
+        <div id="input_folder_container">
+            <div class="text-sm text-gray-500 mt-4">Input Folder</div>
+            <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
+        </div>
         <div class="text-sm text-gray-500 mt-4">Output Folder</div>
         <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
     </div>
@@ -110,7 +112,7 @@
             </div>
             <div class="flex items-center mt-4">
                 <div class="text-sm text-gray-500">Date shift by</div>
-                <input type="number" class="w-20 mx-2 border-2 border-gray-400 p-1" name="date_shift_days" />
+                <input type="number" class="w-20 mx-2 border-2 border-gray-400 p-1" name="date_shift_days" value="3210" />
                 <div class="text-sm text-gray-500">days</div>
             </div>
         </div>
@@ -122,13 +124,117 @@
 
 
 <script>
+    const DEFAULT_SETTINGS = {
+    tagsToKeep: [
+        "ContentTime",
+        "OverlayTime",
+        "CurveTime",
+        "Manufacturer",
+        "SeriesDescription",
+        "ManufacturerModelName",
+        "RefSOPClassUID",
+        "PatientSex",
+        "PatientAge",
+        "PatientSize",
+        "PatientWeight",
+        "EthnicGroup",
+        "SmokingStatus",
+        "PregnancyStatus",
+        "PatientSexNeutered",
+        "BodyPartExamined",
+        "DeviceSerialNumber",
+        "DeviceUID",
+        "PlateID",
+        "GeneratorID",
+        "CassetteID",
+        "GantryID",
+        "SoftwareVersion",
+        "DetectorID",
+        "BurnedInAnnotation",
+        "ScheduledStudyStartTime",
+        "ScheduledStudyStopTime",
+        "AdmittingTime",
+        "DischargeTime",
+        "SPSStartTime",
+        "SPSEndTime",
+        "PPSStartTime",
+        "Modality"
+    ].join('\n'),
+    tagsToDateshift: [
+        "InstanceCreationDate",
+        "StudyDate",
+        "SeriesDate",
+        "AcquisitionDate",
+        "ContentDate",
+        "OverlayDate",
+        "CurveDate",
+        "AcquisitionDatetime",
+        "LastMenstrualDate",
+        "DateOfSecondaryCapture",
+        "RadiopharmaceuticalStartDateTime",
+        "RadiopharmaceuticalStopDateTime",
+        "DateOfLastCalibration",
+        "DateOfLastDetectorCalibration",
+        "ScheduledStudyStartDate",
+        "ScheduledStudyStopDate",
+        "StudyArrivalDate",
+        "StudyCompletionDate",
+        "AdmittingDate",
+        "DischargeDate",
+        "SPSStartDate",
+        "SPSEndDate",
+        "PPSStartDate",
+        "PPSEndDate",
+        "StructureSetDate"
+    ].join('\n'),
+    tagsToRandomize: [
+        "AccessionNumber",
+        "PatientID",
+        "PatientName",
+        "ClinicalTrialSubjectID",
+        "InstanceCreatorUID",
+        "SOPInstanceUID",
+        "FailedSOPInstanceUIDList",
+        "ContextGroupExtensionCreatorUID",
+        "RefSOPInstanceUID",
+        "TransactionUID",
+        "IrradiationEventUID",
+        "CreatorVersionUID",
+        "StudyInstanceUID",
+        "SeriesInstanceUID",
+        "FrameOfReferenceUID",
+        "SynchronizationFrameOfReferenceUID",
+        "ConcatenationUID",
+        "DimensionOrganizationUID",
+        "PaletteColorLUTUID",
+        "LargePaletteColorLUTUID",
+        "RefGPSPSTransactionUID",
+        "UID",
+        "TemplateExtensionOrganizationUID",
+        "TemplateExtensionCreatorUID",
+        "FiducialUID",
+        "StorageMediaFileSetUID",
+        "RefFrameOfReferenceUID",
+        "RelatedFrameOfReferenceUID",
+        "DoseReferenceUID"
+        ].join('\n')
+    };
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelector('[name="tags_to_keep"]').value = DEFAULT_SETTINGS.tagsToKeep;
+        document.querySelector('[name="tags_to_dateshift"]').value = DEFAULT_SETTINGS.tagsToDateshift;
+        document.querySelector('[name="tags_to_randomize"]').value = DEFAULT_SETTINGS.tagsToRandomize;
+    });
+
     function toggleSourceOptions() {
         const pacsOptions = document.getElementById('pacs_options');
         const imageSourcePacs = document.getElementById('image_source_pacs')
+        const inputFolderContainer = document.getElementById('input_folder_container')
         if (imageSourcePacs.checked){
             pacsOptions.classList.remove('hidden');
+            inputFolderContainer.classList.add('hidden');
         } else{
             pacsOptions.classList.add('hidden');
+            inputFolderContainer.classList.remove('hidden');
         }
     }
     
