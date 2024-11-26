@@ -314,7 +314,7 @@ def cmove_images(logf, **config):
         process.wait()
 
 def save_linker_csv():
-    linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "originalAN", "keys": "", "format": "csv"})
+    linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
     with open(os.path.join("output", "linker.csv"), "w") as f:
         f.write(linker_csv)
 
