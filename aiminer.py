@@ -4,7 +4,6 @@ import sys
 import yaml
 import time
 import signal
-import pydicom
 import logging
 import requests
 import subprocess
@@ -17,32 +16,17 @@ from threading import Thread
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
-OUTPUT_DICOM_TAGS = [
-    "AccessionNumber",
-    "StudyInstanceUID",
-    "PatientName",
-    "PatientID",
-    "PatientSex",
-    "Manufacturer",
-    "ManufacturerModelName",
-    "StudyDescription",
-    "StudyDate",
-    "SeriesInstanceUID",
-    "SOPClassUID",
-    "Modality",
-    "SeriesDescription",
-    "Rows",
-    "Columns",
-    "InstitutionName",
-    "StudyTime",
-]
-
 IMAGEQR_CONFIG = """<Configuration>
     <Server
         maxThreads="20"
         port="50000">
         <Log/>
     </Server>
+    <Plugin
+        class="org.rsna.ctp.stdplugins.AuditLog"
+        id="AuditLog"
+        name="AuditLog"
+        root="roots/AuditLog"/>
     <Pipeline name="imagedeid">
         <DicomImportService
             class="org.rsna.ctp.stdstages.DicomImportService"
@@ -52,6 +36,14 @@ IMAGEQR_CONFIG = """<Configuration>
             root="roots/DicomImportService"
             quarantine="quarantines/DicomImportService"
             logConnections="no" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="roots/DicomAuditLogger"
+            auditLogID="AuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
@@ -78,6 +70,11 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         port="50000">
         <Log/>
     </Server>
+    <Plugin
+        class="org.rsna.ctp.stdplugins.AuditLog"
+        id="AuditLog"
+        name="AuditLog"
+        root="roots/AuditLog"/>
     <Pipeline name="imagedeid">
         <ArchiveImportService
             class="org.rsna.ctp.stdstages.ArchiveImportService"
@@ -90,6 +87,14 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             acceptXmlObjects="no"
             acceptZipObjects="no"
             expandTARs="no"/>
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="roots/DicomAuditLogger"
+            auditLogID="AuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
@@ -138,6 +143,11 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         port="50000">
         <Log/>
     </Server>
+    <Plugin
+        class="org.rsna.ctp.stdplugins.AuditLog"
+        id="AuditLog"
+        name="AuditLog"
+        root="roots/AuditLog"/>
     <Pipeline name="imagedeid">
         <DicomImportService
             class="org.rsna.ctp.stdstages.DicomImportService"
@@ -147,6 +157,14 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             root="roots/DicomImportService"
             quarantine="quarantines/DicomImportService"
             logConnections="no" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="roots/DicomAuditLogger"
+            auditLogID="AuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
@@ -214,18 +232,6 @@ def ctp_get_status(key):
 
 def count_dicom_files(path):
     return sum(f.endswith(".dcm") for _, _, files in os.walk(path) for f in files)
-
-def df_from_dicoms(input, tags):
-    rows = []
-    for root, _, files in os.walk(input):
-        for f in files:
-            if f.endswith(".dcm"):
-                filepath = os.path.join(root, f)
-                dcm = pydicom.dcmread(filepath, stop_before_pixels=True)
-                rows.append({tag: getattr(dcm, tag, None) for tag in tags})
-    df = pd.DataFrame(rows)
-    df["PatientName"] = df["PatientName"].astype(str, errors="ignore")
-    return df
 
 def run_progress(querying_pacs):
     received = ctp_get_status("Files received") if querying_pacs else count_dicom_files("input")
@@ -307,9 +313,18 @@ def cmove_images(logf, **config):
         process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
         process.wait()
 
-def imageqr_func():
-    # TODO: Create the output.xlsx file based on the images stored so far.
-    pass
+def save_linker_csv():
+    linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "originalAN", "keys": "", "format": "csv"})
+    with open(os.path.join("output", "linker.csv"), "w") as f:
+        f.write(linker_csv)
+
+def save_output_csv():
+    output_csv = ctp_get("AuditLog?export&csv&suppress")
+    with open(os.path.join("output", "output.csv"), "w") as f:
+        f.write(output_csv)
+
+def imageqr_func(_):
+    save_output_csv()
 
 def imageqr_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
@@ -317,14 +332,9 @@ def imageqr_main(**config):
     with ctp_workspace(imageqr_func, {}) as logf:
         cmove_images(logf, **config)
 
-def imagedeid_func(data):
-    linker_csv = ctp_post("idmap", {"p": 0, "s": 4, "keytype": "originalAN", "keys": "", "format": "csv"})
-    with open(os.path.join("output", "linker.csv"), "w") as f:
-        f.write(linker_csv)
-    if not data["querying_pacs"]:
-        df = df_from_dicoms("input", OUTPUT_DICOM_TAGS)
-        grouped = df.groupby("AccessionNumber").first().reset_index()
-        grouped.to_excel(os.path.join("output", "output.xlsx"), index=False)
+def imagedeid_func(_):
+    save_linker_csv()
+    save_output_csv()
 
 def imagedeid_main(**config):
     save_ctp_filters(config.get("ctp_filters"))

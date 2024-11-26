@@ -13,6 +13,5 @@ RUN apt-get update && \
         python3-pandas \
         python3-yaml \
         python3-lark \
-        python3-pydicom \
         dcmtk
 CMD python3 aiminer.py
