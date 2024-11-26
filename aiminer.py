@@ -4,6 +4,7 @@ import sys
 import yaml
 import time
 import signal
+import pydicom
 import logging
 import requests
 import subprocess
@@ -15,6 +16,26 @@ from lark import Lark
 from threading import Thread
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+
+OUTPUT_DICOM_TAGS = [
+    "AccessionNumber",
+    "StudyInstanceUID",
+    "PatientName",
+    "PatientID",
+    "PatientSex",
+    "Manufacturer",
+    "ManufacturerModelName",
+    "StudyDescription",
+    "StudyDate",
+    "SeriesInstanceUID",
+    "SOPClassUID",
+    "Modality",
+    "SeriesDescription",
+    "Rows",
+    "Columns",
+    "InstitutionName",
+    "StudyTime",
+]
 
 IMAGEQR_CONFIG = """<Configuration>
     <Server
@@ -194,6 +215,18 @@ def ctp_get_status(key):
 def count_dicom_files(path):
     return sum(f.endswith(".dcm") for _, _, files in os.walk(path) for f in files)
 
+def df_from_dicoms(input, tags):
+    rows = []
+    for root, _, files in os.walk(input):
+        for f in files:
+            if f.endswith(".dcm"):
+                filepath = os.path.join(root, f)
+                dcm = pydicom.dcmread(filepath, stop_before_pixels=True)
+                rows.append({tag: getattr(dcm, tag, None) for tag in tags})
+    df = pd.DataFrame(rows)
+    df["PatientName"] = df["PatientName"].astype(str, errors="ignore")
+    return df
+
 def run_progress(querying_pacs):
     received = ctp_get_status("Files received") if querying_pacs else count_dicom_files("input")
     quarantined = count_dicom_files(os.path.join("output", "quarantine"))
@@ -206,7 +239,7 @@ def tick(tick_func, data):
     while True:
         time.sleep(3)
         if tick_func is not None:
-            tick_func()
+            tick_func(data)
         saved, quarantined, received, stable = run_progress(data["querying_pacs"])
         stable_for = stable_for + 1 if stable else 0
         if data["complete"] and stable_for > 3:
@@ -284,11 +317,14 @@ def imageqr_main(**config):
     with ctp_workspace(imageqr_func, {}) as logf:
         cmove_images(logf, **config)
 
-def imagedeid_func():
+def imagedeid_func(data):
     linker_csv = ctp_post("idmap", {"p": 0, "s": 4, "keytype": "originalAN", "keys": "", "format": "csv"})
     with open(os.path.join("output", "linker.csv"), "w") as f:
         f.write(linker_csv)
-    # TODO: Create the output.xlsx file based on the images stored so far.
+    if not data["querying_pacs"]:
+        df = df_from_dicoms("input", OUTPUT_DICOM_TAGS)
+        grouped = df.groupby("AccessionNumber").first().reset_index()
+        grouped.to_excel(os.path.join("output", "output.xlsx"), index=False)
 
 def imagedeid_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
