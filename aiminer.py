@@ -318,13 +318,13 @@ def save_linker_csv():
     with open(os.path.join("output", "linker.csv"), "w") as f:
         f.write(linker_csv)
 
-def save_output_csv():
-    output_csv = ctp_get("AuditLog?export&csv&suppress")
-    with open(os.path.join("output", "output.csv"), "w") as f:
-        f.write(output_csv)
+def save_metadata_csv():
+    metadata_csv = ctp_get("AuditLog?export&csv&suppress")
+    with open(os.path.join("output", "metadata.csv"), "w") as f:
+        f.write(metadata_csv)
 
 def imageqr_func(_):
-    save_output_csv()
+    save_metadata_csv()
 
 def imageqr_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
@@ -334,7 +334,7 @@ def imageqr_main(**config):
 
 def imagedeid_func(_):
     save_linker_csv()
-    save_output_csv()
+    save_metadata_csv()
 
 def imagedeid_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
