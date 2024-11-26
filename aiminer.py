@@ -127,7 +127,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
-            root="../output/images"
+            root="../output/deidentified"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
             acceptDuplicates="yes"
@@ -197,7 +197,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
-            root="../output/images"
+            root="../output/deidentified"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
             acceptDuplicates="yes"
