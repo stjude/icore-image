@@ -163,7 +163,7 @@ def save_settings(request):
 def get_dicom_fields():
     dicom_fields = [
         ('BurnedInAnnotation', "Burned In Annotation"),
-        ('SOPClasssUID', 'SOP Class UID'),
+        ('SOPClassUID', 'SOP Class UID'),
         ('Manufacturer', 'Manufacturer'),
         ('ImageType', 'Image Type'),
         ('InstanceNumber', 'Instance Number'),
