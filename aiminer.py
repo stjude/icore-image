@@ -1,4 +1,3 @@
-import io
 import os
 import re
 import sys
@@ -317,22 +316,18 @@ def cmove_images(logf, **config):
         process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
         process.wait()
 
-def clean_csv(csv_content):
-    return "\n".join(line.replace('="', '"').replace('",', '",').rstrip(",") for line in csv_content.splitlines())
+def save_metadata_csv():
+    metadata_csv = ctp_get("AuditLog?export&csv&suppress")
+    with open(os.path.join("output", "appdata", "metadata.csv"), "w") as f:
+        f.write(metadata_csv)
 
 def save_linker_csv():
-    linker_csv = clean_csv(ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"}))
-    metadata_csv = clean_csv(ctp_get("AuditLog?export&csv&suppress"))
-    linker_df = pd.read_csv(io.StringIO(linker_csv)).apply(lambda x: x.apply(strip_ctp_cell))
-    metadata_df = pd.read_csv(io.StringIO(metadata_csv)).apply(lambda x: x.apply(strip_ctp_cell))
-    merged_df = pd.merge(linker_df, metadata_df, left_on="Original AccessionNumber", right_on="AccessionNumber", how="inner")
-    clean_df = merged_df.loc[:, ~merged_df.columns.str.contains('^Unnamed')].drop(columns=["EntryDateTime", "Original AccessionNumber"])
-    primary_cols = ["Trial AccessionNumber", "AccessionNumber", "PatientID", "StudyDate", "PatientName"]
-    col_order =  primary_cols + [col for col in clean_df.columns if col not in primary_cols]
-    clean_df[col_order].to_csv(os.path.join("output", "appdata", "linker.csv"), index=False)
+    linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
+    with open(os.path.join("output", "appdata", "linker.csv"), "w") as f:
+        f.write(linker_csv)
 
 def imageqr_func(_):
-    pass
+    save_metadata_csv()
 
 def imageqr_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
@@ -341,6 +336,7 @@ def imageqr_main(**config):
         cmove_images(logf, **config)
 
 def imagedeid_func(_):
+    save_metadata_csv()
     save_linker_csv()
 
 def imagedeid_main(**config):
