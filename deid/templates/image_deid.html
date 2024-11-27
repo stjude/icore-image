@@ -357,6 +357,43 @@
                 
                 filterSection.appendChild(filterContainer);
                 filterSection.appendChild(addButton);
+
+                // TODO: clean up.
+                const DEFAULT_MODALITY_FILTERS = {
+                    CT: [
+                        ["ImageType", "not_contains", "DOSE"],
+                        ["ImageType", "not_contains", "SCOUT"],
+                        ["ImageType", "not_contains", "LOCALIZER"],
+                        ["SliceThickness", "isGreaterThan", "0.5"],
+                        ["SliceThickness", "isLessThan", "10"],
+                        ["SeriesDescription", "not_contains", "SCOUT"],
+                        ["SeriesDescription", "not_contains", "LOCALIZER"],
+                    ],
+                    US: [
+                        ["ImageType", "not_equals", ""],
+                    ],
+                    MR: [
+                        ["SOPClassUID", "not_contains", "MRSpectroscopy"],
+                        ["ImageType", "not_contains", "DOSE"],
+                        ["ImageType", "not_contains", "SCOUT"],
+                        ["ImageType", "not_contains", "LOCALIZER"],
+                        ["SliceThickness", "isGreaterThan", "0.5"],
+                        ["SliceThickness", "isLessThan", "10"],
+                        ["SeriesDescription", "not_contains", "SCOUT"],
+                        ["SeriesDescription", "not_contains", "LOCALIZER"],
+                    ]
+                };
+                const defaultFilters = DEFAULT_MODALITY_FILTERS[modalityId] || [];
+                const template = document.querySelector('#filter-template');
+                for (const filter of defaultFilters) {
+                    const newFilter = template.cloneNode(true);
+                    newFilter.style.display = 'block';
+                    newFilter.removeAttribute('id');
+                    filterContainer.appendChild(newFilter);
+                    newFilter.querySelector('[name="tag"]').value = filter[0];
+                    newFilter.querySelector('[name="action"]').value = filter[1];
+                    newFilter.querySelector('[name="value"]').value = filter[2];
+                }
             }
         } else {
             filterSection.classList.add('hidden');

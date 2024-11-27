@@ -68,10 +68,33 @@ function addFilter() {
     
     // Add the new filter to the filters container
     document.querySelector('#filters-container').appendChild(newFilter);
+
+    return newFilter;
 }
 
 function removeFilter(button) {
     button.closest('.filter-row').remove();
 }
+
+// TODO: clean up.
+const DEFAULT_GLOBAL_FILTERS = [
+    ["BurnedInAnnotation", "not_equals", "YES"],
+    ["SOPClasssUID", "not_contains", "EncapsulatedPDF"],
+    ["SOPClasssUID", "not_contains", "SecondaryCapture"],
+    ["SOPClasssUID", "not_contains", "SoftcopyPresentationState"],
+    ["SOPClasssUID", "not_contains", "StructuredReport"],
+    ["ImageType", "not_contains", "INVALID"],
+    ["ImageType", "not_contains", "DERIVED"],
+    ["ImageType", "not_contains", "SECONDARY"],
+    ["ImageType", "not_contains", "SCREEN"],
+    ["SeriesDescription", "not_contains", "ANNOTATION"],
+    ["SeriesDescription", "not_contains", "MEASURE"],
+];
+DEFAULT_GLOBAL_FILTERS.forEach(filter => {
+    const newFilter = addFilter();
+    newFilter.querySelector('select[name="tag"]').value = filter[0];
+    newFilter.querySelector('select[name="action"]').value = filter[1];
+    newFilter.querySelector('input[name="value"]').value = filter[2];
+});
 
 </script>
