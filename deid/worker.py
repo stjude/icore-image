@@ -17,14 +17,14 @@ PACS_PORT = 4242
 PACS_AET = 'ORTHANC'
 
 def process_image_deid(task):
-    print("task: ", task)
-    print('input_folder: ', task.input_folder)
     print('output_folder: ', task.output_folder)
     output_folder = task.output_folder
     build_image_deid_config(task)
 
     if task.image_source == 'PACS':
-        input_folder = os.path.dirname(task.input_file)
+        print("input_file: ", task.parameters['input_file'])
+        input_folder = os.path.dirname(task.parameters['input_file'])
+        print("input_folder: ", input_folder)
         docker_cmd = [
             'docker', 'run', '--rm',
             '-v', f'{os.path.abspath("config.yml")}:/config.yml',

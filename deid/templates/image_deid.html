@@ -17,8 +17,10 @@
     <div id="pacs_options" class="hidden mt-4">
         <div class="text-sm text-gray-500">Input File</div>
         <div class="flex items-center">
-            <button class="h-6 shadow text-sm mr-2 mt-2 mb-2 border-2 border-gray-400" onclick="selectFile()">Browse</button>
-            <div class="text-sm text-black ml-4" name="input_file">No file selected</div>
+            <!-- <button class="h-6 shadow text-sm mr-2 mt-2 mb-2 border-2 border-gray-400" onclick="selectFile()">Browse</button>
+            <div class="text-sm text-black ml-4" name="input_file">No file selected</div> -->
+            <div class="text-sm text-gray-500 mt-4">Input File</div>
+            <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" />
         </div>
         <div class="flex items-center">
             <div class="text-sm text-gray-600">Query using:</div>
@@ -258,8 +260,11 @@
         fileInput.style.display = 'none';
         fileInput.onchange = function() {
             if (this.files && this.files[0]) {
-                const fileName = this.files[0].name;
-                document.querySelector('[name="input_file"]').textContent = fileName;
+                const file = this.files[0];
+                console.log("file: ", file)
+                const fullPath = file.path || file.webkitRelativePath || file.name;
+                document.querySelector('[name="input_file"]').value = fullPath;
+                document.querySelector('[name="input_file"]').textContent = fullPath;
             }
         };
         document.body.appendChild(fileInput);
@@ -282,7 +287,7 @@
             image_source: document.querySelector('input[name="image_source"]:checked').value,
             input_folder: document.querySelector('[name="input_folder"]').value,
             output_folder: document.querySelector('[name="output_folder"]').value,
-            input_file: document.querySelector('[name="input_file"]').textContent,
+            input_file: document.querySelector('[name="input_file"]').value,
             tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
             tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
             tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,
