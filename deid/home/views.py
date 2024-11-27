@@ -70,7 +70,7 @@ def get_log_content(request):
         
         # Check if file exists
         if not os.path.exists(log_file_path):
-            return HttpResponseNotFound("Log file not found")
+            return HttpResponseNotFound("Loading. Please wait...")
 
         # Read the log file content
         with open(log_file_path, 'r') as f:
@@ -163,9 +163,16 @@ def save_settings(request):
 def get_dicom_fields():
     dicom_fields = [
         ('BurnedInAnnotation', "Burned In Annotation"),
-        ('NumberOfSOPInstances', 'Number of Images'),
-        ('InstanceNumber', 'Instance Number'),
+        ('SOPClasssUID', 'SOP Class UID'),
+        ('Manufacturer', 'Manufacturer'),
         ('ImageType', 'Image Type'),
+        ('InstanceNumber', 'Instance Number'),
+        ('Rows', 'Rows'),
+        ('Columns', 'Columns'),
+        ('PixelSpacing', 'Pixel Spacing'),
+        ('SliceThickness', 'Slice Thickness'),
+        ('NumberOfFrames', 'Number of Frames'),
+        ('ReferencedPresentationStateSequence', 'Referenced Presentation State Sequence'),
         ('PatientName', 'Patient Name'),
         ('PatientID', 'Patient ID'),
         ('StudyDate', 'Study Date'),
@@ -175,6 +182,5 @@ def get_dicom_fields():
         ('SeriesDescription', 'Series Description'),
         ('AccessionNumber', 'Accession Number'),
         ('InstitutionName', 'Institution Name'),
-        ('ImageType', 'Image Type')
     ]
     return dicom_fields
