@@ -317,9 +317,12 @@ def cmove_images(logf, **config):
         process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
         process.wait()
 
+def clean_csv(csv_content):
+    return "\n".join(line.replace('="', '"').replace('",', '",').rstrip(",") for line in csv_content.splitlines())
+
 def save_linker_csv():
-    linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
-    metadata_csv = ctp_get("AuditLog?export&csv&suppress")
+    linker_csv = clean_csv(ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"}))
+    metadata_csv = clean_csv(ctp_get("AuditLog?export&csv&suppress"))
     linker_df = pd.read_csv(io.StringIO(linker_csv)).apply(lambda x: x.apply(strip_ctp_cell))
     metadata_df = pd.read_csv(io.StringIO(metadata_csv)).apply(lambda x: x.apply(strip_ctp_cell))
     merged_df = pd.merge(linker_df, metadata_df, left_on="Original AccessionNumber", right_on="AccessionNumber", how="inner")
