@@ -37,6 +37,12 @@ IMAGEQR_CONFIG = """<Configuration>
             root="roots/DicomImportService"
             quarantine="quarantines/DicomImportService"
             logConnections="no" />
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="DicomFilter"
+            root="roots/DicomFilter"
+            script="scripts/dicom-filter.script"
+            quarantine="../output/appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -45,12 +51,6 @@ IMAGEQR_CONFIG = """<Configuration>
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
             level="study" />
-        <DicomFilter
-            class="org.rsna.ctp.stdstages.DicomFilter"
-            name="DicomFilter"
-            root="roots/DicomFilter"
-            script="scripts/dicom-filter.script"
-            quarantine="../output/appdata/quarantine" />
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
@@ -88,6 +88,12 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             acceptXmlObjects="no"
             acceptZipObjects="no"
             expandTARs="no"/>
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="DicomFilter"
+            root="roots/DicomFilter"
+            script="scripts/dicom-filter.script"
+            quarantine="../output/appdata/quarantine"/>
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -96,12 +102,6 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
             level="study" />
-        <DicomFilter
-            class="org.rsna.ctp.stdstages.DicomFilter"
-            name="DicomFilter"
-            root="roots/DicomFilter"
-            script="scripts/dicom-filter.script"
-            quarantine="../output/appdata/quarantine"/>
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
@@ -158,6 +158,12 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             root="roots/DicomImportService"
             quarantine="quarantines/DicomImportService"
             logConnections="no" />
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="DicomFilter"
+            root="roots/DicomFilter"
+            script="scripts/dicom-filter.script"
+            quarantine="../output/appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -166,12 +172,6 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
             level="study" />
-        <DicomFilter
-            class="org.rsna.ctp.stdstages.DicomFilter"
-            name="DicomFilter"
-            root="roots/DicomFilter"
-            script="scripts/dicom-filter.script"
-            quarantine="../output/appdata/quarantine" />
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
