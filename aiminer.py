@@ -50,7 +50,7 @@ IMAGEQR_CONFIG = """<Configuration>
             name="DicomFilter"
             root="roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../output/quarantine" />
+            quarantine="../output/appdata/quarantine" />
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
@@ -101,7 +101,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             name="DicomFilter"
             root="roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../output/quarantine"/>
+            quarantine="../output/appdata/quarantine"/>
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
@@ -171,7 +171,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             name="DicomFilter"
             root="roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../output/quarantine" />
+            quarantine="../output/appdata/quarantine" />
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
@@ -239,7 +239,7 @@ def count_dicom_files(path):
 
 def run_progress(querying_pacs):
     received = ctp_get_status("Files received") if querying_pacs else count_dicom_files("input")
-    quarantined = count_dicom_files(os.path.join("output", "quarantine"))
+    quarantined = count_dicom_files(os.path.join("output", "appdata", "quarantine"))
     saved = ctp_get_status("Files actually stored")
     stable = received == (quarantined + saved)
     return saved, quarantined, received, stable
@@ -270,7 +270,7 @@ def finish_ctp_run(ctp_process, tick_thread, tick_data):
 
 @contextmanager
 def ctp_workspace(func, data):
-    with open(os.path.join("output", "log.txt"), "a") as logf:
+    with open(os.path.join("output", "appdata", "log.txt"), "a") as logf:
         try:
             process, thread, data = start_ctp_run(func, data, logf)
             time.sleep(3)
@@ -326,15 +326,10 @@ def save_linker_csv():
     clean_df = merged_df.loc[:, ~merged_df.columns.str.contains('^Unnamed')].drop(columns=["EntryDateTime", "Original AccessionNumber"])
     primary_cols = ["Trial AccessionNumber", "AccessionNumber", "PatientID", "StudyDate", "PatientName"]
     col_order =  primary_cols + [col for col in clean_df.columns if col not in primary_cols]
-    clean_df[col_order].to_csv(os.path.join("output", "linker.csv"), index=False)
-
-def save_metadata_csv():
-    metadata_csv = ctp_get("AuditLog?export&csv&suppress")
-    with open(os.path.join("output", "metadata.csv"), "w") as f:
-        f.write(metadata_csv)
+    clean_df[col_order].to_csv(os.path.join("output", "appdata", "linker.csv"), index=False)
 
 def imageqr_func(_):
-    save_metadata_csv()
+    pass
 
 def imageqr_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
@@ -414,7 +409,7 @@ def validate_config(config):
         validate_ctp_filters(config.get("ctp_filters"))
     if config.get("ctp_anonymizer") is not None:
         validate_ctp_anonymizer(config.get("ctp_anonymizer"))
-    if os.listdir("output") != ["log.txt"]:
+    if os.listdir("output") != ["appdata"]:
         error_and_exit("Output directory must be empty.")
     if os.path.exists(os.path.join("input", "input.xlsx")):
         if not all([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
@@ -478,8 +473,8 @@ if __name__ == "__main__":
         error_and_exit("File config.yml not found.")
     with open("config.yml", "r") as file:
         config = yaml.safe_load(file)
-    os.makedirs("output", exist_ok=True)
-    logging.basicConfig(filename=os.path.join("output", "log.txt"), level=logging.INFO,
+    os.makedirs(os.path.join("output", "appdata"), exist_ok=True)
+    logging.basicConfig(filename=os.path.join("output", "appdata", "log.txt"), level=logging.INFO,
         format="%(asctime)s %(levelname)-5s %(message)s", datefmt="%H:%M:%S")
     validate_config(config)
     run_module(**config)

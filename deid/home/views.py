@@ -66,7 +66,7 @@ def get_log_content(request):
             return HttpResponseBadRequest("No output folder specified")
 
         # Construct path to log file
-        log_file_path = os.path.join(output_folder, 'log.txt')
+        log_file_path = os.path.join(output_folder, "appdata", 'log.txt')
         
         # Check if file exists
         if not os.path.exists(log_file_path):
