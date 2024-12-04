@@ -17,26 +17,23 @@
     <div id="pacs_options" class="hidden mt-4">
         <div class="text-sm text-gray-500">Input File</div>
         <div class="flex items-center">
-            <!-- <button class="h-6 shadow text-sm mr-2 mt-2 mb-2 border-2 border-gray-400" onclick="selectFile()">Browse</button>
-            <div class="text-sm text-black ml-4" name="input_file">No file selected</div> -->
-            <div class="text-sm text-gray-500 mt-4">Input File</div>
             <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" />
         </div>
-        <div class="flex items-center">
+        <div class="flex items-center mt-4">
             <div class="text-sm text-gray-600">Query using:</div>
             <input class="ml-4" type="radio" id="query_accession" name="query_type" value="accession" checked onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">Accession</span>
             <input class="ml-4" type="radio" id="query_mrn_date" name="query_type" value="mrn_date" onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">MRN + Date</span>
         </div>
         <div class="flex items-center">
-            <div id="accession_input" class="flex items-center">
+            <div id="accession_input" class="flex items-center mt-4">
                 <div class="text-sm text-gray-600">Accession column header</div>
-                <input type="text" class="w-40 ml-4 border-2 border-gray-400 p-1" name="accession_column" />
+                <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="accession_column" />
             </div>
-            <div id="mrn_date_input" class="hidden flex items-center">
+            <div id="mrn_date_input" class="hidden flex items-center mt-4">
                 <div class="text-sm text-gray-600">MRN column header</div>
-                <input type="text" class="w-40 ml-4 border-2 border-gray-400" name="mrn_column" />
+                <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="mrn_column" />
                 <div class="text-sm text-gray-600 ml-4">Date column header</div>
-                <input type="text" class="w-40 ml-4 border-2 border-gray-400" name="date_column" />
+                <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="date_column" />
             </div>
         </div>
     </div>
