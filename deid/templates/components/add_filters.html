@@ -9,14 +9,14 @@
 
     <!-- Operation Dropdown -->
     <select name="action" class="h-full border-2 border-gray-400 p-2 bg-white" required>
-        <option value="equals">Equals</option>
-        <option value="not_equals">Does Not Equal</option>
-        <option value="contains">Contains</option>
-        <option value="not_contains">Does Not Contain</option>
-        <option value="startsWith">Starts With</option>
-        <option value="not_startsWith">Does Not Start With</option>
-        <option value="endsWith">Ends With</option>
-        <option value="not_endsWith">Does Not End With</option>
+        <option value="equalsIgnoreCase">Equals</option>
+        <option value="not_equalsIgnoreCase">Does Not Equal</option>
+        <option value="containsIgnoreCase">Contains</option>
+        <option value="not_containsIgnoreCase">Does Not Contain</option>
+        <option value="startsWithIgnoreCase">Starts With</option>
+        <option value="not_startsWithIgnoreCase">Does Not Start With</option>
+        <option value="endsWithIgnoreCase">Ends With</option>
+        <option value="not_endsWithIgnoreCase">Does Not End With</option>
         <option value="isLessThan">Less Than</option>
         <option value="isGreaterThan">Greater Than</option>
     </select>
@@ -78,17 +78,17 @@ function removeFilter(button) {
 
 // TODO: clean up.
 const DEFAULT_GLOBAL_FILTERS = [
-    ["BurnedInAnnotation", "not_equals", "YES"],
-    ["SOPClassUID", "not_contains", "EncapsulatedPDF"],
-    ["SOPClassUID", "not_contains", "SecondaryCapture"],
-    ["SOPClassUID", "not_contains", "SoftcopyPresentationState"],
-    ["SOPClassUID", "not_contains", "StructuredReport"],
-    ["ImageType", "not_contains", "INVALID"],
-    ["ImageType", "not_contains", "DERIVED"],
-    ["ImageType", "not_contains", "SECONDARY"],
-    ["ImageType", "not_contains", "SCREEN"],
-    ["SeriesDescription", "not_contains", "ANNOTATION"],
-    ["SeriesDescription", "not_contains", "MEASURE"],
+    ["BurnedInAnnotation", "not_equalsIgnoreCase", "YES"],
+    ["SOPClassUID", "not_containsIgnoreCase", "EncapsulatedPDF"],
+    ["SOPClassUID", "not_containsIgnoreCase", "SecondaryCapture"],
+    ["SOPClassUID", "not_containsIgnoreCase", "SoftcopyPresentationState"],
+    ["SOPClassUID", "not_containsIgnoreCase", "StructuredReport"],
+    ["ImageType", "not_containsIgnoreCase", "INVALID"],
+    ["ImageType", "not_containsIgnoreCase", "DERIVED"],
+    ["ImageType", "not_containsIgnoreCase", "SECONDARY"],
+    ["ImageType", "not_containsIgnoreCase", "SCREEN"],
+    ["SeriesDescription", "not_containsIgnoreCase", "ANNOTATION"],
+    ["SeriesDescription", "not_containsIgnoreCase", "MEASURE"],
 ];
 DEFAULT_GLOBAL_FILTERS.forEach(filter => {
     const newFilter = addFilter();

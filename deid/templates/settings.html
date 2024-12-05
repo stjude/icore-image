@@ -3,6 +3,13 @@
 {% block title %}Settings{% endblock %}
 
 {% block content %}
+{{ modalities|json_script:"modalities-data" }}
+
+<script>
+    const modalities = JSON.parse(document.getElementById('modalities-data').textContent);
+</script>
+
+<meta name="csrf_token" content="{{ csrf_token }}">
 <div class="px-4">
     <h1 class="text-xl flex-1">Settings</h1>
 </div>
@@ -97,8 +104,94 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', loadSavedSettings);
+
+    async function loadSavedSettings() {
+        try {
+            const response = await fetch('/load_settings/');
+            const settings = await response.json();
+            
+            // Load image source
+            if (settings.default_image_source) {
+                document.querySelector(`input[name="default_image_source"][value="${settings.default_image_source}"]`).checked = true;
+            }
+            if (settings.default_tags_to_keep) {
+                document.querySelector('[name="default_tags_to_keep"]').value = settings.default_tags_to_keep;
+            }
+            if (settings.default_tags_to_dateshift) {
+                document.querySelector('[name="default_tags_to_dateshift"]').value = settings.default_tags_to_dateshift;
+            }
+            if (settings.default_tags_to_randomize) {
+                document.querySelector('[name="default_tags_to_randomize"]').value = settings.default_tags_to_randomize;
+            }
+            if (settings.default_date_shift_days) {
+                document.querySelector('[name="default_date_shift_days"]').value = settings.default_date_shift_days;
+            }
+            if (settings.id_generation_method) {
+                document.querySelector(`input[name="id_generation_method"][value="${settings.id_generation_method}"]`).checked = true;
+            }
+            if (settings.filters) {
+                loadFiltersFromSettings(settings.filters);
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    }
+
+    function loadFiltersFromSettings(filters) {
+        document.querySelector('#filters-container').innerHTML = '';
+        if (filters.general_filters) {
+            filters.general_filters.forEach(filter => {
+                const newFilter = addFilter();
+                newFilter.querySelector('[name="tag"]').value = filter.tag;
+                newFilter.querySelector('[name="action"]').value = filter.action;
+                newFilter.querySelector('[name="value"]').value = filter.value;
+            });
+        }
+        if (filters.modality_filters) {
+            Object.entries(filters.modality_filters).forEach(([modality, modalityFilters]) => {
+                const filterContainer = document.querySelector(`#filter-container-${modality}`);
+                if (filterContainer) {
+                    filterContainer.innerHTML = '';
+                    modalityFilters.forEach(filter => {
+                        const template = document.querySelector('#filter-template');
+                        const newFilter = template.cloneNode(true);
+                        newFilter.style.display = 'block';
+                        newFilter.removeAttribute('id');
+                        newFilter.classList.add('filter-row');
+                        
+                        newFilter.querySelector('[name="tag"]').value = filter.tag;
+                        newFilter.querySelector('[name="action"]').value = filter.action;
+                        newFilter.querySelector('[name="value"]').value = filter.value;
+                        
+                        filterContainer.appendChild(newFilter);
+                    });
+                }
+            });
+        }
+    }
+
     async function saveSettings() {
-        const filters = collectFilters('#filters-container', false);  // false because settings page doesn't use modality toggle
+        const generalFilters = Array.from(document.querySelectorAll('#filters-container .filter-row')).map(row => ({
+            tag: row.querySelector('[name="tag"]').value,
+            action: row.querySelector('[name="action"]').value,
+            value: row.querySelector('[name="value"]').value
+        }));
+
+        const modalityFilters = {};
+        modalities.forEach(modality => {
+            const filterContainer = document.querySelector(`#filter-container-${modality}`);
+            if (filterContainer) {
+                const filters = Array.from(filterContainer.querySelectorAll('.filter-row')).map(row => ({
+                    tag: row.querySelector('[name="tag"]').value,
+                    action: row.querySelector('[name="action"]').value,
+                    value: row.querySelector('[name="value"]').value
+                }));
+                if (filters.length > 0) {
+                    modalityFilters[modality] = filters;
+                }
+            }
+        });
+
         const data = {
             default_image_source: document.querySelector('input[name="default_image_source"]:checked').value,
             default_tags_to_keep: document.querySelector('[name="default_tags_to_keep"]').value,
@@ -106,7 +199,10 @@
             default_tags_to_randomize: document.querySelector('[name="default_tags_to_randomize"]').value,
             default_date_shift_days: document.querySelector('[name="default_date_shift_days"]').value,
             id_generation_method: document.querySelector('input[name="id_generation_method"]:checked').value,
-            ...filters
+            filters: {
+                general_filters: generalFilters,
+                modality_filters: modalityFilters
+            }
         };
 
         try {
@@ -114,11 +210,11 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
                 },
                 body: JSON.stringify(data)
             });
             const result = await response.json();
-            console.log('Settings saved:', result);
         } catch (error) {
             console.error('Error saving settings:', error);
         }
@@ -131,6 +227,10 @@
         newFilter.style.display = 'block';
         newFilter.removeAttribute('id');
         filterContainer.appendChild(newFilter);
+    }
+
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
     }
 </script>
 {% endblock %}

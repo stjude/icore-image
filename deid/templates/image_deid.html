@@ -123,105 +123,37 @@
 
 
 <script>
-    const DEFAULT_SETTINGS = {
-    tagsToKeep: [
-        "ContentTime",
-        "OverlayTime",
-        "CurveTime",
-        "Manufacturer",
-        "SeriesDescription",
-        "ManufacturerModelName",
-        "RefSOPClassUID",
-        "PatientSex",
-        "PatientAge",
-        "PatientSize",
-        "PatientWeight",
-        "EthnicGroup",
-        "SmokingStatus",
-        "PregnancyStatus",
-        "PatientSexNeutered",
-        "BodyPartExamined",
-        "DeviceSerialNumber",
-        "DeviceUID",
-        "PlateID",
-        "GeneratorID",
-        "CassetteID",
-        "GantryID",
-        "SoftwareVersion",
-        "DetectorID",
-        "BurnedInAnnotation",
-        "ScheduledStudyStartTime",
-        "ScheduledStudyStopTime",
-        "AdmittingTime",
-        "DischargeTime",
-        "SPSStartTime",
-        "SPSEndTime",
-        "PPSStartTime",
-        "Modality"
-    ].join('\n'),
-    tagsToDateshift: [
-        "InstanceCreationDate",
-        "StudyDate",
-        "SeriesDate",
-        "AcquisitionDate",
-        "ContentDate",
-        "OverlayDate",
-        "CurveDate",
-        "AcquisitionDatetime",
-        "LastMenstrualDate",
-        "DateOfSecondaryCapture",
-        "RadiopharmaceuticalStartDateTime",
-        "RadiopharmaceuticalStopDateTime",
-        "DateOfLastCalibration",
-        "DateOfLastDetectorCalibration",
-        "ScheduledStudyStartDate",
-        "ScheduledStudyStopDate",
-        "StudyArrivalDate",
-        "StudyCompletionDate",
-        "AdmittingDate",
-        "DischargeDate",
-        "SPSStartDate",
-        "SPSEndDate",
-        "PPSStartDate",
-        "PPSEndDate",
-        "StructureSetDate"
-    ].join('\n'),
-    tagsToRandomize: [
-        "AccessionNumber",
-        "PatientID",
-        "PatientName",
-        "ClinicalTrialSubjectID",
-        "InstanceCreatorUID",
-        "SOPInstanceUID",
-        "FailedSOPInstanceUIDList",
-        "ContextGroupExtensionCreatorUID",
-        "RefSOPInstanceUID",
-        "TransactionUID",
-        "IrradiationEventUID",
-        "CreatorVersionUID",
-        "StudyInstanceUID",
-        "SeriesInstanceUID",
-        "FrameOfReferenceUID",
-        "SynchronizationFrameOfReferenceUID",
-        "ConcatenationUID",
-        "DimensionOrganizationUID",
-        "PaletteColorLUTUID",
-        "LargePaletteColorLUTUID",
-        "RefGPSPSTransactionUID",
-        "UID",
-        "TemplateExtensionOrganizationUID",
-        "TemplateExtensionCreatorUID",
-        "FiducialUID",
-        "StorageMediaFileSetUID",
-        "RefFrameOfReferenceUID",
-        "RelatedFrameOfReferenceUID",
-        "DoseReferenceUID"
-        ].join('\n')
-    };
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelector('[name="tags_to_keep"]').value = DEFAULT_SETTINGS.tagsToKeep;
-        document.querySelector('[name="tags_to_dateshift"]').value = DEFAULT_SETTINGS.tagsToDateshift;
-        document.querySelector('[name="tags_to_randomize"]').value = DEFAULT_SETTINGS.tagsToRandomize;
+    document.addEventListener('DOMContentLoaded', async function() {
+        try {
+            const response = await fetch('/load_settings/');
+            const settings = await response.json();
+            
+            // Apply default settings
+            if (settings.default_image_source) {
+                document.querySelector(`input[name="image_source"][value="${settings.default_image_source}"]`).checked = true;
+                toggleSourceOptions();
+            }
+
+            if (settings.default_tags_to_keep) {
+                document.querySelector('[name="tags_to_keep"]').value = settings.default_tags_to_keep;
+            }
+            if (settings.default_tags_to_dateshift) {
+                document.querySelector('[name="tags_to_dateshift"]').value = settings.default_tags_to_dateshift;
+            }
+            if (settings.default_tags_to_randomize) {
+                document.querySelector('[name="tags_to_randomize"]').value = settings.default_tags_to_randomize;
+            }
+            if (settings.default_date_shift_days) {
+                document.querySelector('[name="date_shift_days"]').value = settings.default_date_shift_days;
+            }
+
+            if (settings.filters) {
+                loadFiltersFromSettings(settings.filters);
+            }
+
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
     });
 
     function toggleSourceOptions() {
@@ -338,14 +270,11 @@
         if (checkbox.checked) {
             filterSection.classList.remove('hidden');
             
-            // Only initialize if empty
             if (filterSection.children.length === 0) {
-                // Add filter container
                 const filterContainer = document.createElement('div');
                 filterContainer.id = `filter-container-${modalityId}`;
                 filterContainer.classList.add('space-y-2');
                 
-                // Add "Add Filter" button
                 const addButton = document.createElement('button');
                 addButton.textContent = '+ Add Filter';
                 addButton.classList.add('mt-2', 'px-2', 'py-1', 'bg-white', 'shadow', 'text-sm', 'hover:bg-blue-100');
@@ -360,41 +289,26 @@
                 filterSection.appendChild(filterContainer);
                 filterSection.appendChild(addButton);
 
-                // TODO: clean up.
-                const DEFAULT_MODALITY_FILTERS = {
-                    CT: [
-                        ["ImageType", "not_contains", "DOSE"],
-                        ["ImageType", "not_contains", "SCOUT"],
-                        ["ImageType", "not_contains", "LOCALIZER"],
-                        ["SliceThickness", "isGreaterThan", "0.5"],
-                        ["SliceThickness", "isLessThan", "10"],
-                        ["SeriesDescription", "not_contains", "SCOUT"],
-                        ["SeriesDescription", "not_contains", "LOCALIZER"],
-                    ],
-                    US: [
-                        ["ImageType", "not_equals", ""],
-                    ],
-                    MR: [
-                        ["SOPClassUID", "not_contains", "MRSpectroscopy"],
-                        ["ImageType", "not_contains", "DOSE"],
-                        ["ImageType", "not_contains", "SCOUT"],
-                        ["ImageType", "not_contains", "LOCALIZER"],
-                        ["SliceThickness", "isGreaterThan", "0.5"],
-                        ["SliceThickness", "isLessThan", "10"],
-                        ["SeriesDescription", "not_contains", "SCOUT"],
-                        ["SeriesDescription", "not_contains", "LOCALIZER"],
-                    ]
-                };
-                const defaultFilters = DEFAULT_MODALITY_FILTERS[modalityId] || [];
-                const template = document.querySelector('#filter-template');
-                for (const filter of defaultFilters) {
-                    const newFilter = template.cloneNode(true);
-                    newFilter.style.display = 'block';
-                    newFilter.removeAttribute('id');
-                    filterContainer.appendChild(newFilter);
-                    newFilter.querySelector('[name="tag"]').value = filter[0];
-                    newFilter.querySelector('[name="action"]').value = filter[1];
-                    newFilter.querySelector('[name="value"]').value = filter[2];
+                try {
+                    fetch('/load_settings/')
+                        .then(response => response.json())
+                        .then(settings => {
+                            const savedFilters = settings.filters?.modality_filters?.[modalityId] || [];
+                            if (savedFilters.length > 0) {
+                                savedFilters.forEach(filter => {
+                                    const template = document.querySelector('#filter-template');
+                                    const newFilter = template.cloneNode(true);
+                                    newFilter.style.display = 'block';
+                                    newFilter.removeAttribute('id');
+                                    filterContainer.appendChild(newFilter);
+                                    newFilter.querySelector('[name="tag"]').value = filter.tag;
+                                    newFilter.querySelector('[name="action"]').value = filter.action;
+                                    newFilter.querySelector('[name="value"]').value = filter.value;
+                                });
+                            }
+                        });
+                } catch (error) {
+                    console.error('Error loading settings:', error);
                 }
             }
         } else {
