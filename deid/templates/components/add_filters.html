@@ -75,26 +75,4 @@ function addFilter() {
 function removeFilter(button) {
     button.closest('.filter-row').remove();
 }
-
-// TODO: clean up.
-const DEFAULT_GLOBAL_FILTERS = [
-    ["BurnedInAnnotation", "not_equalsIgnoreCase", "YES"],
-    ["SOPClassUID", "not_containsIgnoreCase", "EncapsulatedPDF"],
-    ["SOPClassUID", "not_containsIgnoreCase", "SecondaryCapture"],
-    ["SOPClassUID", "not_containsIgnoreCase", "SoftcopyPresentationState"],
-    ["SOPClassUID", "not_containsIgnoreCase", "StructuredReport"],
-    ["ImageType", "not_containsIgnoreCase", "INVALID"],
-    ["ImageType", "not_containsIgnoreCase", "DERIVED"],
-    ["ImageType", "not_containsIgnoreCase", "SECONDARY"],
-    ["ImageType", "not_containsIgnoreCase", "SCREEN"],
-    ["SeriesDescription", "not_containsIgnoreCase", "ANNOTATION"],
-    ["SeriesDescription", "not_containsIgnoreCase", "MEASURE"],
-];
-DEFAULT_GLOBAL_FILTERS.forEach(filter => {
-    const newFilter = addFilter();
-    newFilter.querySelector('select[name="tag"]').value = filter[0];
-    newFilter.querySelector('select[name="action"]').value = filter[1];
-    newFilter.querySelector('input[name="value"]').value = filter[2];
-});
-
 </script>

@@ -118,6 +118,39 @@
         queryOptionsButton.textContent = queryOptions.classList.contains('hidden') ? '▼' : '▲';
     }
 
+    function loadFiltersFromSettings(filters) {
+        document.querySelector('#filters-container').innerHTML = '';
+        if (filters.general_filters) {
+            filters.general_filters.forEach(filter => {
+                const newFilter = addFilter();
+                newFilter.querySelector('[name="tag"]').value = filter.tag;
+                newFilter.querySelector('[name="action"]').value = filter.action;
+                newFilter.querySelector('[name="value"]').value = filter.value;
+            });
+        }
+        if (filters.modality_filters) {
+            Object.entries(filters.modality_filters).forEach(([modality, modalityFilters]) => {
+                const filterContainer = document.querySelector(`#filter-container-${modality}`);
+                if (filterContainer) {
+                    filterContainer.innerHTML = '';
+                    modalityFilters.forEach(filter => {
+                        const template = document.querySelector('#filter-template');
+                        const newFilter = template.cloneNode(true);
+                        newFilter.style.display = 'block';
+                        newFilter.removeAttribute('id');
+                        newFilter.classList.add('filter-row');
+                        
+                        newFilter.querySelector('[name="tag"]').value = filter.tag;
+                        newFilter.querySelector('[name="action"]').value = filter.action;
+                        newFilter.querySelector('[name="value"]').value = filter.value;
+                        
+                        filterContainer.appendChild(newFilter);
+                    });
+                }
+            });
+        }
+    }
+
     async function runQuery() {
         const filters = collectFilters('#filters-container');
         const isAccessionQuery = document.getElementById('query_accession').checked;
