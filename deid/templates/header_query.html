@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block title %}Image De-identification{% endblock %}
+
+{% block content %}
+<div class="px-4">
+    <h1 class="text-xl flex-1">DICOM Header Query/Retrieve</h1>
+</div>
+<div class="flex-1 bg-white p-4 ml-4 mt-4">
+    <div class="text-sm text-black-5">Project Name</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
+    <div class="text-sm text-gray-500 mt-4">Input File</div>
+    <div class="flex items-center">
+        <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" />
+    </div>
+    <div class="flex items-center mt-4">
+        <div class="text-sm text-gray-600">Query using:</div>
+        <input class="ml-4" type="radio" id="query_accession" name="query_type" value="accession" checked onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">Accession</span>
+        <input class="ml-4" type="radio" id="query_mrn_date" name="query_type" value="mrn_date" onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">MRN + Date</span>
+    </div>
+    <div class="flex items-center">
+        <div id="accession_input" class="flex items-center mt-4">
+            <div class="text-sm text-gray-600">Accession column header</div>
+            <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="accession_column" />
+        </div>
+        <div id="mrn_date_input" class="hidden flex items-center mt-4">
+            <div class="text-sm text-gray-600">MRN column header</div>
+            <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="mrn_column" />
+            <div class="text-sm text-gray-600 ml-4">Date column header</div>
+            <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="date_column" />
+        </div>
+    </div>
+    <div class="text-sm text-gray-500 mt-4">Output Folder</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
+    <!-- General Filters Section -->
+    
+    <div class="flex items-center mt-4">
+        <button class="text-black" onclick="toggleQueryOptions()" id="queryOptionsButton">▼</button>
+        <div class="text-sm text-black ml-4">Query Options</div>
+    </div>
+    <div id="query_options" class="mt-4 hidden ml-4">
+        <div class="mb-4">
+            <div class="text-sm text-gray-600 mb-2 mt-4">General Filters</div>
+            <div class="text-sm text-gray-400 mb-2">Only include images where</div>
+            {% include 'components/add_filters.html' %}
+        </div>
+        <!-- Modality Filters Section -->
+        <div class="mt-4">
+            <div class="flex items-center">
+                <input type="checkbox" 
+                        id="modality-filter-toggle" 
+                        class="mr-2"
+                        onchange="toggleModalityFilters()">
+                <label for="modality-filter-toggle">Filter by Modality</label>
+            </div>
+
+            <!-- Modality options -->
+            <div id="modality-options" class="ml-4 mt-2 hidden">
+                <div class="grid grid-cols-1 gap-2">
+                    {% for modality in modalities %}
+                    <div>
+                        <div class="flex items-center">
+                            <input type="checkbox" 
+                                    id="modality-{{ modality }}" 
+                                    value="{{ modality }}"
+                                    class="modality-checkbox mr-2"
+                                    onchange="handleModalitySelection(this)">
+                            <label for="modality-{{ modality }}">{{ modality }}</label>
+                        </div>
+                        <div id="filters-{{ modality }}" class="ml-4 mt-2 hidden"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <!-- Container for modality-specific filters -->
+            <div id="modality-filters-container" class="ml-4 mt-2"></div>
+        </div>
+    </div>
+</div>
+<div class="m-4">
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runQuery()">Run Query</button>
+</div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        try {
+            const response = await fetch('/load_settings/');
+            const settings = await response.json();
+
+            if (settings.filters) {
+                loadFiltersFromSettings(settings.filters);
+            }
+
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    });
+    
+    function toggleQueryTypeInputs() {
+        const accessionInput = document.getElementById('accession_input');
+        const mrnDateInput = document.getElementById('mrn_date_input');
+        const queryAccession = document.getElementById('query_accession');
+        
+        if (queryAccession.checked) {
+            accessionInput.classList.remove('hidden');
+            mrnDateInput.classList.add('hidden');
+        } else {
+            accessionInput.classList.add('hidden');
+            mrnDateInput.classList.remove('hidden');
+        }
+    }
+
+    function toggleQueryOptions() {
+        const queryOptions = document.getElementById('query_options');
+        const queryOptionsButton = document.getElementById('queryOptionsButton');
+        queryOptions.classList.toggle('hidden');
+        queryOptionsButton.textContent = queryOptions.classList.contains('hidden') ? '▼' : '▲';
+    }
+
+    async function runQuery() {
+        const filters = collectFilters('#filters-container');
+        const isAccessionQuery = document.getElementById('query_accession').checked;
+        const data = {
+            study_name: document.querySelector('[name="study_name"]').value,
+            output_folder: document.querySelector('[name="output_folder"]').value,
+            input_file: document.querySelector('[name="input_file"]').value,
+            ...filters
+        };
+
+        if (isAccessionQuery) {
+            data.acc_col = document.querySelector('[name="accession_column"]').value;
+            data.mrn_col = '';
+            data.date_col = '';
+        } else {
+            data.acc_col = '';
+            data.mrn_col = document.querySelector('[name="mrn_column"]').value;
+            data.date_col = document.querySelector('[name="date_column"]').value;
+        }
+        console.log(data);
+        try {
+            const response = await fetch('/run_header_query/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            // if (result.status === 'success') {
+            //     // Redirect to progress page with output folder path as parameter
+            //     window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+            // } else {
+            //     console.error('Error starting query:', result);
+            // }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    function toggleModalityFilters() {
+        const modalityOptions = document.getElementById('modality-options');
+        modalityOptions.classList.toggle('hidden');
+        
+        if (!document.getElementById('modality-filter-toggle').checked) {
+            document.getElementById('modality-filters-container').innerHTML = '';
+        }
+    }
+
+    function handleModalitySelection(checkbox) {
+        const modalityId = checkbox.value;
+        const filterSection = document.getElementById(`filters-${modalityId}`);
+        
+        if (checkbox.checked) {
+            filterSection.classList.remove('hidden');
+            
+            if (filterSection.children.length === 0) {
+                const filterContainer = document.createElement('div');
+                filterContainer.id = `filter-container-${modalityId}`;
+                filterContainer.classList.add('space-y-2');
+                
+                const addButton = document.createElement('button');
+                addButton.textContent = '+ Add Filter';
+                addButton.classList.add('mt-2', 'px-2', 'py-1', 'bg-white', 'shadow', 'text-sm', 'hover:bg-blue-100');
+                addButton.onclick = () => {
+                    const template = document.querySelector('#filter-template');
+                    const newFilter = template.cloneNode(true);
+                    newFilter.style.display = 'block';
+                    newFilter.removeAttribute('id');
+                    filterContainer.appendChild(newFilter);
+                };
+                
+                filterSection.appendChild(filterContainer);
+                filterSection.appendChild(addButton);
+
+                try {
+                    fetch('/load_settings/')
+                        .then(response => response.json())
+                        .then(settings => {
+                            const savedFilters = settings.filters?.modality_filters?.[modalityId] || [];
+                            if (savedFilters.length > 0) {
+                                savedFilters.forEach(filter => {
+                                    const template = document.querySelector('#filter-template');
+                                    const newFilter = template.cloneNode(true);
+                                    newFilter.style.display = 'block';
+                                    newFilter.removeAttribute('id');
+                                    filterContainer.appendChild(newFilter);
+                                    newFilter.querySelector('[name="tag"]').value = filter.tag;
+                                    newFilter.querySelector('[name="action"]').value = filter.action;
+                                    newFilter.querySelector('[name="value"]').value = filter.value;
+                                });
+                            }
+                        });
+                } catch (error) {
+                    console.error('Error loading settings:', error);
+                }
+            }
+        } else {
+            filterSection.classList.add('hidden');
+        }
+    }
+
+
+</script>
+{% endblock %}

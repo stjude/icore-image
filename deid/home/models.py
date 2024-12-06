@@ -6,6 +6,11 @@ class Project(models.Model):
     input_folder = models.CharField(max_length=255)
     output_folder = models.CharField(max_length=255)
     ctp_dicom_filter = models.TextField(blank=True)
+    class TaskType(models.TextChoices):
+        IMAGE_DEID = 'image_deid', 'Image De-identification'
+        IMAGE_QUERY = 'image_query', 'Image Query'
+        HEADER_QUERY = 'header_query', 'DICOM Header Query/Retrieve'
+    task_type = models.CharField(max_length=20, choices=TaskType.choices)
     class TaskStatus(models.TextChoices):
         PENDING = 'pending', 'Pending'
         RUNNING = 'running', 'Running'

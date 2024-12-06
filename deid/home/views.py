@@ -8,28 +8,47 @@ import os
 from django.views.decorators.csrf import csrf_exempt
 from .models import Project, Settings
 
-class ImageDeIdentificationView(CreateView):
+# Create a mixin for common context data
+class CommonContextMixin:
+    def get_common_context(self):
+        return {
+            'dicom_fields': get_dicom_fields(),
+            'modalities': [
+                'MR',
+                'CT',
+                'US',
+                'DX',
+                'MG',
+                'PT',
+                'NM',
+                'XA',
+                'RF',
+                'CR'
+            ]
+        }
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(self.get_common_context())
+        return context
+
+class ImageDeIdentificationView(CommonContextMixin, CreateView):
     model = Project
     fields = ['name', 'image_source', 'input_folder', 'output_folder', 'ctp_dicom_filter']
     template_name = 'image_deid.html'
     success_url = reverse_lazy('task_list')
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['dicom_fields'] = get_dicom_fields()
-        context['modalities'] = [
-            'MR',
-            'CT',
-            'US',
-            'DX',
-            'MG',
-            'PT',
-            'NM',
-            'XA',
-            'RF',
-            'CR'
-        ]
-        return context
+class ImageQueryView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name', 'image_source', 'output_folder', 'ctp_dicom_filter']
+    template_name = 'image_query.html'
+    success_url = reverse_lazy('task_list')
+
+class HeaderQueryView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name', 'image_source', 'output_folder', 'ctp_dicom_filter']
+    template_name = 'header_query.html'
+    success_url = reverse_lazy('task_list')
 
 class TaskListView(ListView):
     model = Project
@@ -37,25 +56,9 @@ class TaskListView(ListView):
     context_object_name = 'tasks'
     ordering = ['-created_at']
 
-class SettingsView(TemplateView):
+class SettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings.html'
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['dicom_fields'] = get_dicom_fields()
-        context['modalities'] = [
-            'MR',
-            'CT',
-            'US',
-            'DX',
-            'MG',
-            'PT',
-            'NM',
-            'XA',
-            'RF',
-            'CR'
-        ]
-        return context
-    
+
 class TaskProgressView(TemplateView):
     template_name = 'task_progress.html'
 
@@ -82,6 +85,34 @@ def get_log_content(request):
         return HttpResponse(str(e), status=500)
 
 @csrf_exempt
+def run_header_query(request):
+    print('Running header query')
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+        project = Project.objects.create(
+            name=data['study_name'],
+            task_type=Project.TaskType.HEADER_QUERY,
+            output_folder=data['output_folder'],
+            status=Project.TaskStatus.PENDING,
+            parameters={
+                'input_file': data['input_file'],
+                'acc_col': data['acc_col'],
+                'mrn_col': data['mrn_col'],
+                'date_col': data['date_col'],
+                'general_filters': data['general_filters'],
+                'modality_filters': data['modality_filters'],
+            }
+        )
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+@csrf_exempt
 def run_deid(request):
     print('Running deid')
     try:
@@ -90,6 +121,7 @@ def run_deid(request):
         
         project = Project.objects.create(
             name=data['study_name'],
+            task_type=Project.TaskType.IMAGE_DEID,
             image_source=data['image_source'],
             input_folder=data['input_folder'],
             output_folder=data['output_folder'],
@@ -115,7 +147,37 @@ def run_deid(request):
     except Exception as e:
         print(f'Error: {e}')
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-    
+
+@csrf_exempt
+def run_query(request):
+    print('Running query')
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+
+        project = Project.objects.create(
+            name=data['study_name'],
+            task_type=Project.TaskType.IMAGE_QUERY,
+            output_folder=data['output_folder'],
+            status=Project.TaskStatus.PENDING,
+            parameters={
+                'input_file': data['input_file'],
+                'acc_col': data['acc_col'],
+                'mrn_col': data['mrn_col'],
+                'date_col': data['date_col'],
+                'general_filters': data['general_filters'],
+                'modality_filters': data['modality_filters'],
+            }
+        )
+
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
 @require_http_methods(["POST"])
 def save_settings(request):
     try:

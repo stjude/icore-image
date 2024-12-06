@@ -102,6 +102,132 @@ def build_image_deid_config(task):
     
     return config
 
+def process_image_query(task):
+    print('Processing image query')
+    output_folder = task.output_folder
+    build_image_query_config(task)
+
+    print("input_file: ", task.parameters['input_file'])
+    input_folder = os.path.dirname(task.parameters['input_file'])
+    docker_cmd = [
+        'docker', 'run', '--rm',
+        '-v', f'{os.path.abspath("config.yml")}:/config.yml',
+        '-v', f'{os.path.abspath(input_folder)}:/input',
+        '-v', f'{os.path.abspath(output_folder)}:/output',
+        '-p', '50001:50001',
+        '-p', f'{PACS_PORT}:{PACS_PORT}',
+        'aiminer'
+    ]
+    
+    # Print a shell-ready version of the command
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+    
+    try:
+        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+
+def build_image_query_config(task):
+    """Build the configuration for image query"""
+    config = {'module': 'imageqr'}
+    config.update({
+            'pacs_ip': PACS_IP,
+            'pacs_port': PACS_PORT,
+            'pacs_aet': PACS_AET
+            # 'pacs_ip': task.parameters['pacs_ip'],
+            # 'pacs_port': task.parameters['pacs_port'],
+            # 'pacs_aet': task.parameters['pacs_aet'],
+        })
+    if task.parameters['acc_col'] != '':
+        config.update({
+            'acc_col': task.parameters['acc_col']
+        })
+    elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
+        config.update({
+            'mrn_col': task.parameters['mrn_col'],
+            'date_col': task.parameters['date_col']
+        })
+    general_filters = task.parameters['general_filters']
+    modality_filters = task.parameters['modality_filters']
+    expression_string = generate_filters_string(general_filters, modality_filters)
+    if expression_string != '': 
+        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+    
+    # Write config to file
+    with open('config.yml', 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+    
+    return config
+
+def process_header_query(task):
+    print('Processing header query')
+    output_folder = task.output_folder
+    build_header_query_config(task)
+
+    print("input_file: ", task.parameters['input_file'])
+    input_folder = os.path.dirname(task.parameters['input_file'])
+    docker_cmd = [
+        'docker', 'run', '--rm',
+        '-v', f'{os.path.abspath("config.yml")}:/config.yml',
+        '-v', f'{os.path.abspath(input_folder)}:/input',
+        '-v', f'{os.path.abspath(output_folder)}:/output',
+        '-p', '50001:50001',
+        '-p', f'{PACS_PORT}:{PACS_PORT}',
+        'aiminer'
+    ]
+    
+    # Print a shell-ready version of the command
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+    
+    try:
+        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+
+
+def build_header_query_config(task):
+    """Build the configuration for header query"""
+    config = {'module': 'headerqr'}
+    config.update({
+            'pacs_ip': PACS_IP,
+            'pacs_port': PACS_PORT,
+            'pacs_aet': PACS_AET
+            # 'pacs_ip': task.parameters['pacs_ip'],
+            # 'pacs_port': task.parameters['pacs_port'],
+            # 'pacs_aet': task.parameters['pacs_aet'],
+        })
+    if task.parameters['acc_col'] != '':
+        config.update({
+            'acc_col': task.parameters['acc_col']
+        })
+    elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
+        config.update({
+            'mrn_col': task.parameters['mrn_col'],
+            'date_col': task.parameters['date_col']
+        })
+    general_filters = task.parameters['general_filters']
+    modality_filters = task.parameters['modality_filters']
+    expression_string = generate_filters_string(general_filters, modality_filters)
+    if expression_string != '': 
+        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+    
+    # Write config to file
+    with open('config.yml', 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+    
+    return config
+
+
 def run_worker():
     while True:
         try:
@@ -116,15 +242,13 @@ def run_worker():
                     # Mark as running
                     task.status = Project.TaskStatus.RUNNING
                     task.save()
-                    print("parameters: ", task.parameters)
-                    print("id: ", task.id)
-                    print("image_source: ", task.image_source)
-                    print("input_folder: ", task.input_folder)
-                    print("output_folder: ", task.output_folder)
-                    
                     try:
-                        # Process the task
-                        process_image_deid(task)
+                        if task.task_type == Project.TaskType.IMAGE_DEID:
+                            process_image_deid(task)
+                        elif task.task_type == Project.TaskType.IMAGE_QUERY:
+                            process_image_query(task)
+                        elif task.task_type == Project.TaskType.HEADER_QUERY:
+                            process_header_query(task)
                         task.status = Project.TaskStatus.COMPLETED
                     except Exception as e:
                         print(f"Error processing task {task.id}: {str(e)}")
