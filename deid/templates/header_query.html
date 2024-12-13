@@ -83,10 +83,11 @@
 
 
 <script>
+    let settings = {};
     document.addEventListener('DOMContentLoaded', async function() {
         try {
             const response = await fetch('/load_settings/');
-            const settings = await response.json();
+            settings = await response.json();
 
             if (settings.filters) {
                 loadFiltersFromSettings(settings.filters);
@@ -125,6 +126,9 @@
             study_name: document.querySelector('[name="study_name"]').value,
             output_folder: document.querySelector('[name="output_folder"]').value,
             input_file: document.querySelector('[name="input_file"]').value,
+            pacs_ip: settings.pacs_ip,
+            pacs_port: settings.pacs_port,
+            pacs_aet: settings.pacs_aet,
             ...filters
         };
 

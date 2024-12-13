@@ -123,10 +123,11 @@
 
 
 <script>
+    let settings = {};
     document.addEventListener('DOMContentLoaded', async function() {
         try {
             const response = await fetch('/load_settings/');
-            const settings = await response.json();
+            settings = await response.json();
             
             // Apply default settings
             if (settings.default_image_source) {
@@ -253,6 +254,9 @@
             tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
             tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,
             date_shift_days: document.querySelector('[name="date_shift_days"]').value,
+            pacs_ip: settings.pacs_ip || '',
+            pacs_port: settings.pacs_port || '',
+            pacs_aet: settings.pacs_aet || '',
             ...filters
         };
 
@@ -265,6 +269,7 @@
             data.mrn_col = document.querySelector('[name="mrn_column"]').value;
             data.date_col = document.querySelector('[name="date_column"]').value;
         }
+        console.log(data);
 
         try {
             const response = await fetch('/run_deid/', {

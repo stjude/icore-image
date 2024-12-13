@@ -18,19 +18,15 @@ PACS_PORT = 4242
 PACS_AET = 'ORTHANC'
 
 def process_image_deid(task):
-    print('output_folder: ', task.output_folder)
     output_folder = task.output_folder
     build_image_deid_config(task)
-
     if task.image_source == 'PACS':
         input_folder = os.path.dirname(task.parameters['input_file'])
-        print("input_folder: ", input_folder)
+        pacs_port = task.pacs_port
         if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
             temp_dir = os.path.join(input_folder, 'temp_input')
-            print("temp_dir: ", temp_dir)
             os.makedirs(temp_dir, exist_ok=True)
             temp_input = os.path.join(temp_dir, 'input.xlsx')
-            print("temp_input: ", temp_input)
             shutil.copy2(task.parameters['input_file'], temp_input)
             input_folder = temp_dir
         docker_cmd = [
@@ -39,7 +35,7 @@ def process_image_deid(task):
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
             '-p', '50001:50001',
-            '-p', f'{PACS_PORT}:{PACS_PORT}',
+            '-p', f'{pacs_port}:{pacs_port}',
             'aiminer'
         ]
     else:
@@ -74,12 +70,9 @@ def build_image_deid_config(task):
     # Add PACS configuration if needed
     if task.image_source == 'PACS':
         config.update({
-            'pacs_ip': PACS_IP,
-            'pacs_port': PACS_PORT,
-            'pacs_aet': PACS_AET
-            # 'pacs_ip': task.parameters['pacs_ip'],
-            # 'pacs_port': task.parameters['pacs_port'],
-            # 'pacs_aet': task.parameters['pacs_aet'],
+            'pacs_ip': task.pacs_ip,
+            'pacs_port': task.pacs_port,
+            'pacs_aet': task.pacs_aet,
         })
         if task.parameters['acc_col'] != '':
             config.update({
@@ -118,15 +111,22 @@ def process_image_query(task):
     output_folder = task.output_folder
     build_image_query_config(task)
 
-    print("input_file: ", task.parameters['input_file'])
+    pacs_port = task.pacs_port
     input_folder = os.path.dirname(task.parameters['input_file'])
+    if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
+        temp_dir = os.path.join(input_folder, 'temp_input')
+        os.makedirs(temp_dir, exist_ok=True)
+        temp_input = os.path.join(temp_dir, 'input.xlsx')
+        shutil.copy2(task.parameters['input_file'], temp_input)
+        input_folder = temp_dir
+
     docker_cmd = [
         'docker', 'run', '--rm',
         '-v', f'{os.path.abspath("config.yml")}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
-        '-p', f'{PACS_PORT}:{PACS_PORT}',
+        '-p', f'{pacs_port}:{pacs_port}',
         'aiminer'
     ]
     
@@ -141,17 +141,17 @@ def process_image_query(task):
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+    finally:
+        if os.path.basename(task.parameters['input_file']) != 'input.xlsx' and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
 def build_image_query_config(task):
     """Build the configuration for image query"""
     config = {'module': 'imageqr'}
     config.update({
-            'pacs_ip': PACS_IP,
-            'pacs_port': PACS_PORT,
-            'pacs_aet': PACS_AET
-            # 'pacs_ip': task.parameters['pacs_ip'],
-            # 'pacs_port': task.parameters['pacs_port'],
-            # 'pacs_aet': task.parameters['pacs_aet'],
+            'pacs_ip': task.pacs_ip,
+            'pacs_port': task.pacs_port,
+            'pacs_aet': task.pacs_aet,
         })
     if task.parameters['acc_col'] != '':
         config.update({
@@ -180,7 +180,7 @@ def process_header_query(task):
     output_folder = task.output_folder
     build_header_query_config(task)
 
-    print("input_file: ", task.parameters['input_file'])
+    pacs_port = task.pacs_port
     input_folder = os.path.dirname(task.parameters['input_file'])
     docker_cmd = [
         'docker', 'run', '--rm',
@@ -188,7 +188,7 @@ def process_header_query(task):
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
-        '-p', f'{PACS_PORT}:{PACS_PORT}',
+        '-p', f'{pacs_port}:{pacs_port}',
         'aiminer'
     ]
     
@@ -209,12 +209,9 @@ def build_header_query_config(task):
     """Build the configuration for header query"""
     config = {'module': 'headerqr'}
     config.update({
-            'pacs_ip': PACS_IP,
-            'pacs_port': PACS_PORT,
-            'pacs_aet': PACS_AET
-            # 'pacs_ip': task.parameters['pacs_ip'],
-            # 'pacs_port': task.parameters['pacs_port'],
-            # 'pacs_aet': task.parameters['pacs_aet'],
+            'pacs_ip': task.pacs_ip,
+            'pacs_port': task.pacs_port,
+            'pacs_aet': task.pacs_aet,
         })
     if task.parameters['acc_col'] != '':
         config.update({

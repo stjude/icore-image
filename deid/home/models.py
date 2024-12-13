@@ -5,6 +5,9 @@ class Project(models.Model):
     image_source = models.CharField(max_length=10, choices=[('LOCAL', 'Local folder'), ('PACS', 'PACS')])
     input_folder = models.CharField(max_length=255)
     output_folder = models.CharField(max_length=255)
+    pacs_ip = models.CharField(max_length=255, blank=True, null=True)
+    pacs_port = models.CharField(max_length=255, blank=True, null=True)
+    pacs_aet = models.CharField(max_length=255, blank=True, null=True)
     ctp_dicom_filter = models.TextField(blank=True)
     class TaskType(models.TextChoices):
         IMAGE_DEID = 'image_deid', 'Image De-identification'

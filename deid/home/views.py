@@ -109,6 +109,9 @@ def run_header_query(request):
             name=data['study_name'],
             task_type=Project.TaskType.HEADER_QUERY,
             output_folder=data['output_folder'],
+            pacs_ip=data['pacs_ip'],
+            pacs_port=data['pacs_port'],
+            pacs_aet=data['pacs_aet'],
             status=Project.TaskStatus.PENDING,
             parameters={
                 'input_file': data['input_file'],
@@ -140,6 +143,9 @@ def run_deid(request):
             image_source=data['image_source'],
             input_folder=data['input_folder'],
             output_folder=data['output_folder'],
+            pacs_ip=data['pacs_ip'],
+            pacs_port=data['pacs_port'],
+            pacs_aet=data['pacs_aet'],
             status=Project.TaskStatus.PENDING,
             parameters={
                 'input_file': data['input_file'],
@@ -174,6 +180,9 @@ def run_query(request):
             name=data['study_name'],
             task_type=Project.TaskType.IMAGE_QUERY,
             output_folder=data['output_folder'],
+            pacs_ip=data['pacs_ip'],
+            pacs_port=data['pacs_port'],
+            pacs_aet=data['pacs_aet'],
             status=Project.TaskStatus.PENDING,
             parameters={
                 'input_file': data['input_file'],
