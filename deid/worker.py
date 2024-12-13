@@ -2,6 +2,7 @@ import django
 import os
 import time
 import subprocess
+import shutil
 from ruamel.yaml import YAML, scalarstring
 from django.db import transaction
 
@@ -22,9 +23,16 @@ def process_image_deid(task):
     build_image_deid_config(task)
 
     if task.image_source == 'PACS':
-        print("input_file: ", task.parameters['input_file'])
         input_folder = os.path.dirname(task.parameters['input_file'])
         print("input_folder: ", input_folder)
+        if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
+            temp_dir = os.path.join(input_folder, 'temp_input')
+            print("temp_dir: ", temp_dir)
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_input = os.path.join(temp_dir, 'input.xlsx')
+            print("temp_input: ", temp_input)
+            shutil.copy2(task.parameters['input_file'], temp_input)
+            input_folder = temp_dir
         docker_cmd = [
             'docker', 'run', '--rm',
             '-v', f'{os.path.abspath("config.yml")}:/config.yml',
@@ -55,6 +63,9 @@ def process_image_deid(task):
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+    finally:
+        if os.path.basename(task.parameters['input_file']) != 'input.xlsx' and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
 def build_image_deid_config(task):
     """Build the configuration for image deidentification"""

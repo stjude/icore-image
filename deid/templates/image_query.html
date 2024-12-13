@@ -88,8 +88,26 @@
             const response = await fetch('/load_settings/');
             const settings = await response.json();
 
-            if (settings.filters) {
-                loadFiltersFromSettings(settings.filters);
+            
+            if (settings.default_query_method === "Accession") {
+                document.getElementById('query_accession').checked = true;
+            } else {
+                document.getElementById('query_mrn_date').checked = true;
+            }
+            if (settings.default_accession_header) {
+                document.querySelector('[name="accession_column"]').value = settings.default_accession_header;
+            }
+            if (settings.default_mrn_header) {
+                document.querySelector('[name="mrn_column"]').value = settings.default_mrn_header;
+            }
+            if (settings.default_date_header) {
+                document.querySelector('[name="date_column"]').value = settings.default_date_header;
+            }
+            if (settings.default_output_folder) {
+                document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
+            }
+            if (settings.query_filters) {
+                loadFiltersFromSettings(settings.query_filters);
             }
 
         } catch (error) {

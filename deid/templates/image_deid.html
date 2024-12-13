@@ -133,6 +133,23 @@
                 document.querySelector(`input[name="image_source"][value="${settings.default_image_source}"]`).checked = true;
                 toggleSourceOptions();
             }
+            if (settings.default_query_method === "Accession") {
+                document.getElementById('query_accession').checked = true;
+            } else {
+                document.getElementById('query_mrn_date').checked = true;
+            }
+            if (settings.default_accession_header) {
+                document.querySelector('[name="accession_column"]').value = settings.default_accession_header;
+            }
+            if (settings.default_mrn_header) {
+                document.querySelector('[name="mrn_column"]').value = settings.default_mrn_header;
+            }
+            if (settings.default_date_header) {
+                document.querySelector('[name="date_column"]').value = settings.default_date_header;
+            }
+            if (settings.default_output_folder) {
+                document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
+            }
 
             if (settings.default_tags_to_keep) {
                 document.querySelector('[name="tags_to_keep"]').value = settings.default_tags_to_keep;
@@ -147,8 +164,8 @@
                 document.querySelector('[name="date_shift_days"]').value = settings.default_date_shift_days;
             }
 
-            if (settings.filters) {
-                loadFiltersFromSettings(settings.filters);
+            if (settings.deid_filters) {
+                loadFiltersFromSettings(settings.deid_filters);
             }
 
         } catch (error) {

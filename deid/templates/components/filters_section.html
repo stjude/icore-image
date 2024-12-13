@@ -1,0 +1,30 @@
+<div class="mt-6"></div>
+    <div class="text-md mb-2">{{ section_title|default:"Default Filters" }}</div>
+    
+    <!-- General Filters Section -->
+    <div class="mb-4">
+        <div class="text-sm text-gray-600 mb-2">General Filters</div>
+        <div class="text-sm text-gray-400 mb-2">Only include images where</div>
+        {% include 'components/add_filters.html' %}
+    </div>
+
+    <!-- Modality Filters Section -->
+    {% if modalities %}
+    <div class="mt-4">
+        <div class="text-md mb-2">Default Modality Filters</div>
+        <div class="grid grid-cols-1 gap-4">
+            {% for modality in modalities %}
+            <div>
+                <div class="text-sm text-gray-600">{{ modality }} Filters</div>
+                <div id="filters-{{ modality }}" class="ml-4 mt-2">
+                    <div id="filter-container-{{ modality }}" class="space-y-2">
+                        <!-- Filters will be added here -->
+                    </div>
+                    <button class="mt-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="addFilterToModality('{{ modality }}')">+ Add Filter</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>

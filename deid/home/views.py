@@ -6,7 +6,7 @@ from django.views.decorators.http import require_http_methods
 import json
 import os
 from django.views.decorators.csrf import csrf_exempt
-from .models import Project, Settings
+from .models import Project
 
 # Create a mixin for common context data
 class CommonContextMixin:
@@ -56,8 +56,23 @@ class TaskListView(ListView):
     context_object_name = 'tasks'
     ordering = ['-created_at']
 
-class SettingsView(CommonContextMixin, TemplateView):
-    template_name = 'settings.html'
+class GeneralSettingsView(CommonContextMixin, TemplateView):
+    template_name = 'settings/general.html'
+
+class DicomHeaderQRSettingsView(CommonContextMixin, TemplateView):
+    template_name = 'settings/header_query.html'
+
+class LocalHeaderExtractionSettingsView(CommonContextMixin, TemplateView):
+    template_name = 'settings/header_extraction.html'
+
+class ImageQRSettingsView(CommonContextMixin, TemplateView):
+    template_name = 'settings/image_query.html'
+
+class ImageDeIdentificationSettingsView(CommonContextMixin, TemplateView):
+    template_name = 'settings/image_deid.html'
+
+class ReportDeIdentificationSettingsView(CommonContextMixin, TemplateView):
+    template_name = 'settings/image_deid.html'
 
 class TaskProgressView(TemplateView):
     template_name = 'task_progress.html'
@@ -181,10 +196,21 @@ def run_query(request):
 @require_http_methods(["POST"])
 def save_settings(request):
     try:
-        settings = json.loads(request.body)
+        new_settings = json.loads(request.body)
         settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
+        
+        try:
+            with open(settings_path, 'r') as f:
+                existing_settings = json.load(f)
+        except FileNotFoundError:
+            existing_settings = {}
+            
+        # Only update fields that are in the new settings
+        existing_settings.update(new_settings)
+        
         with open(settings_path, 'w') as f:
-            json.dump(settings, f, indent=4)
+            json.dump(existing_settings, f, indent=4)
+            
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)

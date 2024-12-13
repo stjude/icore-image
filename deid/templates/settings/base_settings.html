@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<!-- Settings Tabs -->
+<div class="px-4">
+    <h1 class="text-xl flex-1 mb-4">Settings</h1>
+    <div class="flex border-b border-gray-300">
+        <a href="{% url 'general_settings' %}" 
+           class="px-4 py-2 text-sm border-t border-l border-r border-gray-300 -mb-px bg-gray-200">
+            General
+        </a>
+        <a href="{% url 'dicom_header_qr_settings' %}" 
+           class="px-4 py-2 text-sm border-t border-l border-r border-gray-300 -mb-px bg-gray-200">
+            DICOM Header QR
+        </a>
+        <a href="{% url 'local_header_extraction_settings' %}" 
+           class="px-4 py-2 text-sm border-t border-l border-r border-gray-300 -mb-px bg-gray-200">
+            Local Header Extraction
+        </a>
+        <a href="{% url 'image_qr_settings' %}" 
+           class="px-4 py-2 text-sm border-t border-l border-r border-gray-300 -mb-px bg-gray-200">
+            Image QR
+        </a>
+        <a href="{% url 'image_deid_settings' %}" 
+           class="px-4 py-2 text-sm border-t border-l border-r border-gray-300 -mb-px bg-gray-200">
+            Image De-id
+        </a>
+        <!-- <a href="{% url 'report_deid_settings' %}" 
+           class="px-4 py-2 text-sm border-t border-l border-r border-gray-300 -mb-px bg-gray-200">
+            Report De-id
+        </a> -->
+        <div class="flex-grow border-b border-gray-300 -mb-px"></div>
+    </div>
+</div>
+
+<!-- Content Area - update to remove top margin since tabs connect to it -->
+<div class="flex-1 bg-white p-4 ml-4">
+    {% block settings_content %}{% endblock %}
+</div>
+
+<!-- Save Button -->
+<div class="m-4">
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="saveSettings()">Save Settings</button>
+</div>
+
+<script src="{% static 'js/settings.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get current URL path
+    const currentPath = window.location.pathname;
+
+    // Get all tab links and their hrefs
+    const tabLinks = document.querySelectorAll('.flex.border-b a');
+    // Update text color based on current URL
+    tabLinks.forEach(link => {
+        if (link.getAttribute('href') === currentPath) {
+            link.classList.add('bg-white');
+        }
+    });
+});
+</script>
+{% block settings_scripts %}{% endblock %}
+{% endblock %} 

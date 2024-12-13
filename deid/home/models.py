@@ -31,13 +31,3 @@ class Project(models.Model):
 
     class Meta:
         db_table = 'deid_tasks'
-
-class Settings(models.Model):
-    default_image_source = models.CharField(max_length=10, default='LOCAL')
-    default_tags_to_keep = models.TextField(blank=True)
-    default_tags_to_dateshift = models.TextField(blank=True)
-    default_tags_to_randomize = models.TextField(blank=True)
-    default_date_shift_days = models.IntegerField(null=True, blank=True)
-    id_generation_method = models.CharField(max_length=10, default='UNIQUE')
-    general_filters = models.JSONField(default=list)
-    modality_filters = models.JSONField(default=dict)

@@ -1,0 +1,163 @@
+{% extends 'settings/base_settings.html' %}
+
+{% block title %}General Settings{% endblock %}
+
+{% block settings_content %}
+<meta name="csrf_token" content="{{ csrf_token }}">
+
+<!-- PACS Configuration Section -->
+<div class="mt-6">
+    <div class="text-md mb-4">PACS Configuration</div>
+    <div class="grid grid-cols-3 gap-8">
+        <div>
+            <div class="text-sm text-gray-500 mb-2">IP Address</div>
+            <input type="text" 
+                   class="w-full border-2 border-gray-400 p-1" 
+                   name="pacs_ip" >
+        </div>
+        <div>
+            <div class="text-sm text-gray-500 mb-2">Port</div>
+            <input type="text" 
+                   class="w-full border-2 border-gray-400 p-1" 
+                   name="pacs_port" >
+        </div>
+        <div>
+            <div class="text-sm text-gray-500 mb-2">AET</div>
+            <input type="text" 
+                   class="w-full border-2 border-gray-400 p-1" 
+                   name="pacs_aet" >
+        </div>
+    </div>
+</div>
+
+<!-- Input Excel File Defaults Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">Input Excel File Defaults</div>
+    
+    <div class="mb-4">
+        <div class="text-sm text-gray-500 mb-2">Default Query Method</div>
+        <select class="w-64 border-2 border-gray-400 p-1" name="default_query_method">
+            <option value="Accession">Accession</option>
+            <option value="MRN">MRN + Date</option>>
+        </select>
+    </div>
+
+    <div class="grid grid-cols-3 gap-8">
+        <div>
+            <div class="text-sm text-gray-500 mb-2">Default Accession Header</div>
+            <input type="text" 
+                   class="w-full border-2 border-gray-400 p-1" 
+                   name="default_accession_header" 
+        </div>
+        <div>
+            <div class="text-sm text-gray-500 mb-2">Default MRN Header</div>
+            <input type="text" 
+                   class="w-full border-2 border-gray-400 p-1" 
+                   name="default_mrn_header" >
+        </div>
+        <div>
+            <div class="text-sm text-gray-500 mb-2">Default Date Header</div>
+            <input type="text" 
+                   class="w-full border-2 border-gray-400 p-1" 
+                   name="default_date_header" >
+        </div>
+    </div>
+</div>
+
+<!-- Default Output Folder Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">Default Output Folder</div>
+    <div class="flex items-center space-x-4">
+        <input type="text" 
+               class="flex-1 border-2 border-gray-400 p-1" 
+               name="default_output_folder" >
+        <div class="flex items-center">
+            <input type="checkbox" id="zip_images" name="zip_images" class="mr-2">
+            <label for="zip_images" class="text-sm">Zip images by default</label>
+        </div>
+    </div>
+</div>
+
+<!-- Export Project List Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">Export Project List</div>
+    <a href="#" class="text-blue-600 hover:text-blue-800 text-sm">Download excel file</a>
+</div>
+{% endblock %}
+
+{% block settings_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', loadSavedSettings);
+
+    async function loadSavedSettings() {
+        try {
+            const response = await fetch('/load_settings/');
+            const settings = await response.json();
+
+            if (settings.pacs_ip) {
+                document.querySelector('[name="pacs_ip"]').value = settings.pacs_ip;
+            }
+            if (settings.pacs_port) {
+                document.querySelector('[name="pacs_port"]').value = settings.pacs_port;
+            }
+            if (settings.pacs_aet) {
+                document.querySelector('[name="pacs_aet"]').value = settings.pacs_aet;
+            }
+            if (settings.default_query_method) {
+                document.querySelector('[name="default_query_method"]').value = settings.default_query_method;
+            }
+            if (settings.default_accession_header) {
+                document.querySelector('[name="default_accession_header"]').value = settings.default_accession_header;
+            }
+            if (settings.default_mrn_header) {
+                document.querySelector('[name="default_mrn_header"]').value = settings.default_mrn_header;
+            }
+            if (settings.default_date_header) {
+                document.querySelector('[name="default_date_header"]').value = settings.default_date_header;
+            }
+            if (settings.default_output_folder) {
+                document.querySelector('[name="default_output_folder"]').value = settings.default_output_folder;
+            }
+            if (settings.zip_images) {
+                document.querySelector('[name="zip_images"]').checked = settings.zip_images;
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    }
+
+    async function saveSettings() {
+        const data = {
+            pacs_ip: document.querySelector('[name="pacs_ip"]').value,
+            pacs_port: document.querySelector('[name="pacs_port"]').value,
+            pacs_aet: document.querySelector('[name="pacs_aet"]').value,
+            default_query_method: document.querySelector('[name="default_query_method"]').value,
+            default_accession_header: document.querySelector('[name="default_accession_header"]').value,
+            default_mrn_header: document.querySelector('[name="default_mrn_header"]').value,
+            default_date_header: document.querySelector('[name="default_date_header"]').value,
+            default_output_folder: document.querySelector('[name="default_output_folder"]').value,
+            zip_images: document.querySelector('[name="zip_images"]').checked
+        };
+
+        try {
+            const response = await fetch('/save_settings/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            
+            const saveButton = document.querySelector('button');
+            const successMessage = document.createElement('div');
+            successMessage.textContent = 'Settings Saved';
+            successMessage.className = 'text-green-500 mt-2';
+            saveButton.parentNode.appendChild(successMessage);
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+</script>
+{% endblock %}

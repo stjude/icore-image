@@ -1,0 +1,186 @@
+{% extends 'settings/base_settings.html' %}
+
+{% block title %}De-identification Settings{% endblock %}
+
+{% block settings_content %}
+{{ modalities|json_script:"modalities-data" }}
+
+<script>
+    const modalities = JSON.parse(document.getElementById('modalities-data').textContent);
+</script>
+
+<meta name="csrf_token" content="{{ csrf_token }}">
+<div class="flex-1 bg-white p-4 ml-4">
+    <!-- Default Image Source Section -->
+    <div class="text-sm mt-6 text-black flex items-center space-x-4">
+        Default Image Source: 
+        <input class="ml-4" type="radio" id="default_image_source_local" name="default_image_source" value="LOCAL" checked><span>Local folder</span>
+        <input class="ml-4" type="radio" id="default_image_source_pacs" name="default_image_source" value="PACS"> <span>PACS</span>
+    </div>
+
+    <!-- Default De-id Lists Section -->
+    <div class="mt-6">
+        <div class="text-md mb-2">Default De-identification Lists</div>
+        <div class="flex space-x-4">
+            <div class="flex-1">
+                <div class="text-sm text-gray-500">To keep</div>
+                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_keep"></textarea>
+            </div>
+            <div class="flex-1">
+                <div class="text-sm text-gray-500">To date shift</div>
+                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_dateshift"></textarea>
+            </div>
+            <div class="flex-1">
+                <div class="text-sm text-gray-500">To randomize</div>
+                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_randomize"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Default Date Shift Section -->
+    <div class="mt-6 flex space-x-12">
+        <div>
+            <div class="text-md mb-2">Default date shift</div>
+            <div class="flex items-center">
+                <input type="number" class="w-32 border-2 border-gray-400 p-1" name="default_date_shift_days" />
+                <div class="text-sm ml-2">days</div>
+            </div>
+        </div>
+
+        <!-- Clinical Trial ID Generation Method -->
+        <div>
+            <div class="text-md mb-2">Clinical trial ID generation method</div>
+            <div class="flex flex-col space-y-2">
+                <div class="flex items-center">
+                    <input type="radio" id="unique_identifier" name="id_generation_method" value="UNIQUE" checked>
+                    <label for="unique_identifier" class="ml-2">Generate unique identifier (eg: 170351937...)</label>
+                </div>
+                <div class="flex items-center">
+                    <input type="radio" id="incrementing_integer" name="id_generation_method" value="INCREMENT">
+                    <label for="incrementing_integer" class="ml-2">Incrementing integer (eg: Job-Site-0001)</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Default De-id Filters Section -->
+    <div class="mt-6">
+        <div class="text-md mb-2">Default De-identification Filters</div>
+        
+        <!-- General Filters Section -->
+        <div class="mb-4">
+            <div class="text-sm text-gray-600 mb-2">General Filters</div>
+            <div class="text-sm text-gray-400 mb-2">Only include images where</div>
+            {% include 'components/add_filters.html' %}
+        </div>
+
+        <!-- Modality Filters Section -->
+        <div class="mt-4">
+            <div class="text-md mb-2">Default Modality Filters</div>
+            <div class="grid grid-cols-1 gap-4">
+                {% for modality in modalities %}
+                <div>
+                    <div class="text-sm text-gray-600">{{ modality }} Filters</div>
+                    <div id="filters-{{ modality }}" class="ml-4 mt-2">
+                        <div id="filter-container-{{ modality }}" class="space-y-2">
+                            <!-- Filters will be added here -->
+                        </div>
+                        <button class="mt-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="addFilterToModality('{{ modality }}')">+ Add Filter</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Save Button -->
+<div class="m-4">
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="saveSettings()">Save Settings</button>
+</div>
+{% endblock %}
+
+{% block settings_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', loadSavedSettings);
+
+    async function loadSavedSettings() {
+        try {
+            const response = await fetch('/load_settings/');
+            const settings = await response.json();
+            
+            // Load image source
+            if (settings.default_image_source) {
+                document.querySelector(`input[name="default_image_source"][value="${settings.default_image_source}"]`).checked = true;
+            }
+            if (settings.default_tags_to_keep) {
+                document.querySelector('[name="default_tags_to_keep"]').value = settings.default_tags_to_keep;
+            }
+            if (settings.default_tags_to_dateshift) {
+                document.querySelector('[name="default_tags_to_dateshift"]').value = settings.default_tags_to_dateshift;
+            }
+            if (settings.default_tags_to_randomize) {
+                document.querySelector('[name="default_tags_to_randomize"]').value = settings.default_tags_to_randomize;
+            }
+            if (settings.default_date_shift_days) {
+                document.querySelector('[name="default_date_shift_days"]').value = settings.default_date_shift_days;
+            }
+            if (settings.id_generation_method) {
+                document.querySelector(`input[name="id_generation_method"][value="${settings.id_generation_method}"]`).checked = true;
+            }
+            if (settings.deid_filters) {
+                loadFiltersFromSettings(settings.deid_filters);
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    }
+
+    async function saveSettings() {
+        const filterData = collectFilterData();
+
+        const data = {
+            default_image_source: document.querySelector('input[name="default_image_source"]:checked').value,
+            default_tags_to_keep: document.querySelector('[name="default_tags_to_keep"]').value,
+            default_tags_to_dateshift: document.querySelector('[name="default_tags_to_dateshift"]').value,
+            default_tags_to_randomize: document.querySelector('[name="default_tags_to_randomize"]').value,
+            default_date_shift_days: document.querySelector('[name="default_date_shift_days"]').value,
+            id_generation_method: document.querySelector('input[name="id_generation_method"]:checked').value,
+            deid_filters: filterData
+        };
+
+        try {
+            const response = await fetch('/save_settings/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+
+            const saveButton = document.querySelector('button');
+            const successMessage = document.createElement('div');
+            successMessage.textContent = 'Settings Saved';
+            successMessage.className = 'text-green-500 mt-2';
+            saveButton.parentNode.appendChild(successMessage);
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+
+    function addFilterToModality(modalityId) {
+        const filterContainer = document.getElementById(`filter-container-${modalityId}`);
+        const template = document.querySelector('#filter-template');
+        const newFilter = template.cloneNode(true);
+        newFilter.style.display = 'block';
+        newFilter.removeAttribute('id');
+        filterContainer.appendChild(newFilter);
+    }
+
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
+    }
+</script>
+{% endblock %}
