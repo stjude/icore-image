@@ -5,7 +5,7 @@ COPY ./aiminer.py /root/aiminer.py
 RUN ln -s /config.yml /root/config.yml
 RUN ln -s /input /root/input
 RUN ln -s /output /root/output
-RUN apt-get update && \
+RUN apt-get update --fix-missing && \
     apt-get install -y \
         python3 \
         python3-pip \
