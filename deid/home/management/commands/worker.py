@@ -15,22 +15,24 @@ PACS_IP = 'host.docker.internal'
 PACS_PORT = 4242
 PACS_AET = 'ORTHANC'
 
-CONFIG_PATH = os.path.abspath(os.path.join(os.path.expanduser('~'), '.aiminer', 'config.yml'))
+HOME_DIR = os.path.expanduser('~')
+CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'config.yml'))
+TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'temp_input'))
+DOCKER = which('docker') or '/usr/local/bin/docker'
 
 def process_image_deid(task):
     output_folder = task.output_folder
-    temp_dir = os.path.join(os.path.expanduser('~'), '.aiminer', 'temp_input')
     build_image_deid_config(task)
     if task.image_source == 'PACS':
         input_folder = os.path.dirname(task.parameters['input_file'])
         pacs_port = task.pacs_port
         if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
-            os.makedirs(temp_dir, exist_ok=True)
-            temp_input = os.path.join(temp_dir, 'input.xlsx')
+            os.makedirs(TMP_INPUT_PATH, exist_ok=True)
+            temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
             shutil.copy2(task.parameters['input_file'], temp_input)
-            input_folder = temp_dir
+            input_folder = TMP_INPUT_PATH
         docker_cmd = [
-            which('docker') or '/usr/local/bin/docker', 'run', '--rm',
+            DOCKER, 'run', '--rm',
             '-v', f'{CONFIG_PATH}:/config.yml',
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
@@ -41,7 +43,7 @@ def process_image_deid(task):
     else:
         input_folder = task.input_folder
         docker_cmd = [
-            which('docker') or '/usr/local/bin/docker', 'run', '--rm',
+            DOCKER, 'run', '--rm',
             '-v', f'{CONFIG_PATH}:/config.yml',
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
@@ -60,8 +62,8 @@ def process_image_deid(task):
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
     finally:
-        if os.path.basename(task.parameters['input_file']) != 'input.xlsx' and os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
+        if os.path.basename(task.parameters['input_file']) != 'input.xlsx' and os.path.exists(TMP_INPUT_PATH):
+            shutil.rmtree(TMP_INPUT_PATH)
 
 def build_image_deid_config(task):
     """Build the configuration for image deidentification"""
@@ -113,15 +115,14 @@ def process_image_query(task):
 
     pacs_port = task.pacs_port
     input_folder = os.path.dirname(task.parameters['input_file'])
-    temp_dir = os.path.join(os.path.expanduser('~'), '.aiminer', 'temp_input')
     if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
-        os.makedirs(temp_dir, exist_ok=True)
-        temp_input = os.path.join(temp_dir, 'input.xlsx')
+        os.makedirs(TMP_INPUT_PATH, exist_ok=True)
+        temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
         shutil.copy2(task.parameters['input_file'], temp_input)
-        input_folder = temp_dir
+        input_folder = TMP_INPUT_PATH
 
     docker_cmd = [
-        which('docker') or '/usr/local/bin/docker', 'run', '--rm',
+        DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
@@ -142,8 +143,8 @@ def process_image_query(task):
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
     finally:
-        if os.path.basename(task.parameters['input_file']) != 'input.xlsx' and os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
+        if os.path.basename(task.parameters['input_file']) != 'input.xlsx' and os.path.exists(TMP_INPUT_PATH):
+            shutil.rmtree(TMP_INPUT_PATH)
 
 def build_image_query_config(task):
     """Build the configuration for image query"""
@@ -183,7 +184,7 @@ def process_header_query(task):
     pacs_port = task.pacs_port
     input_folder = os.path.dirname(task.parameters['input_file'])
     docker_cmd = [
-        which('docker') or '/usr/local/bin/docker', 'run', '--rm',
+        DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
