@@ -5,6 +5,7 @@ import shutil
 from ruamel.yaml import YAML, scalarstring
 from django.db import transaction
 from django.core.management.base import BaseCommand
+from shutil import which
 
 from grammar import generate_filters_string, generate_anonymizer_script
 
@@ -14,21 +15,23 @@ PACS_IP = 'host.docker.internal'
 PACS_PORT = 4242
 PACS_AET = 'ORTHANC'
 
+CONFIG_PATH = os.path.abspath(os.path.join(os.path.expanduser('~'), '.aiminer', 'config.yml'))
+
 def process_image_deid(task):
     output_folder = task.output_folder
+    temp_dir = os.path.join(os.path.expanduser('~'), '.aiminer', 'temp_input')
     build_image_deid_config(task)
     if task.image_source == 'PACS':
         input_folder = os.path.dirname(task.parameters['input_file'])
         pacs_port = task.pacs_port
         if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
-            temp_dir = os.path.join(input_folder, 'temp_input')
             os.makedirs(temp_dir, exist_ok=True)
             temp_input = os.path.join(temp_dir, 'input.xlsx')
             shutil.copy2(task.parameters['input_file'], temp_input)
             input_folder = temp_dir
         docker_cmd = [
-            'docker', 'run', '--rm',
-            '-v', f'{os.path.abspath("config.yml")}:/config.yml',
+            which('docker') or '/usr/local/bin/docker', 'run', '--rm',
+            '-v', f'{CONFIG_PATH}:/config.yml',
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
             '-p', '50001:50001',
@@ -38,8 +41,8 @@ def process_image_deid(task):
     else:
         input_folder = task.input_folder
         docker_cmd = [
-            'docker', 'run', '--rm',
-            '-v', f'{os.path.abspath("config.yml")}:/config.yml',
+            which('docker') or '/usr/local/bin/docker', 'run', '--rm',
+            '-v', f'{CONFIG_PATH}:/config.yml',
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
             'aiminer'
@@ -97,7 +100,7 @@ def build_image_deid_config(task):
     config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
 
     # Write config to file
-    with open('config.yml', 'w') as f:
+    with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
     
@@ -110,16 +113,16 @@ def process_image_query(task):
 
     pacs_port = task.pacs_port
     input_folder = os.path.dirname(task.parameters['input_file'])
+    temp_dir = os.path.join(os.path.expanduser('~'), '.aiminer', 'temp_input')
     if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
-        temp_dir = os.path.join(input_folder, 'temp_input')
         os.makedirs(temp_dir, exist_ok=True)
         temp_input = os.path.join(temp_dir, 'input.xlsx')
         shutil.copy2(task.parameters['input_file'], temp_input)
         input_folder = temp_dir
 
     docker_cmd = [
-        'docker', 'run', '--rm',
-        '-v', f'{os.path.abspath("config.yml")}:/config.yml',
+        which('docker') or '/usr/local/bin/docker', 'run', '--rm',
+        '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
@@ -166,7 +169,7 @@ def build_image_query_config(task):
         config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
     
     # Write config to file
-    with open('config.yml', 'w') as f:
+    with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
     
@@ -180,8 +183,8 @@ def process_header_query(task):
     pacs_port = task.pacs_port
     input_folder = os.path.dirname(task.parameters['input_file'])
     docker_cmd = [
-        'docker', 'run', '--rm',
-        '-v', f'{os.path.abspath("config.yml")}:/config.yml',
+        which('docker') or '/usr/local/bin/docker', 'run', '--rm',
+        '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
@@ -226,7 +229,7 @@ def build_header_query_config(task):
         config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
     
     # Write config to file
-    with open('config.yml', 'w') as f:
+    with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
     

@@ -206,7 +206,7 @@ def run_query(request):
 def save_settings(request):
     try:
         new_settings = json.loads(request.body)
-        settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
+        settings_path = os.path.join(os.path.expanduser('~'), '.aiminer', 'settings.json')
         
         try:
             with open(settings_path, 'r') as f:
@@ -227,7 +227,7 @@ def save_settings(request):
 @require_http_methods(["GET"])
 def load_settings(request):
     try:
-        settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
+        settings_path = os.path.join(os.path.expanduser('~'), '.aiminer', 'settings.json')
         with open(settings_path, 'r') as f:
             settings = json.load(f)
         return JsonResponse(settings)

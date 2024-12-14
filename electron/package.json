@@ -1,0 +1,18 @@
+{
+  "name": "aiminer",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron .",
+    "build": "cd ../deid && pyinstaller --clean --noconfirm manage.spec && cd ../electron && rm -rf assets/dist && cp -r ../deid/dist assets && electron-packager . AIMINER --platform=darwin --arch=x64 --icon=assets/icon.icns --overwrite"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-packager": "^17.1.2"
+  }
+}
