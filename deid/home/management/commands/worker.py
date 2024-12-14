@@ -1,15 +1,12 @@
-import django
 import os
 import time
 import subprocess
 import shutil
 from ruamel.yaml import YAML, scalarstring
 from django.db import transaction
+from django.core.management.base import BaseCommand
 
 from grammar import generate_filters_string, generate_anonymizer_script
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-django.setup()
 
 from home.models import Project
 
@@ -271,5 +268,7 @@ def run_worker():
             print(f"Worker error: {str(e)}")
             time.sleep(5)
 
-if __name__ == "__main__":
-    run_worker()
+
+class Command(BaseCommand):
+    def handle(self, *args, **options):
+        run_worker()
