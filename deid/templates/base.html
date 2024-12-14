@@ -19,7 +19,7 @@
             <div class="flex-initial my-auto text-sm text-gray-700">
                 <a href="/" class="rounded mx-2 px-2 py-1 {% if request.path == '/' or request.path == '/projects/' %}bg-gray-100{% endif %}">Projects</a>
                 <a href="/pacses" class="rounded mx-2 px-2 py-1 {% if request.path == '/pacses/' %}bg-gray-100{% endif %}">PACS</a>
-                <a href="/settings/general" class="rounded mx-2 px-2 py-1 {% if request.path == '/settings/image_deid/' %}bg-gray-100{% endif %}">Settings</a>
+                <a href="/settings" class="rounded mx-2 px-2 py-1 {% if request.path == '/settings/' %}bg-gray-100{% endif %}">Settings</a>
             </div>
         </header>
         <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24">
@@ -34,5 +34,28 @@
                 {% block content %}{% endblock %}
             </div>
         </section>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                // Select all text input boxes
+                const inputBoxes = document.querySelectorAll('input[type="text"]');
+
+                // Loop through each input box and attach event listeners
+                inputBoxes.forEach((inputBox) => {
+                    inputBox.addEventListener('dragover', (event) => {
+                        event.preventDefault(); // Allow drop by preventing default behavior
+                    });
+
+                    inputBox.addEventListener('drop', async (event) => {
+                        event.preventDefault();
+
+                        const file = event.dataTransfer.files[0];
+                        if (file) {
+                            const fullPath = await window.electronAPI.getPathForFile(file);
+                            inputBox.value = fullPath; // Set the full path in the dropped input box
+                        }
+                    });
+                });
+            });
+        </script>
     </body>
 </html>
