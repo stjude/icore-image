@@ -11,7 +11,6 @@ app.on('ready', async () => {
         
     serverProcess = spawn(managePath, ['runserver', '--noreload']);
     workerProcess = spawn(managePath, ['worker']);
-    await new Promise(resolve => setTimeout(resolve, 5000));
     
     mainWindow = new BrowserWindow({
         width: 1280,
@@ -21,8 +20,13 @@ app.on('ready', async () => {
             contextIsolation: true,
             webSecurity: false,
         },
-    });
+    });    
+    
+    mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+    
+    await new Promise(resolve => setTimeout(resolve, 5000));
     mainWindow.loadURL('http://127.0.0.1:8000/imagedeid');
+    
     mainWindow.on('closed', () => {
         if (serverProcess) {
             serverProcess.kill();
