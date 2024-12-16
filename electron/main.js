@@ -49,6 +49,42 @@ app.on('ready', async () => {
     
     await new Promise(resolve => setTimeout(resolve, 5000));
     mainWindow.loadURL('http://127.0.0.1:8000/imagedeid');
+
+    // Enable back/forward navigation
+    mainWindow.webContents.on('did-finish-load', () => {
+        if (mainWindow.webContents.navigationHistory.canGoBack) {
+            mainWindow.setBackgroundColor('#FFFFFF');
+            mainWindow.webContents.executeJavaScript(`
+                const menuBar = document.createElement('div');
+                menuBar.style.position = 'fixed';
+                menuBar.style.top = '0';
+                menuBar.style.left = '0';
+                menuBar.style.width = '100%';
+                menuBar.style.height = '40px';
+                menuBar.style.backgroundColor = '#f8f9fa';
+                menuBar.style.borderBottom = '1px solid #dee2e6';
+                menuBar.style.zIndex = '9999';
+                menuBar.style.display = 'flex';
+                menuBar.style.alignItems = 'center';
+                menuBar.style.padding = '0 10px';
+
+                const backButton = document.createElement('button');
+                backButton.innerHTML = '←';
+                backButton.style.padding = '5px 10px';
+                backButton.style.marginRight = '10px';
+                backButton.style.border = 'none';
+                backButton.style.backgroundColor = 'transparent';
+                backButton.style.cursor = 'pointer';
+                backButton.onclick = () => window.history.back();
+                
+                menuBar.appendChild(backButton);
+                document.body.appendChild(menuBar);
+                
+                // Add padding to body to prevent content from going under menubar
+                document.body.style.paddingTop = '40px';
+            `);
+        }
+    });
     
     mainWindow.on('closed', () => {
         if (serverProcess) {
