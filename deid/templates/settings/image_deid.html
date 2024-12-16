@@ -93,11 +93,6 @@
         </div>
     </div>
 </div>
-
-<!-- Save Button -->
-<div class="m-4">
-    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="saveSettings()">Save Settings</button>
-</div>
 {% endblock %}
 
 {% block settings_scripts %}
@@ -165,6 +160,7 @@
             successMessage.textContent = 'Settings Saved';
             successMessage.className = 'text-green-500 mt-2';
             saveButton.parentNode.appendChild(successMessage);
+            console.log('Settings saved successfully');
         } catch (error) {
             console.error('Error saving settings:', error);
         }
