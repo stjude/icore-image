@@ -330,7 +330,7 @@
                     fetch('/load_settings/')
                         .then(response => response.json())
                         .then(settings => {
-                            const savedFilters = settings.filters?.modality_filters?.[modalityId] || [];
+                            const savedFilters = settings.deid_filters?.modality_filters?.[modalityId] || [];
                             if (savedFilters.length > 0) {
                                 savedFilters.forEach(filter => {
                                     const template = document.querySelector('#filter-template');
