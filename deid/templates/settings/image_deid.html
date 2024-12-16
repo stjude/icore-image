@@ -155,12 +155,11 @@
             });
             const result = await response.json();
 
-            const saveButton = document.querySelector('button');
+            const saveButton = document.getElementById('save-button');
             const successMessage = document.createElement('div');
             successMessage.textContent = 'Settings Saved';
             successMessage.className = 'text-green-500 mt-2';
             saveButton.parentNode.appendChild(successMessage);
-            console.log('Settings saved successfully');
         } catch (error) {
             console.error('Error saving settings:', error);
         }
