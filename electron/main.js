@@ -1,10 +1,33 @@
-const { app, BrowserWindow } = require('electron');
-const { spawn } = require('child_process');
+const { app, BrowserWindow, dialog } = require('electron');
+const { spawn, exec } = require('child_process');
 const path = require('path');
 let mainWindow;
 let serverProcess;
 let workerProcess;
+
+function checkDockerRunning() {
+    return new Promise((resolve) => {
+        exec('/usr/local/bin/docker info', (error) => {
+            resolve(!error);
+        });
+    });
+}
+
 app.on('ready', async () => {
+    // Check if Docker is running
+    const isDockerRunning = await checkDockerRunning();
+    if (!isDockerRunning) {
+        dialog.showMessageBox({
+            type: 'error',
+            title: 'Docker Not Running',
+            message: 'Docker Desktop is not running. Please start Docker Desktop and try again.',
+            buttons: ['OK']
+        }).then(() => {
+            app.quit();
+        });
+        return;
+    }
+
     const managePath = app.isPackaged 
         ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
         : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
