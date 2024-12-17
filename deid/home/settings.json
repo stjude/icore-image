@@ -23,24 +23,9 @@
                 "value": "SecondaryCapture"
             },
             {
-                "tag": "SOPClassUID",
-                "action": "not_containsIgnoreCase",
-                "value": "SoftcopyPresentationState"
-            },
-            {
-                "tag": "SOPClassUID",
-                "action": "not_containsIgnoreCase",
-                "value": "StructuredReport"
-            },
-            {
                 "tag": "ImageType",
                 "action": "not_containsIgnoreCase",
                 "value": "INVALID"
-            },
-            {
-                "tag": "ImageType",
-                "action": "not_containsIgnoreCase",
-                "value": "DERIVED"
             },
             {
                 "tag": "ImageType",
@@ -49,18 +34,8 @@
             },
             {
                 "tag": "ImageType",
-                "action": "not_containsIgnoreCase",
-                "value": "SCREEN"
-            },
-            {
-                "tag": "SeriesDescription",
-                "action": "not_containsIgnoreCase",
-                "value": "ANNOTATION"
-            },
-            {
-                "tag": "SeriesDescription",
-                "action": "not_containsIgnoreCase",
-                "value": "MEASURE"
+                "action": "not_equalsIgnoreCase",
+                "value": ""
             }
         ],
         "modality_filters": {
@@ -78,11 +53,6 @@
             ],
             "CT": [
                 {
-                    "tag": "ImageType",
-                    "action": "not_equalsIgnoreCase",
-                    "value": "DOSE"
-                },
-                {
                     "tag": "SliceThickness",
                     "action": "isGreaterThan",
                     "value": "0.5"
@@ -91,13 +61,6 @@
                     "tag": "SliceThickness",
                     "action": "isLessThan",
                     "value": "10"
-                }
-            ],
-            "US": [
-                {
-                    "tag": "ImageType",
-                    "action": "not_equalsIgnoreCase",
-                    "value": ""
                 }
             ]
         }

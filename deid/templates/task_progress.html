@@ -11,12 +11,27 @@
 
 <script>
     const outputFolder = new URLSearchParams(window.location.search).get('output_folder');
+    let previousContent = '';
+    let sameContentCount = 0;
+    let pollInterval;
     
     async function fetchLogContent() {
         try {
             const response = await fetch(`/get_log_content?output_folder=${encodeURIComponent(outputFolder)}`);
             const data = await response.text();
             const logContent = document.getElementById('logContent');
+            
+            if (data === previousContent) {
+                sameContentCount++;
+                if (sameContentCount >= 20) {
+                    clearInterval(pollInterval);
+                    return;
+                }
+            } else {
+                sameContentCount = 0;
+                previousContent = data;
+            }
+            
             logContent.innerHTML = data.replace(/\n/g, '<br>');
             logContent.scrollTop = logContent.scrollHeight;
         } catch (error) {
@@ -28,6 +43,6 @@
     fetchLogContent();
 
     // Poll every second
-    setInterval(fetchLogContent, 1000);
+    pollInterval = setInterval(fetchLogContent, 1000);
 </script>
 {% endblock %}

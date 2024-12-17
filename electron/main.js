@@ -1,9 +1,25 @@
 const { app, BrowserWindow, dialog } = require('electron');
 const { spawn, exec } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 let mainWindow;
 let serverProcess;
 let workerProcess;
+
+// Create AIMINER logs directory in user's home folder if it doesn't exist
+const logsDir = path.join(os.homedir(), '.aiminer');
+fs.mkdirSync(logsDir, { recursive: true });
+
+// Create log write streams
+const serverLogStream = fs.createWriteStream(path.join(logsDir, 'server.log'), { flags: 'a' });
+const workerLogStream = fs.createWriteStream(path.join(logsDir, 'worker.log'), { flags: 'a' });
+const mainLogStream = fs.createWriteStream(path.join(logsDir, 'main.log'), { flags: 'a' });
+
+function logWithTimestamp(stream, message) {
+    const timestamp = new Date().toISOString();
+    stream.write(`[${timestamp}] ${message}\n`);
+}
 
 function checkDockerRunning() {
     return new Promise((resolve) => {
@@ -17,10 +33,12 @@ app.on('ready', async () => {
     // Check if Docker is running
     const isDockerRunning = await checkDockerRunning();
     if (!isDockerRunning) {
+        const message = 'Docker Desktop is not running. Please start Docker Desktop and try again.';
+        logWithTimestamp(mainLogStream, `Error: ${message}`);
         dialog.showMessageBox({
             type: 'error',
             title: 'Docker Not Running',
-            message: 'Docker Desktop is not running. Please start Docker Desktop and try again.',
+            message: message,
             buttons: ['OK']
         }).then(() => {
             app.quit();
@@ -35,6 +53,15 @@ app.on('ready', async () => {
     serverProcess = spawn(managePath, ['runserver', '--noreload']);
     workerProcess = spawn(managePath, ['worker']);
     
+    // Pipe process outputs to log files
+    serverProcess.stdout.pipe(serverLogStream);
+    serverProcess.stderr.pipe(serverLogStream);
+    serverProcess.on('error', (err) => logWithTimestamp(serverLogStream, `Process error: ${err}`));
+    
+    workerProcess.stdout.pipe(workerLogStream);
+    workerProcess.stderr.pipe(workerLogStream);
+    workerProcess.on('error', (err) => logWithTimestamp(workerLogStream, `Process error: ${err}`));
+    
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 720,
@@ -45,10 +72,26 @@ app.on('ready', async () => {
         },
     });    
     
+    // Log main window events
+    mainWindow.webContents.on('console-message', (event, level, message) => {
+        logWithTimestamp(mainLogStream, `Console [${level}]: ${message}`);
+    });
+    
+    mainWindow.webContents.on('crashed', () => {
+        logWithTimestamp(mainLogStream, 'Renderer process crashed');
+    });
+    
+    mainWindow.on('unresponsive', () => {
+        logWithTimestamp(mainLogStream, 'Window became unresponsive');
+    });
+    
     mainWindow.loadFile(path.join(__dirname, 'loading.html'));
     
     await new Promise(resolve => setTimeout(resolve, 5000));
     mainWindow.loadURL('http://127.0.0.1:8000/imagedeid');
+
+    // Open DevTools
+    mainWindow.webContents.openDevTools();
 
     // Enable back/forward navigation
     mainWindow.webContents.on('did-finish-load', () => {
@@ -87,6 +130,7 @@ app.on('ready', async () => {
     });
     
     mainWindow.on('closed', () => {
+        logWithTimestamp(mainLogStream, 'Main window closed');
         if (serverProcess) {
             serverProcess.kill();
             serverProcess = null;
