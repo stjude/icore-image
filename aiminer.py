@@ -233,12 +233,25 @@ def ctp_post(url, data):
 def ctp_get_status(key):
     return int(re.search(re.compile(rf"{key}:\s*<\/td><td>(\d+)"), ctp_get("status")).group(1))
 
-def count_dicom_files(path):
-    return sum(f.endswith(".dcm") for _, _, files in os.walk(path) for f in files)
+def count_files(path):
+    return sum(1 for _, _, files in os.walk(path) for f in files)
 
-def run_progress(querying_pacs):
-    received = ctp_get_status("Files received") if querying_pacs else count_dicom_files("input")
-    quarantined = count_dicom_files(os.path.join("output", "appdata", "quarantine"))
+def count_dicom_files(path):
+    dicom_count = 0
+    for root, _, files in os.walk(path):
+        for f in files:
+            try:
+                with open(os.path.join(root, f), 'rb') as file:
+                    file.seek(128)
+                    if file.read(4) == b'DICM':
+                        dicom_count += 1
+            except:
+                continue
+    return dicom_count
+
+def run_progress(data):
+    received = ctp_get_status("Files received") if data["querying_pacs"] else data["dicom_count"]
+    quarantined = count_files(os.path.join("output", "appdata", "quarantine"))
     saved = ctp_get_status("Files actually stored")
     stable = received == (quarantined + saved)
     return saved, quarantined, received, stable
@@ -249,15 +262,16 @@ def tick(tick_func, data):
         time.sleep(3)
         if tick_func is not None:
             tick_func(data)
-        saved, quarantined, received, stable = run_progress(data["querying_pacs"])
+        saved, quarantined, received, stable = run_progress(data)
         stable_for = stable_for + 1 if stable else 0
         if data["complete"] and stable_for > 3:
             break
         print_and_log(f"PROGRESS: {(saved + quarantined)}/{received} files")
+    print_and_log("PROGRESS: COMPLETE")
 
 def start_ctp_run(tick_func, tick_data, logf):
     ctp_process = subprocess.Popen(["java", "-jar", "Runner.jar"], cwd="ctp", stdout=logf, stderr=logf, text=True)
-    tick_data = {"complete": False, "querying_pacs": True} | tick_data
+    tick_data = {"complete": False, "querying_pacs": True, "dicom_count": count_dicom_files("input")} | tick_data
     tick_thread = Thread(target=tick, args=(tick_func, tick_data,), daemon=True)
     tick_thread.start()
     return (ctp_process, tick_thread, tick_data)
