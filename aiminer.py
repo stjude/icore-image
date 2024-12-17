@@ -233,8 +233,8 @@ def ctp_post(url, data):
 def ctp_get_status(key):
     return int(re.search(re.compile(rf"{key}:\s*<\/td><td>(\d+)"), ctp_get("status")).group(1))
 
-def count_files(path):
-    return sum(1 for _, _, files in os.walk(path) for f in files)
+def count_files(path, exclude_files):
+    return sum(1 for _, _, files in os.walk(path) for f in files if f not in exclude_files)
 
 def count_dicom_files(path):
     dicom_count = 0
@@ -251,7 +251,7 @@ def count_dicom_files(path):
 
 def run_progress(data):
     received = ctp_get_status("Files received") if data["querying_pacs"] else data["dicom_count"]
-    quarantined = count_files(os.path.join("output", "appdata", "quarantine"))
+    quarantined = count_files(os.path.join("output", "appdata", "quarantine"), {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"})
     saved = ctp_get_status("Files actually stored")
     stable = received == (quarantined + saved)
     return saved, quarantined, received, stable
