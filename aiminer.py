@@ -234,7 +234,7 @@ def ctp_get_status(key):
     return int(re.search(re.compile(rf"{key}:\s*<\/td><td>(\d+)"), ctp_get("status")).group(1))
 
 def count_files(path, exclude_files):
-    return sum(1 for _, _, files in os.walk(path) for f in files if f not in exclude_files)
+    return len([f for f in os.listdir(path) if not f.startswith('.') and os.path.isfile(os.path.join(path, f)) and f not in exclude_files])
 
 def count_dicom_files(path):
     dicom_count = 0
