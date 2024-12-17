@@ -91,7 +91,7 @@ app.on('ready', async () => {
     mainWindow.loadURL('http://127.0.0.1:8000/imagedeid');
 
     // Open DevTools
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools();
 
     // Enable back/forward navigation
     mainWindow.webContents.on('did-finish-load', () => {
