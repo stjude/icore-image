@@ -40,8 +40,8 @@
 </div>
 
 <!-- Save Button -->
-<div class="m-4">
-    <button id="save-button" class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="saveSettings()">Save Settings</button>
+<div class="flex">
+    <button id="saveSettingsBtn" class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100">Save Settings</button>
 </div>
 
 <script src="{% static 'js/settings.js' %}"></script>
@@ -56,6 +56,17 @@ document.addEventListener('DOMContentLoaded', function() {
     tabLinks.forEach(link => {
         if (link.getAttribute('href') === currentPath) {
             link.classList.add('bg-white');
+        }
+    });
+
+    // Add event listener for save button
+    document.getElementById('saveSettingsBtn').addEventListener('click', function() {
+        // Check if page-specific saveSettings exists
+        if (typeof saveSettings === 'function') {
+            console.log('Saving settings');
+            saveSettings();
+        } else {
+            console.warn('No saveSettings function defined for this page');
         }
     });
 });
