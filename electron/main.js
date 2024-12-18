@@ -29,6 +29,31 @@ function checkDockerRunning() {
     });
 }
 
+async function initializeFirstRun() {
+    const settingsPath = path.join(logsDir, 'settings.json');
+    if (!fs.existsSync(settingsPath)) {
+        const managePath = app.isPackaged 
+            ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
+            : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+
+        // Run migrate command
+        await new Promise((resolve, reject) => {
+            const migrateProcess = spawn(managePath, ['migrate']);
+            migrateProcess.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`Migration failed with code ${code}`));
+            });
+        });
+
+        // Copy default settings.json
+        const defaultSettingsPath = app.isPackaged
+            ? path.join(process.resourcesPath, 'app', 'assets', 'settings.json')
+            : path.join(__dirname, 'assets', 'settings.json');
+            
+        fs.copyFileSync(defaultSettingsPath, settingsPath);
+    }
+}
+
 app.on('ready', async () => {
     // Check if Docker is running
     const isDockerRunning = await checkDockerRunning();
@@ -39,6 +64,22 @@ app.on('ready', async () => {
             type: 'error',
             title: 'Docker Not Running',
             message: message,
+            buttons: ['OK']
+        }).then(() => {
+            app.quit();
+        });
+        return;
+    }
+
+    // Initialize first run if needed
+    try {
+        await initializeFirstRun();
+    } catch (error) {
+        logWithTimestamp(mainLogStream, `First run initialization failed: ${error}`);
+        dialog.showMessageBox({
+            type: 'error',
+            title: 'Initialization Failed',
+            message: 'Failed to initialize application. Please try again.',
             buttons: ['OK']
         }).then(() => {
             app.quit();
