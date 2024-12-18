@@ -30,15 +30,16 @@ fi
 echo "Starting Docker installation.."
 
 # Define variables
-ARCH=$(uname -m)
-if [ "$ARCH" == "arm64" ]; then
+# Check processor type using sysctl
+PROCESSOR=$(sysctl -n machdep.cpu.brand_string)
+if [[ "$PROCESSOR" == *"Apple"* ]]; then
     echo "Apple Silicon detected."
     DOCKER_DOWNLOAD_URL="https://desktop.docker.com/mac/stable/arm64/Docker.dmg"
-elif [ "$ARCH" == "x86_64" ]; then
+elif [[ "$PROCESSOR" == *"Intel"* ]]; then
     echo "Intel architecture detected."
     DOCKER_DOWNLOAD_URL="https://desktop.docker.com/mac/stable/amd64/Docker.dmg"
 else
-    echo "Unsupported architecture: $ARCH"
+    echo "Unsupported processor: $PROCESSOR"
     exit 1
 fi
 DOCKER_DMG="/tmp/Docker.dmg"
