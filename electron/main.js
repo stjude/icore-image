@@ -209,27 +209,30 @@ app.on('ready', async () => {
     });
     
     mainWindow.on('close', async (e) => {
-        e.preventDefault();
-        const choice = await dialog.showMessageBox(mainWindow, {
-            type: 'question',
-            buttons: ['Yes', 'No'],
-            title: 'Confirm Close',
-            message: 'Are you sure you want to close the application?',
-            detail: 'Any currently running tasks will be canceled and may become corrupted.'
-        });
+        // Only show dialog if it hasn't been confirmed yet
+        if (!mainWindow.isClosing) {
+            e.preventDefault();
+            const choice = await dialog.showMessageBox(mainWindow, {
+                type: 'question',
+                buttons: ['Yes', 'No'],
+                title: 'Confirm Close',
+                message: 'Are you sure you want to close the application?',
+                detail: 'Any currently running tasks will be canceled and may become corrupted.'
+            });
 
-        if (choice.response === 0) {
-            logWithTimestamp(mainLogStream, 'Main window closed');
-            if (serverProcess) {
-                serverProcess.kill();
-                serverProcess = null;
+            if (choice.response === 0) {
+                mainWindow.isClosing = true;
+                logWithTimestamp(mainLogStream, 'Main window closed');
+                if (serverProcess) {
+                    serverProcess.kill();
+                    serverProcess = null;
+                }
+                if (workerProcess) {
+                    workerProcess.kill();
+                    workerProcess = null;
+                }
+                mainWindow.close(); // This will trigger the close event again, but this time will close
             }
-            if (workerProcess) {
-                workerProcess.kill();
-                workerProcess = null;
-            }
-            mainWindow = null;
-            app.quit();
         }
     });
 });
