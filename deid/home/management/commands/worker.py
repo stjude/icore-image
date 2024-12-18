@@ -36,7 +36,7 @@ def process_image_deid(task):
             '-v', f'{CONFIG_PATH}:/config.yml',
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
-            '-p', '50001:50001',
+            '-p', '11119:50001',
             '-p', f'{pacs_port}:{pacs_port}',
             'aiminer'
         ]
@@ -126,7 +126,7 @@ def process_image_query(task):
         '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
-        '-p', '50001:50001',
+        '-p', '11119:50001',
         '-p', f'{pacs_port}:{pacs_port}',
         'aiminer'
     ]
