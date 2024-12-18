@@ -479,6 +479,8 @@ def imagedeid(**config):
     imagedeid_main(**config)
 
 def run_module(**config):
+    logging.info(f"Running module: {config.get('module')}")
+    logging.info(f"Config: {config}")
     globals()[config.get("module")](**config)
 
 if __name__ == "__main__":

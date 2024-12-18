@@ -29,6 +29,27 @@ function checkDockerRunning() {
     });
 }
 
+async function loadDockerImage() {
+    const imagePath = app.isPackaged
+        ? path.join(process.resourcesPath, 'app', 'assets', 'aiminer.tar')
+        : path.join(__dirname, 'assets', 'aiminer.tar');
+
+    return new Promise((resolve, reject) => {
+        mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+        mainWindow.webContents.executeJavaScript(`
+            document.getElementById('status').textContent = 'Loading Docker image...';
+        `);
+        
+        exec(`/usr/local/bin/docker load -i "${imagePath}"`, (error, stdout, stderr) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
 async function initializeFirstRun() {
     const settingsPath = path.join(logsDir, 'settings.json');
     if (!fs.existsSync(settingsPath)) {
@@ -55,6 +76,18 @@ async function initializeFirstRun() {
 }
 
 app.on('ready', async () => {
+    mainWindow = new BrowserWindow({
+        width: 1280,
+        height: 720,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            webSecurity: false,
+        },
+    });
+
+    mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+
     // Check if Docker is running
     const isDockerRunning = await checkDockerRunning();
     if (!isDockerRunning) {
@@ -64,6 +97,23 @@ app.on('ready', async () => {
             type: 'error',
             title: 'Docker Not Running',
             message: message,
+            buttons: ['OK']
+        }).then(() => {
+            app.quit();
+        });
+        return;
+    }
+
+    // Load docker image
+    try {
+        await loadDockerImage();
+        logWithTimestamp(mainLogStream, 'Docker image loaded successfully');
+    } catch (error) {
+        logWithTimestamp(mainLogStream, `Failed to load docker image: ${error}`);
+        dialog.showMessageBox({
+            type: 'error',
+            title: 'Docker Image Load Failed',
+            message: 'Failed to load required docker image. Please try again.',
             buttons: ['OK']
         }).then(() => {
             app.quit();
@@ -103,16 +153,6 @@ app.on('ready', async () => {
     workerProcess.stderr.pipe(workerLogStream);
     workerProcess.on('error', (err) => logWithTimestamp(workerLogStream, `Process error: ${err}`));
     
-    mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 720,
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
-            webSecurity: false,
-        },
-    });    
-    
     // Log main window events
     mainWindow.webContents.on('console-message', (event, level, message) => {
         logWithTimestamp(mainLogStream, `Console [${level}]: ${message}`);
@@ -125,8 +165,6 @@ app.on('ready', async () => {
     mainWindow.on('unresponsive', () => {
         logWithTimestamp(mainLogStream, 'Window became unresponsive');
     });
-    
-    mainWindow.loadFile(path.join(__dirname, 'loading.html'));
     
     await new Promise(resolve => setTimeout(resolve, 5000));
     mainWindow.loadURL('http://127.0.0.1:8000/imagedeid');
@@ -170,16 +208,28 @@ app.on('ready', async () => {
         }
     });
     
-    mainWindow.on('closed', () => {
-        logWithTimestamp(mainLogStream, 'Main window closed');
-        if (serverProcess) {
-            serverProcess.kill();
-            serverProcess = null;
+    mainWindow.on('close', async (e) => {
+        e.preventDefault();
+        const choice = await dialog.showMessageBox(mainWindow, {
+            type: 'question',
+            buttons: ['Yes', 'No'],
+            title: 'Confirm Close',
+            message: 'Are you sure you want to close the application?',
+            detail: 'Any currently running tasks will be canceled and may become corrupted.'
+        });
+
+        if (choice.response === 0) {
+            logWithTimestamp(mainLogStream, 'Main window closed');
+            if (serverProcess) {
+                serverProcess.kill();
+                serverProcess = null;
+            }
+            if (workerProcess) {
+                workerProcess.kill();
+                workerProcess = null;
+            }
+            mainWindow = null;
+            app.quit();
         }
-        if (workerProcess) {
-            workerProcess.kill();
-            workerProcess = null;
-        }
-        mainWindow = null;
     });
 });
