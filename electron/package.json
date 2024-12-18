@@ -5,6 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
+    "build_all_but_image": "cd ../deid && pyinstaller --clean --noconfirm manage.spec && cd ../electron && rm -rf assets/dist && cp ../deid/home/settings.json assets && cp -r ../deid/dist assets && electron-packager . AIMINER --platform=darwin --arch=x64 --icon=assets/icon.icns --overwrite",
     "build_electron": "electron-packager . AIMINER --platform=darwin --arch=x64 --icon=assets/icon.icns --overwrite",
     "build": "cd ../ && docker image rm -f aiminer || true && docker build . --tag aiminer && cd electron && docker save -o assets/aiminer.tar aiminer && cd ../deid && pyinstaller --clean --noconfirm manage.spec && cd ../electron && rm -rf assets/dist && cp ../deid/home/settings.json assets && cp -r ../deid/dist assets && electron-packager . AIMINER --platform=darwin --arch=x64 --icon=assets/icon.icns --overwrite"
   },

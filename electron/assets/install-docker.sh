@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+echo "Starting Docker installation for Intel Mac without Homebrew..."
+
+# Define variables
+ARCH=$(uname -m)
+if [ "$ARCH" == "arm64" ]; then
+    echo "Apple Silicon detected."
+    DOCKER_DOWNLOAD_URL="https://desktop.docker.com/mac/stable/arm64/Docker.dmg"
+elif [ "$ARCH" == "x86_64" ]; then
+    echo "Intel architecture detected."
+    DOCKER_DOWNLOAD_URL="https://desktop.docker.com/mac/stable/amd64/Docker.dmg"
+else
+    echo "Unsupported architecture: $ARCH"
+    exit 1
+fi
+DOCKER_DMG="/tmp/Docker.dmg"
+DOCKER_VOLUME="/Volumes/Docker"
+
+# Download Docker Desktop
+echo "Downloading Docker Desktop..."
+curl -L -o "$DOCKER_DMG" "$DOCKER_DOWNLOAD_URL"
+
+# Mount the DMG
+echo "Mounting Docker DMG..."
+hdiutil attach "$DOCKER_DMG" -quiet -nobrowse
+if [ ! -d "$DOCKER_VOLUME" ]; then
+    echo "Failed to mount Docker DMG. Exiting."
+    exit 1
+fi
+
+# Copy Docker to Applications
+echo "Installing Docker Desktop..."
+cp -R "$DOCKER_VOLUME/Docker.app" /Applications
+
+# Unmount the DMG
+echo "Unmounting Docker DMG..."
+hdiutil detach "$DOCKER_VOLUME" -quiet
+
+# Cleanup
+echo "Cleaning up..."
+rm -f "$DOCKER_DMG"
+
+# Start Docker Desktop
+echo "Starting Docker Desktop..."
+open -g -a Docker
+
+# Wait for Docker to start
+echo "Waiting for Docker to initialize..."
+while ! docker system info > /dev/null 2>&1; do
+    sleep 1
+done
+
+echo "Docker Desktop installed and running successfully!"
+docker --version

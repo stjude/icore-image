@@ -29,6 +29,52 @@ function checkDockerRunning() {
     });
 }
 
+async function installDocker() {
+    const installScript = app.isPackaged
+        ? path.join(process.resourcesPath, 'app', 'assets', 'install-docker.sh')
+        : path.join(__dirname, 'assets', 'install-docker.sh');
+
+    return new Promise((resolve, reject) => {
+        mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+        mainWindow.webContents.executeJavaScript(`
+            document.getElementById('status').textContent = 'Installing Docker...';
+        `);
+
+        const dockerLogStream = fs.createWriteStream(path.join(logsDir, 'docker-install.log'), { flags: 'a' });
+        const installation = spawn('bash', [installScript]);
+
+        installation.stdout.on('data', (data) => {
+            const message = data.toString();
+            logWithTimestamp(dockerLogStream, message);
+            console.log(message);
+        });
+
+        installation.stderr.on('data', (data) => {
+            const message = data.toString();
+            logWithTimestamp(dockerLogStream, `ERROR: ${message}`);
+            console.error(message);
+        });
+
+        installation.on('error', (error) => {
+            const message = `Failed to start Docker installation: ${error}`;
+            logWithTimestamp(dockerLogStream, `ERROR: ${message}`);
+            console.error(message);
+            reject(error);
+        });
+
+        installation.on('close', (code) => {
+            if (code === 0) {
+                logWithTimestamp(dockerLogStream, 'Docker installation completed successfully');
+                resolve();
+            } else {
+                const message = `Docker installation failed with code ${code}`;
+                logWithTimestamp(dockerLogStream, `ERROR: ${message}`);
+                reject(new Error(message));
+            }
+        });
+    });
+}
+
 async function loadDockerImage() {
     const imagePath = app.isPackaged
         ? path.join(process.resourcesPath, 'app', 'assets', 'aiminer.tar')
@@ -53,6 +99,14 @@ async function loadDockerImage() {
 async function initializeFirstRun() {
     const settingsPath = path.join(logsDir, 'settings.json');
     if (!fs.existsSync(settingsPath)) {
+        // Install Docker if it's not installed
+        try {
+            await installDocker();
+            logWithTimestamp(mainLogStream, 'Docker installed successfully');
+        } catch (error) {
+            throw new Error(`Docker installation failed: ${error}`);
+        }
+
         const managePath = app.isPackaged 
             ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
             : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
@@ -88,6 +142,22 @@ app.on('ready', async () => {
 
     mainWindow.loadFile(path.join(__dirname, 'loading.html'));
 
+    // Initialize first run if needed
+    try {
+        await initializeFirstRun();
+    } catch (error) {
+        logWithTimestamp(mainLogStream, `First run initialization failed: ${error}`);
+        dialog.showMessageBox({
+            type: 'error',
+            title: 'Initialization Failed',
+            message: 'Failed to initialize application. Please try again.',
+            buttons: ['OK']
+        }).then(() => {
+            app.quit();
+        });
+        return;
+    }
+
     // Check if Docker is running
     const isDockerRunning = await checkDockerRunning();
     if (!isDockerRunning) {
@@ -114,22 +184,6 @@ app.on('ready', async () => {
             type: 'error',
             title: 'Docker Image Load Failed',
             message: 'Failed to load required docker image. Please try again.',
-            buttons: ['OK']
-        }).then(() => {
-            app.quit();
-        });
-        return;
-    }
-
-    // Initialize first run if needed
-    try {
-        await initializeFirstRun();
-    } catch (error) {
-        logWithTimestamp(mainLogStream, `First run initialization failed: ${error}`);
-        dialog.showMessageBox({
-            type: 'error',
-            title: 'Initialization Failed',
-            message: 'Failed to initialize application. Please try again.',
             buttons: ['OK']
         }).then(() => {
             app.quit();
