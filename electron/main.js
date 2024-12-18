@@ -37,7 +37,7 @@ async function installDocker() {
     return new Promise((resolve, reject) => {
         mainWindow.loadFile(path.join(__dirname, 'loading.html'));
         mainWindow.webContents.executeJavaScript(`
-            document.getElementById('status').textContent = 'Installing Docker. This may take a few minutes...';
+            document.getElementById('status').textContent = 'Setting up Docker...';
         `);
 
         const dockerLogStream = fs.createWriteStream(path.join(logsDir, 'docker-install.log'), { flags: 'a' });
@@ -99,14 +99,6 @@ async function loadDockerImage() {
 async function initializeFirstRun() {
     const settingsPath = path.join(logsDir, 'settings.json');
     if (!fs.existsSync(settingsPath)) {
-        // Install Docker if it's not installed
-        try {
-            await installDocker();
-            logWithTimestamp(mainLogStream, 'Docker installed successfully');
-        } catch (error) {
-            throw new Error(`Docker installation failed: ${error}`);
-        }
-
         const managePath = app.isPackaged 
             ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
             : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
@@ -141,6 +133,23 @@ app.on('ready', async () => {
     });
 
     mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+
+    // Install Docker
+    try {
+        await installDocker();
+        logWithTimestamp(mainLogStream, 'Docker installed successfully');
+    } catch (error) {
+        logWithTimestamp(mainLogStream, `Docker installation failed: ${error}`);
+        dialog.showMessageBox({
+            type: 'error',
+            title: 'Docker Installation Failed',
+            message: 'Failed to install Docker. Please try again.',
+            buttons: ['OK']
+        }).then(() => {
+            app.quit();
+        });
+        return;
+    }
 
     // Initialize first run if needed
     try {
