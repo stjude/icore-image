@@ -1,0 +1,57 @@
+name: Build AIMINER
+
+on:
+  push:
+    branches: [build]
+
+jobs:
+  setup-and-build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+
+    - name: Install pip packages
+      run: |
+        python -m pip install --upgrade pip
+        pip install django tailwind pyinstaller ruamel.yaml
+
+    - name: Install Docker
+      run: |
+        brew install --cask docker
+        open -g -a Docker
+        echo "Waiting for Docker to start..."
+        while ! docker system info > /dev/null 2>&1; do sleep 1; done
+
+    - name: Install Node.js and npm
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+
+    - name: Install npm dependencies and run build
+      working-directory: electron
+      run: |
+        npm install
+        npm run build
+
+    - name: Install Create DMG
+      run: |
+        brew install create-dmg
+
+    - name: Create DMG
+      working-directory: electron
+      run: |
+        ./create-dmg.sh
+
+    - name: Upload DMG
+      uses: actions/upload-artifact@v4
+      with:
+        name: aiminer-darwin-arm64
+        path: electron/AIMINER-darwin-x64/AIMINER.dmg
+
