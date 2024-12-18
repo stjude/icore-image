@@ -37,7 +37,7 @@ async function installDocker() {
     return new Promise((resolve, reject) => {
         mainWindow.loadFile(path.join(__dirname, 'loading.html'));
         mainWindow.webContents.executeJavaScript(`
-            document.getElementById('status').textContent = 'Installing Docker...';
+            document.getElementById('status').textContent = 'Installing Docker. This may take a few minutes...';
         `);
 
         const dockerLogStream = fs.createWriteStream(path.join(logsDir, 'docker-install.log'), { flags: 'a' });

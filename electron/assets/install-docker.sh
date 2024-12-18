@@ -3,6 +3,30 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+# Check if Docker is already installed
+if [ -d "/Applications/Docker.app" ]; then
+    echo "Docker is already installed."
+    
+    # Check if Docker is running
+    if /usr/local/bin/docker system info > /dev/null 2>&1; then
+        echo "Docker is already running."
+        /usr/local/bin/docker --version
+        exit 0
+    else
+        echo "Starting Docker Desktop..."
+        open -g -a Docker
+        
+        echo "Waiting for Docker to initialize..."
+        while ! /usr/local/bin/docker system info > /dev/null 2>&1; do
+            sleep 1
+        done
+        
+        echo "Docker Desktop is now running!"
+        /usr/local/bin/docker --version
+        exit 0
+    fi
+fi
+
 echo "Starting Docker installation.."
 
 # Define variables
