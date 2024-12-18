@@ -3,7 +3,7 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-echo "Starting Docker installation for Intel Mac without Homebrew..."
+echo "Starting Docker installation.."
 
 # Define variables
 ARCH=$(uname -m)
@@ -50,9 +50,9 @@ open -g -a Docker
 
 # Wait for Docker to start
 echo "Waiting for Docker to initialize..."
-while ! docker system info > /dev/null 2>&1; do
+while ! /usr/local/bin/docker system info > /dev/null 2>&1; do
     sleep 1
 done
 
 echo "Docker Desktop installed and running successfully!"
-docker --version
+/usr/local/bin/docker --version
