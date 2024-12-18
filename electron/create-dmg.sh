@@ -1,4 +1,3 @@
-cd AIMINER-darwin-x64
 rm -rf AIMINER.dmg
 create-dmg \
   --volname "AIMINER Installer" \
