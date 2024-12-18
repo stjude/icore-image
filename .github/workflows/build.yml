@@ -25,9 +25,6 @@ jobs:
     - name: Install Docker
       run: |
         brew install --cask docker
-        open -g -a Docker
-        echo "Waiting for Docker to start..."
-        while ! docker system info > /dev/null 2>&1; do sleep 1; done
 
     - name: Install Node.js and npm
       uses: actions/setup-node@v3
