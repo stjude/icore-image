@@ -1,5 +1,7 @@
 #!/bin/bash
 
+find . -name "aiminer.tar" -type f -delete
+
 cd electron
 npm run build
 cd AIMINER-darwin-$(node -p "process.arch")
