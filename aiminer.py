@@ -4,8 +4,10 @@ import sys
 import yaml
 import time
 import signal
+import string
 import logging
 import requests
+import tempfile
 import subprocess
 
 import pandas as pd
@@ -208,6 +210,19 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
 </Configuration>
 """
 
+NLM_CONFIG_TEMPALTE = """ClinicalReports_dir = {input_dir}
+nPHI_outdir = {output_dir}
+ClinicalReports_files = [^\\.].*
+Preserved_phrases = {preserved_file}
+Redacted_phrases = {pii_file}
+AutoOpenOutDir = Off
+"""
+
+COMMON_DATE_FORMATS = [
+    '%m/%d/%Y','%Y-%m-%d','%d/%m/%Y','%m-%d-%Y','%Y/%m/%d','%d-%m-%Y',
+    '%m/%d/%y','%y-%m-%d','%d/%m/%y'
+]
+
 def print_and_log(message):
     logging.info(message)
     print(message)
@@ -362,6 +377,75 @@ def imagedeid_main(**config):
         if querying_pacs:
             cmove_images(logf, **config)
 
+def write(path, data):
+    with open(path, "w") as f:
+        f.write(data)
+
+def scrub(data, whitelist, blacklist):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        os.makedirs(f"{temp_dir}/input", exist_ok=True)
+        os.makedirs(f"{temp_dir}/output", exist_ok=True)
+        for i, d in enumerate(data):
+            text = str(d) if d is not None else "Empty" 
+            write(f"{temp_dir}/input/{i}.txt", ''.join(c for c in text if c in string.printable))
+        write(f"{temp_dir}/preserved.txt", "\n".join(whitelist))
+        write(f"{temp_dir}/pii.txt", "\n".join(blacklist))
+        write(f"{temp_dir}/config.txt", NLM_CONFIG_TEMPALTE.format(
+            input_dir=f"{temp_dir}/input",
+            output_dir=f"{temp_dir}/output", 
+            preserved_file=f"{temp_dir}/preserved.txt",
+            pii_file=f"{temp_dir}/pii.txt",
+        ))
+        subprocess.run(["./scrubber.19.0403.lnx", f"{temp_dir}/config.txt"], 
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        results = []
+        for i in range(len(data)):
+            with open(f"{temp_dir}/output/{i}.nphi.txt") as f:
+                scrubbed = f.read().split("##### DOCUMENT #")[0].strip()
+                results.append(scrubbed)
+            print_and_log(f"PROGRESS: {i}/{len(data)} rows de-identified")
+        return results
+    
+def date_shift_text(original_list, deided_list, date_shift_by):
+    shifted_list = []
+    for i, (original, deided) in enumerate(zip(original_list, deided_list)):
+        dates = []
+        for d_line, o_line in zip(deided.split('\n'), original.split('\n')):
+            pos = 0
+            while '[DATE]' in d_line[pos:]:
+                pos = d_line.find('[DATE]', pos) 
+                context = o_line[max(0,pos-30):min(len(o_line),pos+35)]
+                for word in context.split():
+                    for fmt in COMMON_DATE_FORMATS:
+                        try:
+                            datetime.strptime(word, fmt)
+                            dates.append(word)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        continue
+                    break
+                pos += 1
+        result = deided
+        for date in dates:
+            shifted = datetime.strptime(date, '%m/%d/%Y') + timedelta(days=date_shift_by)
+            result = result.replace('[DATE]', shifted.strftime('%m/%d/%Y'), 1)
+        shifted_list.append(result)
+        print_and_log(f"PROGRESS: {i+1}/{len(original_list)} rows date shifted")
+    return shifted_list
+
+def textdeid_main(**config):
+    try:
+        df = pd.read_excel(os.path.join("input", "input.xlsx"), header=None)
+        original_data = df.iloc[:,0].tolist()
+        deid_data = scrub(original_data, config.get("to_keep_list"), config.get("to_remove_list"))
+        shifted_data = date_shift_text(original_data, deid_data, config.get("date_shift_by"))
+        pd.DataFrame(shifted_data).to_excel(os.path.join("output", "output.xlsx"), index=False, header=False)
+        print_and_log("PROGRESS: COMPLETE")
+    except Exception as e:
+        error_and_exit(f"Error: {e}")
+
 def validate_ctp_filters(filters):
     grammar = r"""start: expr
         ?expr: term | expr ("+" | "*") term
@@ -414,7 +498,7 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
-    if config.get("module") not in ["imageqr", "imagedeid"]:
+    if config.get("module") not in ["imageqr", "imagedeid", "textdeid"]:
         error_and_exit("Module invalid or not implemented.")
     if not os.path.exists("input"):
         error_and_exit("Input directory not found.")
@@ -425,15 +509,21 @@ def validate_config(config):
     if os.listdir("output") != ["appdata"]:
         error_and_exit("Output directory must be empty.")
     if os.path.exists(os.path.join("input", "input.xlsx")):
-        if not all([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
-            error_and_exit("Pacs details missing in config file.")
-        if config.get("acc_col") is None and (config.get("mrn_col") is None or config.get("date_col") is None):
-            error_and_exit("Either the accession column name or mrn + date column names are required.")
-        if config.get("acc_col") is not None and config.get("mrn_col") is not None and config.get("date_col") is not None:
-            error_and_exit("Can only query using one of accession or mrn + date. Not both.")
-        if config.get("date_window") is not None and not isinstance(config.get("date_window"), int):
-            error_and_exit("Date window must be an integer.")
-        validate_excel(os.path.join("input", "input.xlsx"), **config)
+        if config.get("module") in ["imageqr", "imagedeid"]:
+            if not all([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
+                error_and_exit("Pacs details missing in config file.")
+            if config.get("acc_col") is None and (config.get("mrn_col") is None or config.get("date_col") is None):
+                error_and_exit("Either the accession column name or mrn + date column names are required.")
+            if config.get("acc_col") is not None and config.get("mrn_col") is not None and config.get("date_col") is not None:
+                error_and_exit("Can only query using one of accession or mrn + date. Not both.")
+            if config.get("date_window") is not None and not isinstance(config.get("date_window"), int):
+                error_and_exit("Date window must be an integer.")
+            validate_excel(os.path.join("input", "input.xlsx"), **config)
+        else:
+            if config.get("to_keep_list") is None or config.get("to_remove_list") is None:
+                error_and_exit("to_keep_list and to_remove_list must be provided.")
+            if config.get("date_shift_by") is None:
+                error_and_exit("Date shift by must be provided.")
     elif config.get("module") in ["imagedeid"]:
         if count_dicom_files("input") == 0:
             error_and_exit("No DICOM files found in input directory.")
@@ -477,6 +567,19 @@ def imagedeid(**config):
         ctp_anonymizer (str): Anonymization script in the CTP xml format.
     """
     imagedeid_main(**config)
+
+def textdeid(**config):
+    """
+    De-identifies text from the input.xlsx file in the input directory.
+    The excel file should only have one column with text to be de-identified.
+    The excel file should not have any headers.
+
+    Keyword Args:
+        date_shift_by (int): Number of days to shift the date.
+        to_keep_list (list): List of phrases to be preserved.
+        to_remove_list (list): List of phrases to be de-identified.
+    """
+    textdeid_main(**config)
 
 def run_module(**config):
     logging.info(f"Running module: {config.get('module')}")
