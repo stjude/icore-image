@@ -1,5 +1,5 @@
 from django.views.generic import TemplateView, ListView
-from django.views.generic.edit import CreateView, UpdateView, DeleteView
+from django.views.generic.edit import CreateView
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotFound, HttpResponse
 from django.views.decorators.http import require_http_methods
@@ -7,8 +7,12 @@ import json
 import os
 from django.views.decorators.csrf import csrf_exempt
 from .models import Project
+import pandas as pd
+import bcrypt
 
-# Create a mixin for common context data
+
+SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.aiminer')
+
 class CommonContextMixin:
     def get_common_context(self):
         return {
@@ -37,6 +41,12 @@ class ImageDeIdentificationView(CommonContextMixin, CreateView):
     fields = ['name', 'image_source', 'input_folder', 'output_folder', 'ctp_dicom_filter']
     template_name = 'image_deid.html'
     success_url = reverse_lazy('task_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['protocols'] = get_unique_protocols()
+        print(context['protocols'])
+        return context
 
 class ImageQueryView(CommonContextMixin, CreateView):
     model = Project
@@ -70,9 +80,18 @@ class ImageQRSettingsView(CommonContextMixin, TemplateView):
 
 class ImageDeIdentificationSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/image_deid.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['protocols'] = get_unique_protocols()
+        print(context['protocols'])
+        return context
 
 class ReportDeIdentificationSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/image_deid.html'
+
+class AdminSettingsView(CommonContextMixin, TemplateView):
+    template_name = 'settings/admin_settings.html'
 
 class TaskProgressView(TemplateView):
     template_name = 'task_progress.html'
@@ -206,7 +225,7 @@ def run_query(request):
 def save_settings(request):
     try:
         new_settings = json.loads(request.body)
-        settings_path = os.path.join(os.path.expanduser('~'), '.aiminer', 'settings.json')
+        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         
         try:
             with open(settings_path, 'r') as f:
@@ -227,7 +246,7 @@ def save_settings(request):
 @require_http_methods(["GET"])
 def load_settings(request):
     try:
-        settings_path = os.path.join(os.path.expanduser('~'), '.aiminer', 'settings.json')
+        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         with open(settings_path, 'r') as f:
             settings = json.load(f)
         return JsonResponse(settings)
@@ -340,3 +359,231 @@ def get_dicom_fields():
         ('Modality', 'Modality'),
     ]
     return dicom_fields
+
+@require_http_methods(["GET"])
+def load_admin_settings(request):
+    try:
+        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+        
+        # Load existing settings
+        try:
+            with open(settings_path, 'r') as f:
+                settings = json.load(f)
+        except FileNotFoundError:
+            settings = {}
+
+        # Check for protocol file
+        protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
+        if os.path.exists(protocol_path):
+            settings['protocol_file'] = os.path.basename(protocol_path)
+        
+        return JsonResponse(settings)
+    except Exception as e:
+        print(f"Error loading admin settings: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["POST"])
+def save_admin_settings(request):
+    try:
+        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+        os.makedirs(SETTINGS_DIR, exist_ok=True)
+
+        # Load existing settings
+        try:
+            with open(settings_path, 'r') as f:
+                settings = json.load(f)
+        except FileNotFoundError:
+            settings = {}
+
+        # Handle protocol file upload
+        if 'protocol_file' in request.FILES:
+            protocol_file = request.FILES['protocol_file']
+            protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
+            with open(protocol_path, 'wb+') as destination:
+                for chunk in protocol_file.chunks():
+                    destination.write(chunk)
+            settings['protocol_file'] = os.path.basename(protocol_path)
+
+        # Handle date shift range
+        if 'date_shift_range' in request.POST:
+            settings['date_shift_range'] = int(request.POST['date_shift_range'])
+
+        # Save settings
+        with open(settings_path, 'w') as f:
+            json.dump(settings, f, indent=4)
+
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        print(f"Error saving admin settings: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+def get_protocol_settings(request, protocol_id):
+    try:
+        settings_dir = os.path.join(os.path.expanduser('~'), '.aiminer')
+        protocol_path = os.path.join(settings_dir, 'protocol.xlsx')
+        
+        if not os.path.exists(protocol_path):
+            return JsonResponse({'error': 'Protocol file not found'}, status=404)
+            
+        # Read Excel file
+        df = pd.read_excel(protocol_path)
+        
+        # Convert protocol_id to integer if needed
+        try:
+            protocol_id = int(protocol_id)
+        except ValueError:
+            pass  # Keep as string if conversion fails
+        
+        # Find the row for this protocol
+        matching_rows = df[df['Protocol ID'] == protocol_id]
+        matching_rows = matching_rows.sort_values('Version', ascending=False)
+        print(matching_rows)
+        if matching_rows.empty:
+                return JsonResponse({'error': f'Protocol ID {protocol_id} not found'}, status=404)
+        
+        protocol_row = matching_rows.iloc[0]
+        
+        filters = load_filters_from_protocol(protocol_row)
+        # Convert numpy types to Python native types
+        protocol_settings = {
+            'tags_to_keep': protocol_row.get('Deid Whitelist', ''),
+            'tags_to_dateshift': protocol_row.get('Deid Date Shift List', ''),
+            'tags_to_randomize': protocol_row.get('Deid Randomize List', ''),
+            # 'date_shift_days': protocol_row.get('Deid Date Shift', ''),
+            'is_restricted': bool(protocol_row.get('Restricted')),
+            'filters': filters
+        }
+        
+        return JsonResponse({'protocol_settings': protocol_settings})
+    except Exception as e:
+        print(f"Error getting protocol settings: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+def get_unique_protocols():
+    try:
+        protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
+        
+        if not os.path.exists(protocol_path):
+            print(f"Protocol file not found at {protocol_path}")
+            return []
+            
+        # Read Excel file
+        df = pd.read_excel(protocol_path)
+        
+        # Get unique protocol IDs, assuming the column is named 'Protocol_ID'
+        # Adjust the column name if it's different in your Excel file
+        unique_protocols = df['Protocol ID'].unique().tolist()
+        
+        return unique_protocols
+    except Exception as e:
+        print(f"Error reading protocol file: {str(e)}")
+        return []
+
+def load_filters_from_protocol(protocol_row):
+    # Handle general filters
+    general_filters = []
+    general_filter_str = protocol_row.get('General Filters', '')
+    if general_filter_str:
+        for line in general_filter_str.splitlines():
+            if line.strip():
+                tag, action, value = [x.strip() for x in line.split(',')]
+                general_filters.append({
+                    'tag': tag,
+                    'action': generate_action_string(action), 
+                    'value': value
+                })
+                print(generate_action_string(action))
+
+    # Handle modality-specific filters
+    modality_filters = {}
+    for modality in ['MR', 'CT', 'US', 'DX', 'MG', 'PT', 'NM', 'XA', 'RF', 'CR']:
+        modality_filter_str = protocol_row.get(f'{modality} Filters', '')
+        if modality_filter_str:
+            filters = []
+            for line in modality_filter_str.splitlines():
+                if line.strip():
+                    tag, action, value = [x.strip() for x in line.split(',')]
+                    filters.append({
+                        'tag': tag,
+                        'action': generate_action_string(action),
+                        'value': value
+                    })
+            if filters:
+                modality_filters[modality] = filters
+
+    return {
+        'general_filters': general_filters,
+        'modality_filters': modality_filters
+    }
+
+def generate_action_string(action):
+    if action == 'DoesNotContain':
+        action = 'not_containsIgnoreCase'
+    elif action == 'Contains':
+        action = 'containsIgnoreCase'
+    elif action == 'StartsWith':
+        action = 'startsWithIgnoreCase'
+    elif action == 'DoesNotEndWith':
+        action = 'not_endsWithIgnoreCase'
+    elif action == 'EndsWith':
+        action = 'endsWithIgnoreCase'
+    elif action == 'DoesNotEqual':
+        action = 'not_equalsIgnoreCase'
+    elif action == 'Equals':
+        action = 'equalsIgnoreCase'
+    return action
+
+def get_password_file_path():
+    settings_dir = os.path.join(os.path.expanduser('~'), '.aiminer')
+    os.makedirs(settings_dir, exist_ok=True)
+    return os.path.join(settings_dir, 'admin_password.txt')
+
+def set_admin_password(password):
+    """Hash and store the admin password"""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    with open(get_password_file_path(), 'wb') as f:
+        f.write(hashed)
+
+def check_admin_password(password):
+    """Check if the provided password matches the stored hash"""
+    try:
+        with open(get_password_file_path(), 'rb') as f:
+            stored_hash = f.read()
+        return bcrypt.checkpw(password.encode('utf-8'), stored_hash)
+    except FileNotFoundError:
+        return False
+
+@require_http_methods(["POST"])
+def verify_admin_password(request):
+    try:
+        data = json.loads(request.body)
+        password = data.get('password', '')
+        print(password)
+        is_valid = check_admin_password(password)
+        return JsonResponse({'valid': is_valid})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+def initialize_admin_password():
+    """Initialize admin password file by copying from source"""
+    try:
+        # Get source and destination paths
+        default_password = '$2b$12$UYU1MTmIHwYV45o385z8ue7nTfW7uwSWy/XRM90acW2HwQZCPNXXW'
+        dest_path = get_password_file_path()
+
+        # Only copy if destination doesn't exist
+        if not os.path.exists(dest_path):
+            # Create settings directory if needed
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            
+            # Copy the password file
+            with open(dest_path, 'wb') as dst:
+                dst.write(default_password.encode('utf-8'))
+    except Exception as e:
+        print(f"Error initializing admin password: {str(e)}")
+
+initialize_admin_password()

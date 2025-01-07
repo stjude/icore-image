@@ -17,6 +17,11 @@ urlpatterns = [
     path('settings/image_qr/', views.ImageQRSettingsView.as_view(), name='image_qr_settings'),
     path('settings/image_deid/', views.ImageDeIdentificationSettingsView.as_view(), name='image_deid_settings'),
     path('settings/report_deid/', views.ReportDeIdentificationSettingsView.as_view(), name='report_deid_settings'),
+    path('settings/admin/', views.AdminSettingsView.as_view(), name='admin_settings'),
     path('save_settings/', views.save_settings, name='save_settings'),
     path('load_settings/', views.load_settings, name='load_settings'),
+    path('load_admin_settings/', views.load_admin_settings, name='load_admin_settings'),
+    path('save_admin_settings/', views.save_admin_settings, name='save_admin_settings'),
+    path('get_protocol_settings/<str:protocol_id>/', views.get_protocol_settings, name='get_protocol_settings'),
+    path('verify_admin_password/', views.verify_admin_password, name='verify_admin_password'),
 ]

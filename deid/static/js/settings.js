@@ -18,7 +18,7 @@ function loadFiltersFromSettings(filters) {
         filters.general_filters.forEach(filter => {
             const newFilter = addFilter();
             newFilter.querySelector('[name="tag"]').value = filter.tag;
-            newFilter.querySelector('[name="action"]').value = filter.action;
+            newFilter.querySelector('[name="action"]').value = generateActionString(filter.action);
             newFilter.querySelector('[name="value"]').value = filter.value;
         });
     }
@@ -35,7 +35,7 @@ function loadFiltersFromSettings(filters) {
                     newFilter.classList.add('filter-row');
                     
                     newFilter.querySelector('[name="tag"]').value = filter.tag;
-                    newFilter.querySelector('[name="action"]').value = filter.action;
+                    newFilter.querySelector('[name="action"]').value = generateActionString(filter.action);
                     newFilter.querySelector('[name="value"]').value = filter.value;
                     
                     filterContainer.appendChild(newFilter);
@@ -44,8 +44,6 @@ function loadFiltersFromSettings(filters) {
         });
     }
 }
-
-// ... existing functions ...
 
 function collectFilterData() {
     // Collect general filters
@@ -75,4 +73,85 @@ function collectFilterData() {
         general_filters: generalFilters,
         modality_filters: modalityFilters
     };
+}
+
+function generateActionString(action) {
+    if (action == 'DoesNotContain') {
+        return 'not_containsIgnoreCase'
+    }
+    if (action == 'Contains') {
+        return 'containsIgnoreCase'
+    }
+    if (action == 'DoesNotStartWith') {
+        return 'not_startsWithIgnoreCase'
+    }
+    if (action == 'StartsWith') {
+        return 'startsWithIgnoreCase'
+    }
+    if (action == 'DoesNotEndWith') {
+        return 'not_endsWithIgnoreCase'
+    }
+    if (action == 'EndsWith') {
+        return 'endsWithIgnoreCase'
+    }
+    if (action == 'DoesNotEqual') {
+        return 'not_equalsIgnoreCase'
+    }
+    if (action == 'Equals') {
+        return 'equalsIgnoreCase'
+    }
+    return action;
+}
+
+async function handleProtocolChange() {
+    const protocolId = document.getElementById('protocol_select').value;
+    if (!protocolId) return;
+
+    try {
+        const response = await fetch(`/get_protocol_settings/${protocolId}/`);
+        if (!response.ok) throw new Error('Failed to load protocol settings');
+        
+        const data = await response.json();
+        if (data.protocol_settings) {
+            loadProtocolSettings(data.protocol_settings);
+        }
+    } catch (error) {
+        console.error('Error loading protocol settings:', error);
+    }
+}
+
+function loadProtocolSettings(settings) {
+    // Load text area values
+    if (settings.tags_to_keep) {
+        document.querySelector('[name="default_tags_to_keep"]').value = settings.tags_to_keep;
+    }
+    if (settings.tags_to_dateshift) {
+        document.querySelector('[name="default_tags_to_dateshift"]').value = settings.tags_to_dateshift;
+    }
+    if (settings.tags_to_randomize) {
+        document.querySelector('[name="default_tags_to_randomize"]').value = settings.tags_to_randomize;
+    }
+    
+    // Load date shift days
+    if (settings.date_shift_days) {
+        document.querySelector('[name="default_date_shift_days"]').value = settings.date_shift_days;
+    }
+    
+    // Load ID generation method
+    if (settings.id_generation_method) {
+        document.querySelector(`input[name="id_generation_method"][value="${settings.id_generation_method}"]`).checked = true;
+    }
+
+    // Handle restricted status
+    const isRestricted = settings.is_restricted;
+    const inputs = document.querySelectorAll('input, textarea, select');
+    inputs.forEach(input => {
+        input.disabled = isRestricted;
+    });
+    
+    // Keep the protocol selector enabled even in restricted mode
+    document.getElementById('protocol_select').disabled = false;
+
+    // Load filters if they exist
+    loadFiltersFromSettings(settings.filters);
 }
