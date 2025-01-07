@@ -60,6 +60,12 @@ class HeaderQueryView(CommonContextMixin, CreateView):
     template_name = 'header_query.html'
     success_url = reverse_lazy('task_list')
 
+class TextDeIdentificationView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name', 'input_folder', 'output_folder']
+    template_name = 'text_deid.html'
+    success_url = reverse_lazy('task_list')
+
 class TaskListView(ListView):
     model = Project
     template_name = 'task_list.html'
@@ -213,6 +219,30 @@ def run_query(request):
             }
         )
 
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+@csrf_exempt
+def run_text_deid(request):
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+
+        project = Project.objects.create(
+            name=data['study_name'],
+            task_type=Project.TaskType.TEXT_DEID,
+            status=Project.TaskStatus.PENDING,
+            parameters={
+                'input_file': data['input_file'],
+                'output_file': data['output_file'],
+            }
+        )
+        
         return JsonResponse({
             'status': 'success',
             'project_id': project.id

@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Text De-identification{% endblock %}
+
+{% block content %}
+<div class="px-4">
+    <h1 class="text-xl flex-1">Text De-identification</h1>
+</div>
+<div class="flex-1 bg-white p-4 ml-4 mt-4">
+    <!-- Project Name Section -->
+    <div class="text-sm text-black-5">Project Name</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
+
+    <!-- Input File Section -->
+    <div class="text-sm text-black-5 mt-4">Input File</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" />
+
+    <!-- Output File Section -->
+    <div class="text-sm text-black-5 mt-4">Output File</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_file" />
+</div>
+
+<!-- Run Button Section -->
+<div class="m-4">
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()">Run De-id</button>
+</div>
+
+<script>
+    async function runDeid() {
+        const data = {
+            study_name: document.querySelector('[name="study_name"]').value,
+            input_file: document.querySelector('[name="input_file"]').value,
+            output_file: document.querySelector('[name="output_file"]').value
+        };
+
+        try {
+            const response = await fetch('/run_text_deid/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                window.location.href = `/task_progress?output_file=${encodeURIComponent(data.output_file)}`;
+            } else {
+                console.error('Error starting de-identification:', result);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+</script>
+{% endblock %}

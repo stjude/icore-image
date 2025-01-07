@@ -236,6 +236,41 @@ def build_header_query_config(task):
     
     return config
 
+def process_text_deid(task):
+    print('Processing text deid')
+    build_text_deid_config(task)
+
+    input_file = task.parameters['input_file']
+    output_file = task.parameters['output_file']
+
+    docker_cmd = [
+        DOCKER, 'run', '--rm',
+        '-v', f'{CONFIG_PATH}:/config.yml', 
+        '-v', f'{os.path.abspath(input_file)}:/input.xlsx',
+        '-v', f'{os.path.abspath(output_file)}:/output.xlsx',
+        'aiminer'
+    ]
+
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+
+    try:
+        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+
+def build_text_deid_config(task):
+    """Build the configuration for text deidentification"""
+    config = {'module': 'textdeid'}
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+
+    return config
+
 
 def run_worker():
     while True:
