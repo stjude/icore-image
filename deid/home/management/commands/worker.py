@@ -240,14 +240,14 @@ def process_text_deid(task):
     print('Processing text deid')
     build_text_deid_config(task)
 
-    input_file = task.parameters['input_file']
-    output_file = task.parameters['output_file']
+    input_folder = task.input_folder
+    output_folder = task.output_folder
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml', 
-        '-v', f'{os.path.abspath(input_file)}:/input.xlsx',
-        '-v', f'{os.path.abspath(output_file)}:/output.xlsx',
+        '-v', f'{os.path.abspath(input_folder)}:/input',
+        '-v', f'{os.path.abspath(output_folder)}:/output',
         'aiminer'
     ]
 
@@ -265,6 +265,15 @@ def process_text_deid(task):
 def build_text_deid_config(task):
     """Build the configuration for text deidentification"""
     config = {'module': 'textdeid'}
+    print(task.parameters)
+    to_keep_list = task.parameters['text_to_keep'].split('\n')
+    to_remove_list = task.parameters['text_to_remove'].split('\n')
+    date_shift_by = int(task.parameters['date_shift_days'])
+    config.update({
+        'to_keep_list': to_keep_list,
+        'to_remove_list': to_remove_list,
+        'date_shift_by': date_shift_by
+    })
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
@@ -293,6 +302,8 @@ def run_worker():
                             process_image_query(task)
                         elif task.task_type == Project.TaskType.HEADER_QUERY:
                             process_header_query(task)
+                        elif task.task_type == Project.TaskType.TEXT_DEID:
+                            process_text_deid(task)
                         task.status = Project.TaskStatus.COMPLETED
                     except Exception as e:
                         print(f"Error processing task {task.id}: {str(e)}")

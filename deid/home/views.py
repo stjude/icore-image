@@ -94,7 +94,7 @@ class ImageDeIdentificationSettingsView(CommonContextMixin, TemplateView):
         return context
 
 class ReportDeIdentificationSettingsView(CommonContextMixin, TemplateView):
-    template_name = 'settings/image_deid.html'
+    template_name = 'settings/text_deid.html'
 
 class AdminSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/admin_settings.html'
