@@ -235,11 +235,14 @@ def run_text_deid(request):
 
         project = Project.objects.create(
             name=data['study_name'],
+            input_folder=data['input_folder'],
+            output_folder=data['output_folder'],
             task_type=Project.TaskType.TEXT_DEID,
             status=Project.TaskStatus.PENDING,
             parameters={
-                'input_file': data['input_file'],
-                'output_file': data['output_file'],
+                'text_to_keep': data['text_to_keep'],
+                'text_to_remove': data['text_to_remove'],
+                'date_shift_days': data['date_shift_days']
             }
         )
         
@@ -602,7 +605,7 @@ def initialize_admin_password():
     """Initialize admin password file by copying from source"""
     try:
         # Get source and destination paths
-        default_password = '$2b$12$UYU1MTmIHwYV45o385z8ue7nTfW7uwSWy/XRM90acW2HwQZCPNXXW'
+        default_password = 'password'
         dest_path = get_password_file_path()
 
         # Only copy if destination doesn't exist
@@ -612,7 +615,7 @@ def initialize_admin_password():
             
             # Copy the password file
             with open(dest_path, 'wb') as dst:
-                dst.write(default_password.encode('utf-8'))
+                dst.write(bcrypt.hashpw(default_password.encode('utf-8'), bcrypt.gensalt()))
     except Exception as e:
         print(f"Error initializing admin password: {str(e)}")
 
