@@ -68,7 +68,6 @@ def process_image_deid(task):
 def build_image_deid_config(task):
     """Build the configuration for image deidentification"""
     config = {'module': 'imagedeid'}
-    
     # Add PACS configuration if needed
     if task.image_source == 'PACS':
         config.update({
@@ -85,7 +84,6 @@ def build_image_deid_config(task):
                 'mrn_col': task.parameters['mrn_col'],
                 'date_col': task.parameters['date_col']
             })
-            
 
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
@@ -240,7 +238,7 @@ def process_text_deid(task):
     print('Processing text deid')
     build_text_deid_config(task)
 
-    input_folder = task.input_folder
+    input_folder = os.path.dirname(task.parameters['input_file'])
     output_folder = task.output_folder
 
     docker_cmd = [

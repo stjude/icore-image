@@ -12,8 +12,8 @@
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
 
     <!-- Input File Section -->
-    <div class="text-sm text-black-5 mt-4">Input Folder</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
+    <div class="text-sm text-black-5 mt-4">Input File</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" />
 
     <!-- Output File Section -->
     <div class="text-sm text-black-5 mt-4">Output Folder</div>
@@ -76,7 +76,7 @@
     async function runDeid() {
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
-            input_folder: document.querySelector('[name="input_folder"]').value,
+            input_file: document.querySelector('[name="input_file"]').value,
             output_folder: document.querySelector('[name="output_folder"]').value,
             text_to_keep: document.querySelector('[name="text_to_keep"]').value,
             text_to_remove: document.querySelector('[name="text_to_remove"]').value,

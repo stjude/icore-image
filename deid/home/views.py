@@ -62,7 +62,7 @@ class HeaderQueryView(CommonContextMixin, CreateView):
 
 class TextDeIdentificationView(CommonContextMixin, CreateView):
     model = Project
-    fields = ['name', 'input_folder', 'output_folder']
+    fields = ['name', 'output_folder']
     template_name = 'text_deid.html'
     success_url = reverse_lazy('task_list')
 
@@ -235,11 +235,11 @@ def run_text_deid(request):
 
         project = Project.objects.create(
             name=data['study_name'],
-            input_folder=data['input_folder'],
             output_folder=data['output_folder'],
             task_type=Project.TaskType.TEXT_DEID,
             status=Project.TaskStatus.PENDING,
             parameters={
+                'input_file': data['input_file'],
                 'text_to_keep': data['text_to_keep'],
                 'text_to_remove': data['text_to_remove'],
                 'date_shift_days': data['date_shift_days']
