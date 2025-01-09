@@ -75,6 +75,7 @@ def build_image_deid_config(task):
             'pacs_ip': task.pacs_ip,
             'pacs_port': task.pacs_port,
             'pacs_aet': task.pacs_aet,
+            'application_aet': task.application_aet,
         })
         if task.parameters['acc_col'] != '':
             config.update({
@@ -153,6 +154,7 @@ def build_image_query_config(task):
             'pacs_ip': task.pacs_ip,
             'pacs_port': task.pacs_port,
             'pacs_aet': task.pacs_aet,
+            'application_aet': task.application_aet,
         })
     if task.parameters['acc_col'] != '':
         config.update({

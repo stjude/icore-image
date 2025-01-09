@@ -22,6 +22,7 @@ class Migration(migrations.Migration):
                 ('pacs_ip', models.CharField(blank=True, max_length=255, null=True)),
                 ('pacs_port', models.CharField(blank=True, max_length=255, null=True)),
                 ('pacs_aet', models.CharField(blank=True, max_length=255, null=True)),
+                ('application_aet', models.CharField(blank=True, max_length=255, null=True)),
                 ('ctp_dicom_filter', models.TextField(blank=True)),
                 ('task_type', models.CharField(choices=[('image_deid', 'Image De-identification'), ('image_query', 'Image Query'), ('header_query', 'DICOM Header Query/Retrieve')], max_length=20)),
                 ('status', models.CharField(choices=[('pending', 'Pending'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed')], default='pending', max_length=20)),

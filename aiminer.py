@@ -34,7 +34,7 @@ IMAGEQR_CONFIG = """<Configuration>
             class="org.rsna.ctp.stdstages.DicomImportService"
             name="DicomImportService"
             port="50001"
-            calledAETTag="BULKDEID2"
+            calledAETTag="{application_aet}"
             root="roots/DicomImportService"
             quarantine="quarantines/DicomImportService"
             logConnections="no" />
@@ -155,7 +155,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             class="org.rsna.ctp.stdstages.DicomImportService"
             name="DicomImportService"
             port="50001"
-            calledAETTag="BULKDEID2"
+            calledAETTag="{application_aet}"
             root="roots/DicomImportService"
             quarantine="quarantines/DicomImportService"
             logConnections="no" />
@@ -338,7 +338,7 @@ def cmove_queries(**config):
 
 def cmove_images(logf, **config):
     for query in cmove_queries(**config):
-        cmd = ["movescu", "-v", "-aet", "BULKDEID2", "-aec", 
+        cmd = ["movescu", "-v", "-aet", config.get("application_aet"), "-aec", 
             config.get("pacs_aet"), "-aem", "BULKDEID2", "-S"]+ query.split() + [
             config.get("pacs_ip"), str(config.get("pacs_port"))]
         logging.info(" ".join(cmd))
@@ -512,6 +512,8 @@ def validate_config(config):
         if config.get("module") in ["imageqr", "imagedeid"]:
             if not all([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
                 error_and_exit("Pacs details missing in config file.")
+            if config.get("application_aet") is None:
+                error_and_exit("Application AET missing in config file.")
             if config.get("acc_col") is None and (config.get("mrn_col") is None or config.get("date_col") is None):
                 error_and_exit("Either the accession column name or mrn + date column names are required.")
             if config.get("acc_col") is not None and config.get("mrn_col") is not None and config.get("date_col") is not None:
