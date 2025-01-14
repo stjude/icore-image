@@ -86,7 +86,6 @@ def build_image_deid_config(task):
                 'mrn_col': task.parameters['mrn_col'],
                 'date_col': task.parameters['date_col']
             })
-            
 
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
@@ -106,7 +105,7 @@ def build_image_deid_config(task):
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
-    
+    print(config)
     return config
 
 def process_image_query(task):
@@ -215,6 +214,7 @@ def build_header_query_config(task):
             'pacs_ip': task.pacs_ip,
             'pacs_port': task.pacs_port,
             'pacs_aet': task.pacs_aet,
+            'application_aet': task.application_aet,
         })
     if task.parameters['acc_col'] != '':
         config.update({

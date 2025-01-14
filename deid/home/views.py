@@ -137,6 +137,7 @@ def run_header_query(request):
             pacs_ip=data['pacs_ip'],
             pacs_port=data['pacs_port'],
             pacs_aet=data['pacs_aet'],
+            application_aet=data['application_aet'],
             status=Project.TaskStatus.PENDING,
             parameters={
                 'input_file': data['input_file'],
@@ -171,6 +172,7 @@ def run_deid(request):
             pacs_ip=data['pacs_ip'],
             pacs_port=data['pacs_port'],
             pacs_aet=data['pacs_aet'],
+            application_aet=data['application_aet'],
             status=Project.TaskStatus.PENDING,
             parameters={
                 'input_file': data['input_file'],
@@ -208,6 +210,7 @@ def run_query(request):
             pacs_ip=data['pacs_ip'],
             pacs_port=data['pacs_port'],
             pacs_aet=data['pacs_aet'],
+            application_aet=data['application_aet'],
             status=Project.TaskStatus.PENDING,
             parameters={
                 'input_file': data['input_file'],
