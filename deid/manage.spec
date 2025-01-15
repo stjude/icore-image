@@ -24,15 +24,20 @@ project_datas = [
 # Include GDAL libraries explicitly
 gdal_datas = collect_data_files('django.contrib.gis')
 
+# Collect openpyxl and pandas data files
+openpyxl_datas = collect_data_files('openpyxl')
+pandas_datas = collect_data_files('pandas')
+
 a = Analysis(
     [os.path.join(project_path, 'manage.py')],
     pathex=[],
     binaries=[],
-    datas=django_datas + project_datas + gdal_datas,
+    datas=django_datas + project_datas + gdal_datas + openpyxl_datas + pandas_datas,
     hiddenimports=[
         'django.core.management.commands.runserver',  # Include runserver
         'django.core.management.commands.migrate',  # Include migrate
-        'django.core.management.commands.collectstatic',  # Include collectstatic
+        'openpyxl',  # Explicitly include openpyxl
+        'pandas',    # Explicitly include pandas
     ] + collect_all('django')[1],  # Include all Django modules
     hookspath=[],
     hooksconfig={},

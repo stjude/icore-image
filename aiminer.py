@@ -34,7 +34,7 @@ IMAGEQR_CONFIG = """<Configuration>
             class="org.rsna.ctp.stdstages.DicomImportService"
             name="DicomImportService"
             port="50001"
-            calledAETTag="BULKDEID2"
+            calledAETTag="AIMINER"
             root="roots/DicomImportService"
             quarantine="quarantines/DicomImportService"
             logConnections="no" />
@@ -155,7 +155,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             class="org.rsna.ctp.stdstages.DicomImportService"
             name="DicomImportService"
             port="50001"
-            calledAETTag="BULKDEID2"
+            calledAETTag="AIMINER"
             root="roots/DicomImportService"
             quarantine="quarantines/DicomImportService"
             logConnections="no" />
@@ -338,8 +338,8 @@ def cmove_queries(**config):
 
 def cmove_images(logf, **config):
     for query in cmove_queries(**config):
-        cmd = ["movescu", "-v", "-aet", "BULKDEID2", "-aec", 
-            config.get("pacs_aet"), "-aem", "BULKDEID2", "-S"]+ query.split() + [
+        cmd = ["movescu", "-v", "-aet", "AIMINER", "-aec", 
+            config.get("pacs_aet"), "-aem", "AIMINER", "-S"]+ query.split() + [
             config.get("pacs_ip"), str(config.get("pacs_port"))]
         logging.info(" ".join(cmd))
         process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
