@@ -408,7 +408,6 @@ def load_admin_settings(request):
         if os.path.exists(protocol_path):
             settings['protocol_file'] = os.path.basename(protocol_path)
         
-        print(settings)
         if settings.get('date_shift_range'):
             settings['date_shift_range'] = int(settings['date_shift_range'])
         
