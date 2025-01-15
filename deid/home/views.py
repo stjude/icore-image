@@ -398,17 +398,19 @@ def load_admin_settings(request):
     try:
         settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         
-        # Load existing settings
         try:
             with open(settings_path, 'r') as f:
                 settings = json.load(f)
         except FileNotFoundError:
             settings = {}
 
-        # Check for protocol file
         protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
         if os.path.exists(protocol_path):
             settings['protocol_file'] = os.path.basename(protocol_path)
+        
+        print(settings)
+        if settings.get('date_shift_range'):
+            settings['date_shift_range'] = int(settings['date_shift_range'])
         
         return JsonResponse(settings)
     except Exception as e:
@@ -417,38 +419,37 @@ def load_admin_settings(request):
 
 @require_http_methods(["POST"])
 def save_admin_settings(request):
+    settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+    os.makedirs(SETTINGS_DIR, exist_ok=True)
+    
     try:
-        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
-        os.makedirs(SETTINGS_DIR, exist_ok=True)
-
         # Load existing settings
-        try:
-            with open(settings_path, 'r') as f:
-                settings = json.load(f)
-        except FileNotFoundError:
-            settings = {}
-
-        # Handle protocol file upload
-        if 'protocol_file' in request.FILES:
-            protocol_file = request.FILES['protocol_file']
-            protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
-            with open(protocol_path, 'wb+') as destination:
-                for chunk in protocol_file.chunks():
-                    destination.write(chunk)
-            settings['protocol_file'] = os.path.basename(protocol_path)
-
-        # Handle date shift range
-        if 'date_shift_range' in request.POST:
-            settings['date_shift_range'] = int(request.POST['date_shift_range'])
-
-        # Save settings
-        with open(settings_path, 'w') as f:
-            json.dump(settings, f, indent=4)
-
-        return JsonResponse({'status': 'success'})
-    except Exception as e:
-        print(f"Error saving admin settings: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+        with open(settings_path, 'r') as f:
+            existing_settings = json.load(f)
+    except FileNotFoundError:
+        existing_settings = {}
+    
+    # Handle protocol file upload
+    if request.FILES.get('protocol_file'):
+        protocol_file = request.FILES['protocol_file']
+        
+        # Save the protocol file
+        file_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
+        with open(file_path, 'wb+') as destination:
+            for chunk in protocol_file.chunks():
+                destination.write(chunk)
+        
+        existing_settings['protocol_file'] = protocol_file.name
+    
+    # Handle other form data
+    if request.POST.get('default_date_shift_days'):
+        existing_settings['date_shift_range'] = request.POST['default_date_shift_days']
+    
+    # Save updated settings
+    with open(settings_path, 'w') as f:
+        json.dump(existing_settings, f, indent=4)
+    
+    return JsonResponse({'status': 'success'})
 
 def get_protocol_settings(request, protocol_id):
     try:
@@ -595,7 +596,6 @@ def verify_admin_password(request):
     try:
         data = json.loads(request.body)
         password = data.get('password', '')
-        print(password)
         is_valid = check_admin_password(password)
         return JsonResponse({'valid': is_valid})
     except Exception as e:
