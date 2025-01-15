@@ -393,6 +393,33 @@ def get_dicom_fields():
     ]
     return dicom_fields
 
+def test_pacs_connection(request):
+    data = json.loads(request.body)
+    pacs_ip = data.get('pacs_ip')
+    pacs_port = data.get('pacs_port')
+    pacs_aet = data.get('pacs_aet')
+
+    # Run C-ECHO command using pynetdicom
+    from pynetdicom import AE, sop_class
+
+    ae = AE(ae_title='BULKDEID2')
+    ae.add_requested_context(sop_class.Verification)
+    pacs_port = int(pacs_port)
+    try:
+        assoc = ae.associate(pacs_ip, pacs_port, ae_title=pacs_aet)
+        if assoc.is_established:
+            status = assoc.send_c_echo()
+            assoc.release()
+            print(status)
+            if status.Status == 0:
+                return JsonResponse({'status': 'success'})
+            else:
+                return JsonResponse({'status': 'error', 'error': 'C-ECHO failed'})
+        else:
+            return JsonResponse({'status': 'error', 'error': 'Association rejected'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
 @require_http_methods(["GET"])
 def load_admin_settings(request):
     try:
