@@ -27,6 +27,11 @@
                    class="w-full border-2 border-gray-400 p-1" 
                    name="pacs_aet" >
         </div>
+        <div>
+            <div class="text-sm text-gray-500 mb-2">Application AET</div>
+            <input type="text" 
+                   class="w-full border-2 border-gray-400 p-1" 
+                   name="application_aet" >
     <div class="col-span-3 flex justify-end mt-4">
         <button onclick="testPacsConnection()" 
                 class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100">
@@ -156,6 +161,9 @@
             if (settings.pacs_aet) {
                 document.querySelector('[name="pacs_aet"]').value = settings.pacs_aet;
             }
+            if (settings.application_aet) {
+                document.querySelector('[name="application_aet"]').value = settings.application_aet;
+            }
             if (settings.default_query_method) {
                 document.querySelector('[name="default_query_method"]').value = settings.default_query_method;
             }
@@ -184,6 +192,7 @@
             pacs_ip: document.querySelector('[name="pacs_ip"]').value,
             pacs_port: document.querySelector('[name="pacs_port"]').value,
             pacs_aet: document.querySelector('[name="pacs_aet"]').value,
+            application_aet: document.querySelector('[name="application_aet"]').value,
             default_query_method: document.querySelector('[name="default_query_method"]').value,
             default_accession_header: document.querySelector('[name="default_accession_header"]').value,
             default_mrn_header: document.querySelector('[name="default_mrn_header"]').value,

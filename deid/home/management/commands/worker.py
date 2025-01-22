@@ -73,6 +73,7 @@ def build_image_deid_config(task):
             'pacs_ip': task.pacs_ip,
             'pacs_port': task.pacs_port,
             'pacs_aet': task.pacs_aet,
+            'application_aet': task.application_aet,
         })
         if task.parameters['acc_col'] != '':
             config.update({
@@ -102,7 +103,7 @@ def build_image_deid_config(task):
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
-    
+    print(config)
     return config
 
 def process_image_query(task):
@@ -149,6 +150,7 @@ def build_image_query_config(task):
             'pacs_ip': task.pacs_ip,
             'pacs_port': task.pacs_port,
             'pacs_aet': task.pacs_aet,
+            'application_aet': task.application_aet,
         })
     if task.parameters['acc_col'] != '':
         config.update({
@@ -209,6 +211,7 @@ def build_header_query_config(task):
             'pacs_ip': task.pacs_ip,
             'pacs_port': task.pacs_port,
             'pacs_aet': task.pacs_aet,
+            'application_aet': task.application_aet,
         })
     if task.parameters['acc_col'] != '':
         config.update({
