@@ -16,7 +16,7 @@
     <div class="text-sm text-black-5 mt-4">Protocol</div>
     <div class="flex items-center space-x-4">
         <select id="protocol_select" 
-                class="mt-2 w-full border-2 border-gray-400 p-2" 
+                class="bg-white mt-2 w-full border-2 border-gray-400 p-2" 
                 onchange="handleProtocolChange()">
             <option value="">Select a protocol...</option>
             {% for protocol in protocols %}
@@ -135,7 +135,6 @@
 
 <script>
     let settings = {};
-    let date_shift_range = 0;
     document.addEventListener('DOMContentLoaded', async function() {
         try {
             const response = await fetch('/load_settings/');
@@ -180,9 +179,6 @@
 
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
-            }
-            if (settings.date_shift_range) {
-                date_shift_range = settings.date_shift_range;
             }
 
         } catch (error) {
@@ -269,7 +265,7 @@
             tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
             tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
             tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,
-            date_shift_days: date_shift_range,
+            date_shift_days: settings.date_shift_range || 0,
             pacs_ip: settings.pacs_ip || '',
             pacs_port: settings.pacs_port || '',
             pacs_aet: settings.pacs_aet || '',

@@ -32,6 +32,23 @@
             <input type="text" 
                    class="w-full border-2 border-gray-400 p-1" 
                    name="application_aet" >
+    <div class="col-span-3 flex justify-end mt-4">
+        <button onclick="testPacsConnection()" 
+                class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100">
+            Test PACS Connection
+        </button>
+    </div>
+    </div>
+</div>
+
+<div id="pacs-connection-result" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
+    <div class="bg-white p-6 rounded-lg shadow-lg">
+        <h3 class="text-lg font-medium" id="pacs-result-title">PACS Connection Test</h3>
+        <div id="pacs-result-message" class="text-center mb-4"></div>
+        <div class="flex justify-end">
+            <button onclick="document.getElementById('pacs-connection-result').classList.add('hidden')" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Close
+            </button>
         </div>
     </div>
 </div>
@@ -94,6 +111,41 @@
 {% block settings_scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', loadSavedSettings);
+
+    async function testPacsConnection() {
+        const pacsIp = document.querySelector('[name="pacs_ip"]').value;
+        const pacsPort = document.querySelector('[name="pacs_port"]').value;
+        const pacsAet = document.querySelector('[name="pacs_aet"]').value;
+
+        try {
+            const response = await fetch('/test_pacs_connection/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrf_token]').content
+                },
+                body: JSON.stringify({
+                    pacs_ip: pacsIp,
+                    pacs_port: pacsPort, 
+                    pacs_aet: pacsAet
+                })
+            });
+
+            const result = await response.json();
+            console.log(result);
+            if (result.status === 'success') {
+                document.getElementById('pacs-result-title').textContent = 'PACS Connection Test';
+                document.getElementById('pacs-result-message').textContent = 'PACS connection successful';
+            } else {
+                document.getElementById('pacs-result-title').textContent = 'PACS Connection Test';
+                document.getElementById('pacs-result-message').textContent = 'PACS connection failed: ' + result.error;
+            }
+        } catch (error) {
+            document.getElementById('pacs-result-title').textContent = 'PACS Connection Test';
+            document.getElementById('pacs-result-message').textContent = 'Error testing PACS connection: ' + error;
+        }
+        document.getElementById('pacs-connection-result').classList.remove('hidden');
+    }
 
     async function loadSavedSettings() {
         try {

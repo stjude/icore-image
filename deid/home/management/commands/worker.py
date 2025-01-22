@@ -24,19 +24,18 @@ def process_image_deid(task):
     output_folder = task.output_folder
     build_image_deid_config(task)
     if task.image_source == 'PACS':
-        input_folder = os.path.dirname(task.parameters['input_file'])
         pacs_port = task.pacs_port
-        if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
-            os.makedirs(TMP_INPUT_PATH, exist_ok=True)
-            temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
-            shutil.copy2(task.parameters['input_file'], temp_input)
-            input_folder = TMP_INPUT_PATH
+
+        os.makedirs(TMP_INPUT_PATH, exist_ok=True)
+        temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
+        shutil.copy2(task.parameters['input_file'], temp_input)
+        input_folder = TMP_INPUT_PATH
         docker_cmd = [
             DOCKER, 'run', '--rm',
             '-v', f'{CONFIG_PATH}:/config.yml',
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
-            '-p', '11119:50001',
+            '-p', '50001:50001',
             '-p', f'{pacs_port}:{pacs_port}',
             'aiminer'
         ]
@@ -62,13 +61,12 @@ def process_image_deid(task):
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
     finally:
-        if os.path.basename(task.parameters['input_file']) != 'input.xlsx' and os.path.exists(TMP_INPUT_PATH):
+        if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
 
 def build_image_deid_config(task):
     """Build the configuration for image deidentification"""
     config = {'module': 'imagedeid'}
-    
     # Add PACS configuration if needed
     if task.image_source == 'PACS':
         config.update({
@@ -114,19 +112,18 @@ def process_image_query(task):
     build_image_query_config(task)
 
     pacs_port = task.pacs_port
-    input_folder = os.path.dirname(task.parameters['input_file'])
-    if not os.path.basename(task.parameters['input_file']) == 'input.xlsx':
-        os.makedirs(TMP_INPUT_PATH, exist_ok=True)
-        temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
-        shutil.copy2(task.parameters['input_file'], temp_input)
-        input_folder = TMP_INPUT_PATH
+
+    os.makedirs(TMP_INPUT_PATH, exist_ok=True)
+    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
+    shutil.copy2(task.parameters['input_file'], temp_input)
+    input_folder = TMP_INPUT_PATH
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
-        '-p', '11119:50001',
+        '-p', '50001:50001',
         '-p', f'{pacs_port}:{pacs_port}',
         'aiminer'
     ]
@@ -143,7 +140,7 @@ def process_image_query(task):
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
     finally:
-        if os.path.basename(task.parameters['input_file']) != 'input.xlsx' and os.path.exists(TMP_INPUT_PATH):
+        if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
 
 def build_image_query_config(task):
@@ -242,8 +239,12 @@ def process_text_deid(task):
     print('Processing text deid')
     build_text_deid_config(task)
 
-    input_folder = task.input_folder
     output_folder = task.output_folder
+
+    os.makedirs(TMP_INPUT_PATH, exist_ok=True)
+    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
+    shutil.copy2(task.parameters['input_file'], temp_input)
+    input_folder = TMP_INPUT_PATH
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
@@ -263,6 +264,9 @@ def process_text_deid(task):
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+    finally:
+        if os.path.exists(TMP_INPUT_PATH):
+            shutil.rmtree(TMP_INPUT_PATH)
 
 def build_text_deid_config(task):
     """Build the configuration for text deidentification"""

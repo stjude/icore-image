@@ -62,7 +62,7 @@ class HeaderQueryView(CommonContextMixin, CreateView):
 
 class TextDeIdentificationView(CommonContextMixin, CreateView):
     model = Project
-    fields = ['name', 'input_folder', 'output_folder']
+    fields = ['name', 'output_folder']
     template_name = 'text_deid.html'
     success_url = reverse_lazy('task_list')
 
@@ -238,11 +238,11 @@ def run_text_deid(request):
 
         project = Project.objects.create(
             name=data['study_name'],
-            input_folder=data['input_folder'],
             output_folder=data['output_folder'],
             task_type=Project.TaskType.TEXT_DEID,
             status=Project.TaskStatus.PENDING,
             parameters={
+                'input_file': data['input_file'],
                 'text_to_keep': data['text_to_keep'],
                 'text_to_remove': data['text_to_remove'],
                 'date_shift_days': data['date_shift_days']
@@ -396,22 +396,50 @@ def get_dicom_fields():
     ]
     return dicom_fields
 
+def test_pacs_connection(request):
+    data = json.loads(request.body)
+    pacs_ip = data.get('pacs_ip')
+    pacs_port = data.get('pacs_port')
+    pacs_aet = data.get('pacs_aet')
+
+    # Run C-ECHO command using pynetdicom
+    from pynetdicom import AE, sop_class
+
+    ae = AE(ae_title='BULKDEID2')
+    ae.add_requested_context(sop_class.Verification)
+    pacs_port = int(pacs_port)
+    try:
+        assoc = ae.associate(pacs_ip, pacs_port, ae_title=pacs_aet)
+        if assoc.is_established:
+            status = assoc.send_c_echo()
+            assoc.release()
+            print(status)
+            if status.Status == 0:
+                return JsonResponse({'status': 'success'})
+            else:
+                return JsonResponse({'status': 'error', 'error': 'C-ECHO failed'})
+        else:
+            return JsonResponse({'status': 'error', 'error': 'Association rejected'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
 @require_http_methods(["GET"])
 def load_admin_settings(request):
     try:
         settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         
-        # Load existing settings
         try:
             with open(settings_path, 'r') as f:
                 settings = json.load(f)
         except FileNotFoundError:
             settings = {}
 
-        # Check for protocol file
         protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
         if os.path.exists(protocol_path):
             settings['protocol_file'] = os.path.basename(protocol_path)
+        
+        if settings.get('date_shift_range'):
+            settings['date_shift_range'] = int(settings['date_shift_range'])
         
         return JsonResponse(settings)
     except Exception as e:
@@ -420,38 +448,37 @@ def load_admin_settings(request):
 
 @require_http_methods(["POST"])
 def save_admin_settings(request):
+    settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+    os.makedirs(SETTINGS_DIR, exist_ok=True)
+    
     try:
-        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
-        os.makedirs(SETTINGS_DIR, exist_ok=True)
-
         # Load existing settings
-        try:
-            with open(settings_path, 'r') as f:
-                settings = json.load(f)
-        except FileNotFoundError:
-            settings = {}
-
-        # Handle protocol file upload
-        if 'protocol_file' in request.FILES:
-            protocol_file = request.FILES['protocol_file']
-            protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
-            with open(protocol_path, 'wb+') as destination:
-                for chunk in protocol_file.chunks():
-                    destination.write(chunk)
-            settings['protocol_file'] = os.path.basename(protocol_path)
-
-        # Handle date shift range
-        if 'date_shift_range' in request.POST:
-            settings['date_shift_range'] = int(request.POST['date_shift_range'])
-
-        # Save settings
-        with open(settings_path, 'w') as f:
-            json.dump(settings, f, indent=4)
-
-        return JsonResponse({'status': 'success'})
-    except Exception as e:
-        print(f"Error saving admin settings: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+        with open(settings_path, 'r') as f:
+            existing_settings = json.load(f)
+    except FileNotFoundError:
+        existing_settings = {}
+    
+    # Handle protocol file upload
+    if request.FILES.get('protocol_file'):
+        protocol_file = request.FILES['protocol_file']
+        
+        # Save the protocol file
+        file_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
+        with open(file_path, 'wb+') as destination:
+            for chunk in protocol_file.chunks():
+                destination.write(chunk)
+        
+        existing_settings['protocol_file'] = protocol_file.name
+    
+    # Handle other form data
+    if request.POST.get('default_date_shift_days'):
+        existing_settings['date_shift_range'] = request.POST['default_date_shift_days']
+    
+    # Save updated settings
+    with open(settings_path, 'w') as f:
+        json.dump(existing_settings, f, indent=4)
+    
+    return JsonResponse({'status': 'success'})
 
 def get_protocol_settings(request, protocol_id):
     try:
@@ -598,7 +625,6 @@ def verify_admin_password(request):
     try:
         data = json.loads(request.body)
         password = data.get('password', '')
-        print(password)
         is_valid = check_admin_password(password)
         return JsonResponse({'valid': is_valid})
     except Exception as e:
