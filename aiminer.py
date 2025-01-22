@@ -339,7 +339,7 @@ def cmove_queries(**config):
 def cmove_images(logf, **config):
     for query in cmove_queries(**config):
         cmd = ["movescu", "-v", "-aet", config.get("application_aet"), "-aec", 
-            config.get("pacs_aet"), "-aem", "BULKDEID2", "-S"]+ query.split() + [
+            config.get("pacs_aet"), "-aem", config.get("application_aet"), "-S"]+ query.split() + [
             config.get("pacs_ip"), str(config.get("pacs_port"))]
         logging.info(" ".join(cmd))
         process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
@@ -372,7 +372,9 @@ def imagedeid_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
     save_ctp_anonymizer(config.get("ctp_anonymizer"))
     querying_pacs = os.path.exists(os.path.join("input", "input.xlsx"))
-    save_config(IMAGEDEID_PACS_CONFIG if querying_pacs else IMAGEDEID_LOCAL_CONFIG)
+    config_template = IMAGEDEID_PACS_CONFIG if querying_pacs else IMAGEDEID_LOCAL_CONFIG
+    formatted_config = config_template.format(application_aet=config.get("application_aet"))
+    save_config(formatted_config)
     with ctp_workspace(imagedeid_func, {"querying_pacs": querying_pacs}) as logf:
         if querying_pacs:
             cmove_images(logf, **config)
@@ -512,7 +514,7 @@ def validate_config(config):
         if config.get("module") in ["imageqr", "imagedeid"]:
             if not all([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
                 error_and_exit("Pacs details missing in config file.")
-            if config.get("application_aet") is None:
+            if config.get("application_aet") is None or config.get("application_aet") == "":
                 error_and_exit("Application AET missing in config file.")
             if config.get("acc_col") is None and (config.get("mrn_col") is None or config.get("date_col") is None):
                 error_and_exit("Either the accession column name or mrn + date column names are required.")
@@ -541,6 +543,7 @@ def imageqr(**config):
         pacs_ip (str): IP address of the PACS.
         pacs_port (int): Port of the PACS.
         pacs_aet (str): AE title of the PACS.
+        application_aet (str): AE title of the calling application.
         acc_col (str): Accession number column name in excel file.            
         mrn_col (str): MRN column name in excel file.
         date_col (str): Date column name in excel file.
@@ -561,6 +564,7 @@ def imagedeid(**config):
         pacs_ip (str): IP address of the PACS.
         pacs_port (int): Port of the PACS.
         pacs_aet (str): AE title of the PACS.
+        application_aet (str): AE title of the calling application.
         acc_col (str): Accession number column name in excel file.            
         mrn_col (str): MRN column name in excel file.
         date_col (str): Date column name in excel file.

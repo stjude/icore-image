@@ -39,6 +39,7 @@ module: headerqr
 pacs_ip: 192.168.0.1
 pacs_port: 4242
 pacs_aet: ORTHANC
+application_aet: ICORE
 mrn_col: PatientID
 date_col: StudyDate
 date_window: 3
@@ -69,6 +70,7 @@ module: imageqr
 pacs_ip: 192.168.0.1
 pacs_port: 4242
 pacs_aet: ORTHANC
+application_aet: ICORE
 acc_col: AccessionNumber
 ctp_filters: |
     Modality.contains("CT")
@@ -94,6 +96,7 @@ module: imagedeid
 pacs_ip: 192.168.0.1
 pacs_port: 4242
 pacs_aet: ORTHANC
+application_aet: ICORE
 acc_col: AccessionNumber
 ctp_filters: |
     !ImageType.contains("INVALID")
