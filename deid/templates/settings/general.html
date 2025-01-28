@@ -116,6 +116,7 @@
         const pacsIp = document.querySelector('[name="pacs_ip"]').value;
         const pacsPort = document.querySelector('[name="pacs_port"]').value;
         const pacsAet = document.querySelector('[name="pacs_aet"]').value;
+        const applicationAet = document.querySelector('[name="application_aet"]').value;
 
         try {
             const response = await fetch('/test_pacs_connection/', {
@@ -127,7 +128,8 @@
                 body: JSON.stringify({
                     pacs_ip: pacsIp,
                     pacs_port: pacsPort, 
-                    pacs_aet: pacsAet
+                    pacs_aet: pacsAet,
+                    application_aet: applicationAet
                 })
             });
 
@@ -135,7 +137,7 @@
             console.log(result);
             if (result.status === 'success') {
                 document.getElementById('pacs-result-title').textContent = 'PACS Connection Test';
-                document.getElementById('pacs-result-message').textContent = 'PACS connection successful';
+                document.getElementById('pacs-result-message').textContent = 'PACS connection successful. Please save your settings before proceeding.';
             } else {
                 document.getElementById('pacs-result-title').textContent = 'PACS Connection Test';
                 document.getElementById('pacs-result-message').textContent = 'PACS connection failed: ' + result.error;

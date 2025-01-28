@@ -401,11 +401,15 @@ def test_pacs_connection(request):
     pacs_ip = data.get('pacs_ip')
     pacs_port = data.get('pacs_port')
     pacs_aet = data.get('pacs_aet')
+    application_aet = data.get('application_aet')
+
+    if application_aet is None or application_aet == "":
+        return JsonResponse({'status': 'error', 'error': 'Application AET is required'})
 
     # Run C-ECHO command using pynetdicom
     from pynetdicom import AE, sop_class
 
-    ae = AE(ae_title='BULKDEID2')
+    ae = AE(ae_title=application_aet)
     ae.add_requested_context(sop_class.Verification)
     pacs_port = int(pacs_port)
     try:
