@@ -1,12 +1,12 @@
-rm -rf AIMINER.dmg
+rm -rf iCore.dmg
 create-dmg \
-  --volname "AIMINER Installer" \
+  --volname "iCore Installer" \
   --window-pos 100 100 \
   --window-size 300 430 \
   --icon-size 75 \
-  --icon "AIMINER.app" 150 90 \
+  --icon "iCore.app" 150 90 \
   --background ../background.png \
-  --hide-extension "AIMINER.app" \
+  --hide-extension "iCore.app" \
   --app-drop-link 150 240 \
-  "AIMINER.dmg" \
-  "AIMINER.app"
+  "iCore.dmg" \
+  "iCore.app"
