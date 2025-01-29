@@ -281,8 +281,9 @@ def tick(tick_func, data):
         stable_for = stable_for + 1 if stable else 0
         if data["complete"] and stable_for > 3:
             break
-        if not stable:
-            print_and_log(f"PROGRESS: {(saved + quarantined)}/{received} files")
+        num, denom = (saved + quarantined), received
+        if num != denom:
+            print_and_log(f"PROGRESS: {num}/{denom} files")
     print_and_log("PROGRESS: COMPLETE")
 
 def start_ctp_run(tick_func, tick_data, logf):
