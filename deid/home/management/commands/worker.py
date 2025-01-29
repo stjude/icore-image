@@ -2,13 +2,16 @@ import os
 import time
 import subprocess
 import shutil
+import json
+import pytz
+from datetime import datetime
 from ruamel.yaml import YAML, scalarstring
+from shutil import which
 from django.db import transaction
 from django.core.management.base import BaseCommand
-from shutil import which
+from django.db import models
 
 from grammar import generate_filters_string, generate_anonymizer_script
-
 from home.models import Project
 
 PACS_IP = 'host.docker.internal'
@@ -17,6 +20,7 @@ PACS_AET = 'ORTHANC'
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'config.yml'))
+SETTINGS_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'settings.json'))
 TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'temp_input'))
 DOCKER = which('docker') or '/usr/local/bin/docker'
 
@@ -103,7 +107,6 @@ def build_image_deid_config(task):
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
-    print(config)
     return config
 
 def process_image_query(task):
@@ -288,36 +291,44 @@ def build_text_deid_config(task):
 
 
 def run_worker():
+    settings = json.load(open(SETTINGS_PATH))
+    timezone = settings.get('timezone', 'UTC')
+    timezone = pytz.timezone(timezone)
     while True:
         try:
-            # Use select_for_update() to prevent race conditions
+            task = None
             with transaction.atomic():
+                
+                now = datetime.now(timezone)
                 task = (Project.objects
                        .select_for_update(skip_locked=True)
                        .filter(status=Project.TaskStatus.PENDING)
+                       .filter(
+                           models.Q(scheduled_time__isnull=True) |
+                           models.Q(scheduled_time__lte=now)
+                       )
                        .first())
-                
-                if task:
-                    # Mark as running
-                    task.status = Project.TaskStatus.RUNNING
-                    task.save()
-                    try:
-                        if task.task_type == Project.TaskType.IMAGE_DEID:
-                            process_image_deid(task)
-                        elif task.task_type == Project.TaskType.IMAGE_QUERY:
-                            process_image_query(task)
-                        elif task.task_type == Project.TaskType.HEADER_QUERY:
-                            process_header_query(task)
-                        elif task.task_type == Project.TaskType.TEXT_DEID:
-                            process_text_deid(task)
-                        task.status = Project.TaskStatus.COMPLETED
-                    except Exception as e:
-                        print(f"Error processing task {task.id}: {str(e)}")
-                        task.status = Project.TaskStatus.FAILED
-                    finally:
-                        task.save()
+                task.status = Project.TaskStatus.RUNNING
+                task.save()
             
-            # Wait before next poll
+            if task:
+                try:
+                    if task.task_type == Project.TaskType.IMAGE_DEID:
+                        process_image_deid(task)
+                    elif task.task_type == Project.TaskType.IMAGE_QUERY:
+                        process_image_query(task)
+                    elif task.task_type == Project.TaskType.HEADER_QUERY:
+                        process_header_query(task)
+                    elif task.task_type == Project.TaskType.TEXT_DEID:
+                        process_text_deid(task)
+                    task.status = Project.TaskStatus.COMPLETED
+                except Exception as e:
+                    print(f"Error processing task {task.id}: {str(e)}")
+                    task.status = Project.TaskStatus.FAILED
+                finally:
+                    task.save()
+                    print(f"Task {task.id} finished with status: {task.status}")
+            
             time.sleep(1)
             
         except Exception as e:

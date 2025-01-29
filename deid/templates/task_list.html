@@ -1,50 +1,153 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Deidentification Tasks</h2>
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-6">Projects</h1>
     
-    <table class="table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Study Name</th>
-                <th>Image Source</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for task in tasks %}
-            <tr>
-                <td>{{ task.id }}</td>
-                <td>{{ task.parameters.study_name }}</td>
-                <td>{{ task.parameters.image_source }}</td>
-                <td>
-                    <span class="badge {% if task.status == 'COMPLETED' %}bg-success
-                                     {% elif task.status == 'FAILED' %}bg-danger
-                                     {% elif task.status == 'RUNNING' %}bg-primary
-                                     {% else %}bg-secondary{% endif %}">
-                        {{ task.status }}
-                    </span>
-                </td>
-                <td>{{ task.created_at|date:"Y-m-d H:i:s" }}</td>
-                <td>
-                    {% if task.status == 'FAILED' %}
-                    <form method="POST" action="{% url 'retry_task' task.id %}" class="d-inline">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-warning">Retry</button>
-                    </form>
-                    {% endif %}
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" class="text-center">No tasks found.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="bg-white shadow-md rounded-lg overflow-x-auto">
+        <table class="w-full table-fixed divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="w-1/6 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th class="w-1/8 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th class="w-1/8 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="w-1/6 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th class="w-1/6 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scheduled</th>
+                    <th class="w-1/4 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for task in tasks %}
+                <tr>
+                    <td class="px-4 py-4 text-sm text-gray-900 truncate">{{ task.name }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-500">{{ task.get_task_type_display }}</td>
+                    <td class="px-4 py-4">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            {% if task.status == 'PENDING' %}bg-yellow-100 text-yellow-800
+                            {% elif task.status == 'RUNNING' %}bg-blue-100 text-blue-800
+                            {% elif task.status == 'COMPLETED' %}bg-green-100 text-green-800
+                            {% else %}bg-red-100 text-red-800{% endif %}">
+                            {{ task.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 text-sm text-gray-500">
+                        {{ task.created_at|date:"Y-m-d H:i:s" }}
+                    </td>
+                    <td class="px-4 py-4 text-sm text-gray-500">
+                        {% if task.scheduled_time %}
+                            {{ task.scheduled_time|date:"Y-m-d H:i:s" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-4 text-sm font-medium">
+                        <div class="flex space-x-4">
+                            {% if task.status == 'RUNNING' or task.status == 'PENDING' %}
+                                <a href="{% url 'task_progress' %}?output_folder={{ task.output_folder|urlencode }}" 
+                                   class="text-indigo-600 hover:text-indigo-900">View Logs</a>
+                            {% endif %}
+                            {% if task.status == 'COMPLETED' %}
+                                <button onclick="viewLogs('{{ task.output_folder|urlencode }}')"
+                                        class="text-indigo-600 hover:text-indigo-900">View Logs</button>
+                            {% endif %}
+                            {% if task.status == 'FAILED' %}
+                                <button onclick="viewLogs('{{ task.output_folder|urlencode }}')"
+                                        class="text-indigo-600 hover:text-indigo-900">View Logs</button>
+                            {% endif %}
+                            {% if task.status != 'RUNNING' %}
+                                <button onclick="deleteTask('{{ task.id }}')" 
+                                        class="text-red-600 hover:text-red-900">Delete</button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-4 py-4 text-center text-sm text-gray-500">
+                        No projects found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
+
+<!-- Log Modal -->
+<div id="logModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-3/4 ml-auto mr-8 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium">Log Output</h3>
+            <button onclick="closeLogModal()" class="text-gray-500 hover:text-gray-700">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="mt-2">
+            <pre id="logContent" class="bg-gray-100 p-4 rounded overflow-x-auto max-h-[calc(100vh-200px)]"></pre>
+        </div>
+    </div>
+</div>
+
+<script>
+async function deleteTask(taskId) {
+    if (!confirm('Are you sure you want to delete this project?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/delete_task/${taskId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+        });
+        
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            alert('Failed to delete project');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to delete project');
+    }
+}
+
+async function viewLogs(outputFolder) {
+    try {
+        const response = await fetch(`/get_log_content/?output_folder=${outputFolder}`);
+        const logContent = await response.text();
+        document.getElementById('logContent').textContent = logContent;
+        document.getElementById('logModal').classList.remove('hidden');
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to load logs');
+    }
+}
+
+function closeLogModal() {
+    document.getElementById('logModal').classList.add('hidden');
+}
+
+// Close modal when clicking outside
+document.getElementById('logModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeLogModal();
+    }
+});
+
+// Auto-refresh the page every 5 seconds if there are running or pending tasks
+const hasActiveJobs = Array.from(document.querySelectorAll('tr')).some(row => {
+    const statusSpan = row.querySelector('span');
+    return statusSpan && (
+        statusSpan.classList.contains('bg-yellow-100') || // Pending
+        statusSpan.classList.contains('bg-blue-100')      // Running
+    );
+});
+if (hasActiveJobs) {
+    setTimeout(() => window.location.reload(), 5000);
+}
+</script>
 {% endblock %}

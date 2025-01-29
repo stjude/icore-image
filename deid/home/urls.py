@@ -27,4 +27,5 @@ urlpatterns = [
     path('save_admin_settings/', views.save_admin_settings, name='save_admin_settings'),
     path('get_protocol_settings/<str:protocol_id>/', views.get_protocol_settings, name='get_protocol_settings'),
     path('verify_admin_password/', views.verify_admin_password, name='verify_admin_password'),
-]
+    path('task_list/', views.TaskListView.as_view(), name='task_list'),
+    path('delete_task/<int:task_id>/', views.delete_task, name='delete_task'),]

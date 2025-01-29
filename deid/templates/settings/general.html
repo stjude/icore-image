@@ -38,6 +38,12 @@
             Test PACS Connection
         </button>
     </div>
+    <div class="text-md mb-4"> Timezone </div>
+    <select class="w-64 border-2 border-gray-400 p-1" name="timezone">
+        {% for tz in timezones %}
+            <option value="{{ tz }}">{{ tz }}</option>
+        {% endfor %}
+    </select>
     </div>
 </div>
 
@@ -182,6 +188,9 @@
             if (settings.zip_images) {
                 document.querySelector('[name="zip_images"]').checked = settings.zip_images;
             }
+            if (settings.timezone) {
+                document.querySelector('[name="timezone"]').value = settings.timezone;
+            }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -198,7 +207,8 @@
             default_mrn_header: document.querySelector('[name="default_mrn_header"]').value,
             default_date_header: document.querySelector('[name="default_date_header"]').value,
             default_output_folder: document.querySelector('[name="default_output_folder"]').value,
-            zip_images: document.querySelector('[name="zip_images"]').checked
+            zip_images: document.querySelector('[name="zip_images"]').checked,
+            timezone: document.querySelector('[name="timezone"]').value
         };
 
         try {

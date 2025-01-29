@@ -129,7 +129,18 @@
     </div>
 </div>
 <div class="m-4">
-    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()">Run De-id</button>
+    <div class="flex items-center mb-4">
+        <input type="checkbox" id="schedule_job" class="mr-2" onchange="toggleScheduling()">
+        <label for="schedule_job">Schedule Job</label>
+    </div>
+    
+    <div id="scheduling_options" class="hidden mb-4">
+        <input type="datetime-local" id="scheduled_time" class="border-2 border-gray-400 p-2">
+    </div>
+
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()" id="deid_button">
+        Run De-id
+    </button>
 </div>
 
 
@@ -180,6 +191,16 @@
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
             }
+
+            // Get timezone and send to server
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            fetch('/set_timezone/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ timezone: timezone })
+            });
 
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -253,9 +274,20 @@
         deidOptionsButton.textContent = deidOptions.classList.contains('hidden') ? '▼' : '▲';
     }
 
+    function toggleScheduling() {
+        const schedulingOptions = document.getElementById('scheduling_options');
+        const deidButton = document.getElementById('deid_button');
+        const isScheduled = document.getElementById('schedule_job').checked;
+        
+        schedulingOptions.classList.toggle('hidden', !isScheduled);
+        deidButton.textContent = isScheduled ? 'Schedule De-id' : 'Run De-id';
+    }
+
     async function runDeid() {
         const filters = collectFilters('#filters-container');
         const isAccessionQuery = document.getElementById('query_accession').checked;
+        const isScheduled = document.getElementById('schedule_job').checked;
+        
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             image_source: document.querySelector('input[name="image_source"]:checked').value,
@@ -273,6 +305,15 @@
             ...filters
         };
 
+        if (isScheduled) {
+            const scheduledTime = document.getElementById('scheduled_time').value;
+            if (!scheduledTime) {
+                alert('Please select a scheduled time');
+                return;
+            }
+            data.scheduled_time = scheduledTime;
+        }
+
         if (isAccessionQuery) {
             data.acc_col = document.querySelector('[name="accession_column"]').value;
             data.mrn_col = '';
@@ -282,7 +323,6 @@
             data.mrn_col = document.querySelector('[name="mrn_column"]').value;
             data.date_col = document.querySelector('[name="date_column"]').value;
         }
-        console.log(data);
 
         try {
             const response = await fetch('/run_deid/', {
@@ -294,8 +334,11 @@
             });
             const result = await response.json();
             if (result.status === 'success') {
-                // Redirect to progress page with output folder path as parameter
-                window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+                if (isScheduled) {
+                    window.location.href = '/task_list';
+                } else {
+                    window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+                }
             } else {
                 console.error('Error starting de-identification:', result);
             }
