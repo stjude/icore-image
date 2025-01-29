@@ -365,13 +365,14 @@ def cmove_images(logf, **config):
         output = process.stderr
         for entry in output.split("Find Response:")[1:]:
             study_uids.add(parse_dicom_tag_dict(entry).get("StudyInstanceUID"))
-        logging.info(f"Preparing {i+1}/{len(queries)} studies for download")
-    logging.info(f"Found {len(study_uids)} studies")
-    for study_uid in study_uids:
+        logging.info(f"Processed {i+1}/{len(queries)} rows")
+    logging.info(f"Found {len(study_uids)} unique studies")
+    for i, study_uid in enumerate(study_uids):
         cmd = ["movescu", "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
         logging.info(" ".join(cmd))
         process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
         process.wait()
+        logging.info(f"Downloaded {i+1}/{len(study_uids)} studies")
 
 def save_metadata_csv():
     metadata_csv = ctp_get("AuditLog?export&csv&suppress")
