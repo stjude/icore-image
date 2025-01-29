@@ -5,8 +5,8 @@ node_modules
 build
 dist
 config.yml
-AIMINER-darwin-x64
+iCore-darwin-x64
 aiminer.tar
-AIMINER-darwin-arm64
+iCore-darwin-arm64
 create-dmg-arm.sh
 *.dmg
