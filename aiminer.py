@@ -281,7 +281,8 @@ def tick(tick_func, data):
         stable_for = stable_for + 1 if stable else 0
         if data["complete"] and stable_for > 3:
             break
-        print_and_log(f"PROGRESS: {(saved + quarantined)}/{received} files")
+        if not stable:
+            print_and_log(f"PROGRESS: {(saved + quarantined)}/{received} files")
     print_and_log("PROGRESS: COMPLETE")
 
 def start_ctp_run(tick_func, tick_data, logf):
@@ -355,13 +356,15 @@ def cmove_queries(**config):
 def cmove_images(logf, **config):
     study_uids = set()
     ip, aet, aec, aem, port = config.get("pacs_ip"), config.get("application_aet"), config.get("pacs_aet"), config.get("application_aet"), config.get("pacs_port")
-    for query in cmove_queries(**config):
+    queries = cmove_queries(**config)
+    for i, query in enumerate(queries):
         cmd = ["findscu", "-v", "-aet", aet, "-aec", aec, "-S"] + query.split() + ["-k", "StudyInstanceUID",ip, str(port)]
         logging.info(" ".join(cmd))
         process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output = process.stderr
         for entry in output.split("Find Response:")[1:]:
             study_uids.add(parse_dicom_tag_dict(entry).get("StudyInstanceUID"))
+        logging.info(f"Preparing {i+1}/{len(queries)} studies for download")
     logging.info(f"Found {len(study_uids)} studies")
     for study_uid in study_uids:
         cmd = ["movescu", "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
