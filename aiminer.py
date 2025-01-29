@@ -282,7 +282,7 @@ def tick(tick_func, data):
         if data["complete"] and stable_for > 3:
             break
         num, denom = (saved + quarantined), received
-        if num != denom:
+        if int(num) != int(denom):
             print_and_log(f"PROGRESS: {num}/{denom} files")
     print_and_log("PROGRESS: COMPLETE")
 
