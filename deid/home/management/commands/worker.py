@@ -11,7 +11,7 @@ from django.db import transaction
 from django.core.management.base import BaseCommand
 from django.db import models
 
-from grammar import generate_filters_string, generate_anonymizer_script
+from grammar import generate_filters_string, generate_anonymizer_script, generate_lookup_table
 from home.models import Project
 
 PACS_IP = 'host.docker.internal'
@@ -100,7 +100,11 @@ def build_image_deid_config(task):
     tags_to_randomize = task.parameters['tags_to_randomize']
     date_shift_days = task.parameters['date_shift_days']
 
-    anonymizer_script = generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days)
+    lookup_file = task.parameters['lookup_file'] if task.parameters['use_lookup_table'] else None
+    lookup_table = generate_lookup_table(lookup_file)
+    config['ctp_lookup_table'] = scalarstring.LiteralScalarString(lookup_table)
+
+    anonymizer_script = generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days, lookup_file)
     config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
 
     # Write config to file
@@ -308,10 +312,9 @@ def run_worker():
                            models.Q(scheduled_time__lte=now)
                        )
                        .first())
+            if task:
                 task.status = Project.TaskStatus.RUNNING
                 task.save()
-            
-            if task:
                 try:
                     if task.task_type == Project.TaskType.IMAGE_DEID:
                         process_image_deid(task)

@@ -212,6 +212,8 @@ def run_deid(request):
                     'tags_to_dateshift': data['tags_to_dateshift'],
                     'tags_to_randomize': data['tags_to_randomize'],
                     'date_shift_days': data['date_shift_days'],
+                    'lookup_file': data['lookup_file'],
+                    'use_lookup_table': data['use_lookup'],
                 }
             )
             
@@ -301,7 +303,17 @@ def run_text_deid(request):
 @require_http_methods(["POST"])
 def save_settings(request):
     try:
-        new_settings = json.loads(request.body)
+        if request.FILES:
+            new_settings = json.loads(request.POST.get('data'))
+            lookup_file = request.FILES['lookup_file']
+            file_path = os.path.join(SETTINGS_DIR, 'lookup_table.xlsx')
+            with open(file_path, 'wb+') as destination:
+                for chunk in lookup_file.chunks():
+                    destination.write(chunk)
+            new_settings['lookup_file'] = file_path
+        else:
+            new_settings = json.loads(request.body.decode('utf-8'))
+            
         settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         
         try:
@@ -309,11 +321,9 @@ def save_settings(request):
                 existing_settings = json.load(f)
         except FileNotFoundError:
             existing_settings = {}
-            
-        # Only update fields that are in the new settings
+
         existing_settings.update(new_settings)
         
-        # If timezone is being set, update the session
         if 'timezone' in new_settings:
             request.session['django_timezone'] = new_settings['timezone']
             
@@ -330,6 +340,8 @@ def load_settings(request):
         settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         with open(settings_path, 'r') as f:
             settings = json.load(f)
+        if settings.get('lookup_file'):
+            settings['lookup_file'] = os.path.abspath(settings['lookup_file'])
         return JsonResponse(settings)
     except FileNotFoundError:
         return JsonResponse({})
@@ -481,7 +493,7 @@ def load_admin_settings(request):
 
         protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
         if os.path.exists(protocol_path):
-            settings['protocol_file'] = os.path.basename(protocol_path)
+            settings['protocol_file'] = os.path.abspath(protocol_path)
         
         if settings.get('date_shift_range'):
             settings['date_shift_range'] = int(settings['date_shift_range'])
@@ -506,14 +518,12 @@ def save_admin_settings(request):
     # Handle protocol file upload
     if request.FILES.get('protocol_file'):
         protocol_file = request.FILES['protocol_file']
-        
-        # Save the protocol file
         file_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
         with open(file_path, 'wb+') as destination:
             for chunk in protocol_file.chunks():
                 destination.write(chunk)
         
-        existing_settings['protocol_file'] = protocol_file.name
+        existing_settings['protocol_file'] = os.path.abspath(file_path)
     
     # Handle other form data
     if request.POST.get('default_date_shift_days'):

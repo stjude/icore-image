@@ -126,6 +126,20 @@
                 </div>
             </div>
         </div>
+        <div class="mt-8">
+            <div class="text-md mb-4">Lookup Table Configuration</div>
+            <div class="grid grid-cols-1 gap-4">
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" class="ml-2" name="use_lookup" id="use_lookup">
+                        <label for="use_lookup" class="ml-1">Use Lookup Table</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="lookup_file" />
+                    </div>
+                </div>
+            </div>
+        </div>    
     </div>
 </div>
 <div class="m-4">
@@ -187,7 +201,12 @@
             if (settings.default_tags_to_randomize) {
                 document.querySelector('[name="tags_to_randomize"]').value = settings.default_tags_to_randomize;
             }
-
+            if (settings.lookup_file) {
+                document.querySelector('[name="lookup_file"]').value = settings.lookup_file;
+            }
+            if (settings.use_lookup) {
+                document.getElementById('use_lookup').checked = settings.use_lookup;
+            }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
             }
@@ -297,6 +316,8 @@
             tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
             tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
             tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,
+            lookup_file: document.querySelector('[name="lookup_file"]').value || settings.lookup_file || '',
+            use_lookup: document.getElementById('use_lookup').checked,
             date_shift_days: settings.date_shift_range || 0,
             pacs_ip: settings.pacs_ip || '',
             pacs_port: settings.pacs_port || '',
