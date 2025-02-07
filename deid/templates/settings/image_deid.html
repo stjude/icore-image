@@ -54,10 +54,35 @@
             </div>
         </div>
     </div>
+    <div class="mt-4">
+        <div class="text-md mb-2">Lookup Table Configuration</div>
+        <div class="grid grid-cols-1 gap-4">
+            <div>
+                <div class="text-sm text-gray-500 mb-2">Current Lookup Table File</div>
+                <div class="flex items-center space-x-4">
+                    <input type="text" 
+                        class="flex-1 border-2 border-gray-400 p-1" 
+                        id="lookup_display"
+                        readonly>
+                    <input type="file" 
+                        id="lookup_file" 
+                        class="hidden" 
+                        accept=".xlsx,.xls">
+                    <button onclick="document.getElementById('lookup_file').click()" 
+                            class="px-4 py-1 bg-white shadow text-sm hover:bg-blue-100">
+                        Upload New
+                    </button>
+                    <input type="checkbox" id="use_lookup" name="use_lookup">
+                    <label for="use_lookup" class="ml-1">Use Lookup Table</label>
+                </div>
+                <div class="text-xs text-gray-400 mt-1">Excel file containing lookup table for PHI replacement</div>
+            </div>
+        </div>
+    </div>
 
         <!-- Clinical Trial ID Generation Method -->
         <div>
-            <div class="text-md mb-2">Clinical trial ID generation method</div>
+            <div class="text-md mb-2 mt-4">Clinical trial ID generation method</div>
             <div class="flex flex-col space-y-2">
                 <div class="flex items-center">
                     <input type="radio" id="unique_identifier" name="id_generation_method" value="UNIQUE" checked>
@@ -106,6 +131,11 @@
 {% block settings_scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', loadSavedSettings);
+    document.getElementById('lookup_file').addEventListener('change', function(e) {
+        if (this.files[0]) {
+            document.getElementById('lookup_display').value = this.files[0].name;
+        }
+    });
 
     async function loadSavedSettings() {
         try {
@@ -128,6 +158,12 @@
             if (settings.default_tags_to_randomize) {
                 document.querySelector('[name="default_tags_to_randomize"]').value = settings.default_tags_to_randomize;
             }
+            if (settings.lookup_file) {
+                document.getElementById('lookup_display').value = settings.lookup_file;
+            }
+            if (settings.use_lookup) {
+                document.getElementById('use_lookup').checked = settings.use_lookup;
+            }
             if (settings.id_generation_method) {
                 document.querySelector(`input[name="id_generation_method"][value="${settings.id_generation_method}"]`).checked = true;
             }
@@ -141,28 +177,46 @@
 
     async function saveSettings() {
         const filterData = collectFilterData();
-
+        const lookupFile = document.getElementById('lookup_file').files[0];
         const data = {
             default_image_source: document.querySelector('input[name="default_image_source"]:checked').value,
             default_tags_to_keep: document.querySelector('[name="default_tags_to_keep"]').value,
             default_tags_to_dateshift: document.querySelector('[name="default_tags_to_dateshift"]').value,
             default_tags_to_randomize: document.querySelector('[name="default_tags_to_randomize"]').value,
+            lookup_file: document.getElementById('lookup_display').value,
+            use_lookup: document.getElementById('use_lookup').checked,
             id_generation_method: document.querySelector('input[name="id_generation_method"]:checked').value,
             selected_protocol: document.getElementById('protocol_select').value,
             deid_filters: filterData
         };
 
         try {
-            const response = await fetch('/save_settings/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
+            let response;
+            if (lookupFile){
+                const formData = new FormData();
+                formData.append('lookup_file', lookupFile);
+                formData.append('data', JSON.stringify(data));
+                
+                response = await fetch('/save_settings/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: formData
+                });
+            } else {
+                // If no file, send JSON directly
+                response = await fetch('/save_settings/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify(data)
+                });
+            }
 
+            const result = await response.json();
             showSaveMessage('Settings saved successfully');
 
         } catch (error) {

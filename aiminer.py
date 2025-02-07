@@ -317,6 +317,11 @@ def save_ctp_anonymizer(ctp_anonymizer):
         with open(os.path.join("ctp", "scripts", "DicomAnonymizer.script"), "w") as f:
             f.write(ctp_anonymizer)
 
+def save_ctp_lookup_table(ctp_lookup_table):
+    if ctp_lookup_table is not None:
+        with open(os.path.join("ctp", "scripts", "LookupTable.properties"), "w") as f:
+            f.write(ctp_lookup_table)
+
 def save_config(config):
     with open(os.path.join("ctp", "config.xml"), "w") as f:
         f.write(config)
@@ -400,6 +405,7 @@ def imagedeid_func(_):
 def imagedeid_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
     save_ctp_anonymizer(config.get("ctp_anonymizer"))
+    save_ctp_lookup_table(config.get("ctp_lookup_table"))
     querying_pacs = os.path.exists(os.path.join("input", "input.xlsx"))
     config_template = IMAGEDEID_PACS_CONFIG if querying_pacs else IMAGEDEID_LOCAL_CONFIG
     formatted_config = config_template.format(application_aet=config.get("application_aet"))

@@ -131,10 +131,9 @@ async function loadSettings() {
         if (!response.ok) throw new Error('Failed to load settings');
         
         const settings = await response.json();
-        console.log('Loaded settings:', settings);
         
         if (settings.protocol_file) {
-            document.getElementById('protocol_display').value = settings.protocol_file;
+            document.getElementById('protocol_display').value = settings.protocol_file ? settings.protocol_file.split('/').pop() : '';
         }
         if (settings.date_shift_range) {
             document.getElementById('date_shift_range').value = settings.date_shift_range;

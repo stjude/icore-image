@@ -1,14 +1,21 @@
+import os
+import json
+import bcrypt
+import pandas as pd
+import shutil
+import pytz
+import time
 from django.views.generic import TemplateView, ListView
 from django.views.generic.edit import CreateView
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotFound, HttpResponse
 from django.views.decorators.http import require_http_methods
-import json
-import os
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from datetime import datetime
+from django.db import OperationalError
 from .models import Project
-import pandas as pd
-import bcrypt
 
 
 SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.aiminer')
@@ -74,6 +81,12 @@ class TaskListView(ListView):
 
 class GeneralSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/general.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        american_timezones = [tz for tz in pytz.all_timezones if tz.startswith("US/")]
+        context['timezones'] = american_timezones
+        return context
 
 class DicomHeaderQRSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/header_query.html'
@@ -159,42 +172,72 @@ def run_header_query(request):
 @csrf_exempt
 def run_deid(request):
     print('Running deid')
-    try:
-        if request.method == 'POST':
-            data = json.loads(request.body)
-        
-        project = Project.objects.create(
-            name=data['study_name'],
-            task_type=Project.TaskType.IMAGE_DEID,
-            image_source=data['image_source'],
-            input_folder=data['input_folder'],
-            output_folder=data['output_folder'],
-            pacs_ip=data['pacs_ip'],
-            pacs_port=data['pacs_port'],
-            pacs_aet=data['pacs_aet'],
-            application_aet=data['application_aet'],
-            status=Project.TaskStatus.PENDING,
-            parameters={
-                'input_file': data['input_file'],
-                'acc_col': data['acc_col'],
-                'mrn_col': data['mrn_col'],
-                'date_col': data['date_col'],
-                'general_filters': data['general_filters'],
-                'modality_filters': data['modality_filters'],
-                'tags_to_keep': data['tags_to_keep'],
-                'tags_to_dateshift': data['tags_to_dateshift'],
-                'tags_to_randomize': data['tags_to_randomize'],
-                'date_shift_days': data['date_shift_days'],
-            }
-        )
-        
-        return JsonResponse({
-            'status': 'success',
-            'project_id': project.id
-        })
-    except Exception as e:
-        print(f'Error: {e}')
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    max_attempts = 3
+    attempt = 0
+    
+    while attempt < max_attempts:
+        try:
+            if request.method == 'POST':
+                data = json.loads(request.body)
+            
+            scheduled_time = None
+            if 'scheduled_time' in data:
+                settings = json.load(open(os.path.join(SETTINGS_DIR, 'settings.json')))
+                timezone = settings.get('timezone', 'UTC')
+                timezone = pytz.timezone(timezone)
+                local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
+                scheduled_time = timezone.localize(local_dt)
+                scheduled_time = scheduled_time.astimezone(pytz.UTC)
+            
+            project = Project.objects.create(
+                name=data['study_name'],
+                task_type=Project.TaskType.IMAGE_DEID,
+                image_source=data['image_source'],
+                input_folder=data['input_folder'],
+                output_folder=data['output_folder'],
+                pacs_ip=data['pacs_ip'],
+                pacs_port=data['pacs_port'],
+                pacs_aet=data['pacs_aet'],
+                application_aet=data['application_aet'],
+                status=Project.TaskStatus.PENDING,
+                scheduled_time=scheduled_time,
+                parameters={
+                    'input_file': data['input_file'],
+                    'acc_col': data['acc_col'],
+                    'mrn_col': data['mrn_col'],
+                    'date_col': data['date_col'],
+                    'general_filters': data['general_filters'],
+                    'modality_filters': data['modality_filters'],
+                    'tags_to_keep': data['tags_to_keep'],
+                    'tags_to_dateshift': data['tags_to_dateshift'],
+                    'tags_to_randomize': data['tags_to_randomize'],
+                    'date_shift_days': data['date_shift_days'],
+                    'lookup_file': data['lookup_file'],
+                    'use_lookup_table': data['use_lookup'],
+                }
+            )
+            
+            return JsonResponse({
+                'status': 'success',
+                'project_id': project.id
+            })
+            
+        except OperationalError as e:
+            if "database is locked" in str(e):
+                attempt += 1
+                if attempt == max_attempts:
+                    print(f'Failed after {max_attempts} attempts: {e}')
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f'Database is locked. Please try again. ({str(e)})'
+                    }, status=503)  # 503 Service Unavailable
+                print(f'Database locked, attempt {attempt} of {max_attempts}. Waiting...')
+                time.sleep(0.5 * attempt)  # Increasing backoff
+            else:
+                raise
+        except Exception as e:
+            print(f'Error: {e}')
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 @csrf_exempt
 def run_query(request):
@@ -260,7 +303,17 @@ def run_text_deid(request):
 @require_http_methods(["POST"])
 def save_settings(request):
     try:
-        new_settings = json.loads(request.body)
+        if request.FILES:
+            new_settings = json.loads(request.POST.get('data'))
+            lookup_file = request.FILES['lookup_file']
+            file_path = os.path.join(SETTINGS_DIR, 'lookup_table.xlsx')
+            with open(file_path, 'wb+') as destination:
+                for chunk in lookup_file.chunks():
+                    destination.write(chunk)
+            new_settings['lookup_file'] = file_path
+        else:
+            new_settings = json.loads(request.body.decode('utf-8'))
+            
         settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         
         try:
@@ -268,10 +321,12 @@ def save_settings(request):
                 existing_settings = json.load(f)
         except FileNotFoundError:
             existing_settings = {}
-            
-        # Only update fields that are in the new settings
+
         existing_settings.update(new_settings)
         
+        if 'timezone' in new_settings:
+            request.session['django_timezone'] = new_settings['timezone']
+            
         with open(settings_path, 'w') as f:
             json.dump(existing_settings, f, indent=4)
             
@@ -285,6 +340,8 @@ def load_settings(request):
         settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         with open(settings_path, 'r') as f:
             settings = json.load(f)
+        if settings.get('lookup_file'):
+            settings['lookup_file'] = os.path.abspath(settings['lookup_file'])
         return JsonResponse(settings)
     except FileNotFoundError:
         return JsonResponse({})
@@ -440,7 +497,7 @@ def load_admin_settings(request):
 
         protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
         if os.path.exists(protocol_path):
-            settings['protocol_file'] = os.path.basename(protocol_path)
+            settings['protocol_file'] = os.path.abspath(protocol_path)
         
         if settings.get('date_shift_range'):
             settings['date_shift_range'] = int(settings['date_shift_range'])
@@ -465,14 +522,12 @@ def save_admin_settings(request):
     # Handle protocol file upload
     if request.FILES.get('protocol_file'):
         protocol_file = request.FILES['protocol_file']
-        
-        # Save the protocol file
         file_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
         with open(file_path, 'wb+') as destination:
             for chunk in protocol_file.chunks():
                 destination.write(chunk)
         
-        existing_settings['protocol_file'] = protocol_file.name
+        existing_settings['protocol_file'] = os.path.abspath(file_path)
     
     # Handle other form data
     if request.POST.get('default_date_shift_days'):
@@ -653,3 +708,28 @@ def initialize_admin_password():
         print(f"Error initializing admin password: {str(e)}")
 
 initialize_admin_password()
+
+@require_http_methods(["POST"])
+def delete_task(request, task_id):
+    try:
+        task = get_object_or_404(Project, id=task_id)
+        
+        # Optionally, delete associated files
+        if os.path.exists(task.output_folder):
+            shutil.rmtree(task.output_folder)
+        task.delete()
+            
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+# Add this middleware function to process timezone from session
+def timezone_middleware(get_response):
+    def middleware(request):
+        tzname = request.session.get('django_timezone')
+        if tzname:
+            timezone.activate(pytz.timezone(tzname))
+        else:
+            timezone.deactivate()
+        return get_response(request)
+    return middleware
