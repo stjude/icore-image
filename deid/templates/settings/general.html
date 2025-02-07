@@ -65,7 +65,7 @@
     
     <div class="mb-4">
         <div class="text-sm text-gray-500 mb-2">Default Query Method</div>
-        <select class="w-64 border-2 border-gray-400 p-1" name="default_query_method">
+        <select class="w-64 bg-white border-2 border-gray-400 p-1" name="default_query_method">
             <option value="Accession">Accession</option>
             <option value="MRN">MRN + Date</option>>
         </select>
@@ -76,7 +76,7 @@
             <div class="text-sm text-gray-500 mb-2">Default Accession Header</div>
             <input type="text" 
                    class="w-full border-2 border-gray-400 p-1" 
-                   name="default_accession_header" 
+                   name="default_accession_header" >
         </div>
         <div>
             <div class="text-sm text-gray-500 mb-2">Default MRN Header</div>
@@ -122,6 +122,7 @@
         const pacsIp = document.querySelector('[name="pacs_ip"]').value;
         const pacsPort = document.querySelector('[name="pacs_port"]').value;
         const pacsAet = document.querySelector('[name="pacs_aet"]').value;
+        const applicationAet = document.querySelector('[name="application_aet"]').value;
 
         try {
             const response = await fetch('/test_pacs_connection/', {
@@ -133,7 +134,8 @@
                 body: JSON.stringify({
                     pacs_ip: pacsIp,
                     pacs_port: pacsPort, 
-                    pacs_aet: pacsAet
+                    pacs_aet: pacsAet,
+                    application_aet: applicationAet
                 })
             });
 
@@ -141,7 +143,7 @@
             console.log(result);
             if (result.status === 'success') {
                 document.getElementById('pacs-result-title').textContent = 'PACS Connection Test';
-                document.getElementById('pacs-result-message').textContent = 'PACS connection successful';
+                document.getElementById('pacs-result-message').textContent = 'PACS connection successful. Please save your settings before proceeding.';
             } else {
                 document.getElementById('pacs-result-title').textContent = 'PACS Connection Test';
                 document.getElementById('pacs-result-message').textContent = 'PACS connection failed: ' + result.error;

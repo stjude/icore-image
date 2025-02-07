@@ -200,9 +200,37 @@ app.on('ready', async () => {
         return;
     }
 
+    // Delete existing database and re-migrate
+    const dbPath = path.join(os.homedir(), '.aiminer', 'db.sqlite3');
+    if (fs.existsSync(dbPath)) {
+        fs.unlinkSync(dbPath);
+    }
+
     const managePath = app.isPackaged 
         ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
         : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+
+    // Run migrate command
+    try {
+        await new Promise((resolve, reject) => {
+            const migrateProcess = spawn(managePath, ['migrate']);
+            migrateProcess.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`Migration failed with code ${code}`));
+            });
+        });
+    } catch (error) {
+        logWithTimestamp(mainLogStream, `Database migration failed: ${error}`);
+        dialog.showMessageBox({
+            type: 'error',
+            title: 'Database Migration Failed',
+            message: 'Failed to initialize database. Please try again.',
+            buttons: ['OK']
+        }).then(() => {
+            app.quit();
+        });
+        return;
+    }
         
     serverProcess = spawn(managePath, ['runserver', '--noreload']);
     workerProcess = spawn(managePath, ['worker']);
@@ -294,7 +322,15 @@ app.on('ready', async () => {
                     workerProcess.kill();
                     workerProcess = null;
                 }
-                mainWindow.close(); // This will trigger the close event again, but this time will close
+                // Kill all running docker containers
+                exec('/usr/local/bin/docker kill $(/usr/local/bin/docker ps -q)', (error) => {
+                    if (error) {
+                        logWithTimestamp(mainLogStream, `Failed to kill docker containers: ${error}`);
+                    } else {
+                        logWithTimestamp(mainLogStream, 'All docker containers killed successfully');
+                    }
+                    mainWindow.close();
+                });
             }
         }
     });

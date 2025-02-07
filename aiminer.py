@@ -281,7 +281,9 @@ def tick(tick_func, data):
         stable_for = stable_for + 1 if stable else 0
         if data["complete"] and stable_for > 3:
             break
-        print_and_log(f"PROGRESS: {(saved + quarantined)}/{received} files")
+        num, denom = (saved + quarantined), received
+        if int(num) != int(denom):
+            print_and_log(f"PROGRESS: {num}/{denom} files")
     print_and_log("PROGRESS: COMPLETE")
 
 def start_ctp_run(tick_func, tick_data, logf):
@@ -327,6 +329,22 @@ def save_config(config):
 def shiftf_date(dt, date_window):
     return (dt + timedelta(days=date_window)).strftime('%Y%m%d')
 
+def parse_dicom_tag_dict(output):
+    tags = {}
+    expr = rf".*\[(.+)\].+\#.+\,.+ (.+)"
+    for value, tag in re.findall(expr, output):
+        tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
+    expr = rf".*=(.+).+\#.+\,.+ (.+)"
+    for value, tag in re.findall(expr, output):
+        tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
+    expr = rf".*FD (.+).+\#.+\,.+ (.+)"
+    for value, tag in re.findall(expr, output):
+        tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
+    expr = rf".*US (.+).+\#.+\,.+ (.+)"
+    for value, tag in re.findall(expr, output):
+        tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
+    return tags
+
 def cmove_queries(**config):
     df = pd.read_excel(os.path.join("input", "input.xlsx"))
     queries = []
@@ -342,13 +360,24 @@ def cmove_queries(**config):
     return queries
 
 def cmove_images(logf, **config):
-    for query in cmove_queries(**config):
-        cmd = ["movescu", "-v", "-aet", config.get("application_aet"), "-aec", 
-            config.get("pacs_aet"), "-aem", config.get("application_aet"), "-S"]+ query.split() + [
-            config.get("pacs_ip"), str(config.get("pacs_port"))]
+    study_uids = set()
+    ip, aet, aec, aem, port = config.get("pacs_ip"), config.get("application_aet"), config.get("pacs_aet"), config.get("application_aet"), config.get("pacs_port")
+    queries = cmove_queries(**config)
+    for i, query in enumerate(queries):
+        cmd = ["findscu", "-v", "-aet", aet, "-aec", aec, "-S"] + query.split() + ["-k", "StudyInstanceUID",ip, str(port)]
+        logging.info(" ".join(cmd))
+        process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output = process.stderr
+        for entry in output.split("Find Response:")[1:]:
+            study_uids.add(parse_dicom_tag_dict(entry).get("StudyInstanceUID"))
+        logging.info(f"Processed {i+1}/{len(queries)} rows")
+    logging.info(f"Found {len(study_uids)} unique studies")
+    for i, study_uid in enumerate(study_uids):
+        cmd = ["movescu", "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
         logging.info(" ".join(cmd))
         process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
         process.wait()
+        logging.info(f"Downloaded {i+1}/{len(study_uids)} studies")
 
 def save_metadata_csv():
     metadata_csv = ctp_get("AuditLog?export&csv&suppress")
