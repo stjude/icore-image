@@ -1,4 +1,5 @@
 from django.urls import path
+
 from . import views
 
 urlpatterns = [
@@ -6,11 +7,13 @@ urlpatterns = [
     path('imagedeid/', views.ImageDeIdentificationView.as_view(), name='image_deid'),
     path('imagequery/', views.ImageQueryView.as_view(), name='image_query'),
     path('textdeid/', views.TextDeIdentificationView.as_view(), name='text_deid'),
+    path('textextract/', views.TextExtractView.as_view(), name='text_deid'),
     path('tasks/', views.TaskListView.as_view(), name='task_list'),
     path('run_header_query/', views.run_header_query, name='run_header_query'),
     path('run_deid/', views.run_deid, name='run_deid'),
     path('run_query/', views.run_query, name='run_query'),
     path('run_text_deid/', views.run_text_deid, name='run_text_deid'),
+    path('run_text_extract/', views.run_text_extract, name='run_text_extract'),
     path('task_progress/', views.TaskProgressView.as_view(), name='task_progress'),
     path('get_log_content/', views.get_log_content, name='get_log_content'),
     path('settings/general/', views.GeneralSettingsView.as_view(), name='general_settings'),
