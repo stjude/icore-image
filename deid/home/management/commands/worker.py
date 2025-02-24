@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import time
+import traceback
 from datetime import datetime
 from shutil import which
 
@@ -367,7 +368,6 @@ def run_worker():
                         process_text_extract(task)
                     task.status = Project.TaskStatus.COMPLETED
                 except Exception as e:
-                    import traceback
                     traceback.print_exc()
                     print(f"Error processing task {task.id}: {str(e)}")
                     task.status = Project.TaskStatus.FAILED
