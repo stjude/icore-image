@@ -1,22 +1,28 @@
-import os
 import json
+import os
+import shutil
+import time
+from datetime import datetime
+
 import bcrypt
 import pandas as pd
-import shutil
 import pytz
-import time
-from django.views.generic import TemplateView, ListView
-from django.views.generic.edit import CreateView
-from django.urls import reverse_lazy
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotFound, HttpResponse
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
-from django.shortcuts import get_object_or_404
-from datetime import datetime
 from django.db import OperationalError
-from .models import Project
+from django.http import (
+    HttpResponse,
+    HttpResponseBadRequest,
+    HttpResponseNotFound,
+    JsonResponse,
+)
+from django.shortcuts import get_object_or_404
+from django.urls import reverse_lazy
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.views.generic import ListView, TemplateView
+from django.views.generic.edit import CreateView
 
+from .models import Project
 
 SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.aiminer')
 
@@ -71,6 +77,12 @@ class TextDeIdentificationView(CommonContextMixin, CreateView):
     model = Project
     fields = ['name', 'output_folder']
     template_name = 'text_deid.html'
+    success_url = reverse_lazy('task_list')
+
+class TextExtractView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name', 'output_folder']
+    template_name = 'text_extract.html'
     success_url = reverse_lazy('task_list')
 
 class TaskListView(ListView):
@@ -290,6 +302,29 @@ def run_text_deid(request):
                 'text_to_remove': data['text_to_remove'],
                 'date_shift_days': data['date_shift_days']
             }
+        )
+        
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+@csrf_exempt
+def run_text_extract(request):
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+
+        project = Project.objects.create(
+            name=data['study_name'],
+            input_folder=data['input_folder'],
+            status=Project.TaskStatus.PENDING,
+            output_folder=data['output_folder'],
+            task_type=Project.TaskType.TEXT_EXTRACT,
+            parameters={},
         )
         
         return JsonResponse({
