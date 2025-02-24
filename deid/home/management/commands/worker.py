@@ -300,7 +300,7 @@ def build_text_deid_config(task):
 def process_text_extract(task):
     print('Processing text extract')
     build_text_extract_config()
-    shutil.copytree(task.parameters['input_folder'], TMP_INPUT_PATH, dirs_exist_ok=True)
+    shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
 
     docker_cmd = [
         DOCKER, 'run', '--rm',

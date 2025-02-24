@@ -320,12 +320,11 @@ def run_text_extract(request):
 
         project = Project.objects.create(
             name=data['study_name'],
+            input_folder=data['input_folder'],
+            status=Project.TaskStatus.PENDING,
             output_folder=data['output_folder'],
             task_type=Project.TaskType.TEXT_EXTRACT,
-            status=Project.TaskStatus.PENDING,
-            parameters={
-                'input_folder': data['input_folder'],
-            }
+            parameters={},
         )
         
         return JsonResponse({
