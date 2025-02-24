@@ -493,9 +493,9 @@ def extract_text_from_pdf(pdf_path):
             text += page.extract_text() or ""
         return text.strip()
     except Exception as e:
-        text = f"Error reading PDF file {pdf_path}: {e}"
-        print_and_log(text)
-        return text
+        error_msg = f"Error reading PDF file {pdf_path}: {e}"
+        print_and_log(error_msg)
+        return error_msg
 
 def extract_text_from_docx(docx_path):
     try:
@@ -503,9 +503,9 @@ def extract_text_from_docx(docx_path):
         text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
         return text.strip()
     except Exception as e:
-        text = f"Error reading Word file {docx_path}: {e}"
-        print_and_log(text)
-        return text
+        error_msg = f"Error reading Word file {docx_path}: {e}"
+        print_and_log(error_msg)
+        return error_msg
 
 def textextract_main(**config):
     try:
