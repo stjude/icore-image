@@ -1,0 +1,10 @@
+bcrypt
+dotenv
+lark
+openpyxl
+pandas
+pypdf2
+python-docx
+pyyaml
+requests
+ruamel.yaml
