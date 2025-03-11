@@ -12,6 +12,8 @@ class Project(models.Model):
     application_aet = models.CharField(max_length=255, blank=True, null=True)
     ctp_dicom_filter = models.TextField(blank=True)
     class TaskType(models.TextChoices):
+        # When adding a new task type, be sure to add it to the `module` choices in
+        # .github/workflows/generate_license.yml
         IMAGE_DEID = 'IMAGE_DEID', 'Image De-identification'
         IMAGE_QUERY = 'IMAGE_QUERY', 'Image Query'
         HEADER_QUERY = 'HEADER_QUERY', 'Header Query'

@@ -1,0 +1,47 @@
+name: Generate Module License
+
+on:
+    workflow_dispatch: 
+        inputs:
+            module:
+                type: choice
+                description: The module the license grants use of.
+                required: true
+                options:
+                    - IMAGE_DEID
+                    - IMAGE_QUERY
+                    - HEADER_QUERY
+                    - TEXT_DEID
+                    - TEXT_EXTRACT
+            expiration:
+                type: string
+                description: Expiration date of the License in YYYY-MM-DD format.
+                required: true
+
+jobs:
+    generate_license:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            - name: Install Python 3.12
+              uses: actions/setup-python@v4
+              with:
+                  python-version: 3.12
+
+            - name: Install pip packages
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -r requirements.txt
+
+            - name: Generate License
+              run: |
+                  python deid/manage.py generate_license ${{ github.event.inputs.module }} ${{ github.event.inputs.expiration }}
+
+            - name: Upload the file as an artifact
+              uses: actions/upload-artifact@v4
+              with:
+                path: new_license.txt
+                name: iCore_${{ github.event.inputs.module }}_license.txt
+
