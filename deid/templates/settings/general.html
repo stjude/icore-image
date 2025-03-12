@@ -32,18 +32,19 @@
             <input type="text" 
                    class="w-full border-2 border-gray-400 p-1" 
                    name="application_aet" >
-    <div class="col-span-3 flex justify-end mt-4">
-        <button onclick="testPacsConnection()" 
-                class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100">
-            Test PACS Connection
-        </button>
-    </div>
-    <div class="text-md mb-4"> Timezone </div>
-    <select class="w-64 border-2 border-gray-400 p-1" name="timezone">
-        {% for tz in timezones %}
-            <option value="{{ tz }}">{{ tz }}</option>
-        {% endfor %}
-    </select>
+            <div class="col-span-3 flex justify-end mt-4">
+                <button onclick="testPacsConnection()" 
+                        class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100">
+                    Test PACS Connection
+                </button>
+            </div>
+            <div class="text-md mb-4"> Timezone </div>
+            <select class="w-64 border-2 border-gray-400 p-1" name="timezone">
+                {% for tz in timezones %}
+                    <option value="{{ tz }}">{{ tz }}</option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
 </div>
 
