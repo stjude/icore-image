@@ -86,7 +86,7 @@ class LicenseManager:
         with open(output_path, "wb") as f:
             f.write(signed_license)
 
-    def license_is_valid(self, license_bytes: bytes) -> dict:
+    def license_is_valid(self, license_dict: dict) -> dict:
         """
         Validate a license.
 
@@ -94,7 +94,6 @@ class LicenseManager:
             dict: The license dictionary if valid.
         """
         try:
-            license_dict = json.loads(license_bytes)
             assert isinstance(license_dict, dict), "Submitted license is not a json dictionary."
 
             expiration_date = dt.datetime.fromtimestamp(license_dict["expiration"])
@@ -106,10 +105,9 @@ class LicenseManager:
                 ).encode()
 
             assert module in [choice[0] for choice in Project.TaskType.choices], "Invalid module."
-            assert type(signature) is str, "License signature is not a string."
             assert expiration_date > dt.datetime.now(), "License has expired."
             self.public_key.verify(
-                signature.encode(),
+                signature,
                 signed_bytes,
                 padding.PKCS1v15(),
                 hashes.SHA256()
@@ -119,7 +117,7 @@ class LicenseManager:
         except KeyError as e:
             raise LicenseValidationError(f"Invalid license. Missing the {str(e)} key.")
         except Exception as e:
-            raise LicenseValidationError(f"{type(e)} error occurred while decrypting the license: {str(e)}")
+            raise LicenseValidationError(f"{type(e)} error occurred while validating the license: {str(e)}")
 
         return license_dict
     
@@ -133,4 +131,4 @@ class LicenseManager:
         if (module_license := self.licenses.get(module)) is None:
             raise LicenseValidationError("No license found for this module.")
         else:
-            self.license_is_valid(json.dumps(module_license).encode())
+            self.license_is_valid(module_license)
