@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from home.license_management import generate_license
+from home.license_management import LicenseManager
 from home.models import Project
 
 
@@ -20,5 +20,5 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        generate_license(options['module'], options['expiration'])
+        LicenseManager().generate_license(options['module'], options['expiration'])
         self.stdout.write(self.style.SUCCESS("License generated successfully at `new_license.txt`."))
