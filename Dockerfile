@@ -14,5 +14,8 @@ RUN apt-get update --fix-missing && \
         python3-pandas \
         python3-yaml \
         python3-lark \
-        dcmtk
+        dcmtk \
+        curl \
+        unzip && \
+    curl https://rclone.org/install.sh | bash
 CMD python3 aiminer.py

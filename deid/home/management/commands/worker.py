@@ -21,6 +21,7 @@ PACS_AET = 'ORTHANC'
 HOME_DIR = os.path.expanduser('~')
 CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'config.yml'))
 SETTINGS_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'settings.json'))
+RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'rclone.conf'))
 TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'temp_input'))
 DOCKER = which('docker') or '/usr/local/bin/docker'
 
@@ -293,6 +294,43 @@ def build_text_deid_config(task):
 
     return config
 
+def process_image_export(task):
+    print('Processing image export')
+    input_folder = task.input_folder
+    output_folder = task.output_folder
+    build_image_export_config(task)
+    print(RCLONE_CONFIG_PATH)
+
+    docker_cmd = [
+        DOCKER, 'run', '--rm',
+        '-v', f'{CONFIG_PATH}:/config.yml',
+        '-v', f'{RCLONE_CONFIG_PATH}:/rclone.conf',
+        '-v', f'{os.path.abspath(input_folder)}:/input',
+        '-v', f'{os.path.abspath(output_folder)}:/output',
+        'aiminer'
+    ]
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+    try:
+        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+
+def build_image_export_config(task):
+    """Build the configuration for image export"""
+    config = {
+        'module': 'imageexport',
+        'rclone_config': RCLONE_CONFIG_PATH,
+        'storage_location': task.parameters['storage_location'],
+        'project_name': task.name
+    }
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+    return config
 
 def run_worker():
     settings = json.load(open(SETTINGS_PATH))
@@ -324,6 +362,8 @@ def run_worker():
                         process_header_query(task)
                     elif task.task_type == Project.TaskType.TEXT_DEID:
                         process_text_deid(task)
+                    elif task.task_type == Project.TaskType.IMAGE_EXPORT:
+                        process_image_export(task)
                     task.status = Project.TaskStatus.COMPLETED
                 except Exception as e:
                     print(f"Error processing task {task.id}: {str(e)}")

@@ -15,6 +15,7 @@ class Project(models.Model):
         IMAGE_QUERY = 'IMAGE_QUERY', 'Image Query'
         HEADER_QUERY = 'HEADER_QUERY', 'Header Query'
         TEXT_DEID = 'TEXT_DEID', 'Text De-identification'
+        IMAGE_EXPORT = 'IMAGE_EXPORT', 'Image Export'
     task_type = models.CharField(max_length=20, choices=TaskType.choices)
     class TaskStatus(models.TextChoices):
         PENDING = 'PENDING', 'Pending'

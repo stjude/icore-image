@@ -483,6 +483,92 @@ def textdeid_main(**config):
     except Exception as e:
         error_and_exit(f"Error: {e}")
 
+def parse_rclone_config(config_path):
+    """Parse rclone config file into sections"""
+    sections = {}
+    current_section = None
+    
+    with open(config_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+                
+            if line.startswith('[') and line.endswith(']'):
+                current_section = line[1:-1]
+                sections[current_section] = {}
+            elif current_section and '=' in line:
+                key, value = [x.strip() for x in line.split('=', 1)]
+                sections[current_section][key] = value
+    
+    return sections
+
+def get_rclone_flags(storage_type):
+    """Get storage-specific rclone flags"""
+    common_flags = [
+        "--transfers", "4",
+        "--retries", "10",
+        "--low-level-retries", "10",
+        "--contimeout", "60s",
+        "--timeout", "300s",
+    ]
+    
+    if storage_type == 's3':
+        return common_flags + ["--s3-upload-concurrency", "4"]
+    elif storage_type == 'azureblob':
+        return common_flags + ["--azure-upload-concurrency", "4"]
+    elif storage_type in ['drive', 'onedrive']:
+        return common_flags + [
+            "--drive-chunk-size", "64M",
+            "--drive-upload-cutoff", "64M",
+            "--drive-acknowledge-abuse"
+        ]
+    return common_flags
+
+def get_rclone_path(config):
+    storage_location = config.get('storage_location')
+    project_name = config.get('project_name')
+    safe_project_name = project_name.replace(' ', '-').lower()
+
+    # Get the storage configuration
+    rclone_sections = parse_rclone_config('/rclone.conf')
+    if storage_location not in rclone_sections:
+        raise ValueError(f"Storage location '{storage_location}' not found in rclone config")
+    
+    storage_config = rclone_sections[storage_location]
+    storage_type = storage_config.get('type')
+
+    if storage_type == 's3':
+        bucket_name = config.get('bucket_name', storage_config.get('bucket'))
+        return f"{storage_location}:{bucket_name}/{safe_project_name}"
+    elif storage_type == 'drive':
+        return f"{storage_location}:/{safe_project_name}"
+    elif storage_type == 'azureblob':
+        container_name = config.get('container_name', storage_config.get('container'))
+        return f"{storage_location}:{container_name}/{safe_project_name}"
+    elif storage_type == 'onedrive':
+        return f"{storage_location}:/{safe_project_name}"
+    else:
+        raise ValueError(f"Unsupported storage type: {storage_type}")
+
+def image_export_main(**config):
+    try:
+        rclone_sections = parse_rclone_config('/rclone.conf')
+        storage_location = config.get('storage_location')
+        storage_config = rclone_sections[storage_location]
+        storage_type = storage_config.get('type')
+
+        cmd = ["rclone", "--config", "/rclone.conf"]
+        cmd.extend(get_rclone_flags(storage_type))
+        cmd.extend(["copy", "input", get_rclone_path(config)])
+        logging.info(' '.join(cmd))
+        process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        logging.info(process.stdout)
+        logging.info(process.stderr)
+        logging.info("PROGRESS: COMPLETE")
+    except Exception as e:
+        error_and_exit(f"Error: {e}")
+
 def validate_ctp_filters(filters):
     grammar = r"""start: expr
         ?expr: term | expr ("+" | "*") term
@@ -535,7 +621,7 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
-    if config.get("module") not in ["imageqr", "imagedeid", "textdeid"]:
+    if config.get("module") not in ["imageqr", "imagedeid", "textdeid", "imageexport"]:
         error_and_exit("Module invalid or not implemented.")
     if not os.path.exists("input"):
         error_and_exit("Input directory not found.")
@@ -563,7 +649,7 @@ def validate_config(config):
                 error_and_exit("to_keep_list and to_remove_list must be provided.")
             if config.get("date_shift_by") is None:
                 error_and_exit("Date shift by must be provided.")
-    elif config.get("module") in ["imagedeid"]:
+    elif config.get("module") in ["imagedeid", "imageexport"]:
         if count_dicom_files("input") == 0:
             error_and_exit("No DICOM files found in input directory.")
     else:
@@ -621,6 +707,18 @@ def textdeid(**config):
         to_remove_list (list): List of phrases to be de-identified.
     """
     textdeid_main(**config)
+
+def imageexport(**config):
+    """
+    Export DICOM images to a cloud storage location.
+    Takes all files in the input directory and exports them to the
+    storage location.
+
+    Keyword Args:
+        storage_location (str): Cloud storage location.
+        project_name (str): Name of the project for folder name.
+    """
+    image_export_main(**config)
 
 def run_module(**config):
     logging.info(f"Running module: {config.get('module')}")
