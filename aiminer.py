@@ -506,6 +506,7 @@ def parse_rclone_config(config_path):
 def get_rclone_flags(storage_type):
     """Get storage-specific rclone flags"""
     common_flags = [
+        "--progress",
         "--transfers", "4",
         "--retries", "10",
         "--low-level-retries", "10",
@@ -562,9 +563,8 @@ def image_export_main(**config):
         cmd.extend(get_rclone_flags(storage_type))
         cmd.extend(["copy", "input", get_rclone_path(config)])
         logging.info(' '.join(cmd))
-        process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        logging.info(process.stdout)
-        logging.info(process.stderr)
+        with open(os.path.join("output", "appdata", "log.txt"), "w") as logf:
+            process = subprocess.run(cmd, text=True, stdout=logf, stderr=logf)
         logging.info("PROGRESS: COMPLETE")
     except Exception as e:
         error_and_exit(f"Error: {e}")
