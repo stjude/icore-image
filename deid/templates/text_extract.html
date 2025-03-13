@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Text Extraction{% endblock %}
+
+{% block content %}
+<div class="px-4">
+    <h1 class="text-xl flex-1">Text Extration</h1>
+</div>
+<div class="flex-1 bg-white p-4 ml-4 mt-4">
+    <!-- Project Name Section -->
+    <div class="text-sm text-black-5">Project Name</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
+
+    <!-- Input Folder Section -->
+    <div class="text-sm text-black-5 mt-4">Input Folder</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
+
+    <!-- Output File Section -->
+    <div class="text-sm text-black-5 mt-4">Output Folder</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
+</div>
+
+<!-- Run Button Section -->
+<div class="m-4">
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()">Extract</button>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', loadSavedSettings);
+    async function loadSavedSettings() {
+        try {
+            const response = await fetch('/load_settings/');
+            const settings = await response.json();
+            // Apply default settings
+            if (settings.default_output_folder) {
+                document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    }
+
+    async function runDeid() {
+        const data = {
+            study_name: document.querySelector('[name="study_name"]').value,
+            input_folder: document.querySelector('[name="input_folder"]').value,
+            output_folder: document.querySelector('[name="output_folder"]').value,
+        };
+        console.log(data);
+        try {
+            const response = await fetch('/run_text_extract/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+            } else {
+                console.error('Error starting text extraction:', result);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+</script>
+{% endblock %}

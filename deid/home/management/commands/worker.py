@@ -1,18 +1,22 @@
-import os
-import time
-import subprocess
-import shutil
 import json
-import pytz
+import os
+import shutil
+import subprocess
+import time
+import traceback
 from datetime import datetime
-from ruamel.yaml import YAML, scalarstring
 from shutil import which
-from django.db import transaction
-from django.core.management.base import BaseCommand
-from django.db import models
 
-from grammar import generate_filters_string, generate_anonymizer_script, generate_lookup_table
+import pytz
+from django.core.management.base import BaseCommand
+from django.db import models, transaction
+from grammar import (
+    generate_anonymizer_script,
+    generate_filters_string,
+    generate_lookup_table,
+)
 from home.models import Project
+from ruamel.yaml import YAML, scalarstring
 
 PACS_IP = 'host.docker.internal'
 PACS_PORT = 4242
@@ -312,12 +316,33 @@ def process_image_export(task):
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
+
+def process_text_extract(task):
+    print('Processing text extract')
+    build_text_extract_config()
+    shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
+
+    docker_cmd = [
+        DOCKER, 'run', '--rm',
+        '-v', f'{CONFIG_PATH}:/config.yml', 
+        '-v', f'{os.path.abspath(TMP_INPUT_PATH)}:/input',
+        '-v', f'{os.path.abspath(task.output_folder)}:/output',
+        'aiminer'
+    ]
+
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+
     try:
         result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+    finally:
+        if os.path.exists(TMP_INPUT_PATH):
+            shutil.rmtree(TMP_INPUT_PATH)
 
 def build_image_export_config(task):
     """Build the configuration for image export"""
@@ -330,6 +355,15 @@ def build_image_export_config(task):
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
+    return config
+
+def build_text_extract_config():
+    """Build the configuration for text extraction"""
+    config = {'module': 'textextract'}
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+
     return config
 
 def run_worker():
@@ -364,8 +398,11 @@ def run_worker():
                         process_text_deid(task)
                     elif task.task_type == Project.TaskType.IMAGE_EXPORT:
                         process_image_export(task)
+                    elif task.task_type == Project.TaskType.TEXT_EXTRACT:
+                        process_text_extract(task)
                     task.status = Project.TaskStatus.COMPLETED
                 except Exception as e:
+                    traceback.print_exc()
                     print(f"Error processing task {task.id}: {str(e)}")
                     task.status = Project.TaskStatus.FAILED
                 finally:

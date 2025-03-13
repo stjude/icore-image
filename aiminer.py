@@ -1,22 +1,24 @@
+import logging
 import os
 import re
-import sys
-import yaml
-import time
 import signal
 import string
-import logging
-import requests
-import tempfile
 import subprocess
-
-import pandas as pd
+import sys
+import tempfile
+import time
 import xml.etree.ElementTree as ET
-
-from lark import Lark
-from threading import Thread
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from threading import Thread
+
+import pandas as pd
+import requests
+import yaml
+from docx import Document
+from lark import Lark
+from openpyxl import Workbook
+from PyPDF2 import PdfReader
 
 IMAGEQR_CONFIG = """<Configuration>
     <Server
@@ -442,7 +444,7 @@ def scrub(data, whitelist, blacklist):
                 results.append(scrubbed)
             print_and_log(f"PROGRESS: {i}/{len(data)} rows de-identified")
         return results
-    
+
 def date_shift_text(original_list, deided_list, date_shift_by):
     shifted_list = []
     for i, (original, deided) in enumerate(zip(original_list, deided_list)):
@@ -569,6 +571,54 @@ def image_export_main(**config):
     except Exception as e:
         error_and_exit(f"Error: {e}")
 
+def extract_text_from_pdf(pdf_path):
+    try:
+        reader = PdfReader(pdf_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() or ""
+        return text.strip()
+    except Exception as e:
+        error_msg = f"Error reading PDF file {pdf_path}: {e}"
+        print_and_log(error_msg)
+        return error_msg
+
+def extract_text_from_docx(docx_path):
+    try:
+        doc = Document(docx_path)
+        text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        return text.strip()
+    except Exception as e:
+        error_msg = f"Error reading Word file {docx_path}: {e}"
+        print_and_log(error_msg)
+        return error_msg
+
+def textextract_main(**config):
+    try:
+        wb = Workbook()
+        ws = wb.active
+        ws["A1"] = "Filename"
+        ws["B1"] = "Text"
+
+        for root, _, files in os.walk("input"):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if file.lower().endswith('.pdf'):
+                    ws.append([file_path, extract_text_from_pdf(file_path)])
+                elif not file.startswith("~$") and file.lower().endswith('.docx'):
+                    ws.append([file_path, extract_text_from_docx(file_path)])
+                else:
+                    print_and_log(f"Skipping unsupported file: {file_path}")
+                    continue
+
+        wb.save(os.path.join("output", "output.xlsx"))
+        print_and_log("PROGRESS: COMPLETE")
+    except Exception as e:
+        import traceback
+
+        print_and_log(f"Error extracting text:{e}")
+        print_and_log(traceback.format_exc())
+
 def validate_ctp_filters(filters):
     grammar = r"""start: expr
         ?expr: term | expr ("+" | "*") term
@@ -621,7 +671,7 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
-    if config.get("module") not in ["imageqr", "imagedeid", "textdeid", "imageexport"]:
+    if config.get("module") not in ["imageqr", "imagedeid", "textdeid", "imageexport", "textextract"]:
         error_and_exit("Module invalid or not implemented.")
     if not os.path.exists("input"):
         error_and_exit("Input directory not found.")
@@ -652,7 +702,7 @@ def validate_config(config):
     elif config.get("module") in ["imagedeid", "imageexport"]:
         if count_dicom_files("input") == 0:
             error_and_exit("No DICOM files found in input directory.")
-    else:
+    elif config.get("module") != "textextract":
         error_and_exit("Input directory must contain input.xlsx file.")
 
 def imageqr(**config):
@@ -719,6 +769,16 @@ def imageexport(**config):
         project_name (str): Name of the project for folder name.
     """
     image_export_main(**config)
+
+def textextract(**config):
+    """
+    Extracts text from all pdf and docx files within the input directory and
+    its subdirectories, then outputs an excel file with the extracted text.
+
+    Keyword Args:
+        None
+    """
+    textextract_main(**config)
 
 def run_module(**config):
     logging.info(f"Running module: {config.get('module')}")

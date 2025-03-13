@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class Project(models.Model):
     name = models.CharField(max_length=200)
     image_source = models.CharField(max_length=10, choices=[('LOCAL', 'Local folder'), ('PACS', 'PACS')])
@@ -16,6 +17,7 @@ class Project(models.Model):
         HEADER_QUERY = 'HEADER_QUERY', 'Header Query'
         TEXT_DEID = 'TEXT_DEID', 'Text De-identification'
         IMAGE_EXPORT = 'IMAGE_EXPORT', 'Image Export'
+        TEXT_EXTRACT = 'TEXT_EXTRACT', 'Text Extraction'
     task_type = models.CharField(max_length=20, choices=TaskType.choices)
     class TaskStatus(models.TextChoices):
         PENDING = 'PENDING', 'Pending'
