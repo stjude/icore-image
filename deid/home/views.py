@@ -445,7 +445,7 @@ def load_settings(request):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 def load_rclone_config():
-    rclone_config_path = os.path.join(SETTINGS_DIR, 'rclone.conf')
+    rclone_config_path = os.path.join(SETTINGS_DIR_PATH, 'rclone.conf')
     with open(rclone_config_path, 'r') as f:
         rclone_config = f.read()
     rclone_config_names = []
@@ -602,7 +602,7 @@ def load_admin_settings(request):
         if settings.get('date_shift_range'):
             settings['date_shift_range'] = int(settings['date_shift_range'])
         
-        rclone_config_path = os.path.join(SETTINGS_DIR, 'rclone.conf')
+        rclone_config_path = os.path.join(SETTINGS_DIR_PATH, 'rclone.conf')
         if os.path.exists(rclone_config_path):
             with open(rclone_config_path, 'r') as f:
                 settings['rclone_config'] = f.read()
