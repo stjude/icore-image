@@ -165,9 +165,10 @@ class LicenseManager:
         with open(output_path, "wb") as f:
             f.write(json.dumps(license_dict).encode())
     
-    def license_is_valid(self, license_dict: dict) -> dict:
+    def validate_license(self, license_dict: dict) -> dict:
         for module, module_license in license_dict.items():
             self._check_module_license(module, module_license)
+        return license_dict
     
     def add_license(self, license_dict: dict) -> None:
         licenses = self.licenses
