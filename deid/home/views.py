@@ -339,6 +339,13 @@ def run_export(request):
                 'storage_location': data['storage_location'],
             }
         )
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 @csrf_exempt
 def run_text_extract(request):

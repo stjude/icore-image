@@ -43,13 +43,8 @@
         try {
             const response = await fetch('/load_settings/');
             const settings = await response.json();
-            
-            // Apply default settings
-            if (settings.default_storage_location) {
-                document.getElementById('storage_location_select').value = settings.default_storage_location;
-            }
             if (settings.default_output_folder) {
-                document.getElementById('output_folder').value = settings.default_output_folder;
+                document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
             }
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -63,6 +58,7 @@
             output_folder: document.querySelector('[name="output_folder"]').value,
             storage_location: document.getElementById('storage_location_select').value
         };
+        console.log(data);
 
         try {
             const response = await fetch('/run_export/', {

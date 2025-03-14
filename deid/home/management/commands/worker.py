@@ -316,6 +316,25 @@ def process_image_export(task):
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
+    try:
+        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+
+def build_image_export_config(task):
+    """Build the configuration for image export"""
+    config = {
+        'module': 'imageexport',
+        'rclone_config': RCLONE_CONFIG_PATH,
+        'storage_location': task.parameters['storage_location'],
+        'project_name': task.name
+    }
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+    return config
 
 def process_text_extract(task):
     print('Processing text extract')
@@ -343,19 +362,6 @@ def process_text_extract(task):
     finally:
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
-
-def build_image_export_config(task):
-    """Build the configuration for image export"""
-    config = {
-        'module': 'imageexport',
-        'rclone_config': RCLONE_CONFIG_PATH,
-        'storage_location': task.parameters['storage_location'],
-        'project_name': task.name
-    }
-    with open(CONFIG_PATH, 'w') as f:
-        yaml = YAML()
-        yaml.dump(config, f)
-    return config
 
 def build_text_extract_config():
     """Build the configuration for text extraction"""
