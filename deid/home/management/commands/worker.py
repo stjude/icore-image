@@ -5,7 +5,6 @@ import subprocess
 import time
 import traceback
 from datetime import datetime
-from shutil import which
 from typing import Optional
 
 import pytz
@@ -17,7 +16,6 @@ from grammar import (
     generate_lookup_table,
 )
 from home.constants import CONFIG_PATH, DOCKER, SETTINGS_FILE_PATH, TMP_INPUT_PATH
-from home.license_management import LICENSE_MANAGER
 from home.models import Project
 from ruamel.yaml import YAML, scalarstring
 
@@ -363,10 +361,6 @@ def run_task(task: Optional[Project]) -> None:
     task.save()
     
     try:
-        assert (
-            task.task_type not in LICENSE_MANAGER.paid_modules or
-            LICENSE_MANAGER.module_license_is_valid(task.task_type)
-        )
         if task.task_type == Project.TaskType.IMAGE_DEID:
             process_image_deid(task)
         elif task.task_type == Project.TaskType.IMAGE_QUERY:
