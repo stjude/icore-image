@@ -202,14 +202,14 @@ async function saveSettings() {
         });
 
         if (!response.ok){
-            const errorText = await response.text();
-            throw new Error(errorText || 'Failed to save settings');
+            const responseObj = await response.json();
+            throw new Error('error' in responseObj ? responseObj.error : 'Failed to save settings');
         }
         
         showSaveMessage('Settings saved successfully');
     } catch (error) {
         console.error('Error saving settings:', error);
-        showSaveMessage('Error saving settings', true);
+        showSaveMessage(error.message, true);
     }
 }
 
