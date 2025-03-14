@@ -7,7 +7,6 @@ dist
 config.yml
 iCore-darwin-x64
 aiminer.tar
-.env
 iCore-darwin-arm64
 create-dmg-arm.sh
 *.dmg
