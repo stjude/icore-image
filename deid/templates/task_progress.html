@@ -73,7 +73,7 @@
             
             if (data === previousContent) {
                 sameContentCount++;
-                if (sameContentCount >= 20) {
+                if (sameContentCount >= 200) {
                     clearInterval(pollInterval);
                     return;
                 }

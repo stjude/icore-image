@@ -15,7 +15,13 @@ from grammar import (
     generate_filters_string,
     generate_lookup_table,
 )
-from home.constants import CONFIG_PATH, DOCKER, SETTINGS_FILE_PATH, TMP_INPUT_PATH
+from home.constants import (
+    CONFIG_PATH,
+    DOCKER,
+    RCLONE_CONFIG_PATH,
+    SETTINGS_FILE_PATH,
+    TMP_INPUT_PATH,
+)
 from home.models import Project
 from ruamel.yaml import YAML, scalarstring
 
@@ -292,6 +298,44 @@ def build_text_deid_config(task):
 
     return config
 
+def process_image_export(task):
+    print('Processing image export')
+    input_folder = task.input_folder
+    output_folder = task.output_folder
+    build_image_export_config(task)
+    print(RCLONE_CONFIG_PATH)
+
+    docker_cmd = [
+        DOCKER, 'run', '--rm',
+        '-v', f'{CONFIG_PATH}:/config.yml',
+        '-v', f'{RCLONE_CONFIG_PATH}:/rclone.conf',
+        '-v', f'{os.path.abspath(input_folder)}:/input',
+        '-v', f'{os.path.abspath(output_folder)}:/output',
+        'aiminer'
+    ]
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+    try:
+        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+
+def build_image_export_config(task):
+    """Build the configuration for image export"""
+    config = {
+        'module': 'imageexport',
+        'rclone_config': RCLONE_CONFIG_PATH,
+        'storage_location': task.parameters['storage_location'],
+        'project_name': task.name
+    }
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+    return config
+
 def process_text_extract(task):
     print('Processing text extract')
     build_text_extract_config()
@@ -327,7 +371,6 @@ def build_text_extract_config():
         yaml.dump(config, f)
 
     return config
-
 
 def run_worker():
     settings = json.load(open(SETTINGS_FILE_PATH))
@@ -369,6 +412,8 @@ def run_task(task: Optional[Project]) -> None:
             process_header_query(task)
         elif task.task_type == Project.TaskType.TEXT_DEID:
             process_text_deid(task)
+        elif task.task_type == Project.TaskType.IMAGE_EXPORT:
+            process_image_export(task)
         elif task.task_type == Project.TaskType.TEXT_EXTRACT:
             process_text_extract(task)
         task.status = Project.TaskStatus.COMPLETED
