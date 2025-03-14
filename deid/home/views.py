@@ -3,6 +3,7 @@ import os
 import shutil
 import time
 from datetime import datetime
+from typing import Optional
 
 import bcrypt
 import pandas as pd
@@ -21,10 +22,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
+from home.constants import LICENSES_PATH, PKG_DIR, SETTINGS_PATH
+from home.license_management import LICENSE_MANAGER
+from home.models import Project
 
-from .models import Project
-
-SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.aiminer')
 
 class CommonContextMixin:
     def get_common_context(self):
@@ -149,6 +150,23 @@ def get_log_content(request):
     except Exception as e:
         return HttpResponse(str(e), status=500)
 
+def get_current_settings(raise_exception: Optional[bool] = False) -> dict:
+    """
+    Get the current settings from the settings.json file.
+
+    Args:
+        raise_exception: If True, raise an exception if the file is not found.
+            If False, return an empty dictionary.
+    """
+    try:
+        # Load existing settings
+        with open(SETTINGS_PATH, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        if not raise_exception:
+            return {}
+        raise
+
 @csrf_exempt
 def run_header_query(request):
     print('Running header query')
@@ -194,7 +212,7 @@ def run_deid(request):
             
             scheduled_time = None
             if 'scheduled_time' in data:
-                settings = json.load(open(os.path.join(SETTINGS_DIR, 'settings.json')))
+                settings = json.load(open(os.path.join(PKG_DIR, 'settings.json')))
                 timezone = settings.get('timezone', 'UTC')
                 timezone = pytz.timezone(timezone)
                 local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
@@ -341,28 +359,21 @@ def save_settings(request):
         if request.FILES:
             new_settings = json.loads(request.POST.get('data'))
             lookup_file = request.FILES['lookup_file']
-            file_path = os.path.join(SETTINGS_DIR, 'lookup_table.xlsx')
+            file_path = os.path.join(PKG_DIR, 'lookup_table.xlsx')
             with open(file_path, 'wb+') as destination:
                 for chunk in lookup_file.chunks():
                     destination.write(chunk)
             new_settings['lookup_file'] = file_path
         else:
             new_settings = json.loads(request.body.decode('utf-8'))
-            
-        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         
-        try:
-            with open(settings_path, 'r') as f:
-                existing_settings = json.load(f)
-        except FileNotFoundError:
-            existing_settings = {}
-
+        existing_settings = get_current_settings()
         existing_settings.update(new_settings)
         
         if 'timezone' in new_settings:
             request.session['django_timezone'] = new_settings['timezone']
             
-        with open(settings_path, 'w') as f:
+        with open(SETTINGS_PATH, 'w') as f:
             json.dump(existing_settings, f, indent=4)
             
         return JsonResponse({'status': 'success'})
@@ -372,9 +383,7 @@ def save_settings(request):
 @require_http_methods(["GET"])
 def load_settings(request):
     try:
-        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
-        with open(settings_path, 'r') as f:
-            settings = json.load(f)
+        settings = get_current_settings(raise_exception=True)
         if settings.get('lookup_file'):
             settings['lookup_file'] = os.path.abspath(settings['lookup_file'])
         return JsonResponse(settings)
@@ -522,15 +531,9 @@ def test_pacs_connection(request):
 @require_http_methods(["GET"])
 def load_admin_settings(request):
     try:
-        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
-        
-        try:
-            with open(settings_path, 'r') as f:
-                settings = json.load(f)
-        except FileNotFoundError:
-            settings = {}
+        settings = get_current_settings()
 
-        protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
+        protocol_path = os.path.join(PKG_DIR, 'protocol.xlsx')
         if os.path.exists(protocol_path):
             settings['protocol_file'] = os.path.abspath(protocol_path)
         
@@ -544,20 +547,13 @@ def load_admin_settings(request):
 
 @require_http_methods(["POST"])
 def save_admin_settings(request):
-    settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
-    os.makedirs(SETTINGS_DIR, exist_ok=True)
-    
-    try:
-        # Load existing settings
-        with open(settings_path, 'r') as f:
-            existing_settings = json.load(f)
-    except FileNotFoundError:
-        existing_settings = {}
+    os.makedirs(PKG_DIR, exist_ok=True)
+    existing_settings = get_current_settings()
     
     # Handle protocol file upload
     if request.FILES.get('protocol_file'):
         protocol_file = request.FILES['protocol_file']
-        file_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
+        file_path = os.path.join(PKG_DIR, 'protocol.xlsx')
         with open(file_path, 'wb+') as destination:
             for chunk in protocol_file.chunks():
                 destination.write(chunk)
@@ -569,7 +565,7 @@ def save_admin_settings(request):
         existing_settings['date_shift_range'] = request.POST['default_date_shift_days']
     
     # Save updated settings
-    with open(settings_path, 'w') as f:
+    with open(SETTINGS_PATH, 'w') as f:
         json.dump(existing_settings, f, indent=4)
     
     return JsonResponse({'status': 'success'})
@@ -621,7 +617,7 @@ def get_protocol_settings(request, protocol_id):
 
 def get_unique_protocols():
     try:
-        protocol_path = os.path.join(SETTINGS_DIR, 'protocol.xlsx')
+        protocol_path = os.path.join(PKG_DIR, 'protocol.xlsx')
         
         if not os.path.exists(protocol_path):
             print(f"Protocol file not found at {protocol_path}")
