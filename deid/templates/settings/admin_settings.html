@@ -61,6 +61,29 @@
             </div>
         </div>
     </div>
+
+    <div class="mt-6">
+        <div class="text-md mb-4">License Upload</div>
+        <div class="grid grid-cols-1 gap-4">
+            <div>
+                <div class="text-sm text-gray-500 mb-2">License File</div>
+                <div class="flex items-center space-x-4">
+                    <input type="text" 
+                        class="flex-1 border-2 border-gray-400 p-1" 
+                        id="license_display"
+                        readonly>
+                    <input type="file" 
+                        id="license_file" 
+                        class="hidden" 
+                        accept=".json">
+                    <button onclick="document.getElementById('license_file').click()" 
+                            class="px-4 py-1 bg-white shadow text-sm hover:bg-blue-100">
+                        Upload New
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 
@@ -122,6 +145,11 @@ function setupEventListeners() {
             document.getElementById('protocol_display').value = this.files[0].name;
         }
     });
+    document.getElementById('license_file').addEventListener('change', function(e) {
+        if (this.files[0]) {
+            document.getElementById('license_display').value = this.files[0].name;
+        }
+    });
 
     // Add save button listener
     document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
@@ -137,6 +165,9 @@ async function loadSettings() {
         if (settings.protocol_file) {
             document.getElementById('protocol_display').value = settings.protocol_file ? settings.protocol_file.split('/').pop() : '';
         }
+        if (settings.license_file) {
+            document.getElementById('license_display').value = settings.license_file ? settings.license_file.split('/').pop() : '';
+        }
         if (settings.date_shift_range) {
             document.getElementById('date_shift_range').value = settings.date_shift_range;
         }
@@ -148,9 +179,13 @@ async function loadSettings() {
 async function saveSettings() {
     try {
         const formData = new FormData();
+        const licenseFile = document.getElementById('license_file').files[0];
         const protocolFile = document.getElementById('protocol_file').files[0];
         const dateShiftRange = document.getElementById('date_shift_range').value;
 
+        if (licenseFile) {
+            formData.append('license_file', licenseFile);
+        }
         if (protocolFile) {
             formData.append('protocol_file', protocolFile);
         }
@@ -166,7 +201,10 @@ async function saveSettings() {
             body: formData
         });
 
-        if (!response.ok) throw new Error('Failed to save settings');
+        if (!response.ok){
+            const errorText = await response.text();
+            throw new Error(errorText || 'Failed to save settings');
+        }
         
         showSaveMessage('Settings saved successfully');
     } catch (error) {
