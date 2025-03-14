@@ -22,7 +22,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
-from home.constants import LICENSES_PATH, PKG_DIR, SETTINGS_PATH
+from home.constants import LICENSES_PATH, SETTINGS_DIR_PATH, SETTINGS_FILE_PATH
 from home.license_management import LICENSE_MANAGER
 from home.models import Project
 
@@ -160,7 +160,7 @@ def get_current_settings(raise_exception: Optional[bool] = False) -> dict:
     """
     try:
         # Load existing settings
-        with open(SETTINGS_PATH, 'r') as f:
+        with open(SETTINGS_FILE_PATH, 'r') as f:
             return json.load(f)
     except FileNotFoundError:
         if not raise_exception:
@@ -212,7 +212,7 @@ def run_deid(request):
             
             scheduled_time = None
             if 'scheduled_time' in data:
-                settings = json.load(open(os.path.join(PKG_DIR, 'settings.json')))
+                settings = json.load(open(SETTINGS_FILE_PATH))
                 timezone = settings.get('timezone', 'UTC')
                 timezone = pytz.timezone(timezone)
                 local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
@@ -359,7 +359,7 @@ def save_settings(request):
         if request.FILES:
             new_settings = json.loads(request.POST.get('data'))
             lookup_file = request.FILES['lookup_file']
-            file_path = os.path.join(PKG_DIR, 'lookup_table.xlsx')
+            file_path = os.path.join(SETTINGS_DIR_PATH, 'lookup_table.xlsx')
             with open(file_path, 'wb+') as destination:
                 for chunk in lookup_file.chunks():
                     destination.write(chunk)
@@ -373,7 +373,7 @@ def save_settings(request):
         if 'timezone' in new_settings:
             request.session['django_timezone'] = new_settings['timezone']
             
-        with open(SETTINGS_PATH, 'w') as f:
+        with open(SETTINGS_FILE_PATH, 'w') as f:
             json.dump(existing_settings, f, indent=4)
             
         return JsonResponse({'status': 'success'})
@@ -533,7 +533,7 @@ def load_admin_settings(request):
     try:
         settings = get_current_settings()
 
-        protocol_path = os.path.join(PKG_DIR, 'protocol.xlsx')
+        protocol_path = os.path.join(SETTINGS_DIR_PATH, 'protocol.xlsx')
         if os.path.exists(protocol_path):
             settings['protocol_file'] = os.path.abspath(protocol_path)
         
@@ -547,13 +547,13 @@ def load_admin_settings(request):
 
 @require_http_methods(["POST"])
 def save_admin_settings(request):
-    os.makedirs(PKG_DIR, exist_ok=True)
+    os.makedirs(SETTINGS_DIR_PATH, exist_ok=True)
     existing_settings = get_current_settings()
     
     # Handle protocol file upload
     if request.FILES.get('protocol_file'):
         protocol_file = request.FILES['protocol_file']
-        file_path = os.path.join(PKG_DIR, 'protocol.xlsx')
+        file_path = os.path.join(SETTINGS_DIR_PATH, 'protocol.xlsx')
         with open(file_path, 'wb+') as destination:
             for chunk in protocol_file.chunks():
                 destination.write(chunk)
@@ -571,23 +571,25 @@ def save_admin_settings(request):
             LICENSE_MANAGER.add_license(
                 LICENSE_MANAGER.validate_license(license_dict)
             )
-        except Exception as e:
+        except LicenseValidationError as e:
             return JsonResponse({'error': str(e)}, status=400)
+        except Exception:
+            traceback.print_exc()
+            return JsonResponse({'error': "License could not be validated"}, status=400)
     
     # Handle other form data
     if request.POST.get('default_date_shift_days'):
         existing_settings['date_shift_range'] = request.POST['default_date_shift_days']
     
     # Save updated settings
-    with open(SETTINGS_PATH, 'w') as f:
+    with open(SETTINGS_FILE_PATH, 'w') as f:
         json.dump(existing_settings, f, indent=4)
     
     return JsonResponse({'status': 'success'})
 
 def get_protocol_settings(request, protocol_id):
     try:
-        settings_dir = os.path.join(os.path.expanduser('~'), '.aiminer')
-        protocol_path = os.path.join(settings_dir, 'protocol.xlsx')
+        protocol_path = os.path.join(SETTINGS_DIR_PATH, 'protocol.xlsx')
         
         if not os.path.exists(protocol_path):
             return JsonResponse({'error': 'Protocol file not found'}, status=404)
@@ -631,7 +633,7 @@ def get_protocol_settings(request, protocol_id):
 
 def get_unique_protocols():
     try:
-        protocol_path = os.path.join(PKG_DIR, 'protocol.xlsx')
+        protocol_path = os.path.join(SETTINGS_DIR_PATH, 'protocol.xlsx')
         
         if not os.path.exists(protocol_path):
             print(f"Protocol file not found at {protocol_path}")
@@ -704,9 +706,8 @@ def generate_action_string(action):
     return action
 
 def get_password_file_path():
-    settings_dir = os.path.join(os.path.expanduser('~'), '.aiminer')
-    os.makedirs(settings_dir, exist_ok=True)
-    return os.path.join(settings_dir, 'admin_password.txt')
+    os.makedirs(SETTINGS_DIR_PATH, exist_ok=True)
+    return os.path.join(SETTINGS_DIR_PATH, 'admin_password.txt')
 
 def set_admin_password(password):
     """Hash and store the admin password"""

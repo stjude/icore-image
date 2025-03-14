@@ -16,7 +16,7 @@ from grammar import (
     generate_filters_string,
     generate_lookup_table,
 )
-from home.constants import CONFIG_PATH, DOCKER, SETTINGS_PATH, TMP_INPUT_PATH
+from home.constants import CONFIG_PATH, DOCKER, SETTINGS_FILE_PATH, TMP_INPUT_PATH
 from home.license_management import LICENSE_MANAGER
 from home.models import Project
 from ruamel.yaml import YAML, scalarstring
@@ -332,7 +332,7 @@ def build_text_extract_config():
 
 
 def run_worker():
-    settings = json.load(open(SETTINGS_PATH))
+    settings = json.load(open(SETTINGS_FILE_PATH))
     timezone = settings.get('timezone', 'UTC')
     timezone = pytz.timezone(timezone)
     while True:
