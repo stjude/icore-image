@@ -559,6 +559,20 @@ def save_admin_settings(request):
                 destination.write(chunk)
         
         existing_settings['protocol_file'] = os.path.abspath(file_path)
+
+    # Handle license file upload
+    if request.FILES.get('license_file'):
+        license_file = request.FILES['license_file']
+
+        with license_file.open('rb') as f:
+            license_dict = json.load(f)
+
+        try:
+            LICENSE_MANAGER.add_license(
+                LICENSE_MANAGER.validate_license(license_dict)
+            )
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
     
     # Handle other form data
     if request.POST.get('default_date_shift_days'):
