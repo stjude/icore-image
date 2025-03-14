@@ -572,11 +572,12 @@ def save_admin_settings(request):
             LICENSE_MANAGER.add_license(
                 LICENSE_MANAGER.validate_license(license_dict)
             )
-        except LicenseValidationError as e:
-            return JsonResponse({'error': str(e)}, status=400)
-        except Exception:
+        except Exception as e:
             traceback.print_exc()
-            return JsonResponse({'error': "License could not be validated"}, status=400)
+            error_message = str(e) if isinstance(
+                e, LicenseValidationError
+                ) else "License could not be validated."
+            return JsonResponse({'error': error_message}, status=400)
     
     # Handle other form data
     if request.POST.get('default_date_shift_days'):
