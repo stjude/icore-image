@@ -79,6 +79,17 @@ class TextDeIdentificationView(CommonContextMixin, CreateView):
     template_name = 'text_deid.html'
     success_url = reverse_lazy('task_list')
 
+class ImageExportView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name', 'input_folder']
+    template_name = 'image_export.html'
+    success_url = reverse_lazy('task_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['storage_locations'] = load_rclone_config()
+        return context
+
 class TextExtractView(CommonContextMixin, CreateView):
     model = Project
     fields = ['name', 'output_folder']
@@ -313,6 +324,30 @@ def run_text_deid(request):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 @csrf_exempt
+def run_export(request):
+    print('Running export')
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+        project = Project.objects.create(
+            name=data['study_name'],
+            task_type=Project.TaskType.IMAGE_EXPORT,
+            input_folder=data['input_folder'],
+            output_folder=data['output_folder'],
+            status=Project.TaskStatus.PENDING,
+            parameters={
+                'storage_location': data['storage_location'],
+            }
+        )
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+@csrf_exempt
 def run_text_extract(request):
     try:
         if request.method == 'POST':
@@ -382,6 +417,16 @@ def load_settings(request):
         return JsonResponse({})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+def load_rclone_config():
+    rclone_config_path = os.path.join(SETTINGS_DIR, 'rclone.conf')
+    with open(rclone_config_path, 'r') as f:
+        rclone_config = f.read()
+    rclone_config_names = []
+    for line in rclone_config.splitlines():
+        if line.startswith('[') and line.endswith(']'):
+            rclone_config_names.append(line[1:-1])
+    return rclone_config_names
 
 def get_dicom_fields():
     dicom_fields = [
@@ -537,6 +582,11 @@ def load_admin_settings(request):
         if settings.get('date_shift_range'):
             settings['date_shift_range'] = int(settings['date_shift_range'])
         
+        rclone_config_path = os.path.join(SETTINGS_DIR, 'rclone.conf')
+        if os.path.exists(rclone_config_path):
+            with open(rclone_config_path, 'r') as f:
+                settings['rclone_config'] = f.read()
+        
         return JsonResponse(settings)
     except Exception as e:
         print(f"Error loading admin settings: {str(e)}")
@@ -553,6 +603,10 @@ def save_admin_settings(request):
             existing_settings = json.load(f)
     except FileNotFoundError:
         existing_settings = {}
+
+    rclone_config_path = os.path.join(SETTINGS_DIR, 'rclone.conf')
+    with open(rclone_config_path, 'w') as f:
+        f.write(request.POST.get('rclone_config'))
     
     # Handle protocol file upload
     if request.FILES.get('protocol_file'):

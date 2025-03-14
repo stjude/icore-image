@@ -62,6 +62,19 @@
         </div>
     </div>
 
+    <div class="mt-8">
+        <div class="text-md mb-4">File Export Configuration</div>
+        <div class="grid grid-cols-1 gap-4">
+            <div>
+                <textarea 
+                    class="w-full border-2 border-gray-400 p-2 font-mono text-sm h-64" 
+                    id="rclone_config"
+                    placeholder="Enter your cloud storage configuration here..."></textarea>
+                <div class="text-xs text-gray-400 mt-1">Configuration file for remote storage access</div>
+            </div>
+        </div>
+    </div>
+
 {% endblock %}
 
 {% block settings_scripts %}
@@ -138,6 +151,9 @@ async function loadSettings() {
         if (settings.date_shift_range) {
             document.getElementById('date_shift_range').value = settings.date_shift_range;
         }
+        if (settings.rclone_config) {
+            document.getElementById('rclone_config').value = settings.rclone_config;
+        }
     } catch (error) {
         console.error('Error loading settings:', error);
     }
@@ -154,6 +170,9 @@ async function saveSettings() {
         }
         if (dateShiftRange) {
             formData.append('default_date_shift_days', dateShiftRange);
+        }
+        if (rclone_config) {
+            formData.append('rclone_config', document.getElementById('rclone_config').value);
         }
 
         const response = await fetch('/save_admin_settings/', {

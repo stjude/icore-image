@@ -141,7 +141,10 @@ def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomiz
     # Process DICOM tags
     for tag_name in sorted(set(tags_to_keep + tags_to_dateshift + tags_to_randomize + tags_to_lookup)):
         name = tag_name.strip()
-        tag = tag_dict[tag_name].replace('(', '').replace(',', '').replace(')', '')
+        try:
+            tag = tag_dict[tag_name].replace('(', '').replace(',', '').replace(')', '')
+        except KeyError:
+            return f"Tag {tag_name} not found in DICOM dictionary."
         if tag_name in tags_to_lookup:
             lookup_element_name = LOOKUP_ELEMENT_NAMES.get(name, 'ptid')
             script.append(f'   <e en="T" t="{tag}" n="{name}">@lookup(this,{lookup_element_name})</e>')
