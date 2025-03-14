@@ -128,7 +128,7 @@ class LicenseManager:
 
         return module_license_dict
 
-    def _generate_module_license(self, expiration: str) -> dict:
+    def _generate_license_entry(self, expiration: str) -> dict:
         """
         Generate a license for a given module and expiration date.
         """
