@@ -49,10 +49,22 @@ class CommonContextMixin:
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(self.get_common_context())
+        if hasattr(self, "module"):
+            context['invalid_license'] = self.check_license()
+
         return context
+
+    def check_license(self) -> str:
+        if self.module in LICENSE_MANAGER.paid_modules:
+            try:
+                LICENSE_MANAGER.module_license_is_valid(self.module)
+            except LicenseValidationError as e:
+                return str(e)
+        return ""
 
 class ImageDeIdentificationView(CommonContextMixin, CreateView):
     model = Project
+    module = Project.TaskType.IMAGE_DEID
     fields = ['name', 'image_source', 'input_folder', 'output_folder', 'ctp_dicom_filter']
     template_name = 'image_deid.html'
     success_url = reverse_lazy('task_list')
@@ -65,24 +77,28 @@ class ImageDeIdentificationView(CommonContextMixin, CreateView):
 
 class ImageQueryView(CommonContextMixin, CreateView):
     model = Project
+    module = Project.TaskType.IMAGE_QUERY
     fields = ['name', 'image_source', 'output_folder', 'ctp_dicom_filter']
     template_name = 'image_query.html'
     success_url = reverse_lazy('task_list')
 
 class HeaderQueryView(CommonContextMixin, CreateView):
     model = Project
+    module = Project.TaskType.HEADER_QUERY
     fields = ['name', 'image_source', 'output_folder', 'ctp_dicom_filter']
     template_name = 'header_query.html'
     success_url = reverse_lazy('task_list')
 
 class TextDeIdentificationView(CommonContextMixin, CreateView):
     model = Project
+    module = Project.TaskType.TEXT_DEID
     fields = ['name', 'output_folder']
     template_name = 'text_deid.html'
     success_url = reverse_lazy('task_list')
 
 class TextExtractView(CommonContextMixin, CreateView):
     model = Project
+    module = Project.TaskType.TEXT_EXTRACT
     fields = ['name', 'output_folder']
     template_name = 'text_extract.html'
     success_url = reverse_lazy('task_list')
