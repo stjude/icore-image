@@ -240,7 +240,7 @@ def run_deid(request):
             
             scheduled_time = None
             if 'scheduled_time' in data:
-                settings = json.load(open(SETTINGS_FILE_PATH))
+                settings = get_current_settings()
                 timezone = settings.get('timezone', 'UTC')
                 timezone = pytz.timezone(timezone)
                 local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
