@@ -143,11 +143,15 @@ function setupEventListeners() {
     document.getElementById('protocol_file').addEventListener('change', function(e) {
         if (this.files[0]) {
             document.getElementById('protocol_display').value = this.files[0].name;
+        } else {
+            document.getElementById('protocol_display').value = '';
         }
     });
     document.getElementById('license_file').addEventListener('change', function(e) {
         if (this.files[0]) {
             document.getElementById('license_display').value = this.files[0].name;
+        } else {
+            document.getElementById('license_display').value = '';
         }
     });
 
