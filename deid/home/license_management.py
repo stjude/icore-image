@@ -36,7 +36,7 @@ class LicenseManager:
 
     @property
     def licenses(self) -> dict:
-        if updated_licenses := self._licenses_dict_update():
+        if (updated_licenses := self._licenses_dict_update()) is not None:
             self._licenses = updated_licenses
         return self._licenses
 
