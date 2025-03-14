@@ -3,19 +3,12 @@ name: Generate Module License
 on:
     workflow_dispatch: 
         inputs:
-            module:
-                type: choice
-                description: The module the license grants use of.
-                required: true
-                options:
-                    - IMAGE_DEID
-                    - IMAGE_QUERY
-                    - HEADER_QUERY
-                    - TEXT_DEID
-                    - TEXT_EXTRACT
-            expiration:
+            license_info:
                 type: string
-                description: Expiration date of the License in YYYY-MM-DD format.
+                description: >
+                  The relevant modules and expiration dates.
+                  Format: [{"modules": ["module_name", ...], "expiration": "YYYY-MM-DD"}, ...]
+                  Acceptable module names: IMAGE_DEID, IMAGE_QUERY, HEADER_QUERY, TEXT_DEID, TEXT_EXTRACT
                 required: true
 
 jobs:
@@ -37,11 +30,11 @@ jobs:
 
             - name: Generate License
               run: |
-                  python deid/manage.py generate_license ${{ github.event.inputs.module }} ${{ github.event.inputs.expiration }}
+                  python deid/manage.py generate_license ${{ github.event.inputs.license_info }}
 
             - name: Upload the file as an artifact
               uses: actions/upload-artifact@v4
               with:
                 path: new_license.txt
-                name: iCore_${{ github.event.inputs.module }}_license.txt
+                name: iCore_license.txt
 
