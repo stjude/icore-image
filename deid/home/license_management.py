@@ -28,7 +28,7 @@ class LicenseValidationError(Exception):
 class LicenseManager:
     _public_key: Optional[SSHPublicKeyTypes] = None
     _private_key: Optional[SSHPrivateKeyTypes] = None
-    _licenses: Optional[dict] = None
+    _licenses: dict = {}
     _newly_licensed_modules: list[str] = []
     module_names = [choice[0] for choice in Project.TaskType.choices]
     paid_modules = [Project.TaskType.TEXT_EXTRACT]
