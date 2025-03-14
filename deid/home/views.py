@@ -23,7 +23,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
-from home.constants import SETTINGS_DIR_PATH, SETTINGS_FILE_PATH
+from home.constants import RCLONE_CONFIG_PATH, SETTINGS_DIR_PATH, SETTINGS_FILE_PATH
 from home.license_management import LICENSE_MANAGER, LicenseValidationError
 from home.models import Project
 
@@ -445,8 +445,7 @@ def load_settings(request):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 def load_rclone_config():
-    rclone_config_path = os.path.join(SETTINGS_DIR_PATH, 'rclone.conf')
-    with open(rclone_config_path, 'r') as f:
+    with open(RCLONE_CONFIG_PATH, 'r') as f:
         rclone_config = f.read()
     rclone_config_names = []
     for line in rclone_config.splitlines():
@@ -602,9 +601,8 @@ def load_admin_settings(request):
         if settings.get('date_shift_range'):
             settings['date_shift_range'] = int(settings['date_shift_range'])
         
-        rclone_config_path = os.path.join(SETTINGS_DIR_PATH, 'rclone.conf')
-        if os.path.exists(rclone_config_path):
-            with open(rclone_config_path, 'r') as f:
+        if os.path.exists(RCLONE_CONFIG_PATH):
+            with open(RCLONE_CONFIG_PATH, 'r') as f:
                 settings['rclone_config'] = f.read()
         
         return JsonResponse(settings)
@@ -617,8 +615,7 @@ def save_admin_settings(request):
     os.makedirs(SETTINGS_DIR_PATH, exist_ok=True)
     existing_settings = get_current_settings()
 
-    rclone_config_path = os.path.join(SETTINGS_DIR_PATH, 'rclone.conf')
-    with open(rclone_config_path, 'w') as f:
+    with open(RCLONE_CONFIG_PATH, 'w') as f:
         f.write(request.POST.get('rclone_config'))
     
     # Handle protocol file upload
