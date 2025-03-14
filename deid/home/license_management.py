@@ -36,12 +36,26 @@ class LicenseManager:
 
     @property
     def licenses(self) -> dict:
+        """
+        Get the licenses dictionary. If the dictionary is not up-to-date with
+        what's in the licenses.json file, update it.
+
+        Returns:
+            dict: The licenses dictionary.
+        """
         if (updated_licenses := self._licenses_dict_update()) is not None:
             self._licenses = updated_licenses
         return self._licenses
 
     @property
     def public_key(self) -> SSHPublicKeyTypes:
+        """
+        Get the public key. If the public key is not loaded, load it from the
+        RSA_PUBLIC_KEY_PATH file.
+
+        Returns:
+            SSHPublicKeyTypes: The public key.
+        """
         if self._public_key is None:
             with open(RSA_PUBLIC_KEY_PATH, "rb") as f:
                 public_key_bytes = f.read()
@@ -51,6 +65,13 @@ class LicenseManager:
 
     @property
     def private_key(self) -> SSHPrivateKeyTypes:
+        """
+        Get the private key. If the private key is not loaded, load it from the
+        RSA_PRIVATE_KEY environment variable.
+
+        Returns:
+            SSHPrivateKeyTypes: The private key.
+        """
         if self._private_key is None:
             private_key_str = os.environ["RSA_PRIVATE_KEY"]
             self._private_key = serialization.load_ssh_private_key(
@@ -64,9 +85,10 @@ class LicenseManager:
         Check if the licenses dictionary is not up-to-date with what's in the
         licenses.json file. This happens when separate process modifies the file.
         If the file is not up-to-date, return the updated dictionary.
+
         Returns:
             Optional[dict]: The updated licenses dictionary if it has changed, None
-            otherwise.
+                otherwise.
         """
         if os.path.isfile(LICENSES_PATH):
             with open(LICENSES_PATH, "r") as f:
@@ -80,10 +102,10 @@ class LicenseManager:
 
     def _check_module_license(self, module:str, module_license_dict: dict) -> dict:
         """
-        Validate a license.
+        Validate a license entry dictionary for a specific module.
 
         Returns:
-            dict: The license dictionary if valid.
+            dict: The validated license entry dictionary.
         """
         try:
             assert isinstance(module_license_dict, dict), (
@@ -130,7 +152,11 @@ class LicenseManager:
 
     def _generate_license_entry(self, expiration: str) -> dict:
         """
-        Generate a license for a given module and expiration date.
+        Generate a license entry with an expiration date and an
+        RSA signature for authentication.
+
+        Args:
+            expiration: The expiration date in the format YYYY-MM-DD.
         """
         expiration_date = dt.datetime.strptime(expiration, "%Y-%m-%d")
         module_license_dict = {
@@ -154,6 +180,18 @@ class LicenseManager:
         """
         Generate a license file based on the modules and expiration dates given in
         the license_info list.
+
+        Args:
+            license_info: A list of dictionaries containing the
+                modules to license and their expiration dates. Format:
+                [
+                    {
+                        "modules": ["module_name", ...],
+                        "expiration": "YYYY-MM-DD"
+                    },
+                    ...
+                ]
+            output_path: The path to save the generated license file.
         """
         license_dict = {}
         for module_group in license_info:
@@ -170,18 +208,34 @@ class LicenseManager:
                         f"Duplicate module license: {module}. Be sure that each module"
                         "only appears once in the license info list."
                     )
-                license_dict[module] = self._generate_module_license(expiration)
+                license_dict[module] = self._generate_license_entry(expiration)
                 self._newly_licensed_modules.append(module)
 
         with open(output_path, "wb") as f:
             f.write(json.dumps(license_dict).encode())
     
     def validate_license(self, license_dict: dict) -> dict:
+        """
+        Validate a license dictionary.
+
+        Args:
+            license_dict: The license dictionary to validate.
+        Returns:
+            dict: The validated license dictionary.
+        Raises:
+            LicenseValidationError: If the license is invalid.
+        """
         for module, module_license in license_dict.items():
             self._check_module_license(module, module_license)
         return license_dict
     
     def add_license(self, license_dict: dict) -> None:
+        """
+        Update the licenses.json file with a `license_dict`.
+
+        Args:
+            license_dict: The license dictionary to update the json file with.
+        """
         licenses = self.licenses
         for module in license_dict:
             licenses[module] = license_dict[module]
@@ -190,6 +244,16 @@ class LicenseManager:
             json.dump(licenses, f)
 
     def module_license_is_valid(self, module: Project.TaskType) -> dict:
+        """
+        Check if a module has a valid license entry.
+
+        Args:
+            module: The module to check the license.son file for an entry for.
+        Returns:
+            dict: The license entry dictionary.
+        Raises:
+            LicenseValidationError: If the module does not have a valid license.
+        """
         module_str = str(module)
 
         try:
