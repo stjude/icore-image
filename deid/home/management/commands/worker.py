@@ -6,6 +6,7 @@ import time
 import traceback
 from datetime import datetime
 from shutil import which
+from typing import Optional
 
 import pytz
 from django.core.management.base import BaseCommand
@@ -15,18 +16,14 @@ from grammar import (
     generate_filters_string,
     generate_lookup_table,
 )
+from home.constants import CONFIG_PATH, DOCKER, SETTINGS_PATH, TMP_INPUT_PATH
+from home.license_management import LICENSE_MANAGER
 from home.models import Project
 from ruamel.yaml import YAML, scalarstring
 
 PACS_IP = 'host.docker.internal'
 PACS_PORT = 4242
 PACS_AET = 'ORTHANC'
-
-HOME_DIR = os.path.expanduser('~')
-CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'config.yml'))
-SETTINGS_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'settings.json'))
-TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'temp_input'))
-DOCKER = which('docker') or '/usr/local/bin/docker'
 
 def process_image_deid(task):
     output_folder = task.output_folder
@@ -342,7 +339,6 @@ def run_worker():
         try:
             task = None
             with transaction.atomic():
-                
                 now = datetime.now(timezone)
                 task = (Project.objects
                        .select_for_update(skip_locked=True)
@@ -353,33 +349,42 @@ def run_worker():
                        )
                        .first())
             if task:
-                task.status = Project.TaskStatus.RUNNING
-                task.save()
-                try:
-                    if task.task_type == Project.TaskType.IMAGE_DEID:
-                        process_image_deid(task)
-                    elif task.task_type == Project.TaskType.IMAGE_QUERY:
-                        process_image_query(task)
-                    elif task.task_type == Project.TaskType.HEADER_QUERY:
-                        process_header_query(task)
-                    elif task.task_type == Project.TaskType.TEXT_DEID:
-                        process_text_deid(task)
-                    elif task.task_type == Project.TaskType.TEXT_EXTRACT:
-                        process_text_extract(task)
-                    task.status = Project.TaskStatus.COMPLETED
-                except Exception as e:
-                    traceback.print_exc()
-                    print(f"Error processing task {task.id}: {str(e)}")
-                    task.status = Project.TaskStatus.FAILED
-                finally:
-                    task.save()
-                    print(f"Task {task.id} finished with status: {task.status}")
+                run_task(task)
             
             time.sleep(1)
             
         except Exception as e:
             print(f"Worker error: {str(e)}")
             time.sleep(5)
+
+
+def run_task(task: Optional[Project]) -> None:
+    task.status = Project.TaskStatus.RUNNING
+    task.save()
+    
+    try:
+        assert (
+            task.task_type not in LICENSE_MANAGER.paid_modules or
+            LICENSE_MANAGER.module_license_is_valid(task.task_type)
+        )
+        if task.task_type == Project.TaskType.IMAGE_DEID:
+            process_image_deid(task)
+        elif task.task_type == Project.TaskType.IMAGE_QUERY:
+            process_image_query(task)
+        elif task.task_type == Project.TaskType.HEADER_QUERY:
+            process_header_query(task)
+        elif task.task_type == Project.TaskType.TEXT_DEID:
+            process_text_deid(task)
+        elif task.task_type == Project.TaskType.TEXT_EXTRACT:
+            process_text_extract(task)
+        task.status = Project.TaskStatus.COMPLETED
+    except Exception as e:
+        traceback.print_exc()
+        print(f"Error processing task {task.id}: {str(e)}")
+        task.status = Project.TaskStatus.FAILED
+    finally:
+        task.save()
+        print(f"Task {task.id} finished with status: {task.status}")
 
 
 class Command(BaseCommand):
