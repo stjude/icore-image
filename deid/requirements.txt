@@ -1,0 +1,7 @@
+bcrypt
+cryptography
+docker
+dotenv
+pandas
+pytz
+ruamel.yaml
