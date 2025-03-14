@@ -5,6 +5,7 @@ import os
 from typing import Optional
 
 import dotenv
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.serialization.ssh import (
@@ -86,20 +87,27 @@ class LicenseManager:
         """
         try:
             assert isinstance(module_license_dict, dict), (
-                "Submitted license is not a json dictionary."
+                "Invalid license: improper formatting."
+            )
+            assert module in self.module_names, (
+                f'Invalid module name in license: "{module}".'
+            )
+            assert (expiration_date := dt.datetime.fromtimestamp(
+                module_license_dict["expiration"]
+            )) > dt.datetime.now(), (
+                "Invalid license: expired"
+                f" {(dt.datetime.now() - expiration_date).days}"
+                " days ago."
             )
 
-            expiration_date = dt.datetime.fromtimestamp(
-                module_license_dict["expiration"]
-            )
             signature_str: str = module_license_dict["signature"]
             signature = base64.b64decode(signature_str)
             signed_bytes = json.dumps(
-                {k:module_license_dict[k] for k in module_license_dict if k != "signature"}
-                ).encode()
-
-            assert module in self.module_names, "Invalid module."
-            assert expiration_date > dt.datetime.now(), "License has expired."
+                {
+                    k: module_license_dict[k] 
+                    for k in module_license_dict if k != "signature"
+                }
+            ).encode()
             self.public_key.verify(
                 signature,
                 signed_bytes,
@@ -108,11 +116,14 @@ class LicenseManager:
             )
         except AssertionError as e:
             raise LicenseValidationError(str(e))
-        except KeyError as e:
-            raise LicenseValidationError(f"Invalid license. Missing the {str(e)} key.")
-        except Exception as e:
+        except KeyError:
+            raise LicenseValidationError("Invalid license: improper formatting.")
+        except InvalidSignature:
+            raise LicenseValidationError("Invalid license: authentication failed.")
+        except Exception:
             raise LicenseValidationError(
-                f"{type(e)} error occurred while validating the license: {str(e)}"
+                "An error occurred while validating the license,"
+                "possibly due to tampering."
             )
 
         return module_license_dict
@@ -184,7 +195,7 @@ class LicenseManager:
         try:
             module_license_dict = self.licenses[module_str]
         except KeyError:
-            raise LicenseValidationError("No license found for this module.")
+            raise LicenseValidationError("No relevant license found.")
 
         return self._check_module_license(module_str, module_license_dict)
 
