@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import time
+import traceback
 from datetime import datetime
 from typing import Optional
 
@@ -22,8 +23,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
-from home.constants import LICENSES_PATH, SETTINGS_DIR_PATH, SETTINGS_FILE_PATH
-from home.license_management import LICENSE_MANAGER
+from home.constants import SETTINGS_DIR_PATH, SETTINGS_FILE_PATH
+from home.license_management import LICENSE_MANAGER, LicenseValidationError
 from home.models import Project
 
 
