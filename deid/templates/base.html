@@ -56,6 +56,14 @@
                     });
                 });
             });
+            if ("{{ invalid_license }}") {
+                alert(
+                    "{{ invalid_license }} Contact an administrator about " +
+                    "purchasing a valid license for this module or rectifying any " +
+                    "issues with an existing one if necessary."
+                );
+                document.location.href = "/task_list/";
+            }
         </script>
     </body>
 </html>
