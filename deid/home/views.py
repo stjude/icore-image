@@ -178,7 +178,7 @@ def get_log_content(request):
     except Exception as e:
         return HttpResponse(str(e), status=500)
 
-def get_current_settings(raise_exception: Optional[bool] = False) -> dict:
+def settings_as_dict(raise_exception: Optional[bool] = False) -> dict:
     """
     Get the current settings from the settings.json file.
 
@@ -240,7 +240,7 @@ def run_deid(request):
             
             scheduled_time = None
             if 'scheduled_time' in data:
-                settings = get_current_settings()
+                settings = settings_as_dict()
                 timezone = settings.get('timezone', 'UTC')
                 timezone = pytz.timezone(timezone)
                 local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
@@ -419,7 +419,7 @@ def save_settings(request):
         else:
             new_settings = json.loads(request.body.decode('utf-8'))
         
-        existing_settings = get_current_settings()
+        existing_settings = settings_as_dict()
         existing_settings.update(new_settings)
         
         if 'timezone' in new_settings:
@@ -435,7 +435,7 @@ def save_settings(request):
 @require_http_methods(["GET"])
 def load_settings(request):
     try:
-        settings = get_current_settings(raise_exception=True)
+        settings = settings_as_dict(raise_exception=True)
         if settings.get('lookup_file'):
             settings['lookup_file'] = os.path.abspath(settings['lookup_file'])
         return JsonResponse(settings)
@@ -592,7 +592,7 @@ def test_pacs_connection(request):
 @require_http_methods(["GET"])
 def load_admin_settings(request):
     try:
-        settings = get_current_settings()
+        settings = settings_as_dict()
 
         protocol_path = os.path.join(SETTINGS_DIR_PATH, 'protocol.xlsx')
         if os.path.exists(protocol_path):
@@ -613,7 +613,7 @@ def load_admin_settings(request):
 @require_http_methods(["POST"])
 def save_admin_settings(request):
     os.makedirs(SETTINGS_DIR_PATH, exist_ok=True)
-    existing_settings = get_current_settings()
+    existing_settings = settings_as_dict()
 
     with open(RCLONE_CONFIG_PATH, 'w') as f:
         f.write(request.POST.get('rclone_config'))
