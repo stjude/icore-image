@@ -8,59 +8,73 @@
 <!-- PACS Configuration Section -->
 <div class="mt-6">
     <div class="text-md mb-4">PACS Configuration</div>
-    <div class="grid grid-cols-3 gap-8">
-        <div>
-            <div class="text-sm text-gray-500 mb-2">IP Address</div>
-            <input type="text" 
-                   class="w-full border-2 border-gray-400 p-1" 
-                   name="pacs_ip" >
+    <div id="pacs-configurations">
+        <div class="pacs-config mb-4">
+            <div class="grid grid-cols-3 gap-8">
+                <div>
+                    <div class="text-sm text-gray-500 mb-2">IP Address</div>
+                    <input type="text" 
+                        class="w-full border-2 border-gray-400 p-1" 
+                        name="pacs_ip" >
+                </div>
+                <div>
+                    <div class="text-sm text-gray-500 mb-2">Port</div>
+                    <input type="text" 
+                        class="w-full border-2 border-gray-400 p-1" 
+                        name="pacs_port" >
+                </div>
+                <div>
+                    <div class="text-sm text-gray-500 mb-2">AET</div>
+                    <input type="text" 
+                        class="w-full border-2 border-gray-400 p-1" 
+                        name="pacs_aet" >
+                </div>
+                <div class="col-span-3 flex justify-end mt-4">
+                    <button onclick="testPacsConnection(this)" 
+                            class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100 mr-2">
+                        Test PACS Connection
+                    </button>
+                    <button type="button" onclick="removePacsConfig(this)"
+                            class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100 mr-2">
+                        Remove
+                    </button>
+                </div>
+            </div>
         </div>
-        <div>
-            <div class="text-sm text-gray-500 mb-2">Port</div>
-            <input type="text" 
-                   class="w-full border-2 border-gray-400 p-1" 
-                   name="pacs_port" >
+        
+        <div id="pacs-connection-result" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h3 class="text-lg font-medium" id="pacs-result-title">PACS Connection Test</h3>
+                <div id="pacs-result-message" class="text-center mb-4"></div>
+                <div class="flex justify-end">
+                    <button onclick="document.getElementById('pacs-connection-result').classList.add('hidden')" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        Close
+                    </button>
+                </div>
+            </div>
         </div>
-        <div>
-            <div class="text-sm text-gray-500 mb-2">AET</div>
-            <input type="text" 
-                   class="w-full border-2 border-gray-400 p-1" 
-                   name="pacs_aet" >
-        </div>
-        <div>
-            <div class="text-sm text-gray-500 mb-2">Application AET</div>
-            <input type="text" 
-                   class="w-full border-2 border-gray-400 p-1" 
-                   name="application_aet" >
-    <div class="col-span-3 flex justify-end mt-4">
-        <button onclick="testPacsConnection()" 
-                class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100">
-            Test PACS Connection
-        </button>
+    </div>
+    <div>
+        <div class="text-sm text-gray-500 mb-2">Application AET</div>
+        <input type="text" 
+            class="w-64 border-2 border-gray-400 p-1" 
+            name="application_aet" >
+    </div>
+    <div class="flex justify-end mt-4">
+        <button onclick="addPacsConfig()" 
+                class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100 mr-2">
+                Add PACS Configuration
+            </button>
     </div>
     <div class="text-md mb-4"> Timezone </div>
-    <select class="w-64 border-2 border-gray-400 p-1" name="timezone">
-        {% for tz in timezones %}
-            <option value="{{ tz }}">{{ tz }}</option>
-        {% endfor %}
-    </select>
+        <select class="w-64 border-2 border-gray-400 p-1" name="timezone">
+            {% for tz in timezones %}
+                <option value="{{ tz }}">{{ tz }}</option>
+            {% endfor %}
+        </select>
     </div>
-</div>
-
-<div id="pacs-connection-result" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
-    <div class="bg-white p-6 rounded-lg shadow-lg">
-        <h3 class="text-lg font-medium" id="pacs-result-title">PACS Connection Test</h3>
-        <div id="pacs-result-message" class="text-center mb-4"></div>
-        <div class="flex justify-end">
-            <button onclick="document.getElementById('pacs-connection-result').classList.add('hidden')" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                Close
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- Input Excel File Defaults Section -->
-<div class="mt-8">
     <div class="text-md mb-4">Input Excel File Defaults</div>
     
     <div class="mb-4">
@@ -91,37 +105,53 @@
                    name="default_date_header" >
         </div>
     </div>
-</div>
 
-<!-- Default Output Folder Section -->
-<div class="mt-8">
-    <div class="text-md mb-4">Default Output Folder</div>
-    <div class="flex items-center space-x-4">
-        <input type="text" 
-               class="flex-1 border-2 border-gray-400 p-1" 
-               name="default_output_folder" >
-        <div class="flex items-center">
-            <input type="checkbox" id="zip_images" name="zip_images" class="mr-2">
-            <label for="zip_images" class="text-sm">Zip images by default</label>
+
+    <!-- Default Output Folder Section -->
+    <div class="mt-8">
+        <div class="text-md mb-4">Default Output Folder</div>
+        <div class="flex items-center space-x-4">
+            <input type="text" 
+                class="flex-1 border-2 border-gray-400 p-1" 
+                name="default_output_folder" >
+            <div class="flex items-center">
+                <input type="checkbox" id="zip_images" name="zip_images" class="mr-2">
+                <label for="zip_images" class="text-sm">Zip images by default</label>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Export Project List Section -->
-<div class="mt-8">
-    <div class="text-md mb-4">Export Project List</div>
-    <a href="#" class="text-blue-600 hover:text-blue-800 text-sm">Download excel file</a>
-</div>
+    <!-- Export Project List Section -->
+    <div class="mt-8">
+        <div class="text-md mb-4">Export Project List</div>
+        <a href="#" class="text-blue-600 hover:text-blue-800 text-sm">Download excel file</a>
+    </div>
+
 {% endblock %}
 
 {% block settings_scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', loadSavedSettings);
 
-    async function testPacsConnection() {
-        const pacsIp = document.querySelector('[name="pacs_ip"]').value;
-        const pacsPort = document.querySelector('[name="pacs_port"]').value;
-        const pacsAet = document.querySelector('[name="pacs_aet"]').value;
+    function addPacsConfig() {
+        const template = document.querySelector('.pacs-config').cloneNode(true);
+        // Clear input values
+        template.querySelectorAll('input').forEach(input => input.value = '');
+        document.getElementById('pacs-configurations').appendChild(template);
+    }
+
+    function removePacsConfig(button) {
+        const configs = document.querySelectorAll('.pacs-config');
+        if (configs.length > 1) {
+            button.closest('.pacs-config').remove();
+        }
+    }
+
+    async function testPacsConnection(button) {
+        const pacsConfig = button.closest('.pacs-config');
+        const pacsIp = pacsConfig.querySelector('[name="pacs_ip"]').value;
+        const pacsPort = pacsConfig.querySelector('[name="pacs_port"]').value;
+        const pacsAet = pacsConfig.querySelector('[name="pacs_aet"]').value;
         const applicationAet = document.querySelector('[name="application_aet"]').value;
 
         try {
@@ -160,14 +190,22 @@
             const response = await fetch('/load_settings/');
             const settings = await response.json();
 
-            if (settings.pacs_ip) {
-                document.querySelector('[name="pacs_ip"]').value = settings.pacs_ip;
+            if (settings.pacs_configs){
+                const pacsContainer = document.getElementById('pacs-configurations');
+                const template = document.querySelector('.pacs-config').cloneNode(true);
+                pacsContainer.innerHTML = '';
+                settings.pacs_configs.forEach(config => {
+                    const newConfig = template.cloneNode(true);
+                    newConfig.querySelector('[name="pacs_ip"]').value = config.ip;
+                    newConfig.querySelector('[name="pacs_port"]').value = config.port;
+                    newConfig.querySelector('[name="pacs_aet"]').value = config.ae;
+                    pacsContainer.appendChild(newConfig);
+                });
+            if (Object.keys(settings.pacs_configs).length === 0) {
+                const emptyTemplate = template.cloneNode(true);
+                emptyTemplate.querySelectorAll('input').forEach(input => input.value = '');
+                pacsContainer.appendChild(emptyTemplate);
             }
-            if (settings.pacs_port) {
-                document.querySelector('[name="pacs_port"]').value = settings.pacs_port;
-            }
-            if (settings.pacs_aet) {
-                document.querySelector('[name="pacs_aet"]').value = settings.pacs_aet;
             }
             if (settings.application_aet) {
                 document.querySelector('[name="application_aet"]').value = settings.application_aet;
@@ -199,10 +237,16 @@
     }
 
     async function saveSettings() {
+        const pacsConfigs = [];
+        document.querySelectorAll('.pacs-config').forEach(config => {
+            pacsConfigs.push({
+                ip: config.querySelector('[name="pacs_ip"]').value,
+                port: config.querySelector('[name="pacs_port"]').value,
+                ae: config.querySelector('[name="pacs_aet"]').value,
+            });
+        });
         const data = {
-            pacs_ip: document.querySelector('[name="pacs_ip"]').value,
-            pacs_port: document.querySelector('[name="pacs_port"]').value,
-            pacs_aet: document.querySelector('[name="pacs_aet"]').value,
+            pacs_configs: pacsConfigs,
             application_aet: document.querySelector('[name="application_aet"]').value,
             default_query_method: document.querySelector('[name="default_query_method"]').value,
             default_accession_header: document.querySelector('[name="default_accession_header"]').value,

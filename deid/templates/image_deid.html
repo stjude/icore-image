@@ -319,9 +319,7 @@
             lookup_file: document.querySelector('[name="lookup_file"]').value || settings.lookup_file || '',
             use_lookup: document.getElementById('use_lookup').checked,
             date_shift_days: settings.date_shift_range || 0,
-            pacs_ip: settings.pacs_ip || '',
-            pacs_port: settings.pacs_port || '',
-            pacs_aet: settings.pacs_aet || '',
+            pacs_configs: settings.pacs_configs || [],
             application_aet: settings.application_aet || '',
             ...filters
         };

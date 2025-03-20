@@ -33,7 +33,6 @@ def process_image_deid(task):
     output_folder = task.output_folder
     build_image_deid_config(task)
     if task.image_source == 'PACS':
-        pacs_port = task.pacs_port
 
         os.makedirs(TMP_INPUT_PATH, exist_ok=True)
         temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
@@ -45,9 +44,10 @@ def process_image_deid(task):
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
             '-p', '50001:50001',
-            '-p', f'{pacs_port}:{pacs_port}',
-            'aiminer'
         ]
+        for config in task.pacs_configs:
+            docker_cmd.extend(['-p', f'{config["port"]}:{config["port"]}'])
+        docker_cmd.append('aiminer')
     else:
         input_folder = task.input_folder
         docker_cmd = [
@@ -79,9 +79,7 @@ def build_image_deid_config(task):
     # Add PACS configuration if needed
     if task.image_source == 'PACS':
         config.update({
-            'pacs_ip': task.pacs_ip,
-            'pacs_port': task.pacs_port,
-            'pacs_aet': task.pacs_aet,
+            'pacs': task.pacs_configs,
             'application_aet': task.application_aet,
         })
         if task.parameters['acc_col'] != '':
@@ -111,7 +109,7 @@ def build_image_deid_config(task):
 
     anonymizer_script = generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days, lookup_file)
     config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
-
+    print(config)
     # Write config to file
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
@@ -122,8 +120,6 @@ def process_image_query(task):
     print('Processing image query')
     output_folder = task.output_folder
     build_image_query_config(task)
-
-    pacs_port = task.pacs_port
 
     os.makedirs(TMP_INPUT_PATH, exist_ok=True)
     temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
@@ -136,9 +132,10 @@ def process_image_query(task):
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
-        '-p', f'{pacs_port}:{pacs_port}',
-        'aiminer'
     ]
+    for config in task.pacs_configs:
+        docker_cmd.extend(['-p', f'{config["port"]}:{config["port"]}'])
+    docker_cmd.append('aiminer')
     
     # Print a shell-ready version of the command
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
@@ -159,9 +156,7 @@ def build_image_query_config(task):
     """Build the configuration for image query"""
     config = {'module': 'imageqr'}
     config.update({
-            'pacs_ip': task.pacs_ip,
-            'pacs_port': task.pacs_port,
-            'pacs_aet': task.pacs_aet,
+            'pacs': task.pacs_configs,
             'application_aet': task.application_aet,
         })
     if task.parameters['acc_col'] != '':
@@ -191,7 +186,6 @@ def process_header_query(task):
     output_folder = task.output_folder
     build_header_query_config(task)
 
-    pacs_port = task.pacs_port
     input_folder = os.path.dirname(task.parameters['input_file'])
     docker_cmd = [
         DOCKER, 'run', '--rm',
@@ -199,9 +193,10 @@ def process_header_query(task):
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
-        '-p', f'{pacs_port}:{pacs_port}',
-        'aiminer'
     ]
+    for config in task.pacs_configs:
+        docker_cmd.extend(['-p', f'{config["port"]}:{config["port"]}'])
+    docker_cmd.append('aiminer')
     
     # Print a shell-ready version of the command
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
@@ -220,9 +215,7 @@ def build_header_query_config(task):
     """Build the configuration for header query"""
     config = {'module': 'headerqr'}
     config.update({
-            'pacs_ip': task.pacs_ip,
-            'pacs_port': task.pacs_port,
-            'pacs_aet': task.pacs_aet,
+            'pacs': task.pacs_configs,
             'application_aet': task.application_aet,
         })
     if task.parameters['acc_col'] != '':
