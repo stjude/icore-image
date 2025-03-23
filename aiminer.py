@@ -1,3 +1,4 @@
+import csv
 import logging
 import os
 import re
@@ -13,6 +14,7 @@ from datetime import datetime, timedelta
 from threading import Thread
 
 import pandas as pd
+import pydicom
 import requests
 import yaml
 from docx import Document
@@ -219,6 +221,26 @@ Preserved_phrases = {preserved_file}
 Redacted_phrases = {pii_file}
 AutoOpenOutDir = Off
 """
+
+HEADER_EXTRACT_TAGS = [
+    "AccessionNumber",
+    "StudyInstanceUID",
+    "PatientName",
+    "PatientID",
+    "PatientSex",
+    "Manufacturer",
+    "ManufacturerModelName",
+    "StudyDescription",
+    "StudyDate",
+    "SeriesInstanceUID",
+    "SOPClassUID",
+    "Modality",
+    "SeriesDescription",
+    "Rows",
+    "Columns",
+    "InstitutionName",
+    "StudyTime",
+]
 
 COMMON_DATE_FORMATS = [
     '%m/%d/%Y','%Y-%m-%d','%d/%m/%Y','%m-%d-%Y','%Y/%m/%d','%d-%m-%Y',
@@ -619,6 +641,27 @@ def textextract_main(**config):
         print_and_log(f"Error extracting text:{e}")
         print_and_log(traceback.format_exc())
 
+def headerextract_main(**config):
+
+    seen_study_instance_uids = set()
+    output_path = os.path.join("output", "output.csv")
+    with open(output_path, "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(HEADER_EXTRACT_TAGS)
+        for root, dirs, files in os.walk("input"):
+            for file in files:
+                if file.endswith(".dcm"):
+                    ds = pydicom.dcmread(os.path.join(root, file))
+                    values = [
+                        str(ds.get(tag, "")).strip() for tag in HEADER_EXTRACT_TAGS
+                    ]
+                    study_uid = values[HEADER_EXTRACT_TAGS.index("StudyInstanceUID")]
+                    if study_uid in seen_study_instance_uids:
+                        continue
+                    seen_study_instance_uids.add(study_uid)
+                    writer.writerow(values)
+
+
 def validate_ctp_filters(filters):
     grammar = r"""start: expr
         ?expr: term | expr ("+" | "*") term
@@ -671,7 +714,7 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
-    if config.get("module") not in ["imageqr", "imagedeid", "textdeid", "imageexport", "textextract"]:
+    if config.get("module") not in ["imageqr", "imagedeid", "textdeid", "imageexport", "textextract", "headerextract"]:
         error_and_exit("Module invalid or not implemented.")
     if not os.path.exists("input"):
         error_and_exit("Input directory not found.")
@@ -702,7 +745,7 @@ def validate_config(config):
     elif config.get("module") in ["imagedeid", "imageexport"]:
         if count_dicom_files("input") == 0:
             error_and_exit("No DICOM files found in input directory.")
-    elif config.get("module") != "textextract":
+    elif config.get("module") not in ["textextract", "headerextract"]:
         error_and_exit("Input directory must contain input.xlsx file.")
 
 def imageqr(**config):
@@ -779,6 +822,16 @@ def textextract(**config):
         None
     """
     textextract_main(**config)
+
+def headerextract(**config):
+    """
+    Extracts the header information from the DICOM files in the input directory
+    and outputs a CSV file with the extracted metadata.
+
+    Keyword Args:
+        None
+    """
+    headerextract_main(**config)
 
 def run_module(**config):
     logging.info(f"Running module: {config.get('module')}")

@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
                 ('pacs_configs', models.JSONField(default=list)),
                 ('application_aet', models.CharField(blank=True, max_length=255, null=True)),
                 ('ctp_dicom_filter', models.TextField(blank=True)),
-                ('task_type', models.CharField(choices=[('IMAGE_DEID', 'Image De-identification'), ('IMAGE_QUERY', 'Image Query'), ('HEADER_QUERY', 'Header Query'), ('TEXT_DEID', 'Text De-identification'), ('IMAGE_EXPORT', 'Image Export'), ('TEXT_EXTRACT', 'Text Extraction')], max_length=20)),
+                ('task_type', models.CharField(choices=[('IMAGE_DEID', 'Image De-identification'), ('IMAGE_QUERY', 'Image Query'), ('HEADER_QUERY', 'Header Query'), ('TEXT_DEID', 'Text De-identification'), ('IMAGE_EXPORT', 'Image Export'), ('TEXT_EXTRACT', 'Text Extraction'), ('HEADER_EXTRACT', 'Header Extraction')], max_length=20)),
                 ('status', models.CharField(choices=[('PENDING', 'Pending'), ('RUNNING', 'Running'), ('COMPLETED', 'Completed'), ('FAILED', 'Failed')], default='PENDING', max_length=20)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),

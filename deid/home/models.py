@@ -16,6 +16,7 @@ class Project(models.Model):
         TEXT_DEID = 'TEXT_DEID', 'Text De-identification'
         IMAGE_EXPORT = 'IMAGE_EXPORT', 'Image Export'
         TEXT_EXTRACT = 'TEXT_EXTRACT', 'Text Extraction'
+        HEADER_EXTRACT = 'HEADER_EXTRACT', 'Header Extraction'
     task_type = models.CharField(max_length=20, choices=TaskType.choices)
     class TaskStatus(models.TextChoices):
         PENDING = 'PENDING', 'Pending'

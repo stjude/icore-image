@@ -334,6 +334,11 @@ def process_text_extract(task):
     build_text_extract_config()
     shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
 
+def process_header_extract(task):
+    print('Processing header extract')
+    build_header_extract_config()
+    shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
+
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml', 
@@ -359,6 +364,15 @@ def process_text_extract(task):
 def build_text_extract_config():
     """Build the configuration for text extraction"""
     config = {'module': 'textextract'}
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+
+    return config
+
+def build_header_extract_config():
+    """Build the configuration for text extraction"""
+    config = {'module': 'headerextract'}
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
@@ -399,6 +413,8 @@ def run_worker():
                         process_image_export(task)
                     elif task.task_type == Project.TaskType.TEXT_EXTRACT:
                         process_text_extract(task)
+                    elif task.task_type == Project.TaskType.HEADER_EXTRACT:
+                        process_header_extract(task)
                     task.status = Project.TaskStatus.COMPLETED
                 except Exception as e:
                     traceback.print_exc()

@@ -92,8 +92,14 @@ class ImageExportView(CommonContextMixin, CreateView):
 
 class TextExtractView(CommonContextMixin, CreateView):
     model = Project
-    fields = ['name', 'output_folder']
+    fields = ['name', 'input_folder', 'output_folder']
     template_name = 'text_extract.html'
+    success_url = reverse_lazy('task_list')
+
+class HeaderExtractView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name', 'input_folder', 'output_folder']
+    template_name = 'header_extract.html'
     success_url = reverse_lazy('task_list')
 
 class TaskListView(ListView):
@@ -353,6 +359,29 @@ def run_text_extract(request):
             status=Project.TaskStatus.PENDING,
             output_folder=data['output_folder'],
             task_type=Project.TaskType.TEXT_EXTRACT,
+            parameters={},
+        )
+        
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+@csrf_exempt
+def run_header_extract(request):
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+
+        project = Project.objects.create(
+            name=data['study_name'],
+            input_folder=data['input_folder'],
+            status=Project.TaskStatus.PENDING,
+            output_folder=data['output_folder'],
+            task_type=Project.TaskType.HEADER_EXTRACT,
             parameters={},
         )
         

@@ -12,5 +12,5 @@ RUN apt-get update --fix-missing &&\
 RUN curl https://rclone.org/install.sh | bash
 RUN python3 -m venv venv && \
     . venv/bin/activate && \
-    pip install bcrypt lark openpyxl pandas pypdf2 python-docx pyyaml requests ruamel.yaml
+    pip install bcrypt lark openpyxl pandas pypdf2 python-docx pyyaml requests ruamel.yaml pydicom
 CMD ["/root/venv/bin/python", "aiminer.py"]
