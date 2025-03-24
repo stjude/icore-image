@@ -60,7 +60,7 @@ IMAGEQR_CONFIG = """<Configuration>
             root="../output/images"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
-            acceptDuplicates="yes"
+            acceptDuplicates="no"
             returnStoredFile="yes"
             quarantine="quarantines/DirectoryStorageService"
             whitespaceReplacement="_" />
@@ -134,7 +134,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             root="../output/deidentified"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
-            acceptDuplicates="yes"
+            acceptDuplicates="no"
             returnStoredFile="yes"
             quarantine="quarantines/DirectoryStorageService"
             whitespaceReplacement="_" />
@@ -204,7 +204,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             root="../output/deidentified"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
-            acceptDuplicates="yes"
+            acceptDuplicates="no"
             returnStoredFile="yes"
             quarantine="quarantines/DirectoryStorageService"
             whitespaceReplacement="_" />
@@ -362,24 +362,26 @@ def cmove_queries(**config):
     return queries
 
 def cmove_images(logf, **config):
-    study_uids = set()
-    ip, aet, aec, aem, port = config.get("pacs_ip"), config.get("application_aet"), config.get("pacs_aet"), config.get("application_aet"), config.get("pacs_port")
-    queries = cmove_queries(**config)
-    for i, query in enumerate(queries):
-        cmd = ["findscu", "-v", "-aet", aet, "-aec", aec, "-S"] + query.split() + ["-k", "StudyInstanceUID",ip, str(port)]
-        logging.info(" ".join(cmd))
-        process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output = process.stderr
-        for entry in output.split("Find Response:")[1:]:
-            study_uids.add(parse_dicom_tag_dict(entry).get("StudyInstanceUID"))
-        logging.info(f"Processed {i+1}/{len(queries)} rows")
-    logging.info(f"Found {len(study_uids)} unique studies")
-    for i, study_uid in enumerate(study_uids):
-        cmd = ["movescu", "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
-        logging.info(" ".join(cmd))
-        process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
-        process.wait()
-        logging.info(f"Downloaded {i+1}/{len(study_uids)} studies")
+    for pacs in config.get("pacs"):
+        study_uids = set()
+        ip, port, aec = pacs.get("ip"), pacs.get("port"), pacs.get("ae")
+        aet, aem = config.get("application_aet"), config.get("application_aet")
+        queries = cmove_queries(**config)
+        for i, query in enumerate(queries):
+            cmd = ["findscu", "-v", "-aet", aet, "-aec", aec, "-S"] + query.split() + ["-k", "StudyInstanceUID",ip, str(port)]
+            logging.info(" ".join(cmd))
+            process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            output = process.stderr
+            for entry in output.split("Find Response:")[1:]:
+                study_uids.add(parse_dicom_tag_dict(entry).get("StudyInstanceUID"))
+            logging.info(f"Processed {i+1}/{len(queries)} rows")
+        logging.info(f"Found {len(study_uids)} unique studies")
+        for i, study_uid in enumerate(study_uids):
+            cmd = ["movescu", "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
+            logging.info(" ".join(cmd))
+            process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
+            process.wait()
+            logging.info(f"Downloaded {i+1}/{len(study_uids)} studies")
 
 def save_metadata_csv():
     metadata_csv = ctp_get("AuditLog?export&csv&suppress")
@@ -683,8 +685,13 @@ def validate_config(config):
         error_and_exit("Output directory must be empty.")
     if os.path.exists(os.path.join("input", "input.xlsx")):
         if config.get("module") in ["imageqr", "imagedeid"]:
-            if not all([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
+            if any([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
+                error_and_exit("pacs_ip, pacs_port, and pacs_aet have been deprecated. Please use the pacs list instead.")
+            if not config.get("pacs"):
                 error_and_exit("Pacs details missing in config file.")
+            for pacs in config.get("pacs"):
+                if not all([pacs.get("ip"), pacs.get("port"), pacs.get("ae")]):
+                    error_and_exit("Pacs details missing in config file.")
             if config.get("application_aet") is None or config.get("application_aet") == "":
                 error_and_exit("Application AET missing in config file.")
             if config.get("acc_col") is None and (config.get("mrn_col") is None or config.get("date_col") is None):
@@ -711,9 +718,10 @@ def imageqr(**config):
     an input.xlsx file with accession numbers or MRN and date columns.
 
     Keyword Args:
-        pacs_ip (str): IP address of the PACS.
-        pacs_port (int): Port of the PACS.
-        pacs_aet (str): AE title of the PACS.
+        pacs (list): List of PACS configurations, each containing:
+            - ip (str): IP address of the PACS
+            - port (str): Port of the PACS 
+            - ae (str): AE title of the PACS
         application_aet (str): AE title of the calling application.
         acc_col (str): Accession number column name in excel file.            
         mrn_col (str): MRN column name in excel file.
@@ -732,9 +740,10 @@ def imagedeid(**config):
     files in the input directory will be deidentified.
 
     Keyword Args:
-        pacs_ip (str): IP address of the PACS.
-        pacs_port (int): Port of the PACS.
-        pacs_aet (str): AE title of the PACS.
+        pacs (list): List of PACS configurations, each containing:
+            - ip (str): IP address of the PACS
+            - port (str): Port of the PACS 
+            - ae (str): AE title of the PACS
         application_aet (str): AE title of the calling application.
         acc_col (str): Accession number column name in excel file.            
         mrn_col (str): MRN column name in excel file.
