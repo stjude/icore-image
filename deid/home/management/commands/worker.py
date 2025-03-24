@@ -45,8 +45,8 @@ def process_image_deid(task):
             '-v', f'{os.path.abspath(output_folder)}:/output',
             '-p', '50001:50001',
         ]
-        for config in task.pacs_configs:
-            docker_cmd.extend(['-p', f'{config["port"]}:{config["port"]}'])
+        for port in {config["port"] for config in task.pacs_configs}:
+            docker_cmd.extend(['-p', f'{port}:{port}'])
         docker_cmd.append('aiminer')
     else:
         input_folder = task.input_folder
@@ -133,8 +133,8 @@ def process_image_query(task):
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
     ]
-    for config in task.pacs_configs:
-        docker_cmd.extend(['-p', f'{config["port"]}:{config["port"]}'])
+    for port in {config["port"] for config in task.pacs_configs}:
+        docker_cmd.extend(['-p', f'{port}:{port}'])
     docker_cmd.append('aiminer')
     
     # Print a shell-ready version of the command
@@ -194,8 +194,8 @@ def process_header_query(task):
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
     ]
-    for config in task.pacs_configs:
-        docker_cmd.extend(['-p', f'{config["port"]}:{config["port"]}'])
+    for port in {config["port"] for config in task.pacs_configs}:
+        docker_cmd.extend(['-p', f'{port}:{port}'])
     docker_cmd.append('aiminer')
     
     # Print a shell-ready version of the command
