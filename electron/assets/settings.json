@@ -1,6 +1,6 @@
 {
     "default_image_source": "LOCAL",
-    "default_tags_to_keep": "ContentTime\nOverlayTime\nCurveTime\nManufacturer\nSeriesDescription\nManufacturerModelName\nRefSOPClassUID\nPatientSex\nPatientAge\nPatientSize\nPatientWeight\nEthnicGroup\nSmokingStatus\nPregnancyStatus\nPatientSexNeutered\nBodyPartExamined\nDeviceSerialNumber\nDeviceUID\nPlateID\nGeneratorID\nCassetteID\nGantryID\nSoftwareVersion\nDetectorID\nBurnedInAnnotation\nScheduledStudyStartTime\nScheduledStudyStopTime\nAdmittingTime\nDischargeTime\nSPSStartTime\nSPSEndTime\nPPSStartTime\nModality",
+    "default_tags_to_keep": "InstanceNumber\nContentTime\nOverlayTime\nCurveTime\nManufacturer\nSeriesDescription\nManufacturerModelName\nRefSOPClassUID\nPatientSex\nPatientAge\nPatientSize\nPatientWeight\nEthnicGroup\nSmokingStatus\nPregnancyStatus\nPatientSexNeutered\nBodyPartExamined\nDeviceSerialNumber\nDeviceUID\nPlateID\nGeneratorID\nCassetteID\nGantryID\nSoftwareVersion\nDetectorID\nBurnedInAnnotation\nScheduledStudyStartTime\nScheduledStudyStopTime\nAdmittingTime\nDischargeTime\nSPSStartTime\nSPSEndTime\nPPSStartTime\nModality\nImagePosition\nImageOrientation\nPixelSpacing\nSliceThickness\nSpacingBetweenSlices\nInstanceNumber\nRescaleIntercept\nRescaleSlope",
     "default_tags_to_dateshift": "InstanceCreationDate\nStudyDate\nSeriesDate\nAcquisitionDate\nContentDate\nOverlayDate\nCurveDate\nAcquisitionDatetime\nLastMenstrualDate\nDateOfSecondaryCapture\nRadiopharmaceuticalStartDateTime\nRadiopharmaceuticalStopDateTime\nDateOfLastCalibration\nDateOfLastDetectorCalibration\nScheduledStudyStartDate\nScheduledStudyStopDate\nStudyArrivalDate\nStudyCompletionDate\nAdmittingDate\nDischargeDate\nSPSStartDate\nSPSEndDate\nPPSStartDate\nPPSEndDate\nStructureSetDate",
     "default_tags_to_randomize": "AccessionNumber\nPatientID\nPatientName\nClinicalTrialSubjectID\nInstanceCreatorUID\nSOPInstanceUID\nFailedSOPInstanceUIDList\nContextGroupExtensionCreatorUID\nRefSOPInstanceUID\nTransactionUID\nIrradiationEventUID\nCreatorVersionUID\nStudyInstanceUID\nSeriesInstanceUID\nFrameOfReferenceUID\nSynchronizationFrameOfReferenceUID\nConcatenationUID\nDimensionOrganizationUID\nPaletteColorLUTUID\nLargePaletteColorLUTUID\nRefGPSPSTransactionUID\nUID\nTemplateExtensionOrganizationUID\nTemplateExtensionCreatorUID\nFiducialUID\nStorageMediaFileSetUID\nRefFrameOfReferenceUID\nRelatedFrameOfReferenceUID\nDoseReferenceUID",
     "default_date_shift_days": "-21",
@@ -11,31 +11,6 @@
                 "tag": "BurnedInAnnotation",
                 "action": "not_equalsIgnoreCase",
                 "value": "YES"
-            },
-            {
-                "tag": "SOPClassUID",
-                "action": "not_containsIgnoreCase",
-                "value": "EncapsulatedPDF"
-            },
-            {
-                "tag": "SOPClassUID",
-                "action": "not_containsIgnoreCase",
-                "value": "SecondaryCapture"
-            },
-            {
-                "tag": "ImageType",
-                "action": "not_containsIgnoreCase",
-                "value": "INVALID"
-            },
-            {
-                "tag": "ImageType",
-                "action": "not_containsIgnoreCase",
-                "value": "SECONDARY"
-            },
-            {
-                "tag": "ImageType",
-                "action": "not_equalsIgnoreCase",
-                "value": ""
             }
         ],
         "modality_filters": {
@@ -111,5 +86,43 @@
             ]
         }
     },
+    "pacs_configs": [
+        {
+            "ip": "10.200.24.102",
+            "port": "5000", 
+            "ae": "SJCP1MDB01"
+        },
+        {
+            "ip": "10.200.24.104",
+            "port": "5000",
+            "ae": "SJCP1MOD01"
+        },
+        {
+            "ip": "10.200.24.106", 
+            "port": "5000",
+            "ae": "SJCP1DEPOT01"
+        },
+        {
+            "ip": "10.200.24.110",
+            "port": "5000",
+            "ae": "SJCP1MOD02"
+        },
+        {
+            "ip": "10.200.24.114",
+            "port": "5000",
+            "ae": "SJCP2MDB03"
+        },
+        {
+            "ip": "10.200.24.116",
+            "port": "5000",
+            "ae": "SJCP2MOD03"
+        },
+        {
+            "ip": "10.200.24.118",
+            "port": "5000",
+            "ae": "SJCP2DEPOT03"
+        }
+    ],
+    "application_aet": "ICORE_RANDOM",
     "default_output_folder": ""
 }

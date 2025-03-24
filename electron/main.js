@@ -121,6 +121,25 @@ async function initializeFirstRun() {
     }
 }
 
+async function updatePacsSettings() {
+    const settingsPath = path.join(logsDir, 'settings.json');
+    const defaultSettingsPath = app.isPackaged
+        ? path.join(process.resourcesPath, 'app', 'assets', 'settings.json')
+        : path.join(__dirname, 'assets', 'settings.json');
+
+    try {
+        const defaultSettings = JSON.parse(fs.readFileSync(defaultSettingsPath, 'utf8'));
+        if (defaultSettings.pacs_configs) {
+            const currentSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+            currentSettings.pacs_configs = defaultSettings.pacs_configs;
+            fs.writeFileSync(settingsPath, JSON.stringify(currentSettings, null, 2));
+            logWithTimestamp(mainLogStream, 'PACS settings updated successfully');
+        }
+    } catch (error) {
+        logWithTimestamp(mainLogStream, `Failed to update PACS settings: ${error}`);
+    }
+}
+
 app.on('ready', async () => {
     mainWindow = new BrowserWindow({
         width: 1280,
@@ -154,6 +173,7 @@ app.on('ready', async () => {
     // Initialize first run if needed
     try {
         await initializeFirstRun();
+        await updatePacsSettings();
     } catch (error) {
         logWithTimestamp(mainLogStream, `First run initialization failed: ${error}`);
         dialog.showMessageBox({
