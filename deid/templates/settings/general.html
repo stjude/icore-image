@@ -41,18 +41,6 @@
                 </div>
             </div>
         </div>
-        
-        <div id="pacs-connection-result" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
-            <div class="bg-white p-6 rounded-lg shadow-lg">
-                <h3 class="text-lg font-medium" id="pacs-result-title">PACS Connection Test</h3>
-                <div id="pacs-result-message" class="text-center mb-4"></div>
-                <div class="flex justify-end">
-                    <button onclick="document.getElementById('pacs-connection-result').classList.add('hidden')" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
     </div>
     <div>
         <div class="text-sm text-gray-500 mb-2">Application AET</div>
@@ -125,6 +113,18 @@
     <div class="mt-8">
         <div class="text-md mb-4">Export Project List</div>
         <a href="#" class="text-blue-600 hover:text-blue-800 text-sm">Download excel file</a>
+    </div>
+
+    <div id="pacs-connection-result" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-lg font-medium" id="pacs-result-title">PACS Connection Test</h3>
+            <div id="pacs-result-message" class="text-center mb-4"></div>
+            <div class="flex justify-end">
+                <button onclick="document.getElementById('pacs-connection-result').classList.add('hidden')" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    Close
+                </button>
+            </div>
+        </div>
     </div>
 
 {% endblock %}
