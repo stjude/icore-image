@@ -140,6 +140,26 @@ async function updatePacsSettings() {
     }
 }
 
+async function updateRcloneConfig() {
+    const rcloneDestPath = path.join(logsDir, 'rclone.conf');
+    const rcloneSourcePath = app.isPackaged
+        ? path.join(process.resourcesPath, 'app', 'assets', 'rclone.conf')
+        : path.join(__dirname, 'assets', 'rclone.conf');
+
+    try {
+        if (fs.existsSync(rcloneSourcePath)) {
+            fs.copyFileSync(rcloneSourcePath, rcloneDestPath);
+            logWithTimestamp(mainLogStream, 'Rclone config copied successfully');
+        } else {
+            // Create empty rclone.conf if source doesn't exist
+            fs.writeFileSync(rcloneDestPath, '');
+            logWithTimestamp(mainLogStream, 'Empty rclone config created');
+        }
+    } catch (error) {
+        logWithTimestamp(mainLogStream, `Failed to update rclone config: ${error}`);
+    }
+}
+
 app.on('ready', async () => {
     mainWindow = new BrowserWindow({
         width: 1280,
@@ -174,6 +194,7 @@ app.on('ready', async () => {
     try {
         await initializeFirstRun();
         await updatePacsSettings();
+        await updateRcloneConfig();
     } catch (error) {
         logWithTimestamp(mainLogStream, `First run initialization failed: ${error}`);
         dialog.showMessageBox({
