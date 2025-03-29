@@ -4,6 +4,7 @@ COPY ./ctp /root/ctp
 COPY ./aiminer.py /root/aiminer.py
 COPY ./scrubber.19.0403.lnx /root/scrubber.19.0403.lnx
 RUN ln -s /config.yml /root/config.yml
+RUN ln -s /settings.json /root/settings.json
 RUN ln -s /input /root/input
 RUN ln -s /output /root/output
 RUN apt-get update --fix-missing &&\

@@ -91,25 +91,24 @@
         ],
         "modality_filters": {}
     },
-    "default_tags_to_extract": "",
-    "header_extraction_filters": {
-        "general_filters": [],
-        "modality_filters": {
-            "MR": [
-                {
-                    "tag": "ImageType",
-                    "action": "equalsIgnoreCase",
-                    "value": ""
-                }
-            ],
-            "CT": [
-                {
-                    "tag": "Rows",
-                    "action": "startsWithIgnoreCase",
-                    "value": "jhgf"
-                }
-            ]
-        }
-    },
+    "header_tags_to_extract": [
+        "AccessionNumber",
+        "StudyInstanceUID",
+        "PatientName",
+        "PatientID",
+        "PatientSex",
+        "Manufacturer",
+        "ManufacturerModelName",
+        "StudyDescription",
+        "StudyDate",
+        "SeriesInstanceUID",
+        "SOPClassUID",
+        "Modality",
+        "SeriesDescription",
+        "Rows",
+        "Columns",
+        "InstitutionName",
+        "StudyTime"
+    ],
     "default_output_folder": ""
 }

@@ -1,4 +1,5 @@
 import csv
+import json
 import logging
 import os
 import re
@@ -222,26 +223,6 @@ Redacted_phrases = {pii_file}
 AutoOpenOutDir = Off
 """
 
-HEADER_EXTRACT_TAGS = [
-    "AccessionNumber",
-    "StudyInstanceUID",
-    "PatientName",
-    "PatientID",
-    "PatientSex",
-    "Manufacturer",
-    "ManufacturerModelName",
-    "StudyDescription",
-    "StudyDate",
-    "SeriesInstanceUID",
-    "SOPClassUID",
-    "Modality",
-    "SeriesDescription",
-    "Rows",
-    "Columns",
-    "InstitutionName",
-    "StudyTime",
-]
-
 COMMON_DATE_FORMATS = [
     '%m/%d/%Y','%Y-%m-%d','%d/%m/%Y','%m-%d-%Y','%Y/%m/%d','%d-%m-%Y',
     '%m/%d/%y','%y-%m-%d','%d/%m/%y'
@@ -413,13 +394,13 @@ def save_linker_csv():
     with open(os.path.join("output", "appdata", "linker.csv"), "w") as f:
         f.write(linker_csv)
 
-def imageqr_func(_):
+def imagequery_func(_):
     save_metadata_csv()
 
-def imageqr_main(**config):
+def imagequery_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
     save_config(IMAGEQR_CONFIG)
-    with ctp_workspace(imageqr_func, {}) as logf:
+    with ctp_workspace(imagequery_func, {}) as logf:
         cmove_images(logf, **config)
 
 def imagedeid_func(_):
@@ -645,17 +626,19 @@ def headerextract_main(**config):
 
     seen_study_instance_uids = set()
     output_path = os.path.join("output", "output.csv")
+    settings = json.load(open("settings.json"))
+    header_tags_to_extract = settings["header_tags_to_extract"]
     with open(output_path, "w") as f:
         writer = csv.writer(f)
-        writer.writerow(HEADER_EXTRACT_TAGS)
+        writer.writerow(header_tags_to_extract)
         for root, dirs, files in os.walk("input"):
             for file in files:
                 if file.endswith(".dcm"):
                     ds = pydicom.dcmread(os.path.join(root, file))
                     values = [
-                        str(ds.get(tag, "")).strip() for tag in HEADER_EXTRACT_TAGS
+                        str(ds.get(tag, "")).strip() for tag in header_tags_to_extract
                     ]
-                    study_uid = values[HEADER_EXTRACT_TAGS.index("StudyInstanceUID")]
+                    study_uid = values[header_tags_to_extract.index("StudyInstanceUID")]
                     if study_uid in seen_study_instance_uids:
                         continue
                     seen_study_instance_uids.add(study_uid)
@@ -714,7 +697,7 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
-    if config.get("module") not in ["imageqr", "imagedeid", "textdeid", "imageexport", "textextract", "headerextract"]:
+    if config.get("module") not in ["imagequery", "imagedeid", "textdeid", "imageexport", "textextract", "headerextract"]:
         error_and_exit("Module invalid or not implemented.")
     if not os.path.exists("input"):
         error_and_exit("Input directory not found.")
@@ -725,7 +708,7 @@ def validate_config(config):
     if os.listdir("output") != ["appdata"]:
         error_and_exit("Output directory must be empty.")
     if os.path.exists(os.path.join("input", "input.xlsx")):
-        if config.get("module") in ["imageqr", "imagedeid"]:
+        if config.get("module") in ["imagequery", "imagedeid"]:
             if not all([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
                 error_and_exit("Pacs details missing in config file.")
             if config.get("application_aet") is None or config.get("application_aet") == "":
@@ -748,7 +731,7 @@ def validate_config(config):
     elif config.get("module") not in ["textextract", "headerextract"]:
         error_and_exit("Input directory must contain input.xlsx file.")
 
-def imageqr(**config):
+def imagequery(**config):
     """
     Download DICOM images from PACS. The input directory must contain
     an input.xlsx file with accession numbers or MRN and date columns.
@@ -765,7 +748,7 @@ def imageqr(**config):
         ctp_filters (str): Filters for the query in the CTP format.
         ctp_anonymizer (str): Anonymization script in the CTP xml format.
     """
-    imageqr_main(**config)
+    imagequery_main(**config)
 
 def imagedeid(**config):
     """

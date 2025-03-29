@@ -1,0 +1,134 @@
+{% extends 'settings/base_settings.html' %}
+
+{% block title %}Header Extract Settings{% endblock %}
+
+{% block settings_content %}
+<meta name="csrf_token" content="{{ csrf_token }}">
+<div id="header-tag-template" class="header-tag w-fit space-x-2 items-center
+p-2 border-2 rounded border-gray-400 shadow"
+style="display: none;">
+    <!-- Tag Name -->
+    <p class="tag-name"></p>
+
+    <!-- Delete Button -->
+    <button type="button" 
+            onclick="removeTag(this)">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>  
+    </button>
+</div>
+<div class="flex-1 bg-white p-4 ml-4 flex flex-col space-y-2">
+    <div class="text-md">Headers to extract</div>
+    <div class="text-sm text-gray-400 flex-row">Add header tags to extract</div>
+    <div>
+        <input type="text" class="h-10 border-2 border-gray-400 px-2" name="add_tag"
+        placeholder="Enter header tag">
+        <button type="button" class="ml-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="addTagFromInput()">+ Add Header</button>
+    </div>
+    <div id="header-tags-container" class="w-full flex flex-wrap gap-2">
+        <!-- Header tags will be added here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block settings_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', loadSavedSettings);
+
+    async function loadSavedSettings() {
+        try {
+            const response = await fetch('/load_settings/');
+            const settings = await response.json();
+            
+            // Load image source
+            if (settings.header_tags_to_extract) {
+                const template = document.querySelector('#header-tag-template');
+                for (let i in settings.header_tags_to_extract) {
+                    const tagName = settings.header_tags_to_extract[i];
+                    addTag({ tagName, template });
+                }
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    }
+    function addTag({tagName, template = null}) {
+        const { headerTags, headerTagsContainer } = tagsToArray();
+
+        if (template === null) {
+            template = document.querySelector('#header-tag-template');
+        }
+        if (headerTags.includes(tagName)) {
+            newMessage({ msg: `The "${tagName}" header is already set to be extracted`, status: 'error' });
+            return;
+        }
+
+        const newNode = template.cloneNode(true);
+        newNode.style.display = 'flex';
+        newNode.removeAttribute('id');
+        newNode.querySelector('.tag-name').textContent = tagName;
+        headerTagsContainer.appendChild(newNode);
+    }
+    function addTagFromInput() {
+        const tagInput = document.querySelector('input[name="add_tag"]');
+        const tagName = tagInput.value.trim();
+        if (tagName) {
+            addTag({ tagName });
+            tagInput.value = '';
+        }
+        tagInput.focus();
+    }
+    function removeTag(button) {
+        button.closest('.header-tag').remove();
+    }
+    function tagsToArray() {
+        const headerTagsContainer = document.querySelector('#header-tags-container');
+        const headerTags = Array.from(headerTagsContainer.querySelectorAll('.header-tag')).map(tag => {
+            return tag.querySelector('.tag-name').textContent;
+        });
+        return { headerTags, headerTagsContainer };
+    }
+    function newMessage({ msg, status = 'success' }) {
+        const saveButton = document.getElementById('saveSettingsBtn');
+        const existingMessage = document.querySelector('.settings-saved-message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+        const successMessage = document.createElement('div');
+        successMessage.textContent = msg;
+        if (status === 'error') {
+            successMessage.className = 'settings-saved-message text-red-500 mt-4 ml-4';
+        } else {
+            successMessage.className = 'settings-saved-message text-green-500 mt-4 ml-4';
+        }
+        saveButton.parentNode.appendChild(successMessage);
+        // Remove message after 3 seconds
+        setTimeout(() => {
+            successMessage.remove();
+        }, 3000);
+    }
+    async function saveSettings() {
+        const { headerTags } = tagsToArray();
+        const data = {
+            header_tags_to_extract: headerTags,
+        };
+
+        try {
+            const response = await fetch('/save_settings/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(data)
+            });
+
+            await response.json();
+            newMessage({ msg: 'Settings saved successfully!' });
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+</script>
+{% endblock %}

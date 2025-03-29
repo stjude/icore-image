@@ -23,7 +23,7 @@
         </header>
         <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24">
             <a href="/headerquery" class="block px-4 py-2 hover:bg-gray-100" onclick="alert('This feature isn\'t ready yet. We are working on it.'); return false;">DICOM Header Query / Retrieve</a>
-            <a href="/headerextract/" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/headerextract/' %}bg-gray-100{% endif %}">Local Header Extraction</a>
+            <a href="/headerextract/" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/headerextract/' %}bg-gray-100{% endif %}">Header Extraction</a>
             <a href="/imagequery" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %}">Image Query / Retrieve</a>
             <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %}">Image De-identification</a>
             <a href="/textdeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/textdeid/' %}bg-gray-100{% endif %}">Text De-identification</a>

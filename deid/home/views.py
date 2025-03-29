@@ -138,6 +138,9 @@ class ImageDeIdentificationSettingsView(CommonContextMixin, TemplateView):
 class ReportDeIdentificationSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/text_deid.html'
 
+class HeaderExtractSettingsView(CommonContextMixin, TemplateView):
+    template_name = 'settings/header_extract.html'
+
 class AdminSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/admin_settings.html'
 

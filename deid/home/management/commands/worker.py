@@ -29,6 +29,12 @@ RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'rclone.
 TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'temp_input'))
 DOCKER = which('docker') or '/usr/local/bin/docker'
 
+def initialize_config(task):
+    return {
+        "module": task.task_type.lower().replace('_', ''),
+        "task_id": task.pk,
+    }
+
 def process_image_deid(task):
     output_folder = task.output_folder
     build_image_deid_config(task)
@@ -41,6 +47,7 @@ def process_image_deid(task):
         docker_cmd = [
             DOCKER, 'run', '--rm',
             '-v', f'{CONFIG_PATH}:/config.yml',
+            '-v', f'{SETTINGS_PATH}:/settings.json',
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
             '-p', '50001:50001',
@@ -53,6 +60,7 @@ def process_image_deid(task):
         docker_cmd = [
             DOCKER, 'run', '--rm',
             '-v', f'{CONFIG_PATH}:/config.yml',
+            '-v', f'{SETTINGS_PATH}:/settings.json',
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_folder)}:/output',
             'aiminer'
@@ -75,7 +83,7 @@ def process_image_deid(task):
 
 def build_image_deid_config(task):
     """Build the configuration for image deidentification"""
-    config = {'module': 'imagedeid'}
+    config = initialize_config(task)
     # Add PACS configuration if needed
     if task.image_source == 'PACS':
         config.update({
@@ -129,6 +137,7 @@ def process_image_query(task):
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
+        '-v', f'{SETTINGS_PATH}:/settings.json',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
@@ -154,7 +163,7 @@ def process_image_query(task):
 
 def build_image_query_config(task):
     """Build the configuration for image query"""
-    config = {'module': 'imageqr'}
+    config = initialize_config(task)
     config.update({
             'pacs': task.pacs_configs,
             'application_aet': task.application_aet,
@@ -190,6 +199,7 @@ def process_header_query(task):
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
+        '-v', f'{SETTINGS_PATH}:/settings.json',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         '-p', '50001:50001',
@@ -213,7 +223,7 @@ def process_header_query(task):
 
 def build_header_query_config(task):
     """Build the configuration for header query"""
-    config = {'module': 'headerqr'}
+    config = initialize_config(task)
     config.update({
             'pacs': task.pacs_configs,
             'application_aet': task.application_aet,
@@ -253,7 +263,8 @@ def process_text_deid(task):
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml', 
+        '-v', f'{CONFIG_PATH}:/config.yml',
+        '-v', f'{SETTINGS_PATH}:/settings.json', 
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
         'aiminer'
@@ -275,7 +286,7 @@ def process_text_deid(task):
 
 def build_text_deid_config(task):
     """Build the configuration for text deidentification"""
-    config = {'module': 'textdeid'}
+    config = initialize_config(task)
     print(task.parameters)
     to_keep_list = task.parameters['text_to_keep'].split('\n')
     to_remove_list = task.parameters['text_to_remove'].split('\n')
@@ -301,6 +312,7 @@ def process_image_export(task):
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
+        '-v', f'{SETTINGS_PATH}:/settings.json',
         '-v', f'{RCLONE_CONFIG_PATH}:/rclone.conf',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(output_folder)}:/output',
@@ -318,12 +330,13 @@ def process_image_export(task):
 
 def build_image_export_config(task):
     """Build the configuration for image export"""
-    config = {
+    config = initialize_config(task)
+    config.extend({
         'module': 'imageexport',
         'rclone_config': RCLONE_CONFIG_PATH,
         'storage_location': task.parameters['storage_location'],
         'project_name': task.name
-    }
+    })
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
@@ -331,17 +344,27 @@ def build_image_export_config(task):
 
 def process_text_extract(task):
     print('Processing text extract')
-    build_text_extract_config()
+    build_text_extract_config(task)
     shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
+
+def build_text_extract_config(task):
+    """Build the configuration for text extraction"""
+    config = initialize_config(task)
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+
+    return config
 
 def process_header_extract(task):
     print('Processing header extract')
-    build_header_extract_config()
+    build_header_extract_config(task)
     shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml', 
+        '-v', f'{CONFIG_PATH}:/config.yml',
+        '-v', f'{SETTINGS_PATH}:/settings.json', 
         '-v', f'{os.path.abspath(TMP_INPUT_PATH)}:/input',
         '-v', f'{os.path.abspath(task.output_folder)}:/output',
         'aiminer'
@@ -361,18 +384,9 @@ def process_header_extract(task):
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
 
-def build_text_extract_config():
+def build_header_extract_config(task):
     """Build the configuration for text extraction"""
-    config = {'module': 'textextract'}
-    with open(CONFIG_PATH, 'w') as f:
-        yaml = YAML()
-        yaml.dump(config, f)
-
-    return config
-
-def build_header_extract_config():
-    """Build the configuration for text extraction"""
-    config = {'module': 'headerextract'}
+    config = initialize_config(task)
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)

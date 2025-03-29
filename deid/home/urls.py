@@ -25,6 +25,7 @@ urlpatterns = [
     path('settings/dicom_header_qr/', views.DicomHeaderQRSettingsView.as_view(), name='dicom_header_qr_settings'),
     path('settings/local_header_extraction/', views.LocalHeaderExtractionSettingsView.as_view(), name='local_header_extraction_settings'),
     path('settings/image_qr/', views.ImageQRSettingsView.as_view(), name='image_qr_settings'),
+    path('settings/header_extract/', views.HeaderExtractSettingsView.as_view(), name='header_extract_settings'),
     path('settings/image_deid/', views.ImageDeIdentificationSettingsView.as_view(), name='image_deid_settings'),
     path('settings/report_deid/', views.ReportDeIdentificationSettingsView.as_view(), name='text_deid_settings'),
     path('settings/admin/', views.AdminSettingsView.as_view(), name='admin_settings'),
