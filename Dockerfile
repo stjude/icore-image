@@ -6,6 +6,7 @@ COPY ./scrubber.19.0403.lnx /root/scrubber.19.0403.lnx
 RUN ln -s /config.yml /root/config.yml
 RUN ln -s /input /root/input
 RUN ln -s /output /root/output
+RUN ln -s /appdata /root/appdata
 RUN apt-get update --fix-missing &&\
     apt-get install -y curl dcmtk python3 python3-pip python3-venv unzip &&\
     apt-get clean

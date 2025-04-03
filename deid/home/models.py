@@ -3,6 +3,8 @@ from django.db import models
 
 class Project(models.Model):
     name = models.CharField(max_length=200)
+    timestamp = models.CharField(max_length=20, blank=True, null=True)
+    log_path = models.CharField(max_length=200, blank=True, null=True)
     image_source = models.CharField(max_length=10, choices=[('LOCAL', 'Local folder'), ('PACS', 'PACS')])
     input_folder = models.CharField(max_length=255)
     output_folder = models.CharField(max_length=255)

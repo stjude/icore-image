@@ -25,7 +25,7 @@
 </div>
 
 <script>
-    const outputFolder = new URLSearchParams(window.location.search).get('output_folder');
+    const logPath = new URLSearchParams(window.location.search).get('log_path');
     let previousContent = '';
     let sameContentCount = 0;
     let pollInterval;
@@ -53,7 +53,7 @@
         if (hasError) return;
         
         try {
-            const response = await fetch(`/get_log_content?output_folder=${encodeURIComponent(outputFolder)}`);
+            const response = await fetch(`/get_log_content?log_path=${encodeURIComponent(logPath)}`);
             const data = await response.text();
             const logContent = document.getElementById('logContent');
             for (const errorMsg of errorMessages) {

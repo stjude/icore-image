@@ -43,15 +43,15 @@
                     <td class="px-4 py-4 text-sm font-medium">
                         <div class="flex space-x-4">
                             {% if task.status == 'RUNNING' or task.status == 'PENDING' %}
-                                <a href="{% url 'task_progress' %}?output_folder={{ task.output_folder|urlencode }}" 
+                                <a href="{% url 'task_progress' %}?log_path={{ task.log_path|urlencode }}" 
                                    class="text-indigo-600 hover:text-indigo-900">View Logs</a>
                             {% endif %}
                             {% if task.status == 'COMPLETED' %}
-                                <button onclick="viewLogs('{{ task.output_folder|urlencode }}')"
+                                <button onclick="viewLogs('{{ task.log_path|urlencode }}')"
                                         class="text-indigo-600 hover:text-indigo-900">View Logs</button>
                             {% endif %}
                             {% if task.status == 'FAILED' %}
-                                <button onclick="viewLogs('{{ task.output_folder|urlencode }}')"
+                                <button onclick="viewLogs('{{ task.log_path|urlencode }}')"
                                         class="text-indigo-600 hover:text-indigo-900">View Logs</button>
                             {% endif %}
                             {% if task.status != 'RUNNING' %}
@@ -115,9 +115,9 @@ async function deleteTask(taskId) {
     }
 }
 
-async function viewLogs(outputFolder) {
+async function viewLogs(logPath) {
     try {
-        const response = await fetch(`/get_log_content/?output_folder=${outputFolder}`);
+        const response = await fetch(`/get_log_content/?log_path=${logPath}`);
         const logContent = await response.text();
         document.getElementById('logContent').textContent = logContent;
         document.getElementById('logModal').classList.remove('hidden');
@@ -146,6 +146,7 @@ const hasActiveJobs = Array.from(document.querySelectorAll('tr')).some(row => {
         statusSpan.classList.contains('bg-blue-100')      // Running
     );
 });
+console.log(hasActiveJobs)
 if (hasActiveJobs) {
     setTimeout(() => window.location.reload(), 5000);
 }

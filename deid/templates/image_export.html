@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Image Export{% endblock %}
+{% block title %}Secure Data Transfer{% endblock %}
 
 {% block content %}
 {{ storage_locations|json_script:"storage-locations-data" }}
@@ -9,18 +9,15 @@
 </script>
 
 <div class="px-4">
-    <h1 class="text-xl flex-1">Image Export</h1>
+    <h1 class="text-xl flex-1">Secure Data Transfer</h1>
 </div>
 
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
     <div class="text-sm text-black-5">Project Name</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
 
-    <div class="text-sm text-black-5 mt-4">Input Folder</div>
+    <div class="text-sm text-black-5 mt-4">Select Folder for Secure Data Transfer</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
-
-    <div class="text-sm text-black-5 mt-4">Output Folder</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
     
     <div class="text-sm text-black-5 mt-4">Storage Location</div>
     <select id="storage_location_select" 
@@ -55,7 +52,6 @@
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             input_folder: document.querySelector('[name="input_folder"]').value,
-            output_folder: document.querySelector('[name="output_folder"]').value,
             storage_location: document.getElementById('storage_location_select').value
         };
         console.log(data);
@@ -70,7 +66,7 @@
             });
             const result = await response.json();
             if (result.status === 'success') {
-                window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+                window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}`;
             } else {
                 console.error('Error starting export:', result);
             }

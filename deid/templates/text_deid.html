@@ -15,16 +15,14 @@
     <div class="text-sm text-black-5 mt-4">Input File</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" />
 
-    <!-- Output File Section -->
-    <div class="text-sm text-black-5 mt-4">Output Folder</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
-
     <!-- De-identification Options Section -->
     <div class="flex items-center mt-4">
         <button class="text-black" onclick="toggleDeidOptions()" id="deidOptionsButton">▼</button>
         <div class="text-sm text-black ml-4">De-identification Options</div>
     </div>
     <div id="deid_options" class="mt-4 hidden ml-4">
+        <div class="text-sm text-gray-500 mt-4">Output Folder</div>
+        <input type="text" class="mt-2 mb-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
         <div class="flex space-x-4">
             <div class="flex-1">
                 <div class="text-sm text-gray-500">To keep</div>
@@ -93,7 +91,7 @@
             });
             const result = await response.json();
             if (result.status === 'success') {
-                window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+                window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}`;
             } else {
                 console.error('Error starting de-identification:', result);
             }

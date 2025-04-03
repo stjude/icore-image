@@ -25,7 +25,7 @@ from django.views.generic.edit import CreateView
 from .models import Project
 
 SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.aiminer')
-
+APP_DATA_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'app_data')
 class CommonContextMixin:
     def get_common_context(self):
         return {
@@ -140,19 +140,16 @@ class TaskProgressView(TemplateView):
 
 def get_log_content(request):
     try:
-        output_folder = request.GET.get('output_folder')
-        if not output_folder:
-            return HttpResponseBadRequest("No output folder specified")
-
-        # Construct path to log file
-        log_file_path = os.path.join(output_folder, "appdata", 'log.txt')
+        log_path = request.GET.get('log_path')
+        if not log_path:
+            return HttpResponseBadRequest("No log path specified")
         
         # Check if file exists
-        if not os.path.exists(log_file_path):
+        if not os.path.exists(log_path):
             return HttpResponseNotFound("Loading. Please wait...")
 
         # Read the log file content
-        with open(log_file_path, 'r') as f:
+        with open(log_path, 'r') as f:
             content = f.read()
             
         return HttpResponse(content, content_type='text/plain')
@@ -166,8 +163,11 @@ def run_header_query(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         project = Project.objects.create(
             name=data['study_name'],
+            timestamp=timestamp,
+            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
             task_type=Project.TaskType.HEADER_QUERY,
             output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
@@ -184,7 +184,8 @@ def run_header_query(request):
         )
         return JsonResponse({
             'status': 'success',
-            'project_id': project.id
+            'project_id': project.id,
+            'log_path': project.log_path
         })
     except Exception as e:
         print(f'Error: {e}')
@@ -209,9 +210,11 @@ def run_deid(request):
                 local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
                 scheduled_time = timezone.localize(local_dt)
                 scheduled_time = scheduled_time.astimezone(pytz.UTC)
-            
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
             project = Project.objects.create(
                 name=data['study_name'],
+                timestamp=timestamp,
+                log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
                 task_type=Project.TaskType.IMAGE_DEID,
                 image_source=data['image_source'],
                 input_folder=data['input_folder'],
@@ -235,10 +238,10 @@ def run_deid(request):
                     'use_lookup_table': data['use_lookup'],
                 }
             )
-            
             return JsonResponse({
                 'status': 'success',
-                'project_id': project.id
+                'project_id': project.id,
+                'log_path': project.log_path
             })
             
         except OperationalError as e:
@@ -264,9 +267,11 @@ def run_query(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
-
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         project = Project.objects.create(
             name=data['study_name'],
+            timestamp=timestamp,
+            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
             task_type=Project.TaskType.IMAGE_QUERY,
             output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
@@ -284,7 +289,8 @@ def run_query(request):
 
         return JsonResponse({
             'status': 'success',
-            'project_id': project.id
+            'project_id': project.id,
+            'log_path': project.log_path
         })
     except Exception as e:
         print(f'Error: {e}')
@@ -295,11 +301,13 @@ def run_text_deid(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
-
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         project = Project.objects.create(
             name=data['study_name'],
-            output_folder=data['output_folder'],
+            timestamp=timestamp,
+            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
             task_type=Project.TaskType.TEXT_DEID,
+            output_folder=data['output_folder'],
             status=Project.TaskStatus.PENDING,
             parameters={
                 'input_file': data['input_file'],
@@ -311,7 +319,8 @@ def run_text_deid(request):
         
         return JsonResponse({
             'status': 'success',
-            'project_id': project.id
+            'project_id': project.id,
+            'log_path': project.log_path
         })
     except Exception as e:
         print(f'Error: {e}')
@@ -323,11 +332,13 @@ def run_export(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         project = Project.objects.create(
             name=data['study_name'],
+            timestamp=timestamp,
+            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
             task_type=Project.TaskType.IMAGE_EXPORT,
             input_folder=data['input_folder'],
-            output_folder=data['output_folder'],
             status=Project.TaskStatus.PENDING,
             parameters={
                 'storage_location': data['storage_location'],
@@ -335,7 +346,8 @@ def run_export(request):
         )
         return JsonResponse({
             'status': 'success',
-            'project_id': project.id
+            'project_id': project.id,
+            'log_path': project.log_path
         })
     except Exception as e:
         print(f'Error: {e}')
@@ -346,9 +358,11 @@ def run_text_extract(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
-
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         project = Project.objects.create(
             name=data['study_name'],
+            timestamp=timestamp,
+            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
             input_folder=data['input_folder'],
             status=Project.TaskStatus.PENDING,
             output_folder=data['output_folder'],
@@ -358,7 +372,8 @@ def run_text_extract(request):
         
         return JsonResponse({
             'status': 'success',
-            'project_id': project.id
+            'project_id': project.id,
+            'log_path': project.log_path
         })
     except Exception as e:
         print(f'Error: {e}')
@@ -533,7 +548,7 @@ def test_pacs_connection(request):
     pacs_port = data.get('pacs_port')
     pacs_aet = data.get('pacs_aet')
     application_aet = data.get('application_aet')
-
+    print(pacs_ip, pacs_port, pacs_aet, application_aet)
     if application_aet is None or application_aet == "":
         return JsonResponse({'status': 'error', 'error': 'Application AET is required'})
 

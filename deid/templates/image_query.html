@@ -30,15 +30,14 @@
             <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="date_column" />
         </div>
     </div>
-    <div class="text-sm text-gray-500 mt-4">Output Folder</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
-    <!-- General Filters Section -->
     
     <div class="flex items-center mt-4">
         <button class="text-black" onclick="toggleQueryOptions()" id="queryOptionsButton">▼</button>
         <div class="text-sm text-black ml-4">Query Options</div>
     </div>
     <div id="query_options" class="mt-4 hidden ml-4">
+        <div class="text-sm text-gray-500 mt-4">Output Folder</div>
+        <input type="text" class="mt-2 mb-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
         <div class="mb-4">
             <div class="text-sm text-gray-600 mb-2 mt-4">General Filters</div>
             <div class="text-sm text-gray-400 mb-2">Only include images where</div>
@@ -203,7 +202,7 @@
             const result = await response.json();
             if (result.status === 'success') {
                 // Redirect to progress page with output folder path as parameter
-                window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+                window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}`;
             } else {
                 console.error('Error starting query:', result);
             }

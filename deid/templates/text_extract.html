@@ -57,7 +57,7 @@
             });
             const result = await response.json();
             if (result.status === 'success') {
-                window.location.href = `/task_progress?output_folder=${encodeURIComponent(data.output_folder)}`;
+                window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}`;
             } else {
                 console.error('Error starting text extraction:', result);
             }

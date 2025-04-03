@@ -26,12 +26,15 @@ HOME_DIR = os.path.expanduser('~')
 CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'config.yml'))
 SETTINGS_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'settings.json'))
 RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'rclone.conf'))
+APP_DATA_PATH = os.path.abspath(os.path.join(HOME_DIR, 'iCore', 'app_data'))
 TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'temp_input'))
 DOCKER = which('docker') or '/usr/local/bin/docker'
 
 def process_image_deid(task):
     output_folder = task.output_folder
     build_image_deid_config(task)
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"{task.name}_{task.timestamp}"))
     if task.image_source == 'PACS':
 
         os.makedirs(TMP_INPUT_PATH, exist_ok=True)
@@ -42,7 +45,8 @@ def process_image_deid(task):
             DOCKER, 'run', '--rm',
             '-v', f'{CONFIG_PATH}:/config.yml',
             '-v', f'{os.path.abspath(input_folder)}:/input',
-            '-v', f'{os.path.abspath(output_folder)}:/output',
+            '-v', f'{os.path.abspath(output_full_path)}:/output',
+            '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
             '-p', '50001:50001',
         ]
         for port in {config["port"] for config in task.pacs_configs}:
@@ -54,7 +58,8 @@ def process_image_deid(task):
             DOCKER, 'run', '--rm',
             '-v', f'{CONFIG_PATH}:/config.yml',
             '-v', f'{os.path.abspath(input_folder)}:/input',
-            '-v', f'{os.path.abspath(output_folder)}:/output',
+            '-v', f'{os.path.abspath(output_full_path)}:/output',
+            '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
             'aiminer'
         ]
     
@@ -125,12 +130,15 @@ def process_image_query(task):
     temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
     shutil.copy2(task.parameters['input_file'], temp_input)
     input_folder = TMP_INPUT_PATH
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"{task.name}_{task.timestamp}"))
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_folder)}:/output',
+        '-v', f'{os.path.abspath(output_full_path)}:/output',
+        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
         '-p', '50001:50001',
     ]
     for port in {config["port"] for config in task.pacs_configs}:
@@ -187,11 +195,14 @@ def process_header_query(task):
     build_header_query_config(task)
 
     input_folder = os.path.dirname(task.parameters['input_file'])
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"{task.name}_{task.timestamp}"))
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_folder)}:/output',
+        '-v', f'{os.path.abspath(output_full_path)}:/output',
+        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
         '-p', '50001:50001',
     ]
     for port in {config["port"] for config in task.pacs_configs}:
@@ -250,12 +261,15 @@ def process_text_deid(task):
     temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
     shutil.copy2(task.parameters['input_file'], temp_input)
     input_folder = TMP_INPUT_PATH
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"{task.name}_{task.timestamp}"))
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml', 
         '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_folder)}:/output',
+        '-v', f'{os.path.abspath(output_full_path)}:/output',
+        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
         'aiminer'
     ]
 
@@ -294,16 +308,16 @@ def build_text_deid_config(task):
 def process_image_export(task):
     print('Processing image export')
     input_folder = task.input_folder
-    output_folder = task.output_folder
     build_image_export_config(task)
-    print(RCLONE_CONFIG_PATH)
+
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
         '-v', f'{RCLONE_CONFIG_PATH}:/rclone.conf',
         '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_folder)}:/output',
+        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
         'aiminer'
     ]
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
@@ -332,13 +346,16 @@ def build_image_export_config(task):
 def process_text_extract(task):
     print('Processing text extract')
     build_text_extract_config()
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"{task.name}_{task.timestamp}"))
     shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml', 
         '-v', f'{os.path.abspath(TMP_INPUT_PATH)}:/input',
-        '-v', f'{os.path.abspath(task.output_folder)}:/output',
+        '-v', f'{os.path.abspath(output_full_path)}:/output',
+        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
         'aiminer'
     ]
 

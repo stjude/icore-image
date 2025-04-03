@@ -45,7 +45,7 @@ IMAGEQR_CONFIG = """<Configuration>
             name="DicomFilter"
             root="roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../output/appdata/quarantine" />
+            quarantine="../appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -96,7 +96,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             name="DicomFilter"
             root="roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../output/appdata/quarantine"/>
+            quarantine="../appdata/quarantine"/>
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -131,7 +131,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
-            root="../output/deidentified"
+            root="../output/"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
             acceptDuplicates="no"
@@ -166,7 +166,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             name="DicomFilter"
             root="roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../output/appdata/quarantine" />
+            quarantine="../appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -201,7 +201,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
-            root="../output/deidentified"
+            root="../output"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
             acceptDuplicates="no"
@@ -268,7 +268,7 @@ def count_dicom_files(path):
 
 def run_progress(data):
     received = ctp_get_status("Files received") if data["querying_pacs"] else data["dicom_count"]
-    quarantined = count_files(os.path.join("output", "appdata", "quarantine"), {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"})
+    quarantined = count_files(os.path.join("appdata", "quarantine"), {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"})
     saved = ctp_get_status("Files actually stored")
     stable = received == (quarantined + saved)
     return saved, quarantined, received, stable
@@ -302,7 +302,7 @@ def finish_ctp_run(ctp_process, tick_thread, tick_data):
 
 @contextmanager
 def ctp_workspace(func, data):
-    with open(os.path.join("output", "appdata", "log.txt"), "a") as logf:
+    with open(os.path.join("appdata", "log.txt"), "a") as logf:
         try:
             process, thread, data = start_ctp_run(func, data, logf)
             time.sleep(3)
@@ -385,12 +385,12 @@ def cmove_images(logf, **config):
 
 def save_metadata_csv():
     metadata_csv = ctp_get("AuditLog?export&csv&suppress")
-    with open(os.path.join("output", "appdata", "metadata.csv"), "w") as f:
+    with open(os.path.join("appdata", "metadata.csv"), "w") as f:
         f.write(metadata_csv)
 
 def save_linker_csv():
     linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
-    with open(os.path.join("output", "appdata", "linker.csv"), "w") as f:
+    with open(os.path.join("appdata", "linker.csv"), "w") as f:
         f.write(linker_csv)
 
 def imageqr_func(_):
@@ -567,8 +567,8 @@ def image_export_main(**config):
         cmd.extend(get_rclone_flags(storage_type))
         cmd.extend(["copy", "input", get_rclone_path(config)])
         logging.info(' '.join(cmd))
-        with open(os.path.join("output", "appdata", "log.txt"), "w") as logf:
-            process = subprocess.run(cmd, text=True, stdout=logf, stderr=logf)
+        with open(os.path.join("appdata", "log.txt"), "w") as logf:
+            subprocess.run(cmd, text=True, stdout=logf, stderr=logf)
         logging.info("PROGRESS: COMPLETE")
     except Exception as e:
         error_and_exit(f"Error: {e}")
@@ -681,7 +681,7 @@ def validate_config(config):
         validate_ctp_filters(config.get("ctp_filters"))
     if config.get("ctp_anonymizer") is not None:
         validate_ctp_anonymizer(config.get("ctp_anonymizer"))
-    if os.listdir("output") != ["appdata"]:
+    if os.listdir("output") != []:
         error_and_exit("Output directory must be empty.")
     if os.path.exists(os.path.join("input", "input.xlsx")):
         if config.get("module") in ["imageqr", "imagedeid"]:
@@ -799,8 +799,7 @@ if __name__ == "__main__":
         error_and_exit("File config.yml not found.")
     with open("config.yml", "r") as file:
         config = yaml.safe_load(file)
-    os.makedirs(os.path.join("output", "appdata"), exist_ok=True)
-    logging.basicConfig(filename=os.path.join("output", "appdata", "log.txt"), level=logging.INFO,
+    logging.basicConfig(filename=os.path.join("appdata", "log.txt"), level=logging.INFO,
         format="%(asctime)s %(levelname)-5s %(message)s", datefmt="%H:%M:%S")
     validate_config(config)
     run_module(**config)
