@@ -54,7 +54,7 @@ IMAGEQR_CONFIG = """<Configuration>
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
             level="study" />
-        <DirectoryStorageService
+        <DirectoryStorageServices
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
             root="../output/images"
@@ -79,6 +79,11 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         id="AuditLog"
         name="AuditLog"
         root="roots/AuditLog"/>
+    <Plugin
+        class="org.rsna.ctp.stdplugins.AuditLog"
+        id="DeidAuditLog"
+        name="DeidAuditLog"
+        root="roots/DeidAuditLog"/>
     <Pipeline name="imagedeid">
         <ArchiveImportService
             class="org.rsna.ctp.stdstages.ArchiveImportService"
@@ -128,6 +133,14 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
             quarantine="quarantines/DicomAnonymizer" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="roots/DicomAuditLogger"
+            auditLogID="DeidAuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
@@ -152,6 +165,11 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         id="AuditLog"
         name="AuditLog"
         root="roots/AuditLog"/>
+    <Plugin
+        class="org.rsna.ctp.stdplugins.AuditLog"
+        id="DeidAuditLog"
+        name="DeidAuditLog"
+        root="roots/DeidAuditLog"/>
     <Pipeline name="imagedeid">
         <DicomImportService
             class="org.rsna.ctp.stdstages.DicomImportService"
@@ -198,6 +216,14 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
             quarantine="quarantines/DicomAnonymizer" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="roots/DicomAuditLogger"
+            auditLogID="DeidAuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
@@ -387,6 +413,9 @@ def save_metadata_csv():
     metadata_csv = ctp_get("AuditLog?export&csv&suppress")
     with open(os.path.join("appdata", "metadata.csv"), "w") as f:
         f.write(metadata_csv)
+    deid_metadata_csv = ctp_get("DeidAuditLog?export&csv&suppress")
+    with open(os.path.join("appdata", "deid_metadata.csv"), "w") as f:
+        f.write(deid_metadata_csv)
 
 def save_linker_csv():
     linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
