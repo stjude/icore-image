@@ -401,7 +401,11 @@ def cmove_images(logf, **config):
             for entry in output.split("Find Response:")[1:]:
                 study_uids.add(parse_dicom_tag_dict(entry).get("StudyInstanceUID"))
             logging.info(f"Processed {i+1}/{len(queries)} rows")
+            if len(study_uids) == 0:
+                logging.info(f"No studies found for query: {query}")
+                continue
         logging.info(f"Found {len(study_uids)} unique studies")
+
         for i, study_uid in enumerate(study_uids):
             cmd = ["movescu", "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
             logging.info(" ".join(cmd))
