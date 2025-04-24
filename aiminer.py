@@ -376,8 +376,10 @@ def parse_dicom_tag_dict(output):
 def cmove_queries(**config):
     df = pd.read_excel(os.path.join("input", "input.xlsx"))
     queries = []
+    accession_numbers = []  # Track all accession numbers
     if config.get("acc_col") is not None:
         for acc in df[config.get("acc_col")]:
+            accession_numbers.append(str(acc))
             queries.append(f"-k QueryRetrieveLevel=STUDY -k AccessionNumber={str(acc)}")
     else:
         mrn_dates = list(df[[config.get("mrn_col"), config.get("date_col")]].itertuples(index=False, name=None))
@@ -385,41 +387,89 @@ def cmove_queries(**config):
             dts = datetime.strftime((dt - timedelta(days=config.get("date_window"))), "%Y%m%d")
             dte = datetime.strftime((dt + timedelta(days=config.get("date_window"))), "%Y%m%d")
             queries.append(f"-k QueryRetrieveLevel=STUDY -k PatientID={str(mrn)} -k StudyDate={dts}-{dte}")
-    return queries
+    return queries, accession_numbers
 
 def cmove_images(logf, **config):
+    failed_accessions = []
+    successful_accessions = set()
+    study_uids_accessions = {}
+    
+    queries, accession_numbers = cmove_queries(**config)
+    
     for pacs in config.get("pacs"):
         study_uids = set()
         ip, port, aec = pacs.get("ip"), pacs.get("port"), pacs.get("ae")
         aet, aem = config.get("application_aet"), config.get("application_aet")
-        queries = cmove_queries(**config)
+        queries, accession_numbers = cmove_queries(**config)
         for i, query in enumerate(queries):
-            cmd = ["findscu", "-v", "-aet", aet, "-aec", aec, "-S"] + query.split() + ["-k", "StudyInstanceUID",ip, str(port)]
+            cmd = ["findscu", "-v", "-aet", aet, "-aec", aec, "-S"] + query.split() + ["-k", "StudyInstanceUID", ip, str(port)]
             logging.info(" ".join(cmd))
             process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output = process.stderr
             for entry in output.split("Find Response:")[1:]:
-                study_uids.add(parse_dicom_tag_dict(entry).get("StudyInstanceUID"))
-            logging.info(f"Processed {i+1}/{len(queries)} rows")
-            if len(study_uids) == 0:
-                logging.info(f"No studies found for query: {query}")
-                continue
-        logging.info(f"Found {len(study_uids)} unique studies")
+                tags = parse_dicom_tag_dict(entry)
+                study_uid = tags.get("StudyInstanceUID")
+                acc_num = tags.get("AccessionNumber")
+                if len(study_uid) > 0:
+                    study_uids.add(study_uid)
+                    if acc_num:
+                        study_uids_accessions[study_uid] = acc_num
+                else:
+                    logging.info(f"No studies found for query: {query}")
+                
+                logging.info(f"Processed {i+1}/{len(queries)} rows")
 
-        for i, study_uid in enumerate(study_uids):
-            cmd = ["movescu", "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
-            logging.info(" ".join(cmd))
-            process = subprocess.Popen(cmd, stdout=logf, stderr=logf, text=True)
-            process.wait()
-            logging.info(f"Downloaded {i+1}/{len(study_uids)} studies")
+        # Process all moves with up to 3 attempts
+        retry_count = 0
+        current_moves = list(study_uids)
+        
+        while current_moves and retry_count < 3:
+            if retry_count > 0:
+                logging.info(f"Retry attempt {retry_count} for {len(current_moves)} failed moves")
+                time.sleep(5)  # Wait between retry batches
+                
+            failed_moves = []
+            for i, study_uid in enumerate(current_moves):
+                cmd = ["movescu", "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
+                logging.info(" ".join(cmd))
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                stdout, stderr = process.communicate()
+                process.wait()
+                
+                success = "Received Final Move Response (Success)" in (stdout + stderr)
+                if success:
+                    successful_accessions.add(study_uids_accessions[study_uid])
+                else:
+                    failed_moves.append(study_uid)
+                    logging.info(f"Failed to move study: {study_uid}")
+                
+                logging.info(f"Downloaded {i+1}/{len(current_moves)} studies")
+            
+            current_moves = failed_moves
+            retry_count += 1
+
+    # Compare original accession numbers with successful ones to determine failures
+    failed_accessions = [acc for acc in accession_numbers if acc not in successful_accessions]
+    
+    return failed_accessions
 
 def save_metadata_csv():
     metadata_csv = ctp_get("AuditLog?export&csv&suppress")
     with open(os.path.join("appdata", "metadata.csv"), "w") as f:
         f.write(metadata_csv)
+
+def save_deid_metadata_csv():
     deid_metadata_csv = ctp_get("DeidAuditLog?export&csv&suppress")
     with open(os.path.join("appdata", "deid_metadata.csv"), "w") as f:
         f.write(deid_metadata_csv)
+
+def save_failed_accessions(failed_accessions):
+    metadata_path = os.path.join("appdata", "metadata.csv")
+    
+    with open(metadata_path, "a") as f:
+        for acc in failed_accessions:
+            line = f"{time.strftime('%Y-%m-%d %H:%M:%S')},{acc},Failed to retrieve\n"
+            f.write(line)
 
 def save_linker_csv():
     linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
@@ -433,10 +483,13 @@ def imageqr_main(**config):
     save_ctp_filters(config.get("ctp_filters"))
     save_config(IMAGEQR_CONFIG)
     with ctp_workspace(imageqr_func, {}) as logf:
-        cmove_images(logf, **config)
+        failed_accessions = cmove_images(logf, **config)
+        logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
+    save_failed_accessions(failed_accessions)
 
 def imagedeid_func(_):
     save_metadata_csv()
+    save_deid_metadata_csv()
     save_linker_csv()
 
 def imagedeid_main(**config):
@@ -449,7 +502,9 @@ def imagedeid_main(**config):
     save_config(formatted_config)
     with ctp_workspace(imagedeid_func, {"querying_pacs": querying_pacs}) as logf:
         if querying_pacs:
-            cmove_images(logf, **config)
+            failed_accessions = cmove_images(logf, **config)
+            logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
+    save_failed_accessions(failed_accessions)
 
 def write(path, data):
     with open(path, "w") as f:
