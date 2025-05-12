@@ -167,7 +167,7 @@ def run_header_query(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
+            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
             task_type=Project.TaskType.HEADER_QUERY,
             output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
@@ -214,7 +214,7 @@ def run_deid(request):
             project = Project.objects.create(
                 name=data['study_name'],
                 timestamp=timestamp,
-                log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
+                log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
                 task_type=Project.TaskType.IMAGE_DEID,
                 image_source=data['image_source'],
                 input_folder=data['input_folder'],
@@ -271,7 +271,7 @@ def run_query(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
+            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
             task_type=Project.TaskType.IMAGE_QUERY,
             output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
@@ -305,7 +305,7 @@ def run_text_deid(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
+            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
             task_type=Project.TaskType.TEXT_DEID,
             output_folder=data['output_folder'],
             status=Project.TaskStatus.PENDING,
@@ -336,7 +336,7 @@ def run_export(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
+            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
             task_type=Project.TaskType.IMAGE_EXPORT,
             input_folder=data['input_folder'],
             status=Project.TaskStatus.PENDING,
@@ -362,7 +362,7 @@ def run_text_extract(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/{data['study_name']}_{timestamp}/log.txt",
+            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
             input_folder=data['input_folder'],
             status=Project.TaskStatus.PENDING,
             output_folder=data['output_folder'],

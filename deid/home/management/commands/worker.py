@@ -33,8 +33,8 @@ DOCKER = which('docker') or '/usr/local/bin/docker'
 def process_image_deid(task):
     output_folder = task.output_folder
     build_image_deid_config(task)
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
     if task.image_source == 'PACS':
 
         os.makedirs(TMP_INPUT_PATH, exist_ok=True)
@@ -130,8 +130,8 @@ def process_image_query(task):
     temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
     shutil.copy2(task.parameters['input_file'], temp_input)
     input_folder = TMP_INPUT_PATH
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}"))
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
@@ -195,8 +195,8 @@ def process_header_query(task):
     build_header_query_config(task)
 
     input_folder = os.path.dirname(task.parameters['input_file'])
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}"))
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml',
@@ -261,8 +261,8 @@ def process_text_deid(task):
     temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
     shutil.copy2(task.parameters['input_file'], temp_input)
     input_folder = TMP_INPUT_PATH
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
@@ -310,7 +310,7 @@ def process_image_export(task):
     input_folder = task.input_folder
     build_image_export_config(task)
 
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
 
     docker_cmd = [
         DOCKER, 'run', '--rm',
@@ -346,8 +346,8 @@ def build_image_export_config(task):
 def process_text_extract(task):
     print('Processing text extract')
     build_text_extract_config()
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
     shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
 
     docker_cmd = [
