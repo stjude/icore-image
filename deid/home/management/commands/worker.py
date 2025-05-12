@@ -23,11 +23,12 @@ PACS_PORT = 4242
 PACS_AET = 'ORTHANC'
 
 HOME_DIR = os.path.expanduser('~')
-CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'config.yml'))
-SETTINGS_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'settings.json'))
-RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'rclone.conf'))
+CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'config.yml'))
+SETTINGS_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'settings.json'))
+RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'rclone.conf'))
+MODULES_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'modules'))
 APP_DATA_PATH = os.path.abspath(os.path.join(HOME_DIR, 'iCore', 'app_data'))
-TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.aiminer', 'temp_input'))
+TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'temp_input'))
 DOCKER = which('docker') or '/usr/local/bin/docker'
 
 def process_image_deid(task):
@@ -51,7 +52,7 @@ def process_image_deid(task):
         ]
         for port in {config["port"] for config in task.pacs_configs}:
             docker_cmd.extend(['-p', f'{port}:{port}'])
-        docker_cmd.append('aiminer')
+        docker_cmd.append('icore_processor')
     else:
         input_folder = task.input_folder
         docker_cmd = [
@@ -60,7 +61,7 @@ def process_image_deid(task):
             '-v', f'{os.path.abspath(input_folder)}:/input',
             '-v', f'{os.path.abspath(output_full_path)}:/output',
             '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-            'aiminer'
+            'icore_processor'
         ]
     
     # Print a shell-ready version of the command
@@ -143,7 +144,7 @@ def process_image_query(task):
     ]
     for port in {config["port"] for config in task.pacs_configs}:
         docker_cmd.extend(['-p', f'{port}:{port}'])
-    docker_cmd.append('aiminer')
+    docker_cmd.append('icore_processor')
     
     # Print a shell-ready version of the command
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
@@ -207,7 +208,7 @@ def process_header_query(task):
     ]
     for port in {config["port"] for config in task.pacs_configs}:
         docker_cmd.extend(['-p', f'{port}:{port}'])
-    docker_cmd.append('aiminer')
+    docker_cmd.append('icore_processor')
     
     # Print a shell-ready version of the command
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
@@ -251,60 +252,6 @@ def build_header_query_config(task):
     
     return config
 
-def process_text_deid(task):
-    print('Processing text deid')
-    build_text_deid_config(task)
-
-    output_folder = task.output_folder
-
-    os.makedirs(TMP_INPUT_PATH, exist_ok=True)
-    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
-    shutil.copy2(task.parameters['input_file'], temp_input)
-    input_folder = TMP_INPUT_PATH
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
-
-    docker_cmd = [
-        DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml', 
-        '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_full_path)}:/output',
-        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        'aiminer'
-    ]
-
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
-    print("Copy and run this command to test:")
-    print(shell_cmd)
-
-    try:
-        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
-        print("Output:", result.stdout)
-    except subprocess.CalledProcessError as e:
-        print(f"Error output: {e.stderr}")
-        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
-    finally:
-        if os.path.exists(TMP_INPUT_PATH):
-            shutil.rmtree(TMP_INPUT_PATH)
-
-def build_text_deid_config(task):
-    """Build the configuration for text deidentification"""
-    config = {'module': 'textdeid'}
-    print(task.parameters)
-    to_keep_list = task.parameters['text_to_keep'].split('\n')
-    to_remove_list = task.parameters['text_to_remove'].split('\n')
-    date_shift_by = int(task.parameters['date_shift_days'])
-    config.update({
-        'to_keep_list': to_keep_list,
-        'to_remove_list': to_remove_list,
-        'date_shift_by': date_shift_by
-    })
-    with open(CONFIG_PATH, 'w') as f:
-        yaml = YAML()
-        yaml.dump(config, f)
-
-    return config
-
 def process_image_export(task):
     print('Processing image export')
     input_folder = task.input_folder
@@ -318,7 +265,7 @@ def process_image_export(task):
         '-v', f'{RCLONE_CONFIG_PATH}:/rclone.conf',
         '-v', f'{os.path.abspath(input_folder)}:/input',
         '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        'aiminer'
+        'icore_processor'
     ]
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
     print("Copy and run this command to test:")
@@ -343,43 +290,42 @@ def build_image_export_config(task):
         yaml.dump(config, f)
     return config
 
-def process_text_extract(task):
-    print('Processing text extract')
-    build_text_extract_config()
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
-    shutil.copytree(task.input_folder, TMP_INPUT_PATH, dirs_exist_ok=True)
+def process_general_module(task):
+    module_name = task.parameters['module_name']
+    print(f'Processing {module_name} module')
+    build_general_module_config(task)
 
+    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+
+    print(output_full_path)
     docker_cmd = [
         DOCKER, 'run', '--rm',
         '-v', f'{CONFIG_PATH}:/config.yml', 
-        '-v', f'{os.path.abspath(TMP_INPUT_PATH)}:/input',
+        '-v', f'{os.path.abspath(task.input_folder)}:/input',
         '-v', f'{os.path.abspath(output_full_path)}:/output',
         '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        'aiminer'
+        '-v', f'{os.path.abspath(MODULES_PATH)}:/modules',
+        'icore_processor'
     ]
-
     shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
-
     try:
         result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
-    finally:
-        if os.path.exists(TMP_INPUT_PATH):
-            shutil.rmtree(TMP_INPUT_PATH)
 
-def build_text_extract_config():
-    """Build the configuration for text extraction"""
-    config = {'module': 'textextract'}
+def build_general_module_config(task):
+    """Build the configuration for general module"""
+    config_string = task.parameters['config']
+    yaml = YAML()
+    config = yaml.load(config_string)
+    config['module'] = task.parameters['module_name']
     with open(CONFIG_PATH, 'w') as f:
-        yaml = YAML()
         yaml.dump(config, f)
-
     return config
 
 def run_worker():
@@ -410,12 +356,10 @@ def run_worker():
                         process_image_query(task)
                     elif task.task_type == Project.TaskType.HEADER_QUERY:
                         process_header_query(task)
-                    elif task.task_type == Project.TaskType.TEXT_DEID:
-                        process_text_deid(task)
                     elif task.task_type == Project.TaskType.IMAGE_EXPORT:
                         process_image_export(task)
-                    elif task.task_type == Project.TaskType.TEXT_EXTRACT:
-                        process_text_extract(task)
+                    elif task.task_type == Project.TaskType.GENERAL_MODULE:
+                        process_general_module(task)
                     task.status = Project.TaskStatus.COMPLETED
                 except Exception as e:
                     traceback.print_exc()

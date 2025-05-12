@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ module.name }}{% endblock %}
+
+{% block content %}
+<div class="px-4">
+    <h1 class="text-xl flex-1">{{ module.name }}</h1>
+</div>
+<div class="flex-1 bg-white p-4 ml-4 mt-4">
+    <!-- Project Name -->
+    <div class="text-sm text-black-5">Project Name</div>
+    <input type="text" 
+           class="mt-2 w-full h-full border-2 border-gray-400 p-2" 
+           name="study_name" 
+           onkeypress="return event.charCode !== 32"/>
+
+    <!-- Input Folder -->
+    <div class="text-sm text-gray-500 mt-4">Input Folder</div>
+    <input type="text" 
+           class="mt-2 w-full h-full border-2 border-gray-400 p-2" 
+           name="input_folder" />
+
+    <!-- Output Folder -->
+    <div class="text-sm text-gray-500 mt-4">Output Folder</div>
+    <input type="text" 
+           class="mt-2 w-full h-full border-2 border-gray-400 p-2" 
+           name="output_folder" />
+
+    <!-- Config -->
+    <div class="text-sm text-gray-500 mt-4">Configuration</div>
+    <textarea class="mt-2 w-full border-2 border-gray-400 p-2 h-48" 
+              name="config"></textarea>
+</div>
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" 
+            onclick="runModule()" 
+            id="run_button">
+        Run Module
+    </button>
+</div>
+
+<script>
+    function toggleScheduling() {
+        const schedulingOptions = document.getElementById('scheduling_options');
+        const runButton = document.getElementById('run_button');
+        const isScheduled = document.getElementById('schedule_job').checked;
+        
+        schedulingOptions.classList.toggle('hidden', !isScheduled);
+        runButton.textContent = isScheduled ? 'Schedule Module' : 'Run Module';
+    }
+
+    async function runModule() {
+        const data = {
+            study_name: document.querySelector('[name="study_name"]').value,
+            input_folder: document.querySelector('[name="input_folder"]').value,
+            output_folder: document.querySelector('[name="output_folder"]').value,
+            config: document.querySelector('[name="config"]').value,
+            module_name: '{{ module.name }}'
+        };
+        console.log(data);
+
+        try {
+            const response = await fetch('/run_general_module/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            // const result = await response.json();
+            // if (result.status === 'success') {
+            //     window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}`;
+            // } else {
+            //     console.error('Error running module:', result);
+            // }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+</script>
+{% endblock %}

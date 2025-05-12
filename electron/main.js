@@ -7,8 +7,8 @@ let mainWindow;
 let serverProcess;
 let workerProcess;
 
-// Create AIMINER logs directory in user's home folder if it doesn't exist
-const logsDir = path.join(os.homedir(), '.aiminer');
+// Create ICORE logs directory in user's home folder if it doesn't exist
+const logsDir = path.join(os.homedir(), '.icore');
 fs.mkdirSync(logsDir, { recursive: true });
 
 // Create log write streams
@@ -77,8 +77,8 @@ async function installDocker() {
 
 async function loadDockerImage() {
     const imagePath = app.isPackaged
-        ? path.join(process.resourcesPath, 'app', 'assets', 'aiminer.tar')
-        : path.join(__dirname, 'assets', 'aiminer.tar');
+        ? path.join(process.resourcesPath, 'app', 'assets', 'icore_processor.tar')
+        : path.join(__dirname, 'assets', 'icore_processor.tar');
 
     return new Promise((resolve, reject) => {
         mainWindow.loadFile(path.join(__dirname, 'loading.html'));
@@ -242,7 +242,7 @@ app.on('ready', async () => {
     }
 
     // Delete existing database and re-migrate
-    const dbPath = path.join(os.homedir(), '.aiminer', 'db.sqlite3');
+    const dbPath = path.join(os.homedir(), '.icore', 'db.sqlite3');
     if (fs.existsSync(dbPath)) {
         fs.unlinkSync(dbPath);
     }

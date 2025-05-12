@@ -1,6 +1,6 @@
 #!/bin/bash
 
-find . -name "aiminer.tar" -type f -delete
+find . -name "icore_processor.tar" -type f -delete
 
 cd electron
 npm run build

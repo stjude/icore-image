@@ -22,9 +22,9 @@ from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
 
-from .models import Project
+from .models import Project, Module
 
-SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.aiminer')
+SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.icore')
 APP_DATA_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'app_data')
 class CommonContextMixin:
     def get_common_context(self):
@@ -41,7 +41,8 @@ class CommonContextMixin:
                 'XA',
                 'RF',
                 'CR'
-            ]
+            ],
+            'modules': Module.objects.all().filter(is_active=True)
         }
     
     def get_context_data(self, **kwargs):
@@ -73,12 +74,6 @@ class HeaderQueryView(CommonContextMixin, CreateView):
     template_name = 'header_query.html'
     success_url = reverse_lazy('task_list')
 
-class TextDeIdentificationView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ['name', 'output_folder']
-    template_name = 'text_deid.html'
-    success_url = reverse_lazy('task_list')
-
 class ImageExportView(CommonContextMixin, CreateView):
     model = Project
     fields = ['name', 'input_folder']
@@ -90,13 +85,18 @@ class ImageExportView(CommonContextMixin, CreateView):
         context['storage_locations'] = load_rclone_config()
         return context
 
-class TextExtractView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ['name', 'output_folder']
-    template_name = 'text_extract.html'
-    success_url = reverse_lazy('task_list')
+class GeneralModuleView(CommonContextMixin, TemplateView):
+    template_name = 'general_module.html'
 
-class TaskListView(ListView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get module name from URL parameter
+        module_name = self.kwargs.get('module_name')
+        # Fetch the specific module or return 404 if not found
+        context['module'] = get_object_or_404(Module, name=module_name)
+        return context
+
+class TaskListView(CommonContextMixin, ListView):
     model = Project
     template_name = 'task_list.html'
     context_object_name = 'tasks'
@@ -131,6 +131,9 @@ class ImageDeIdentificationSettingsView(CommonContextMixin, TemplateView):
 
 class ReportDeIdentificationSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/text_deid.html'
+
+class NewModuleView(CommonContextMixin, TemplateView):
+    template_name = 'settings/new_module.html'
 
 class AdminSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/admin_settings.html'
@@ -297,36 +300,6 @@ def run_query(request):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 @csrf_exempt
-def run_text_deid(request):
-    try:
-        if request.method == 'POST':
-            data = json.loads(request.body)
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        project = Project.objects.create(
-            name=data['study_name'],
-            timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
-            task_type=Project.TaskType.TEXT_DEID,
-            output_folder=data['output_folder'],
-            status=Project.TaskStatus.PENDING,
-            parameters={
-                'input_file': data['input_file'],
-                'text_to_keep': data['text_to_keep'],
-                'text_to_remove': data['text_to_remove'],
-                'date_shift_days': data['date_shift_days']
-            }
-        )
-        
-        return JsonResponse({
-            'status': 'success',
-            'project_id': project.id,
-            'log_path': project.log_path
-        })
-    except Exception as e:
-        print(f'Error: {e}')
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-
-@csrf_exempt
 def run_export(request):
     print('Running export')
     try:
@@ -354,20 +327,24 @@ def run_export(request):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 @csrf_exempt
-def run_text_extract(request):
+def run_general_module(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
+
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
             log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            task_type=Project.TaskType.GENERAL_MODULE,
             input_folder=data['input_folder'],
-            status=Project.TaskStatus.PENDING,
             output_folder=data['output_folder'],
-            task_type=Project.TaskType.TEXT_EXTRACT,
-            parameters={},
+            status=Project.TaskStatus.PENDING,
+            parameters={
+                'module_name': data['module_name'],
+                'config': data['config']
+            }
         )
         
         return JsonResponse({
@@ -639,7 +616,7 @@ def save_admin_settings(request):
 
 def get_protocol_settings(request, protocol_id):
     try:
-        settings_dir = os.path.join(os.path.expanduser('~'), '.aiminer')
+        settings_dir = os.path.join(os.path.expanduser('~'), '.icore')
         protocol_path = os.path.join(settings_dir, 'protocol.xlsx')
         
         if not os.path.exists(protocol_path):
@@ -757,7 +734,7 @@ def generate_action_string(action):
     return action
 
 def get_password_file_path():
-    settings_dir = os.path.join(os.path.expanduser('~'), '.aiminer')
+    settings_dir = os.path.join(os.path.expanduser('~'), '.icore')
     os.makedirs(settings_dir, exist_ok=True)
     return os.path.join(settings_dir, 'admin_password.txt')
 
@@ -831,3 +808,72 @@ def timezone_middleware(get_response):
             timezone.deactivate()
         return get_response(request)
     return middleware
+
+@csrf_exempt
+def upload_module(request):
+    if request.method != 'POST' or 'module_file' not in request.FILES:
+        return JsonResponse({'status': 'error', 'error': 'No file provided'})
+
+    module_file = request.FILES['module_file']
+
+    try:
+        # Create .icore directory in user's home if it doesn't exist
+        icore_dir =  f"{SETTINGS_DIR}/modules"
+        os.makedirs(icore_dir, exist_ok=True)
+
+        # Save the file
+        file_path = f"{icore_dir}/{module_file.name}"
+        with open(file_path, 'wb+') as destination:
+            for chunk in module_file.chunks():
+                destination.write(chunk)
+
+        module_name = module_file.name.split('.')[0]
+        os.chmod(file_path, 0o777)
+
+        Module.objects.update_or_create(
+            name=module_name,
+            defaults={
+                'file_path': str(file_path),
+                'is_active': True
+            }
+        )
+
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
+def get_modules(request):
+    modules = Module.objects.all()
+    module_list = [{
+        'id': module.id,
+        'name': module.name,
+        'version': module.version,
+        'is_active': module.is_active,
+        'uploaded_at': module.uploaded_at.isoformat()
+    } for module in modules]
+    return JsonResponse({'modules': module_list})
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def delete_module(request, module_id):
+    try:
+        module = get_object_or_404(Module, id=module_id)
+        # Delete the actual file
+        if os.path.exists(module.file_path):
+            os.remove(module.file_path)
+        module.delete()
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def toggle_module_status(request, module_id):
+    try:
+        data = json.loads(request.body)
+        module = get_object_or_404(Module, id=module_id)
+        module.is_active = data['is_active']
+        module.save()
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)

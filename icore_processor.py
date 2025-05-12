@@ -2,10 +2,8 @@ import logging
 import os
 import re
 import signal
-import string
 import subprocess
 import sys
-import tempfile
 import time
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
@@ -15,10 +13,7 @@ from threading import Thread
 import pandas as pd
 import requests
 import yaml
-from docx import Document
 from lark import Lark
-from openpyxl import Workbook
-from PyPDF2 import PdfReader
 
 IMAGEQR_CONFIG = """<Configuration>
     <Server
@@ -238,18 +233,6 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
 </Configuration>
 """
 
-NLM_CONFIG_TEMPALTE = """ClinicalReports_dir = {input_dir}
-nPHI_outdir = {output_dir}
-ClinicalReports_files = [^\\.].*
-Preserved_phrases = {preserved_file}
-Redacted_phrases = {pii_file}
-AutoOpenOutDir = Off
-"""
-
-COMMON_DATE_FORMATS = [
-    '%m/%d/%Y','%Y-%m-%d','%d/%m/%Y','%m-%d-%Y','%Y/%m/%d','%d-%m-%Y',
-    '%m/%d/%y','%y-%m-%d','%d/%m/%y'
-]
 
 def print_and_log(message):
     logging.info(message)
@@ -353,9 +336,6 @@ def save_ctp_lookup_table(ctp_lookup_table):
 def save_config(config):
     with open(os.path.join("ctp", "config.xml"), "w") as f:
         f.write(config)
-
-def shiftf_date(dt, date_window):
-    return (dt + timedelta(days=date_window)).strftime('%Y%m%d')
 
 def parse_dicom_tag_dict(output):
     tags = {}
@@ -506,75 +486,6 @@ def imagedeid_main(**config):
             logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
     save_failed_accessions(failed_accessions)
 
-def write(path, data):
-    with open(path, "w") as f:
-        f.write(data)
-
-def scrub(data, whitelist, blacklist):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        os.makedirs(f"{temp_dir}/input", exist_ok=True)
-        os.makedirs(f"{temp_dir}/output", exist_ok=True)
-        for i, d in enumerate(data):
-            text = str(d) if d is not None else "Empty" 
-            write(f"{temp_dir}/input/{i}.txt", ''.join(c for c in text if c in string.printable))
-        write(f"{temp_dir}/preserved.txt", "\n".join(whitelist))
-        write(f"{temp_dir}/pii.txt", "\n".join(blacklist))
-        write(f"{temp_dir}/config.txt", NLM_CONFIG_TEMPALTE.format(
-            input_dir=f"{temp_dir}/input",
-            output_dir=f"{temp_dir}/output", 
-            preserved_file=f"{temp_dir}/preserved.txt",
-            pii_file=f"{temp_dir}/pii.txt",
-        ))
-        subprocess.run(["./scrubber.19.0403.lnx", f"{temp_dir}/config.txt"], 
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        results = []
-        for i in range(len(data)):
-            with open(f"{temp_dir}/output/{i}.nphi.txt") as f:
-                scrubbed = f.read().split("##### DOCUMENT #")[0].strip()
-                results.append(scrubbed)
-            print_and_log(f"PROGRESS: {i}/{len(data)} rows de-identified")
-        return results
-
-def date_shift_text(original_list, deided_list, date_shift_by):
-    shifted_list = []
-    for i, (original, deided) in enumerate(zip(original_list, deided_list)):
-        dates = []
-        for d_line, o_line in zip(deided.split('\n'), original.split('\n')):
-            pos = 0
-            while '[DATE]' in d_line[pos:]:
-                pos = d_line.find('[DATE]', pos) 
-                context = o_line[max(0,pos-30):min(len(o_line),pos+35)]
-                for word in context.split():
-                    for fmt in COMMON_DATE_FORMATS:
-                        try:
-                            datetime.strptime(word, fmt)
-                            dates.append(word)
-                            break
-                        except ValueError:
-                            continue
-                    else:
-                        continue
-                    break
-                pos += 1
-        result = deided
-        for date in dates:
-            shifted = datetime.strptime(date, '%m/%d/%Y') + timedelta(days=date_shift_by)
-            result = result.replace('[DATE]', shifted.strftime('%m/%d/%Y'), 1)
-        shifted_list.append(result)
-        print_and_log(f"PROGRESS: {i+1}/{len(original_list)} rows date shifted")
-    return shifted_list
-
-def textdeid_main(**config):
-    try:
-        df = pd.read_excel(os.path.join("input", "input.xlsx"), header=None)
-        original_data = df.iloc[:,0].tolist()
-        deid_data = scrub(original_data, config.get("to_keep_list"), config.get("to_remove_list"))
-        shifted_data = date_shift_text(original_data, deid_data, config.get("date_shift_by"))
-        pd.DataFrame(shifted_data).to_excel(os.path.join("output", "output.xlsx"), index=False, header=False)
-        print_and_log("PROGRESS: COMPLETE")
-    except Exception as e:
-        error_and_exit(f"Error: {e}")
-
 def parse_rclone_config(config_path):
     """Parse rclone config file into sections"""
     sections = {}
@@ -661,54 +572,6 @@ def image_export_main(**config):
     except Exception as e:
         error_and_exit(f"Error: {e}")
 
-def extract_text_from_pdf(pdf_path):
-    try:
-        reader = PdfReader(pdf_path)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() or ""
-        return text.strip()
-    except Exception as e:
-        error_msg = f"Error reading PDF file {pdf_path}: {e}"
-        print_and_log(error_msg)
-        return error_msg
-
-def extract_text_from_docx(docx_path):
-    try:
-        doc = Document(docx_path)
-        text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
-        return text.strip()
-    except Exception as e:
-        error_msg = f"Error reading Word file {docx_path}: {e}"
-        print_and_log(error_msg)
-        return error_msg
-
-def textextract_main(**config):
-    try:
-        wb = Workbook()
-        ws = wb.active
-        ws["A1"] = "Filename"
-        ws["B1"] = "Text"
-
-        for root, _, files in os.walk("input"):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if file.lower().endswith('.pdf'):
-                    ws.append([file_path, extract_text_from_pdf(file_path)])
-                elif not file.startswith("~$") and file.lower().endswith('.docx'):
-                    ws.append([file_path, extract_text_from_docx(file_path)])
-                else:
-                    print_and_log(f"Skipping unsupported file: {file_path}")
-                    continue
-
-        wb.save(os.path.join("output", "output.xlsx"))
-        print_and_log("PROGRESS: COMPLETE")
-    except Exception as e:
-        import traceback
-
-        print_and_log(f"Error extracting text:{e}")
-        print_and_log(traceback.format_exc())
-
 def validate_ctp_filters(filters):
     grammar = r"""start: expr
         ?expr: term | expr ("+" | "*") term
@@ -761,8 +624,8 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
-    if config.get("module") not in ["imageqr", "imagedeid", "textdeid", "imageexport", "textextract"]:
-        error_and_exit("Module invalid or not implemented.")
+    # if config.get("module") not in ["imageqr", "imagedeid", "imageexport"]:
+    #     error_and_exit("Module invalid or not implemented.")
     if not os.path.exists("input"):
         error_and_exit("Input directory not found.")
     if config.get("ctp_filters") is not None:
@@ -789,16 +652,9 @@ def validate_config(config):
             if config.get("date_window") is not None and not isinstance(config.get("date_window"), int):
                 error_and_exit("Date window must be an integer.")
             validate_excel(os.path.join("input", "input.xlsx"), **config)
-        else:
-            if config.get("to_keep_list") is None or config.get("to_remove_list") is None:
-                error_and_exit("to_keep_list and to_remove_list must be provided.")
-            if config.get("date_shift_by") is None:
-                error_and_exit("Date shift by must be provided.")
     elif config.get("module") in ["imagedeid", "imageexport"]:
         if count_dicom_files("input") == 0:
             error_and_exit("No DICOM files found in input directory.")
-    elif config.get("module") != "textextract":
-        error_and_exit("Input directory must contain input.xlsx file.")
 
 def imageqr(**config):
     """
@@ -842,19 +698,6 @@ def imagedeid(**config):
     """
     imagedeid_main(**config)
 
-def textdeid(**config):
-    """
-    De-identifies text from the input.xlsx file in the input directory.
-    The excel file should only have one column with text to be de-identified.
-    The excel file should not have any headers.
-
-    Keyword Args:
-        date_shift_by (int): Number of days to shift the date.
-        to_keep_list (list): List of phrases to be preserved.
-        to_remove_list (list): List of phrases to be de-identified.
-    """
-    textdeid_main(**config)
-
 def imageexport(**config):
     """
     Export DICOM images to a cloud storage location.
@@ -867,22 +710,39 @@ def imageexport(**config):
     """
     image_export_main(**config)
 
-def textextract(**config):
-    """
-    Extracts text from all pdf and docx files within the input directory and
-    its subdirectories, then outputs an excel file with the extracted text.
+def generalmodule(**config):
+    logging.info(f"Running module: {config.get('module')}")
+    logging.info(f"Config: {config}")
+    module = config.get("module")
+    print(os.listdir("modules"))
+    module_path = os.path.abspath(os.path.join("modules", f"{module}"))
+    if not os.path.exists(module_path):
+        error_and_exit(f"Module {module} not found.")
 
-    Keyword Args:
-        None
-    """
-    textextract_main(**config)
+    module_cmd = [
+        module_path,
+        "config.yml",
+        "input",
+        "output",
+        "appdata/log.txt"
+    ]
+
+    try:
+        result = subprocess.run(module_cmd, check=True, capture_output=True, text=True)
+        logging.info("Module output: %s", result.stdout)
+    except subprocess.CalledProcessError as e:
+        logging.info(f"Module output: {e.stderr}")
+        error_and_exit(f"Module execution failed with exit code {e.returncode}: {e.stderr}")
 
 def run_module(**config):
     logging.info(f"Running module: {config.get('module')}")
     logging.info(f"Config: {config}")
-    globals()[config.get("module")](**config)
+    if config.get("module") in ["imageqr", "imagedeid", "imageexport"]:
+        globals()[config.get("module")](**config)
+    else:
+        generalmodule(**config)
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
     if not os.path.exists("config.yml"):
         error_and_exit("File config.yml not found.")
     with open("config.yml", "r") as file:

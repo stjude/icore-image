@@ -1,16 +1,16 @@
-# aiminer
+# icore_processor
 
 ## Docker image
 
-The `aiminer` docker image is currently in development. It will contain functionality for all modules.
+The `icore_processor` docker image is currently in development. It will contain functionality for all modules.
 
 The docker image will be used as follows:
 
 ```
-docker run --rm -it -v $(pwd)/config.yml:/config.yml -v $(pwd)/input:/input -v $(pwd)/output:/output aiminer
+docker run --rm -it -v $(pwd)/config.yml:/config.yml -v $(pwd)/input:/input -v $(pwd)/output:/output icore_processor
 ```
 
-* `config.yml`: Configuration file for `aiminer`. You'll have to create this for each job based on user input. See the example `config.yml` in the repo or the module specific examples below.
+* `config.yml`: Configuration file for `icore_processor`. You'll have to create this for each job based on user input. See the example `config.yml` in the repo or the module specific examples below.
 * `input`: Directory containing DICOMs or a single `input.xlsx` file depending on the job.
 * `output`: Directory where pipeline outputs and logs will be stored.
 
@@ -26,8 +26,8 @@ If you're using imageqr or imagedeid from PACS, you'll have to expose the approp
 ## How to build the image
 
 ```
-docker image rm -f aiminer
-docker build . --tag aiminer
+docker image rm -f icore_processor
+docker build . --tag icore_processor
 ```
 
 ### headerqr
@@ -120,6 +120,6 @@ For imagedeid from PACS and imageqr, you'll need to set up a local DICOM server.
 4. Create `config.yml` file and run the docker image. Note the `pacs_ip` will have to be `host.docker.internal` if you're trying to reference localhost on the host machine from the container.
 
 ```
-docker run --rm -it -v $(pwd)/config.yml:/config.yml -v $(pwd)/input:/input -v $(pwd)/output:/output -p 50001:50001 -p 4242:4242 aiminer
+docker run --rm -it -v $(pwd)/config.yml:/config.yml -v $(pwd)/input:/input -v $(pwd)/output:/output -p 50001:50001 -p 4242:4242 icore_processor
 
 ```

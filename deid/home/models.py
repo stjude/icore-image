@@ -15,9 +15,8 @@ class Project(models.Model):
         IMAGE_DEID = 'IMAGE_DEID', 'Image De-identification'
         IMAGE_QUERY = 'IMAGE_QUERY', 'Image Query'
         HEADER_QUERY = 'HEADER_QUERY', 'Header Query'
-        TEXT_DEID = 'TEXT_DEID', 'Text De-identification'
         IMAGE_EXPORT = 'IMAGE_EXPORT', 'Image Export'
-        TEXT_EXTRACT = 'TEXT_EXTRACT', 'Text Extraction'
+        GENERAL_MODULE = 'GENERAL_MODULE', 'General Module'
     task_type = models.CharField(max_length=20, choices=TaskType.choices)
     class TaskStatus(models.TextChoices):
         PENDING = 'PENDING', 'Pending'
@@ -40,3 +39,16 @@ class Project(models.Model):
 
     class Meta:
         db_table = 'deid_tasks'
+
+class Module(models.Model):
+    name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=512)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    version = models.CharField(max_length=50, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name} (v{self.version})"
+
+    class Meta:
+        ordering = ['-uploaded_at']
