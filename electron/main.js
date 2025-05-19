@@ -96,6 +96,20 @@ async function loadDockerImage() {
     });
 }
 
+function installProcessor() {
+    if (app.isPackaged) {
+        const userProcessorDir = path.join(os.homedir(), 'iCore', 'bin');
+        const userProcessorPath = path.join(userProcessorDir, 'processor');
+        
+        if (!fs.existsSync(userProcessorPath)) {
+            fs.mkdirSync(userProcessorDir, { recursive: true });
+            const resourceProcessorPath = path.join(process.resourcesPath, 'app', 'assets', 'dist', 'processor');
+            fs.copyFileSync(resourceProcessorPath, userProcessorPath);
+            fs.chmodSync(userProcessorPath, '755');
+        }
+    }
+}
+
 async function initializeFirstRun() {
     const settingsPath = path.join(logsDir, 'settings.json');
     if (!fs.existsSync(settingsPath)) {
@@ -119,6 +133,8 @@ async function initializeFirstRun() {
             
         fs.copyFileSync(defaultSettingsPath, settingsPath);
     }
+
+    installProcessor();
 }
 
 async function updatePacsSettings() {

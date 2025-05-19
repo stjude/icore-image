@@ -484,6 +484,8 @@ def imagedeid_main(**config):
         if querying_pacs:
             failed_accessions = cmove_images(logf, **config)
             logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
+        else:
+            failed_accessions = []
     save_failed_accessions(failed_accessions)
 
 def parse_rclone_config(config_path):
