@@ -127,7 +127,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             root="roots/DicomAnonymizer"
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
-            quarantine="quarantines/DicomAnonymizer" />
+            quarantine="../appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -172,7 +172,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             port="50001"
             calledAETTag="{application_aet}"
             root="roots/DicomImportService"
-            quarantine="quarantines/DicomImportService"
+            quarantine="../appdata/quarantine"
             logConnections="no" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
@@ -193,13 +193,13 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             name="DicomDecompressor"
             root="roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
-            quarantine="quarantines/DicomDecompressor"/>
+            quarantine="../appdata/quarantine"/>
         <DicomPixelAnonymizer
             class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
             name="DicomPixelAnonymizer"
             root="roots/DicomPixelAnonymizer"
             script="scripts/DicomPixelAnonymizer.script"
-            quarantine="quarantines/DicomPixelAnonymizer"/>
+            quarantine="../appdata/quarantine"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             name="IDMap"
@@ -210,7 +210,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             root="roots/DicomAnonymizer"
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
-            quarantine="quarantines/DicomAnonymizer" />
+            quarantine="../appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -227,7 +227,7 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             setStandardExtensions="yes"
             acceptDuplicates="no"
             returnStoredFile="yes"
-            quarantine="quarantines/DirectoryStorageService"
+            quarantine="../appdata/quarantine"
             whitespaceReplacement="_" />
     </Pipeline>
 </Configuration>
@@ -634,7 +634,7 @@ def validate_config(config):
         validate_ctp_filters(config.get("ctp_filters"))
     if config.get("ctp_anonymizer") is not None:
         validate_ctp_anonymizer(config.get("ctp_anonymizer"))
-    if os.listdir("output") != []:
+    if config.get("module") in ["imageqr", "imagedeid"] and os.listdir("output") != []:
         error_and_exit("Output directory must be empty.")
     if os.path.exists(os.path.join("input", "input.xlsx")):
         if config.get("module") in ["imageqr", "imagedeid"]:

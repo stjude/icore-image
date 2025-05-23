@@ -13,6 +13,7 @@ from django.db import models, transaction
 from grammar import (
     generate_anonymizer_script,
     generate_filters_string,
+    generate_lookup_contents,
     generate_lookup_table,
 )
 from home.models import Project
@@ -110,10 +111,18 @@ def build_image_deid_config(task):
     date_shift_days = task.parameters['date_shift_days']
 
     lookup_file = task.parameters['lookup_file'] if task.parameters['use_lookup_table'] else None
-    lookup_table = generate_lookup_table(lookup_file)
+    lookup_contents, anonymizer_lookup_contents = generate_lookup_contents(lookup_file)
+    lookup_table = generate_lookup_table(lookup_contents)
     config['ctp_lookup_table'] = scalarstring.LiteralScalarString(lookup_table)
 
-    anonymizer_script = generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days, lookup_file)
+    anonymizer_script = generate_anonymizer_script(
+        tags_to_keep,
+        tags_to_dateshift,
+        tags_to_randomize,
+        date_shift_days,
+        task.parameters['site_id'],
+        anonymizer_lookup_contents
+    )
     config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
     print(config)
     # Write config to file

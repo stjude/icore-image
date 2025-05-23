@@ -109,19 +109,12 @@ def generate_filters_string(general_filters, modality_filters):
         return modalities_str
 
 
-def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days, lookup_file=None):
+def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days, site_id, lookup_lines=None):
     # Convert newline-separated strings to arrays, filtering out empty strings
     tags_to_keep = [tag.strip() for tag in tags_to_keep.split('\n') if tag.strip()]
     tags_to_dateshift = [tag.strip() for tag in tags_to_dateshift.split('\n') if tag.strip()]
     tags_to_randomize = [tag.strip() for tag in tags_to_randomize.split('\n') if tag.strip()]
-    tags_to_lookup = []
-    if lookup_file:
-        df = pd.read_excel(lookup_file)
-        for _, row in df.iterrows():
-            tag_name = row[0]
-            if tag_name not in tags_to_lookup:
-                tags_to_lookup.append(tag_name)
-    
+
     script = ['<script>']
     
     # Add header parameters
@@ -137,18 +130,15 @@ def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomiz
         '   <p t="SUBJECT">Subject</p>',
         '   <p t="UIDROOT">1.2.840.113654.2.70.1</p>'
     ])
-    
-    # Process DICOM tags
-    for tag_name in sorted(set(tags_to_keep + tags_to_dateshift + tags_to_randomize + tags_to_lookup)):
+
+    for tag_name in sorted(set(tags_to_keep + tags_to_dateshift + tags_to_randomize)):
         name = tag_name.strip()
         try:
             tag = tag_dict[tag_name].replace('(', '').replace(',', '').replace(')', '')
         except KeyError:
             return f"Tag {tag_name} not found in DICOM dictionary."
-        if tag_name in tags_to_lookup:
-            lookup_element_name = LOOKUP_ELEMENT_NAMES.get(name, 'ptid')
-            script.append(f'   <e en="T" t="{tag}" n="{name}">@lookup(this,{lookup_element_name})</e>')
-        elif tag_name in tags_to_keep:
+
+        if tag_name in tags_to_keep:
             script.append(f'   <e en="T" t="{tag}" n="{name}">@keep()</e>')
         elif tag_name in tags_to_dateshift:
             script.append(f'   <e en="T" t="{tag}" n="{name}">@incrementdate(this,@DATEINC)</e>')
@@ -156,7 +146,10 @@ def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomiz
             hash_method = HASH_METHODS.get(name, "@hash(this)")
             script.append(f'   <e en="T" t="{tag}" n="{name}">{hash_method}</e>')
     
+    if lookup_lines:
+        script.extend(lookup_lines)
     script.extend([
+        f'   <e en="T" t="00120030" n="ClinicalTrialSiteID">@always(){site_id}</e>',
         '   <r en="T" t="curves">Remove curves</r>',
         '   <r en="T" t="overlays">Remove overlays</r>',
         '   <r en="T" t="privategroups">Remove private groups</r>',
@@ -166,23 +159,67 @@ def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomiz
     
     return '\n'.join(script)
 
-def generate_lookup_table(lookup_file=None):
-    lookup_table = """"""
+def generate_lookup_table(lookup_lines=None):
+    if not lookup_lines:
+        return None
+    return "\n".join(lookup_lines)
+
+
+def tag_keyword(tag: str) -> str:
+    """Return a safe keyType for the lookup table (lower-case, no spaces)."""
+    return tag.strip().replace(" ", "").lower()
+
+
+def generate_lookup_contents(lookup_file):
     if not lookup_file:
-        return lookup_table
-    
+        return None, None
     df = pd.read_excel(lookup_file)
-    
-    # Iterate through each row
-    for _, row in df.iterrows():
-        tag_name = row[0]  # First column contains tag name
-        original_value = row[1]  # Second column contains original value 
-        new_value = row[2]  # Third column contains new value
+    cols = {c.strip(): c for c in df.columns}
+    required = ["InputTag", "OriginalValue", "OutputTag", "NewValue"]
+    print(cols)
+    if any(col not in cols.values() for col in required):
+        raise ValueError(f"Excel must contain columns: {', '.join(required)}")
+
+    lookup_lines = []
+    script_lines = []
+
+    for output_tag, chunk in df.groupby("OutputTag", sort=False):
+        print(chunk)
+        trigger_tags = chunk["InputTag"].unique()
+        if len(trigger_tags) != 1:
+            raise ValueError(
+                f"Output tag '{output_tag}' has more than one trigger tag "
+                f"({', '.join(trigger_tags)}). CTP supports only one per tag."
+            )
+        trigger_tag = trigger_tags[0]
+
+        keytype = tag_keyword(output_tag)
+
+        for _, row in chunk.iterrows():
+            trig_val = str(row["OriginalValue"]).strip()
+            out_val  = str(row["NewValue"]).strip()
+            lookup_lines.append(f"{keytype}/{trig_val} = {out_val}")
         
-        # Get the element name for the lookup table format
-        element_name = LOOKUP_ELEMENT_NAMES.get(tag_name, 'ptid')
-        
-        # Add the mapping to the lookup table
-        lookup_table += f"{element_name}/{original_value}={new_value}\n"
-        
-    return lookup_table
+        trigger_name = trigger_tag.strip()
+        output_name = output_tag.strip()
+        try:
+            trigger_tag = tag_dict[trigger_name].replace('(', '').replace(',', '').replace(')', '')
+        except KeyError:
+            return f"Tag {trigger_name} not found in DICOM dictionary."
+        try:
+            output_tag = tag_dict[output_name].replace('(', '').replace(',', '').replace(')', '')
+        except KeyError:
+            return f"Tag {output_name} not found in DICOM dictionary."
+
+        if trigger_tag == output_tag:
+            script_lines.append(
+                f"   <e en='T' t='{output_tag}' n='{output_name}'>@lookup(this, {keytype})</e>"
+            )
+        else:
+            script_lines.append(
+                f"   <e en='T' t='{output_tag}' n='{output_name}'>@lookup({trigger_tag}, {keytype})</e>"
+            )
+    print(script_lines)
+    print(lookup_lines)
+
+    return lookup_lines, script_lines
