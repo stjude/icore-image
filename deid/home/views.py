@@ -239,6 +239,7 @@ def run_deid(request):
                     'date_shift_days': data['date_shift_days'],
                     'lookup_file': data['lookup_file'],
                     'use_lookup_table': data['use_lookup'],
+                    'site_id': data['site_id'],
                 }
             )
             return JsonResponse({
@@ -607,6 +608,9 @@ def save_admin_settings(request):
     # Handle other form data
     if request.POST.get('default_date_shift_days'):
         existing_settings['date_shift_range'] = request.POST['default_date_shift_days']
+    
+    if request.POST.get('site_id'):
+        existing_settings['site_id'] = request.POST['site_id']
     
     # Save updated settings
     with open(settings_path, 'w') as f:

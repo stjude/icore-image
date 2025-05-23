@@ -48,7 +48,7 @@
     </div>
 
     <div class="mt-8">
-        <div class="text-md mb-4">Date Shift Configuration</div>
+        <div class="text-md mb-4">Site Data Configuration</div>
         <div class="grid grid-cols-2 gap-8">
             <div>
                 <div class="text-sm text-gray-500 mb-2">Date Shift Range (days)</div>
@@ -58,6 +58,13 @@
                     min="0"
                     value="-3210">
                 <div class="text-xs text-gray-400 mt-1">Number of days to shift dates</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-500 mb-2">Site ID</div>
+                <input type="text" 
+                    class="w-full border-2 border-gray-400 p-1" 
+                    id="site_id" 
+                    placeholder="Enter site ID">
             </div>
         </div>
     </div>
@@ -151,6 +158,9 @@ async function loadSettings() {
         if (settings.date_shift_range) {
             document.getElementById('date_shift_range').value = settings.date_shift_range;
         }
+        if (settings.site_id) {
+            document.getElementById('site_id').value = settings.site_id;
+        }
         if (settings.rclone_config) {
             document.getElementById('rclone_config').value = settings.rclone_config;
         }
@@ -164,12 +174,16 @@ async function saveSettings() {
         const formData = new FormData();
         const protocolFile = document.getElementById('protocol_file').files[0];
         const dateShiftRange = document.getElementById('date_shift_range').value;
+        const siteId = document.getElementById('site_id').value;
 
         if (protocolFile) {
             formData.append('protocol_file', protocolFile);
         }
         if (dateShiftRange) {
             formData.append('default_date_shift_days', dateShiftRange);
+        }
+        if (siteId) {
+            formData.append('site_id', siteId);
         }
         if (rclone_config) {
             formData.append('rclone_config', document.getElementById('rclone_config').value);
