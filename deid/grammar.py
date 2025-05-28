@@ -170,13 +170,142 @@ def tag_keyword(tag: str) -> str:
     return tag.strip().replace(" ", "").lower()
 
 
+class LookupConfig:
+    def __init__(self, trigger_col, mappings):
+        """
+        Configuration for lookup table generation.
+        
+        Args:
+            trigger_col (str): The column name that contains the trigger/key values
+            mappings (list): List of dicts with:
+                - 'col': Excel column name for new values
+                - 'tag': DICOM tag name for the field
+                - 'keytype': Key type for lookup (from LOOKUP_ELEMENT_NAMES)
+                - 'trigger_tag': Optional - different tag to trigger lookup from
+        """
+        self.trigger_col = trigger_col
+        self.mappings = mappings
+
 def generate_lookup_contents(lookup_file):
+    df = pd.read_excel(lookup_file)
+    if "AccessionNumber" in df.columns:
+        return generate_accession_number_lookup_contents(lookup_file)
+    elif "MRN" in df.columns:
+        return generate_mrn_lookup_contents(lookup_file)
+    else:
+        raise ValueError("Lookup file must contain either AccessionNumber or MRN column")
+
+def generate_lookup_contents_base(lookup_file, config):
+    """
+    Base function for generating lookup table contents based on configuration.
+    
+    Args:
+        lookup_file: Excel file with required columns
+        config (LookupConfig): Configuration specifying mappings and requirements
+    
+    Returns:
+        tuple: (lookup_lines, script_lines) for the CTP anonymizer
+    """
+    if not lookup_file:
+        return None, None
+        
+    df = pd.read_excel(lookup_file)
+    cols = {c.strip(): c for c in df.columns}
+    
+    required = [config.trigger_col] + [m['col'] for m in config.mappings]
+    if any(col not in cols.values() for col in required):
+        raise ValueError(f"Excel must contain columns: {', '.join(required)}")
+
+    lookup_lines = []
+    script_lines = []
+    
+    for mapping in config.mappings:
+        keytype = mapping.get('keytype') or LOOKUP_ELEMENT_NAMES[mapping['tag']]
+        trigger_tag = mapping.get('trigger_tag', config.trigger_col)
+        
+        for _, row in df.iterrows():
+            trigger_val = str(row[config.trigger_col]).strip()
+            new_val = str(row[mapping['col']]).strip()
+            lookup_lines.append(f"{keytype}/{trigger_val} = {new_val}")
+        
+        tag_hex = tag_dict[mapping['tag']].replace('(', '').replace(',', '').replace(')', '')
+        if trigger_tag == mapping['tag']:
+            script_lines.append(
+                f'   <e en="T" t="{tag_hex}" n="{mapping["tag"]}">@lookup(this, {keytype})</e>'
+            )
+        else:
+            trigger_hex = tag_dict[trigger_tag].replace('(', '').replace(',', '').replace(')', '')
+            script_lines.append(
+                f'   <e en="T" t="{tag_hex}" n="{mapping["tag"]}">@lookup({trigger_hex}, {keytype})</e>'
+            )
+
+    return lookup_lines, script_lines
+
+def generate_mrn_lookup_contents(lookup_file):
+    """Generate lookup table contents based on MRN (PatientID) as the key."""
+    config = LookupConfig(
+        trigger_col="MRN",
+        mappings=[
+            {
+                'col': 'New-PatientName',
+                'tag': 'PatientName',
+                'keytype': 'patientname',
+            },
+            {
+                'col': 'New-PatientID',
+                'tag': 'PatientID',
+                'keytype': 'patientid'
+            },
+            {
+                'col': 'New-AccessionNumber',
+                'tag': 'AccessionNumber',
+                'keytype': 'accessionnumber'
+            },
+            {
+                'col': 'New-StudyDate',
+                'tag': 'StudyDate',
+                'keytype': 'studydate'
+            }
+        ]
+    )
+    return generate_lookup_contents_base(lookup_file, config)
+
+def generate_accession_number_lookup_contents(lookup_file):
+    """Generate lookup table contents based on accession number as the key."""
+    config = LookupConfig(
+        trigger_col="AccessionNumber",
+        mappings=[
+            {
+                'col': 'New-PatientName',
+                'tag': 'PatientName',
+                'keytype': 'patientname'
+            },
+            {
+                'col': 'New-PatientID',
+                'tag': 'PatientID',
+                'keytype': 'patientid'
+            },
+            {
+                'col': 'New-AccessionNumber',
+                'tag': 'AccessionNumber',
+                'keytype': 'accessionnumber'
+            },
+            {
+                'col': 'New-StudyDate',
+                'tag': 'StudyDate',
+                'keytype': 'studydate'
+            }
+        ]
+    )
+    return generate_lookup_contents_base(lookup_file, config)
+
+def generate_lookup_contents_legacy(lookup_file):
+    """Legacy function that handles generic lookup table generation."""
     if not lookup_file:
         return None, None
     df = pd.read_excel(lookup_file)
     cols = {c.strip(): c for c in df.columns}
     required = ["InputTag", "OriginalValue", "OutputTag", "NewValue"]
-    print(cols)
     if any(col not in cols.values() for col in required):
         raise ValueError(f"Excel must contain columns: {', '.join(required)}")
 
@@ -184,7 +313,6 @@ def generate_lookup_contents(lookup_file):
     script_lines = []
 
     for output_tag, chunk in df.groupby("OutputTag", sort=False):
-        print(chunk)
         trigger_tags = chunk["InputTag"].unique()
         if len(trigger_tags) != 1:
             raise ValueError(
@@ -192,12 +320,11 @@ def generate_lookup_contents(lookup_file):
                 f"({', '.join(trigger_tags)}). CTP supports only one per tag."
             )
         trigger_tag = trigger_tags[0]
-
         keytype = tag_keyword(output_tag)
 
         for _, row in chunk.iterrows():
             trig_val = str(row["OriginalValue"]).strip()
-            out_val  = str(row["NewValue"]).strip()
+            out_val = str(row["NewValue"]).strip()
             lookup_lines.append(f"{keytype}/{trig_val} = {out_val}")
         
         trigger_name = trigger_tag.strip()
@@ -219,7 +346,6 @@ def generate_lookup_contents(lookup_file):
             script_lines.append(
                 f"   <e en='T' t='{output_tag}' n='{output_name}'>@lookup({trigger_tag}, {keytype})</e>"
             )
-    print(script_lines)
-    print(lookup_lines)
 
     return lookup_lines, script_lines
+    
