@@ -11,90 +11,66 @@ jobs:
     name: Build on macOS Intel
     runs-on: macos-13
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Python 3.12
-        uses: actions/setup-python@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: 3.12
+          node-version: '20'
 
-      - name: Install pip packages
+      - name: Install Electron dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install django tailwind pyinstaller ruamel.yaml
-  
-      - name: Install Docker
+          cd electron
+          npm ci
+
+      - name: Try building Docker image (skip if Docker not available)
         run: |
-          brew install --cask docker
-  
-      - name: Install Node.js and npm
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-  
-      - name: Install npm dependencies and run build
-        working-directory: electron
+          if ! docker info > /dev/null 2>&1; then
+            echo "⚠️ Docker is not available on this runner. Skipping Docker build."
+          else
+            docker image rm -f icore_processor || true
+            docker build . --tag icore_processor
+            cd electron
+            mkdir -p assets
+            docker save -o assets/icore_processor.tar icore_processor
+          fi
+
+      - name: Build Python specs (manage.spec + processor.spec)
         run: |
-          npm install
+          pip install pyinstaller
+          cd deid
+          pyinstaller --clean --noconfirm manage.spec
+          pyinstaller --clean --noconfirm processor.spec
 
-      - name: Set execute permissions
-        run: chmod +x build.sh
+      - name: Prepare Electron assets
+        run: |
+          cd electron
+          rm -rf assets/dist
+          cp ../deid/home/settings.json assets/
+          cp -r ../deid/dist assets/
 
-      - name: Run build script
-        run: ./build.sh
+      - name: Package Electron app
+        run: |
+          cd electron
+          npx electron-packager . iCore \
+            --platform=$(node -p "process.platform") \
+            --arch=$(node -p "process.arch") \
+            --icon=assets/icon.icns \
+            --overwrite
 
+      - name: Create DMG
+        run: |
+          cd electron/iCore-darwin-$(node -p "process.arch")
+          if [ ! -f ../../create-dmg.sh ]; then
+            echo "❌ create-dmg.sh not found at expected path." >&2
+            exit 1
+          fi
+          chmod +x ../../create-dmg.sh
+          ../../create-dmg.sh
+          cp iCore.dmg ../../icore-$(node -p "process.arch").dmg
       - name: Upload Intel DMG
         uses: actions/upload-artifact@v4
         with:
           name: icore-x64.dmg
           path: icore-x64.dmg
-
-  build-macos-arm:
-    name: Build on macOS ARM
-    runs-on: macos-14
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Python 3.12
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.12
-
-      - name: Install pip packages
-        run: |
-          python -m pip install --upgrade pip
-          pip install django tailwind pyinstaller ruamel.yaml
-  
-      - name: Install Docker
-        run: |
-          brew install --cask docker
-  
-      - name: Install Node.js and npm
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-  
-      - name: Install npm dependencies and run build
-        working-directory: electron
-        run: |
-          npm install
-
-      - name: Set execute permissions
-        run: chmod +x build.sh
-
-      - name: Run build script
-        run: ./build.sh
-
-      - name: Set execute permissions
-        run: chmod +x build.sh
-
-      - name: Run build script
-        run: ./build.sh
-
-      - name: Upload ARM DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: icore-arm64.dmg
-          path: icore-arm64.dmg
