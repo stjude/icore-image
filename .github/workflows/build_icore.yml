@@ -10,10 +10,6 @@ jobs:
   build-macos-intel:
     name: Build on macOS Intel
     runs-on: macos-13
-    services:
-      docker:
-        image: docker:20.10.16-dind
-        options: --privileged
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -27,6 +23,12 @@ jobs:
         run: |
           cd electron
           npm ci
+
+      - name: Install Docker and Colima
+        run: |
+          brew install docker colima
+          colima start
+          docker version
 
       - name: Try building Docker image (skip if Docker not available)
         run: |
