@@ -2,82 +2,39 @@ name: Build macOS DMGs
 
 on:
   push:
-    branches:
-      - build
+    branches: [ "build" ]
   workflow_dispatch:
 
 jobs:
-  build-macos-intel:
-    name: Build on macOS Intel
-    runs-on: macos-13
+  build:
+    # Matrix to run on both Intel (macos-13) and ARM (macos-14)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            arch: x64
+            artifact_name: icore-x64.dmg
+          - os: macos-14
+            arch: arm64
+            artifact_name: icore-xarm.dmg
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Node.js 20 and cache npm dependencies
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: electron/package-lock.json
 
-      - name: Install Electron dependencies
-        run: |
-          cd electron
-          npm ci
-
-      - name: Install Docker and Colima
-        run: |
-          brew install docker colima
-          colima start
-          docker version
-
-      - name: Try building Docker image (skip if Docker not available)
-        run: |
-          if ! docker info > /dev/null 2>&1; then
-            echo "⚠️ Docker is not available on this runner. Skipping Docker build."
-          else
-            docker image rm -f icore_processor || true
-            docker build . --tag icore_processor
-            cd electron
-            mkdir -p assets
-            docker save -o assets/icore_processor.tar icore_processor
-          fi
-
-      - name: Build Python specs (manage.spec + processor.spec)
-        run: |
-          pip install pyinstaller
-          cd deid
-          touch db.sqlite3
-          pyinstaller --clean --noconfirm manage.spec
-          pyinstaller --clean --noconfirm processor.spec
-
-      - name: Prepare Electron assets
-        run: |
-          cd electron
-          rm -rf assets/dist
-          cp ../deid/home/settings.json assets/
-          cp -r ../deid/dist assets/
-
-      - name: Package Electron app
-        run: |
-          cd electron
-          npx electron-packager . iCore \
-            --platform=$(node -p "process.platform") \
-            --arch=$(node -p "process.arch") \
-            --icon=assets/icon.icns \
-            --overwrite
-
-      - name: Create DMG
-        run: |
-          cd electron/iCore-darwin-$(node -p "process.arch")
-          if [ ! -f ../../create-dmg.sh ]; then
-            echo "❌ create-dmg.sh not found at expected path." >&2
-            exit 1
-          fi
-          chmod +x ../../create-dmg.sh
-          ../../create-dmg.sh
-          cp iCore.dmg ../../icore-$(node -p "process.arch").dmg
-      - name: Upload Intel DMG
-        uses: actions/upload-artifact@v4
+      - name: Set up Python 3.9 and cache pip
+        uses: actions/setup-python@v5
         with:
-          name: icore-x64.dmg
-          path: icore-x64.dmg
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install Node.js dependencies (Electron app)
+        working-directory: electron
+        run: npm ci
