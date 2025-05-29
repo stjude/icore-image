@@ -76,5 +76,6 @@ jobs:
 
       - name: Build Python executables
         run: |
+          cd deid
           pyinstaller deid/manage.spec
           pyinstaller deid/processor.spec
