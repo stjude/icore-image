@@ -9,11 +9,16 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
       - uses: actions/checkout@v4
+
       - name: Build Docker image
         run: docker build -t icore_processor .
+  
       - name: Save Docker image as artifact
         run: docker save icore_processor -o icore_processor.tar
+
+      - name: Upload Docker iamge as artifact
       - uses: actions/upload-artifact@v3
         with:
           name: icore_processor
