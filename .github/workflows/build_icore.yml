@@ -80,3 +80,16 @@ jobs:
           sqlite3 db.sqlite3 ".databases"
           pyinstaller manage.spec
           pyinstaller processor.spec
+
+      - name: Package Electron app
+        run: |
+          cd electron
+          npx electron-builder --mac --${{ matrix.arch }}
+          cd dist
+          mv *.dmg ../../iCore.dmg
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: iCore.dmg
