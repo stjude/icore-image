@@ -38,3 +38,20 @@ jobs:
       - name: Install Node.js dependencies (Electron app)
         working-directory: electron
         run: npm ci
+
+      # Set up and build Docker image (Intel runners only)
+      - name: Install Docker (Intel macOS only)
+        if: matrix.arch == 'x64'
+        run: |
+          brew install --cask docker
+          open /Applications/Docker.app || true
+          # Wait for Docker daemon to start (up to 2 minutes)
+          for i in {1..24}; do
+            if docker info > /dev/null 2>&1; then
+              echo "Docker is running."
+              break
+            fi
+            echo "Waiting for Docker to start..."
+            sleep 5
+          done
+          docker info
