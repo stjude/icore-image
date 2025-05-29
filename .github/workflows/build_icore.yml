@@ -32,9 +32,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-13
-            arch: x64
-            artifact_name: icore-x64.dmg
+          # - os: macos-13
+          #   arch: x64
+          #   artifact_name: icore-x64.dmg
           - os: macos-14
             arch: arm64
             artifact_name: icore-xarm.dmg
@@ -77,5 +77,5 @@ jobs:
       - name: Build Python executables
         run: |
           cd deid
-          pyinstaller deid/manage.spec
-          pyinstaller deid/processor.spec
+          pyinstaller manage.spec
+          pyinstaller processor.spec
