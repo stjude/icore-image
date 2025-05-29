@@ -10,6 +10,10 @@ jobs:
   build-macos-intel:
     name: Build on macOS Intel
     runs-on: macos-13
+    services:
+      docker:
+        image: docker:20.10.16-dind
+        options: --privileged
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,6 +44,7 @@ jobs:
         run: |
           pip install pyinstaller
           cd deid
+          touch db.sqlite3
           pyinstaller --clean --noconfirm manage.spec
           pyinstaller --clean --noconfirm processor.spec
 
