@@ -1,0 +1,99 @@
+name: Build macOS DMGs
+
+on:
+  push:
+    branches:
+      - build
+
+jobs:
+  build-macos-intel:
+    name: Build on macOS Intel
+    runs-on: macos-13
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      - name: Install pip packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install django tailwind pyinstaller ruamel.yaml
+  
+      - name: Install Docker
+        run: |
+          brew install --cask docker
+  
+      - name: Install Node.js and npm
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+  
+      - name: Install npm dependencies and run build
+        working-directory: electron
+        run: |
+          npm install
+
+      - name: Set execute permissions
+        run: chmod +x build.sh
+
+      - name: Run build script
+        run: ./build.sh
+
+      - name: Upload Intel DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: icore-x64.dmg
+          path: icore-x64.dmg
+
+  build-macos-arm:
+    name: Build on macOS ARM
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      - name: Install pip packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install django tailwind pyinstaller ruamel.yaml
+  
+      - name: Install Docker
+        run: |
+          brew install --cask docker
+  
+      - name: Install Node.js and npm
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+  
+      - name: Install npm dependencies and run build
+        working-directory: electron
+        run: |
+          npm install
+
+      - name: Set execute permissions
+        run: chmod +x build.sh
+
+      - name: Run build script
+        run: ./build.sh
+
+      - name: Set execute permissions
+        run: chmod +x build.sh
+
+      - name: Run build script
+        run: ./build.sh
+
+      - name: Upload ARM DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: icore-arm64.dmg
+          path: icore-arm64.dmg
