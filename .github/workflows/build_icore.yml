@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - build
+  workflow_dispatch:
 
 jobs:
   build-macos-intel:
