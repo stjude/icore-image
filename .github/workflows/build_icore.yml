@@ -37,7 +37,7 @@ jobs:
             artifact_name: icore-x64.dmg
           - os: macos-14
             arch: arm64
-            artifact_name: icore-xarm.dmg
+            artifact_name: icore-arm.dmg
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
