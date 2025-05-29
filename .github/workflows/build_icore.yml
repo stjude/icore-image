@@ -77,5 +77,6 @@ jobs:
       - name: Build Python executables
         run: |
           cd deid
+          sqlite3 db.sqlite3 ".databases"
           pyinstaller manage.spec
           pyinstaller processor.spec
