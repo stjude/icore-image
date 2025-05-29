@@ -6,8 +6,21 @@ on:
   workflow_dispatch:
 
 jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t icore_processor .
+      - name: Save Docker image as artifact
+        run: docker save icore_processor -o icore_processor.tar
+      - uses: actions/upload-artifact@v3
+        with:
+          name: icore_processor
+          path: icore_processor.tar
+
   build:
-    # Matrix to run on both Intel (macos-13) and ARM (macos-14)
+    needs: docker-build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -38,20 +51,3 @@ jobs:
       - name: Install Node.js dependencies (Electron app)
         working-directory: electron
         run: npm ci
-
-      # Set up and build Docker image (Intel runners only)
-      - name: Install Docker (Intel macOS only)
-        if: matrix.arch == 'x64'
-        run: |
-          brew install --cask docker
-          open /Applications/Docker.app || true
-          # Wait for Docker daemon to start (up to 2 minutes)
-          for i in {1..24}; do
-            if docker info > /dev/null 2>&1; then
-              echo "Docker is running."
-              break
-            fi
-            echo "Waiting for Docker to start..."
-            sleep 5
-          done
-          docker info
