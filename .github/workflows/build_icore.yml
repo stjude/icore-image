@@ -72,7 +72,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: icore_processor
-          path: .
+          path: ./electron/assets
 
       - name: List downloaded files
         run: ls -lh icore_processor.tar
