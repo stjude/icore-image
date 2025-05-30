@@ -74,9 +74,6 @@ jobs:
           name: icore_processor
           path: ./electron/assets
 
-      - name: List downloaded files
-        run: ls -lh icore_processor.tar
-
       - name: Build Python executables
         run: |
           cd deid
