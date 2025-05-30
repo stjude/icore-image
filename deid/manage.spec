@@ -42,6 +42,7 @@ a = Analysis(
         'pandas',    # Explicitly include pandas
         'psycopg2',  # Explicitly include psycopg2
         'pynetdicom',  # Explicitly include pynetdicom
+        'tailwind',
     ] + collect_all('django')[1],  # Include all Django modules
     hookspath=[],
     hooksconfig={},
