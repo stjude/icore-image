@@ -84,7 +84,7 @@ jobs:
       - name: Package Electron app
         run: |
           cd electron
-          npm run build
+          npm run build_all_but_image
           create-dmg \
           --volname "iCore Installer" \
           --window-pos 100 100 \
