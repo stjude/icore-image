@@ -59,6 +59,9 @@ jobs:
         working-directory: electron
         run: npm ci
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -85,18 +88,10 @@ jobs:
         run: |
           cd electron
           npm run build_all_but_image
-          create-dmg \
-          --volname "iCore Installer" \
-          --window-pos 100 100 \
-          --window-size 300 430 \
-          --icon-size 75 \
-          --icon "iCore.app" 150 90 \
-          --background ../background.png \
-          --hide-extension "iCore.app" \
-          --app-drop-link 150 240 \
-          "iCore.dmg" \
-          "iCore.app"
-
+          cd iCore-darwin-$(node -p "process.arch")
+          ../create-dmg.sh
+          cp iCore.dmg ../../icore-$(node -p "process.arch").dmg
+          
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
