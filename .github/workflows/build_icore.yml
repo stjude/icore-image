@@ -78,6 +78,7 @@ jobs:
         run: |
           cd deid
           sqlite3 db.sqlite3 ".databases"
+          echo "DJANGO_SETTINGS_MODULE=deid.config.settings" >> $GITHUB_ENV
           pyinstaller manage.spec
           pyinstaller processor.spec
 
