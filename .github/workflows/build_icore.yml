@@ -90,10 +90,10 @@ jobs:
           npm run build_all_but_image
           cd iCore-darwin-$(node -p "process.arch")
           ../create-dmg.sh
-          cp iCore.dmg ../../icore-$(node -p "process.arch").dmg
+          cp iCore.dmg ../../iCore.dmg
           
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: electron/iCore-$(node -p "process.arch")/iCore.dmg
+          path: iCore.dmg
