@@ -20,7 +20,7 @@ project_datas = [
 ]
 
 # Include GDAL libraries explicitly
-# gdal_datas = collect_data_files('django.contrib.gis')
+gdal_datas = [] # collect_data_files('django.contrib.gis')
 
 # Collect openpyxl and pandas data files
 openpyxl_datas = collect_data_files('openpyxl')
