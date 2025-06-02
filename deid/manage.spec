@@ -42,7 +42,14 @@ a = Analysis(
         'pynetdicom',  # Explicitly include pynetdicom
         'tailwind',
     ] + collect_all('django')[1],  # Include all Django modules
-    excludedimports=['django.contrib.gis.utils'],
+    excludedimports=[
+    'django.contrib.gis',
+    'django.contrib.gis.utils',
+    'django.contrib.gis.db',
+    'django.contrib.gis.gdal',
+    'django.contrib.gis.geos',
+    'django.contrib.gis.admin',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
