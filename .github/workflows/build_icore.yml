@@ -67,6 +67,7 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install pyinstaller
           pip install -r requirements.txt
+          pip install django
 
       - name: Download Docker image artifact
         uses: actions/download-artifact@v4
