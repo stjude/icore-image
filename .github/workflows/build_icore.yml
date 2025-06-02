@@ -79,6 +79,7 @@ jobs:
           cd deid
           sqlite3 db.sqlite3 ".databases"
           python -c "import django; print(django.__file__)"
+          export PYINSTALLER_DISABLE_CONTRIB_HOOKS=1
           pyinstaller manage.spec
   
       - name: Build Processor
