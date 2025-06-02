@@ -1,6 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+import django
+import django.conf
+import django.core
+import django.core.management
+import django.utils
 from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 block_cipher = None
