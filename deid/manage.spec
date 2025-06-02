@@ -1,4 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+
 from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 block_cipher = None
@@ -20,7 +22,7 @@ project_datas = [
 ]
 
 # Include GDAL libraries explicitly
-gdal_datas = [] # collect_data_files('django.contrib.gis')
+gdal_datas = collect_data_files('django.contrib.gis')
 
 # Collect openpyxl and pandas data files
 openpyxl_datas = collect_data_files('openpyxl')
@@ -42,18 +44,10 @@ a = Analysis(
         'pynetdicom',  # Explicitly include pynetdicom
         'tailwind',
     ] + collect_all('django')[1],  # Include all Django modules
-    excludedimports=[
-    'django.contrib.gis',
-    'django.contrib.gis.utils',
-    'django.contrib.gis.db',
-    'django.contrib.gis.gdal',
-    'django.contrib.gis.geos',
-    'django.contrib.gis.admin',
-    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['django.contrib.gis', 'django.contrib.gis.utils'],
+    excludes=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
