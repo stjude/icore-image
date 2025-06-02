@@ -64,10 +64,10 @@ jobs:
 
       - name: Install spatial deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gdal-bin libgdal-dev libgeos-dev
-          export CPLUS_INCLUDE_PATH=/usr/include/gdal
-          export C_INCLUDE_PATH=/usr/include/gdal
+          brew install gdal geos
+          echo "GDAL_LIBRARY_PATH=$(gdal-config --prefix)/lib/libgdal.dylib" >> $GITHUB_ENV
+          echo "GEOS_LIBRARY_PATH=$(geos-config --prefix)/lib/libgeos_c.dylib" >> $GITHUB_ENV
+
 
       - name: Install Python dependencies
         run: |
