@@ -80,6 +80,10 @@ jobs:
           sqlite3 db.sqlite3 ".databases"
           python -c "import django; print(django.__file__)"
           pyinstaller manage.spec
+  
+      - name: Build Processor
+        run: |
+          cd deid
           pyinstaller processor.spec
 
       - name: Package Electron app
