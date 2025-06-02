@@ -78,6 +78,7 @@ jobs:
         run: |
           cd deid
           sqlite3 db.sqlite3 ".databases"
+          python -c "import django; print(django.__file__)"
           pyinstaller manage.spec
           pyinstaller processor.spec
 
