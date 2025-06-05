@@ -56,10 +56,11 @@ LOOKUP_ELEMENT_NAMES = {
 
 def build_tag_dict():
     """
-    Parse the DICOM dictionary XML file and build a mapping of tag names to their hex codes.
+    Parse the DICOM dictionary XML files and build mappings of tag names to their hex codes.
     Returns a dictionary where keys are tag names and values are tag hex codes.
     """
     dict_path = Path(__file__).parent / 'dictionary.xml'
+    mapping_path = Path(__file__).parent.parent / 'pydicom_ctp_tag_dictionary.xml'
     
     tree = ET.parse(dict_path)
     root = tree.getroot()
@@ -70,6 +71,17 @@ def build_tag_dict():
         tag = element.get('tag')
         key = element.get('key')
         tag_dict[key] = tag
+    
+    if mapping_path.exists():
+        tree = ET.parse(mapping_path)
+        root = tree.getroot()
+        
+        for element in root.findall('.//element'):
+            tag = element.get('tag')
+            pydicom_key = element.get('pydicom_key')
+            ctp_key = element.get('ctp_key')
+            tag_dict[pydicom_key] = tag
+            tag_dict[ctp_key] = tag
     
     return tag_dict
 
@@ -85,12 +97,10 @@ def generate_filters_string(general_filters, modality_filters):
             if 'not' in f['action']:
                 f['tag'] = f'!{f["tag"]}'
             f['action'] = f['action'].replace("not_", "")
-    # Build general filters string
     general_str = "\n* ".join(
         f'{f["tag"]}.{f["action"]}("{f["value"]}")' for f in general_filters
     )
 
-    # Build modality filters string
     modality_strs = []
     for _, filters in modality_filters.items():
         modality_expr = "\n* ".join(
@@ -100,7 +110,6 @@ def generate_filters_string(general_filters, modality_filters):
     
     modalities_str = "\n+ ".join(modality_strs)
 
-    # Combine into full expression
     if general_str and modalities_str:
         return f"{general_str} \n* ({modalities_str})"
     elif general_str:
@@ -110,14 +119,12 @@ def generate_filters_string(general_filters, modality_filters):
 
 
 def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days, site_id, lookup_lines=None):
-    # Convert newline-separated strings to arrays, filtering out empty strings
     tags_to_keep = [tag.strip() for tag in tags_to_keep.split('\n') if tag.strip()]
     tags_to_dateshift = [tag.strip() for tag in tags_to_dateshift.split('\n') if tag.strip()]
     tags_to_randomize = [tag.strip() for tag in tags_to_randomize.split('\n') if tag.strip()]
 
     script = ['<script>']
     
-    # Add header parameters
     script.extend([
         f'   <p t="DATEINC">{date_shift_days}</p>',
         '   <p t="NOTICE1">IMPORTANT: Be sure to review Series Descriptions for PHI!!</p>',
@@ -187,15 +194,17 @@ class LookupConfig:
         self.mappings = mappings
 
 def generate_lookup_contents(lookup_file):
+    if not lookup_file:
+        return None, None
     df = pd.read_excel(lookup_file)
     if "AccessionNumber" in df.columns:
-        return generate_accession_number_lookup_contents(lookup_file)
+        return generate_accession_number_lookup_contents(df)
     elif "MRN" in df.columns:
-        return generate_mrn_lookup_contents(lookup_file)
+        return generate_mrn_lookup_contents(df)
     else:
         raise ValueError("Lookup file must contain either AccessionNumber or MRN column")
 
-def generate_lookup_contents_base(lookup_file, config):
+def generate_lookup_contents_base(df, config):
     """
     Base function for generating lookup table contents based on configuration.
     
@@ -206,30 +215,31 @@ def generate_lookup_contents_base(lookup_file, config):
     Returns:
         tuple: (lookup_lines, script_lines) for the CTP anonymizer
     """
-    if not lookup_file:
-        return None, None
-        
-    df = pd.read_excel(lookup_file)
-    cols = {c.strip(): c for c in df.columns}
-    
-    required = [config.trigger_col] + [m['col'] for m in config.mappings]
-    if any(col not in cols.values() for col in required):
-        raise ValueError(f"Excel must contain columns: {', '.join(required)}")
+
 
     lookup_lines = []
     script_lines = []
     
     for mapping in config.mappings:
         keytype = mapping.get('keytype') or LOOKUP_ELEMENT_NAMES[mapping['tag']]
-        trigger_tag = mapping.get('trigger_tag', config.trigger_col)
         
         for _, row in df.iterrows():
-            trigger_val = str(row[config.trigger_col]).strip()
+            if isinstance(config.trigger_col, list):
+                trigger_val = '|'.join([str(row[t]).strip() for t in config.trigger_col])
+            else:
+                trigger_val = str(row[config.trigger_col]).strip()
             new_val = str(row[mapping['col']]).strip()
             lookup_lines.append(f"{keytype}/{trigger_val} = {new_val}")
         
+        trigger_tag = mapping.get('trigger_tag', config.trigger_col)
         tag_hex = tag_dict[mapping['tag']].replace('(', '').replace(',', '').replace(')', '')
-        if trigger_tag == mapping['tag']:
+        if isinstance(trigger_tag, list):
+            trigger_hex = [tag_dict[t].replace('(', '').replace(',', '').replace(')', '') for t in trigger_tag]
+            trigger_hex = '|'.join(trigger_hex)
+            script_lines.append(
+                f'   <e en="T" t="{tag_hex}" n="{mapping["tag"]}">@lookup({trigger_hex}, {keytype})</e>'
+            )
+        elif trigger_tag == mapping['tag']:
             script_lines.append(
                 f'   <e en="T" t="{tag_hex}" n="{mapping["tag"]}">@lookup(this, {keytype})</e>'
             )
@@ -241,34 +251,39 @@ def generate_lookup_contents_base(lookup_file, config):
 
     return lookup_lines, script_lines
 
-def generate_mrn_lookup_contents(lookup_file):
-    """Generate lookup table contents based on MRN (PatientID) as the key."""
+def generate_mrn_lookup_contents(df):
+    """Generate lookup table contents based on MRN + StudyDate as the key."""
     config = LookupConfig(
-        trigger_col="MRN",
+        trigger_col=["MRN", "StudyDate"],
         mappings=[
             {
                 'col': 'New-PatientName',
                 'tag': 'PatientName',
                 'keytype': 'patientname',
+                'trigger_tag': ['PatientID', 'StudyDate']
             },
             {
                 'col': 'New-PatientID',
                 'tag': 'PatientID',
-                'keytype': 'patientid'
+                'keytype': 'patientid',
+                'trigger_tag': ['PatientID', 'StudyDate']
             },
             {
                 'col': 'New-AccessionNumber',
                 'tag': 'AccessionNumber',
-                'keytype': 'accessionnumber'
+                'keytype': 'accessionnumber',
+                'trigger_tag': ['PatientID', 'StudyDate']
             },
             {
                 'col': 'New-StudyDate',
                 'tag': 'StudyDate',
-                'keytype': 'studydate'
+                'keytype': 'studydate',
+                'trigger_tag': ['PatientID', 'StudyDate']
             }
         ]
     )
-    return generate_lookup_contents_base(lookup_file, config)
+
+    return generate_lookup_contents_base(df, config)
 
 def generate_accession_number_lookup_contents(lookup_file):
     """Generate lookup table contents based on accession number as the key."""
@@ -278,26 +293,31 @@ def generate_accession_number_lookup_contents(lookup_file):
             {
                 'col': 'New-PatientName',
                 'tag': 'PatientName',
-                'keytype': 'patientname'
+                'keytype': 'patientname',
+                'trigger_tag': ['AccessionNumber']
             },
             {
                 'col': 'New-PatientID',
                 'tag': 'PatientID',
-                'keytype': 'patientid'
+                'keytype': 'patientid',
+                'trigger_tag': ['AccessionNumber']
             },
             {
                 'col': 'New-AccessionNumber',
                 'tag': 'AccessionNumber',
-                'keytype': 'accessionnumber'
+                'keytype': 'accessionnumber',
+                'trigger_tag': ['AccessionNumber']
             },
             {
                 'col': 'New-StudyDate',
                 'tag': 'StudyDate',
-                'keytype': 'studydate'
+                'keytype': 'studydate',
+                'trigger_tag': ['AccessionNumber']
             }
         ]
     )
-    return generate_lookup_contents_base(lookup_file, config)
+    df = pd.read_excel(lookup_file)
+    return generate_lookup_contents_base(df, config)
 
 def generate_lookup_contents_legacy(lookup_file):
     """Legacy function that handles generic lookup table generation."""
