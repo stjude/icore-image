@@ -358,7 +358,7 @@
                 if (isScheduled) {
                     window.location.href = '/task_list';
                 } else {
-                    window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}`;
+                    window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}&timestamp=${result.timestamp}`;
                 }
             } else {
                 console.error('Error starting de-identification:', result);

@@ -26,6 +26,7 @@
 
 <script>
     const logPath = new URLSearchParams(window.location.search).get('log_path');
+    const taskId = new URLSearchParams(window.location.search).get('task_id');
     let previousContent = '';
     let sameContentCount = 0;
     let pollInterval;
@@ -48,6 +49,28 @@
         "Invalid CTP anonymizer.",
         "Invalid excel file."
     ];
+
+    async function checkTaskStatus() {
+        if (hasError) return;
+
+        try {
+            const response = await fetch(`/api/task_status/${timestamp}`);
+            const data = await response.json();
+            
+            if (data.status === 'error' || data.status === 'failed') {
+                hasError = true;
+                document.getElementById('errorMessage').textContent = data.error_message || "Task has failed. Please check the logs for details.";
+                document.getElementById('errorPopup').classList.remove('hidden');
+                clearInterval(pollInterval);
+                setTimeout(() => {
+                    window.location.href = '/tasks';
+                }, 3000);
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking task status:', error);
+        }
+    }
     
     async function fetchLogContent() {
         if (hasError) return;
@@ -56,32 +79,18 @@
             const response = await fetch(`/get_log_content?log_path=${encodeURIComponent(logPath)}`);
             const data = await response.text();
             const logContent = document.getElementById('logContent');
-            for (const errorMsg of errorMessages) {
-                if (data.includes(errorMsg)) {
-                    hasError = true;
-                    document.getElementById('errorMessage').textContent = errorMsg;
-                    document.getElementById('errorPopup').classList.remove('hidden');
-                    break;
-                }
-                if (data.includes("No output folder specified")) {
-                    hasError = true;
-                    document.getElementById('errorMessage').textContent = "No output folder specified";
-                    document.getElementById('errorPopup').classList.remove('hidden');
-                    break;
-                }
-            }
             
             if (data === previousContent) {
                 sameContentCount++;
                 if (sameContentCount >= 200) {
                     clearInterval(pollInterval);
+                    clearInterval(statusInterval);
                     return;
                 }
             } else {
                 sameContentCount = 0;
                 previousContent = data;
             }
-
             
             logContent.innerHTML = data.replace(/\n/g, '<br>');
             logContent.scrollTop = logContent.scrollHeight;
@@ -98,8 +107,12 @@
 
     // Initial fetch
     fetchLogContent();
+    checkTaskStatus();
 
     // Poll every second
     pollInterval = setInterval(fetchLogContent, 1000);
+    
+    // Check task status every 5 
+    const statusInterval = setInterval(checkTaskStatus, 5000);
 </script>
 {% endblock %}
