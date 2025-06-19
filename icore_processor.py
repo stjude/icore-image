@@ -298,7 +298,7 @@ def tick(tick_func, data):
     print_and_log("PROGRESS: COMPLETE")
 
 def start_ctp_run(tick_func, tick_data, logf):
-    ctp_process = subprocess.Popen(["java", "-jar", "Runner.jar"], cwd="ctp", stdout=logf, stderr=logf, text=True)
+    ctp_process = subprocess.Popen(["java", "-jar", "-Xmx16g", "Runner.jar"], cwd="ctp", stdout=logf, stderr=logf, text=True)
     tick_data = {"complete": False, "querying_pacs": True, "dicom_count": count_dicom_files("input")} | tick_data
     tick_thread = Thread(target=tick, args=(tick_func, tick_data,), daemon=True)
     tick_thread.start()
