@@ -12,7 +12,7 @@ openpyxl==3.1.5
 et_xmlfile==2.0.0
 
 # Web framework and related
-Django==4.2.16
+django>=4.2.22
 django-tailwind==3.6.0
 asgiref==3.8.1
 sqlparse==0.5.1
@@ -32,13 +32,8 @@ typing_extensions==4.12.2
 tzdata==2024.2
 tzlocal==5.2
 
-# Document Processing
-python-docx==1.1.2
-PyPDF2==3.0.1
-lxml==5.4.0
-
 # Networking and Data Formats
-requests==2.32.3
+requests>=2.32.4
 urllib3==2.4.0
 certifi==2025.4.26
 charset-normalizer==3.4.2
