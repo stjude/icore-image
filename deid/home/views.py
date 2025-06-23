@@ -1,7 +1,9 @@
+import logging
 import json
 import os
 import shutil
 import time
+import socket
 from datetime import datetime
 
 import bcrypt
@@ -26,6 +28,19 @@ from .models import Project, Module
 
 SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.icore')
 APP_DATA_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'app_data')
+AUTHENTICATION_LOG_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'authentication.log')
+SECURE_DIR = os.path.join(os.path.expanduser('~'), '.secure', '.config', '.sysdata')
+
+AUTH_LOGGER = logging.getLogger('authentication')
+AUTH_LOGGER.setLevel(logging.INFO)
+
+auth_handler = logging.FileHandler(AUTHENTICATION_LOG_PATH)
+auth_handler.setLevel(logging.INFO)
+auth_formatter = logging.Formatter("%(asctime)s %(levelname)-5s %(message)s", datefmt="%H:%M:%S")
+auth_handler.setFormatter(auth_formatter)
+
+AUTH_LOGGER.addHandler(auth_handler)
+
 class CommonContextMixin:
     def get_common_context(self):
         return {
@@ -738,16 +753,7 @@ def generate_action_string(action):
     return action
 
 def get_password_file_path():
-    settings_dir = os.path.join(os.path.expanduser('~'), '.icore')
-    os.makedirs(settings_dir, exist_ok=True)
-    return os.path.join(settings_dir, 'admin_password.txt')
-
-def set_admin_password(password):
-    """Hash and store the admin password"""
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    with open(get_password_file_path(), 'wb') as f:
-        f.write(hashed)
+    return os.path.join(SECURE_DIR, 'icapf.txt')
 
 def check_admin_password(password):
     """Check if the provided password matches the stored hash"""
@@ -760,33 +766,22 @@ def check_admin_password(password):
 
 @require_http_methods(["POST"])
 def verify_admin_password(request):
+    settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+    with open(settings_path, 'r') as f:
+        settings = json.load(f)
+    aet = settings.get('application_aet')
     try:
         data = json.loads(request.body)
         password = data.get('password', '')
         is_valid = check_admin_password(password)
+        hostname = socket.gethostname()
+        if is_valid:
+            AUTH_LOGGER.info(f"Authentication successful for AET Title: {aet} and hostname: {request.META.get('REMOTE_ADDR')}")
+        else:
+            AUTH_LOGGER.info(f"Authentication failed for AET Title: {aet} and hostname: {request.META.get('REMOTE_ADDR')}")
         return JsonResponse({'valid': is_valid})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
-def initialize_admin_password():
-    """Initialize admin password file by copying from source"""
-    try:
-        # Get source and destination paths
-        default_password = 'password'
-        dest_path = get_password_file_path()
-
-        # Only copy if destination doesn't exist
-        if not os.path.exists(dest_path):
-            # Create settings directory if needed
-            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            
-            # Copy the password file
-            with open(dest_path, 'wb') as dst:
-                dst.write(bcrypt.hashpw(default_password.encode('utf-8'), bcrypt.gensalt()))
-    except Exception as e:
-        print(f"Error initializing admin password: {str(e)}")
-
-initialize_admin_password()
 
 @require_http_methods(["POST"])
 def delete_task(request, task_id):
