@@ -29,6 +29,11 @@ function checkDockerRunning() {
     });
 }
 
+function checkAdminPassword() {
+    const adminPasswordPath = path.join(os.homedir(), '.secure', '.config', '.sysdata', 'icapf.txt');
+    return fs.existsSync(adminPasswordPath);
+}
+
 async function installDocker() {
     const installScript = app.isPackaged
         ? path.join(process.resourcesPath, 'app', 'assets', 'install-docker.sh')
@@ -232,6 +237,20 @@ app.on('ready', async () => {
         dialog.showMessageBox({
             type: 'error',
             title: 'Docker Not Running',
+            message: message,
+            buttons: ['OK']
+        }).then(() => {
+            app.quit();
+        });
+        return;
+    }
+    const adminPasswordExists = checkAdminPassword();
+    if (!adminPasswordExists) {
+        const message = 'The application is not properly set up. Admin password file is missing.';
+        logWithTimestamp(mainLogStream, `Error: ${message}`);
+        dialog.showMessageBox({
+            type: 'error',
+            title: 'Setup Error',
             message: message,
             buttons: ['OK']
         }).then(() => {
