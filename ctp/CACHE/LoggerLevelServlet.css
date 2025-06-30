@@ -1,0 +1,44 @@
+body {
+	padding:0;
+	margin:0;
+	text-align: center;
+}
+
+div.closebox {
+	float: right;
+	margin: 2;
+}
+
+h1, h2 {
+	text-align: center;
+	font-family: Arial, Helvetica, sans-serif;
+	margin-top: 15px;
+}
+
+p.note {
+	text-align:	left;
+	font-size:	xx-small;
+	font-family:	Verdana, Arial, Helvetica, sans-serif;
+	font-weight:	normal;
+	margin-left:	15%;
+	margin-right:	15%;
+	margin-bottom:	3;
+	padding-bottom:	10;
+}
+
+table {
+	width:60%;
+}
+
+td.left {
+	width:100px;
+}
+
+input.text {
+	width:100%;
+}
+
+select {
+	width:100%;
+}
+

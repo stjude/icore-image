@@ -1,0 +1,82 @@
+name: Build macOS DMGs
+
+on:
+  push:
+    branches: [ "build" ]
+  workflow_dispatch:
+
+jobs:
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t icore_processor .
+  
+      - name: Save Docker image as artifact
+        run: docker save icore_processor -o icore_processor.tar
+
+      - name: Upload Docker iamge as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: icore_processor
+          path: icore_processor.tar
+
+  build-macos:
+    name: Build iCore on MacOs {{ matrix.arch }}
+    needs: docker-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # - os: macos-13
+          #   arch: x64
+          #   artifact_name: icore-x64.dmg
+          - os: macos-14
+            arch: arm64
+            artifact_name: icore-xarm.dmg
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20 and cache npm dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: electron/package-lock.json
+
+      - name: Set up Python 3.9 and cache pip
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install Node.js dependencies (Electron app)
+        working-directory: electron
+        run: npm ci
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r deid/requirements.txt || true
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: icore_processor
+          path: .
+
+      - name: List downloaded files
+        run: ls -lh icore_processor.tar
+
+      - name: Build Python executables
+        run: |
+          cd deid
+          sqlite3 db.sqlite3 ".databases"
+          pyinstaller manage.spec
+          pyinstaller processor.spec

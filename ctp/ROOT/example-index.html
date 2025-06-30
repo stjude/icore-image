@@ -1,0 +1,111 @@
+<html>
+
+<head>
+	<meta name="keywords"
+		content="radiology software, CTP, open-source, radiography, radiology, DICOM, software, java"/>
+	<meta name="description"
+		content="CTP is a free software server program for use in clinical imaging trials.
+				It was created and is supported by the Radiological Society of North America (RSNA)."/>
+	<title>RSNA CTP</title>
+	<link rel="stylesheet" href="/JSPage.css" type="text/css"/>
+	<link rel="stylesheet" href="/JSPopup.css" type="text/css"/>
+	<link rel="stylesheet" href="/JSSplitPane.css" type="text/css"/>
+	<link rel="stylesheet" href="/JSCTP.css" type="text/css"/>
+	<script language="JavaScript" type="text/javascript" src="/JSUtil.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSAJAX.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSUser.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSPopup.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSLoginPopup.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSAboutCTPPopup.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSPage.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSSplitPane.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSCTPServer.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSCookies.js">;</script>
+	<script language="JavaScript" type="text/javascript" src="/JSCTP.js">;</script>
+</head>
+
+<body>
+
+	<div class="header">
+		<div class="headerLeft">
+			<span class="ctpname">RSNA CTP</span>
+		</div>
+		<div class="headerRight">
+			<div style="float:right; margin-top:7px;">
+				<xsl:text>&#160;&#160;</xsl:text>
+				<span class="headerText">Welcome </span>
+				<span class="headerText" id="usernameSpan">&#160;</span>
+				<xsl:text>&#160;&#160;</xsl:text>
+				<span class="headerText">
+					<xsl:text>|&#160;&#160;</xsl:text>
+					<a href="javascript:loginLogout();" id="loginoutAnchor">Login</a>
+					<xsl:text>&#160;&#160;</xsl:text>
+				</span>
+			</div>
+		</div>
+	</div>
+
+	<div id="main">
+		<div id="left" class="leftpane">
+			<div id="General">
+				<div class="L1">General</div>
+				<div class="L2"><a href="javascript:loadFrame('/summary?suppress')">Summary</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/status?suppress')">Status</a></div>
+				<div class="L2"><a href="javascript:clearRight()">Clear the Right Pane</a></div>
+			</div>
+
+			<div id="Admin">
+				<div class="L1">Admin</div>
+				<div class="L2" id="UserManager"><a href="javascript:loadFrame('/users?suppress')">User Manager</a><br/></div>
+				<div class="L2"><a href="javascript:loadFrame('/system?suppress')">System Properties</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/environment?suppress')">Environment Variables</a></div>
+				<div class="L2" id="DicomAnonymizer"><a href="javascript:loadFrame('/daconfig?suppress')">DICOM Anonymizer</a></div>
+				<div class="L2" id="Scriptable"><a href="javascript:loadFrame('/script?suppress')">Script Editor</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/lookup?suppress')">Lookup Table Editor</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/configuration?suppress')">Configuration</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/quarantines?suppress')">Quarantines</a></div>
+				<div class="L2" id="IDMap"><a href="javascript:loadFrame('/idmap?suppress')">ID Map</a></div>
+				<div class="L2" id="ObjectTracker"><a href="javascript:loadFrame('/objecttracker?suppress')">Object Tracker</a></div>
+				<div class="L2" id="DatabaseVerifier"><a href="javascript:loadFrame('/databaseverifier?suppress')">Database Verifier</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/logs?suppress')">Log Viewer</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/level?suppress')">Logger Levels</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/dictionary')">DICOM Dictionary</a></div>
+				<div class="L2"><a href="javascript:listCookies();">List Cookies</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/svrsts')">Server Status</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/attacklog?suppress')">Attack Log</a></div>
+				<div class="L2"><a href="javascript:loadFrame('/ping')">Ping</a></div>
+			</div>
+
+			<div id="Plugins">&#160;</div>
+
+			<div id="Pipelines">&#160;</div>
+
+		</div>
+
+		<div id="center" class="centerpane">&#160;</div>
+
+		<div id="right" class="rightpane">&#160;</div>
+	</div>
+
+	<div class="footer">
+		<div class="footerlogo">
+			<img src="/icons/RSNAinformaticsLogo.jpg"/>
+			<span class="productname">RSNA CTP</span>
+		</div>
+		<div class="footerRight">
+			<p id="line1" class="line1">
+				<a href="http://mircwiki.rsna.org/index.php?title=CTP_Articles" target="wiki">RSNA CTP Wiki</a>&#160;&#160;
+				|&#160;&#160;<a href="javascript:showAboutPopup();">About CTP</a>&#160;&#160;
+			</p>
+			<p id="line2" class="line2">
+				Server IP: <span id="serverip"> </span>&#160;&#160;|&#160;
+				Server Port: <span id="serverport"> </span>&#160;&#160;|&#160;
+				CTP Build: <span id="ctpbuild"> </span>
+				<span id="ctpjava"> </span>
+			</p>
+		</div>
+	</div>
+
+</body>
+
+</html>

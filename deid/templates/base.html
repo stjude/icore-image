@@ -1,0 +1,61 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>iCore</title>
+        <!-- <link rel="icon" href="{% static 'favicon.ico' %}"> -->
+        <!-- <link href="{% static 'tailwind.min.css' %}" rel="stylesheet"> -->
+        <!-- <script src="{% static 'alpine.min.js' %}"></script> -->
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="{% static 'js/filters.js' %}"></script>
+    </head>
+    <body class="bg-gray-100">
+        <header class="fixed w-full z-20 p-4 flex bg-white text-white shadow">
+            <div class="flex-1 text-lg my-auto">
+                <a href="/">
+                    <img src="{% static 'logo.png' %}" width="100px">
+                </a>
+            </div>
+            <div class="flex-initial my-auto text-sm text-gray-700">
+                <a href="/task_list" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/task_list/' %}bg-gray-100{% endif %}">Tasks</a>
+                <a href="/settings/general" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/settings/general/' %}bg-gray-100{% endif %}">Settings</a>
+            </div>
+        </header>
+        <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24">
+            <a href="/imagequery" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %}">Image Query / Retrieve</a>
+            <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %}">Image De-identification</a>
+            <a href="/image_export" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/image_export/' %}bg-gray-100{% endif %}">Secure Data Transfer</a>
+        {% for module in modules %}
+            <a href="/{{ module.name }}" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/{{ module.name }}/' %}bg-gray-100{% endif %}">{{ module.name }}</a>
+        {% endfor %}
+        </section>
+        <section class="w-full h-screen pt-24 pl-64">
+            <div class="max-w-4xl mx-auto mb-10">
+                {% block content %}{% endblock %}
+            </div>
+        </section>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                // Select all text input boxes
+                const inputBoxes = document.querySelectorAll('input[type="text"]');
+
+                // Loop through each input box and attach event listeners
+                inputBoxes.forEach((inputBox) => {
+                    inputBox.addEventListener('dragover', (event) => {
+                        event.preventDefault(); // Allow drop by preventing default behavior
+                    });
+
+                    inputBox.addEventListener('drop', async (event) => {
+                        event.preventDefault();
+
+                        const file = event.dataTransfer.files[0];
+                        if (file) {
+                            const fullPath = await window.electronAPI.getPathForFile(file);
+                            inputBox.value = fullPath; // Set the full path in the dropped input box
+                        }
+                    });
+                });
+            });
+        </script>
+    </body>
+</html>

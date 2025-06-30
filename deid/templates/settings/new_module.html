@@ -1,0 +1,166 @@
+{% extends 'settings/base_settings.html' %}
+
+{% block title %}Manage Modules{% endblock %}
+
+{% block settings_content %}
+<meta name="csrf_token" content="{{ csrf_token }}">
+
+<!-- Upload Module Section -->
+<div class="mt-6">
+    <div class="text-md mb-4">Upload New Module</div>
+    <div class="grid grid-cols-1 gap-4">
+        <div>
+            <div class="text-sm text-gray-500 mb-2">Module File</div>
+            <div class="flex items-center space-x-4">
+                <input type="text" 
+                    class="flex-1 border-2 border-gray-400 p-1" 
+                    id="module_file_display"
+                    readonly>
+                <input type="file" 
+                    id="module_file" 
+                    class="hidden">
+                <button type="button"
+                        onclick="document.getElementById('module_file').click()" 
+                        class="px-4 py-1 bg-white shadow text-sm hover:bg-blue-100">
+                    Browse
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Existing Modules Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">Existing Modules</div>
+    <div class="bg-white shadow overflow-hidden rounded-lg">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded At</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200" id="modulesList">
+                <!-- Modules will be loaded here dynamically -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        setupEventListeners();
+        loadModules();
+    });
+
+    function setupEventListeners() {
+        document.getElementById('module_file').addEventListener('change', function(e) {
+            if (this.files[0]) {
+                document.getElementById('module_file_display').value = this.files[0].name;
+                uploadModule(this.files[0]);
+            }
+        });
+    }
+
+    async function loadModules() {
+        try {
+            const response = await fetch('/get_modules/');
+            const data = await response.json();
+            const modulesList = document.getElementById('modulesList');
+            modulesList.innerHTML = data.modules.map(module => `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${module.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            ${module.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            ${module.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${new Date(module.uploaded_at).toLocaleString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button onclick="toggleModuleStatus(${module.id}, ${!module.is_active})" 
+                                class="text-indigo-600 hover:text-indigo-900 mr-4">
+                            ${module.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onclick="deleteModule(${module.id})" 
+                                class="text-red-600 hover:text-red-900">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading modules:', error);
+        }
+    }
+
+    async function uploadModule(file) {
+        const formData = new FormData();
+        formData.append('module_file', file);
+
+        try {
+            const response = await fetch('/upload_module/', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                loadModules();  // Refresh the modules list
+                document.getElementById('module_file_display').value = '';
+            } else {
+                alert('Error uploading module: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error uploading module');
+        }
+    }
+
+    async function deleteModule(moduleId) {
+        if (!confirm('Are you sure you want to delete this module?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/delete_module/${moduleId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (response.ok) {
+                loadModules();  // Refresh the list
+            } else {
+                alert('Failed to delete module');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to delete module');
+        }
+    }
+
+    async function toggleModuleStatus(moduleId, newStatus) {
+        try {
+            const response = await fetch(`/toggle_module_status/${moduleId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ is_active: newStatus })
+            });
+            if (response.ok) {
+                loadModules();  // Refresh the list
+            } else {
+                alert('Failed to update module status');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to update module status');
+        }
+    }
+</script>
+{% endblock %}

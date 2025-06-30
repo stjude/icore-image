@@ -1,0 +1,55 @@
+/* Sortable Table styles */
+
+table.sortable {
+  cell-spacing: 3px;
+}
+ 
+table.sortable td, th {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11pt;
+  padding: 2px 0.5em;
+  white-space: nowrap;
+}
+
+table.sortable td {
+  background-color: #FFFFFF /*#d6e8ff*/;
+}
+ 
+table.sortable td.numeric {
+  text-align: right;
+}
+ 
+table.sortable th {
+  background-color: #6495ED;
+  font-weight: bold;
+}
+ 
+table.sortable th a {
+  color: #FFFFFF;
+  text-decoration: none;
+}
+ 
+table.sortable th a:visited {
+  color: #FFFFFF;
+}
+ 
+table.sortable th a:active, th a:hover {
+  color: #FFFFFF;
+  text-decoration: underline;
+}
+ 
+table.sortable tr.alternateRow {
+  background-color: #9FBDF4;
+}
+ 
+table.sortable td.sortedColumn {
+  background-color: #9FBDF4;
+}
+ 
+table.sortable th.sortedColumn {
+  background-color: #5485CD;
+}
+ 
+table.sortable tr.alternateRow td.sortedColumn {
+  background-color: #9FBDF4;
+}

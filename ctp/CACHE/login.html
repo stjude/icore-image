@@ -1,0 +1,31 @@
+<html>
+	<head>
+		<title>Login</title>
+		<link rel="Stylesheet" type="text/css" media="all" href="/BaseStyles.css"></link>
+		<style>
+			h1 {text-align:center; margin-top:15px;}
+			img {margin:2px;}
+			#username, #password {width:150;}
+		</style>
+	</head>
+	<body onload="document.getElementById('username').focus();">
+		<form method="post">
+			<h1>Login</h1>
+			<center>
+			<table>
+				<tr>
+					<td>Username:</td>
+					<td><input id="username" type="text" name="username"></td>
+				</tr>
+				<tr>
+					<td>Password:</td>
+					<td><input id="password" type="password" name="password"></td>
+				</tr>
+			</table>
+			<br/>
+			<input type="submit" value="&nbsp;&nbsp;&nbsp;Login&nbsp;&nbsp;&nbsp;">
+			</center>
+			<input type="hidden" name="url" value="${url}">
+		</form>
+	</body>
+</html>

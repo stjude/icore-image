@@ -1,0 +1,27 @@
+span.highlightTreeNode {
+	background: white;
+}
+
+span.dehighlightTreeNode {
+	background: #eeeeee;
+}
+
+span {
+	cursor: default;
+}
+
+div.open {
+	font-weight: bold;
+	font-family: Arial, Helvetica, Verdana, sans-serif;
+	font-size:12pt;
+	color:red;
+	margin-top: 4;
+}
+
+div.closed {
+	font-weight: bold;
+	font-family: Arial, Helvetica, Verdana, sans-serif;
+	font-size:12pt;
+	color:black;
+	margin-top: 4;
+}

@@ -1,0 +1,222 @@
+{% extends 'settings/base_settings.html' %}
+
+{% block title %}Administrator Settings{% endblock %}
+
+{% block settings_content %}
+<div id="password-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center" style="z-index: 1000;">
+    <div class="bg-white p-6 rounded-lg shadow-lg">
+        <h2 class="text-lg mb-4">Enter Administrator Password</h2>
+        <input type="password" 
+               id="admin-password" 
+               class="border-2 border-gray-300 p-2 mb-4 w-full"
+               placeholder="Enter password">
+        <div class="flex justify-end space-x-2">
+            <button onclick="verifyPassword()" 
+                    class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Submit
+            </button>
+        </div>
+        <div id="password-error" class="text-red-500 mt-2 hidden">
+            Incorrect password
+        </div>
+    </div>
+</div>
+
+<div id="settings-content" class="hidden">
+    <meta name="csrf_token" content="{{ csrf_token }}">
+    <div class="mt-6">
+        <div class="text-md mb-4">Protocol Configuration</div>
+        <div class="grid grid-cols-1 gap-4">
+            <div>
+                <div class="text-sm text-gray-500 mb-2">Current Protocol File</div>
+                <div class="flex items-center space-x-4">
+                    <input type="text" 
+                        class="flex-1 border-2 border-gray-400 p-1" 
+                        id="protocol_display"
+                        readonly>
+                    <input type="file" 
+                        id="protocol_file" 
+                        class="hidden" 
+                        accept=".xlsx,.xls">
+                    <button onclick="document.getElementById('protocol_file').click()" 
+                            class="px-4 py-1 bg-white shadow text-sm hover:bg-blue-100">
+                        Upload New
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <div class="text-md mb-4">Site Data Configuration</div>
+        <div class="grid grid-cols-2 gap-8">
+            <div>
+                <div class="text-sm text-gray-500 mb-2">Date Shift Range (days)</div>
+                <input type="number" 
+                    class="w-full border-2 border-gray-400 p-1" 
+                    id="date_shift_range" 
+                    min="0"
+                    value="-3210">
+                <div class="text-xs text-gray-400 mt-1">Number of days to shift dates</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-500 mb-2">Site ID</div>
+                <input type="text" 
+                    class="w-full border-2 border-gray-400 p-1" 
+                    id="site_id" 
+                    placeholder="Enter site ID">
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <div class="text-md mb-4">File Export Configuration</div>
+        <div class="grid grid-cols-1 gap-4">
+            <div>
+                <textarea 
+                    class="w-full border-2 border-gray-400 p-2 font-mono text-sm h-64" 
+                    id="rclone_config"
+                    placeholder="Enter your cloud storage configuration here..."></textarea>
+                <div class="text-xs text-gray-400 mt-1">Configuration file for remote storage access</div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block settings_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+    setupEventListeners();
+    document.getElementById('password-modal').style.display = 'flex';
+    document.getElementById('settings-content').classList.add('hidden');
+});
+
+async function verifyPassword() {
+    const password = document.getElementById('admin-password').value;
+    const errorDiv = document.getElementById('password-error');
+    
+    try {
+        const response = await fetch('/verify_admin_password/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrf_token]').content
+            },
+            body: JSON.stringify({ password: password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.valid) {
+            // Hide modal and show content
+            document.getElementById('password-modal').style.display = 'none';
+            document.getElementById('settings-content').classList.remove('hidden');
+            // Initialize settings after password verification
+            loadSettings();
+            setupEventListeners();
+        } else {
+            errorDiv.classList.remove('hidden');
+            document.getElementById('admin-password').value = '';
+        }
+    } catch (error) {
+        console.error('Error verifying password:', error);
+        errorDiv.classList.remove('hidden');
+    }
+}
+
+// Add event listener for Enter key
+document.getElementById('admin-password').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        verifyPassword();
+    }
+});
+
+function setupEventListeners() {
+    // Update displayed filename when a new file is selected
+    document.getElementById('protocol_file').addEventListener('change', function(e) {
+        if (this.files[0]) {
+            document.getElementById('protocol_display').value = this.files[0].name;
+        }
+    });
+
+    // Add save button listener
+    document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+}
+
+async function loadSettings() {
+    try {
+        const response = await fetch('/load_admin_settings/');
+        if (!response.ok) throw new Error('Failed to load settings');
+        
+        const settings = await response.json();
+        
+        if (settings.protocol_file) {
+            document.getElementById('protocol_display').value = settings.protocol_file ? settings.protocol_file.split('/').pop() : '';
+        }
+        if (settings.date_shift_range) {
+            document.getElementById('date_shift_range').value = settings.date_shift_range;
+        }
+        if (settings.site_id) {
+            document.getElementById('site_id').value = settings.site_id;
+        }
+        if (settings.rclone_config) {
+            document.getElementById('rclone_config').value = settings.rclone_config;
+        }
+    } catch (error) {
+        console.error('Error loading settings:', error);
+    }
+}
+
+async function saveSettings() {
+    try {
+        const formData = new FormData();
+        const protocolFile = document.getElementById('protocol_file').files[0];
+        const dateShiftRange = document.getElementById('date_shift_range').value;
+        const siteId = document.getElementById('site_id').value;
+
+        if (protocolFile) {
+            formData.append('protocol_file', protocolFile);
+        }
+        if (dateShiftRange) {
+            formData.append('default_date_shift_days', dateShiftRange);
+        }
+        if (siteId) {
+            formData.append('site_id', siteId);
+        }
+        if (rclone_config) {
+            formData.append('rclone_config', document.getElementById('rclone_config').value);
+        }
+
+        const response = await fetch('/save_admin_settings/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrf_token]').content
+            },
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Failed to save settings');
+        
+        showSaveMessage('Settings saved successfully');
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        showSaveMessage('Error saving settings', true);
+    }
+}
+
+function showSaveMessage(message, isError = false) {
+    const saveButton = document.getElementById('saveSettingsBtn');
+    const existingMessage = document.querySelector('.settings-message');
+    if (existingMessage) existingMessage.remove();
+
+    const messageDiv = document.createElement('div');
+    messageDiv.textContent = message;
+    messageDiv.className = `settings-message mt-4 ml-4 ${isError ? 'text-red-500' : 'text-green-500'}`;
+    saveButton.parentNode.appendChild(messageDiv);
+
+    setTimeout(() => messageDiv.remove(), 3000);
+}
+</script>
+{% endblock %} 

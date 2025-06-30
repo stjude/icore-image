@@ -1,0 +1,76 @@
+{% extends 'settings/base_settings.html' %}
+
+{% block title %}Image Query Settings{% endblock %}
+
+{% block settings_content %}
+{{ modalities|json_script:"modalities-data" }}
+
+<script>
+    const modalities = JSON.parse(document.getElementById('modalities-data').textContent);
+</script>
+
+<meta name="csrf_token" content="{{ csrf_token }}">
+
+<div class="bg-white p-4 ml-4">
+    {% include 'components/filters_section.html' with section_title="Default Query Filters" modalities=modalities %}
+{% endblock %}
+
+{% block settings_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', loadSavedSettings);
+
+    async function loadSavedSettings() {
+        try {
+            const response = await fetch('/load_settings/');
+            const settings = await response.json();
+            if (settings.filters) {
+                loadFiltersFromSettings(settings.filters);
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    }
+
+    async function saveSettings() {
+        const filterData = collectFilterData();
+
+        const data = {
+            filters: filterData
+        };
+
+        try {
+            const response = await fetch('/save_settings/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+
+            const saveButton = document.getElementById('saveSettingsBtn');
+            const existingMessage = document.querySelector('.settings-saved-message');
+            if (existingMessage) {
+                existingMessage.remove();
+            }
+            const successMessage = document.createElement('div');
+            successMessage.textContent = 'Settings Saved';
+            successMessage.className = 'settings-saved-message text-green-500 mt-4';
+            saveButton.parentNode.appendChild(successMessage);
+
+            // Remove message after 3 seconds
+            setTimeout(() => {
+                successMessage.remove();
+            }, 3000);
+
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,51 @@
+<html>
+	<head>
+		<title>CTP Standard Role Definitions</title>
+		<style>
+			dt {
+				font-family: monospace;
+				font-size: larger;
+				font-weight: bold;
+				margin-top: 10px;
+			}
+		</style>
+	</head>
+	<body>
+		<h2>Standard Role Definitions</h2>
+		<dl>
+			<dt>admin</dt>
+				<dd>The <b>admin</b> role grants administrative privileges. It allows the user to access:
+					<ul>
+						<li>The User Manager</li>
+						<li>The DICOM Anonymizer Configurator</li>
+						<li>The Script Editor for all pipeline stages</li>
+						<li>The Lookup Table Editor</li>
+						<li>The Configuration Listing</li>
+						<li>The Quarantine Manager</li>
+						<li>The ID Map search page</li>
+						<li>The Object Tracker search page</li>
+						<li>The Database Verifier search page</li>
+						<li>The Log Viewer</li>
+						<li>The Logger Level page</li>
+					</ul>
+					It also allows the user to force a garbage collection on the System Properties page.
+				</dd>
+			<dt>delete</dt>
+				<dd>The <b>delete</b> role grants the ability to delete studies or objects on QuarantineManager and FileStorageService pages.</dd>
+			<dt>guest</dt>
+				<dd>The <b>guest</b> role grants the ability to view studies on File Storage Service pages when the owner of the studies has included the user in the guest list for his studies. This role allows the administrator of a site to limit which users are considered to be possible guests, but the owner of the studies has ultimate control over which guests can view them.</dd>
+			<dt>import</dt>
+				<dd>The <b>import</b> role grants the ability to transmit objects to the HttpImportService or to query the DatabaseExportService's Verification Service (when the services are configured to require authentication).</dd>
+			<dt>export</dt>
+				<dd>The <b>export</b> role grants the ability to copy objects from the FileStorageService's storage directories to its export directory.</dd>
+			<dt>proxy</dt>
+				<dd>The <b>proxy</b> role grants the ability to manage FileStorageService guest lists on behalf of other users. It is intended to be granted to patient assistants in situations where CTP is used to distribute studies to referring physicians.</dd>
+			<dt>qadmin</dt>
+				<dd>The <b>qadmin</b> role grants access to QuarantineManager pages.</dd>
+			<dt>read</dt>
+				<dd>The <b>read</b> role grants the ability to view all studies in the FileStorageService, whether the user owns the studies or not.</dd>
+			<dt>shutdown</dt>
+				<dd>The <b>shutdown</b> role grants the ability to shutdown the server from a browser on another computer. This role can only be granted to a user by a user who already has the role. Grant this role at your peril. It is intended for special situations. I wish I had never thought of it.</dd>
+		</dl>
+	</body>
+</html>

@@ -1,0 +1,13 @@
+<users mode="digest">
+    <user
+        password="126680608771750945340162210354335764377"
+        username="admin">
+        <role>admin</role>
+    </user>
+    <user
+        password="126680608771750945340162210354335764377"
+        username="king">
+        <role>admin</role>
+        <role>shutdown</role>
+    </user>
+</users>
