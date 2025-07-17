@@ -19,14 +19,8 @@
     <div class="text-sm text-black-5 mt-4">Select Folder for Secure Data Transfer</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
     
-    <div class="text-sm text-black-5 mt-4">Storage Location</div>
-    <select id="storage_location_select" 
-            class="bg-white mt-2 w-full border-2 border-gray-400 p-2">
-        <option value="">Select a storage location...</option>
-        {% for location in storage_locations %}
-            <option value="{{ location }}">{{ location }}</option>
-        {% endfor %}
-    </select>
+    <div class="text-sm text-black-5 mt-4">SAS URL</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="blob_url" />
 </div>
 
 <div class="m-4">
@@ -36,13 +30,11 @@
 </div>
 
 <script>
+    let settings = {};
     document.addEventListener('DOMContentLoaded', async function() {
         try {
             const response = await fetch('/load_settings/');
-            const settings = await response.json();
-            if (settings.default_output_folder) {
-                document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
-            }
+            settings = await response.json();
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -52,7 +44,8 @@
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             input_folder: document.querySelector('[name="input_folder"]').value,
-            storage_location: document.getElementById('storage_location_select').value
+            container_name: settings.container_name || 'icorefiles',
+            blob_url: document.querySelector('[name="blob_url"]').value
         };
         console.log(data);
 

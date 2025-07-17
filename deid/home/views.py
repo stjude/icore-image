@@ -330,7 +330,8 @@ def run_export(request):
             input_folder=data['input_folder'],
             status=Project.TaskStatus.PENDING,
             parameters={
-                'storage_location': data['storage_location'],
+                'blob_url': data['blob_url'],
+                'container_name': data['container_name'],
             }
         )
         return JsonResponse({
@@ -584,10 +585,8 @@ def load_admin_settings(request):
         if settings.get('date_shift_range'):
             settings['date_shift_range'] = int(settings['date_shift_range'])
         
-        rclone_config_path = os.path.join(SETTINGS_DIR, 'rclone.conf')
-        if os.path.exists(rclone_config_path):
-            with open(rclone_config_path, 'r') as f:
-                settings['rclone_config'] = f.read()
+        if settings.get('container_name'):
+            settings['container_name'] = settings['container_name']
         
         return JsonResponse(settings)
     except Exception as e:
@@ -605,10 +604,6 @@ def save_admin_settings(request):
             existing_settings = json.load(f)
     except FileNotFoundError:
         existing_settings = {}
-
-    rclone_config_path = os.path.join(SETTINGS_DIR, 'rclone.conf')
-    with open(rclone_config_path, 'w') as f:
-        f.write(request.POST.get('rclone_config'))
     
     # Handle protocol file upload
     if request.FILES.get('protocol_file'):
@@ -626,6 +621,9 @@ def save_admin_settings(request):
     
     if request.POST.get('site_id'):
         existing_settings['site_id'] = request.POST['site_id']
+
+    if request.POST.get('container_name'):
+        existing_settings['container_name'] = request.POST['container_name']
     
     # Save updated settings
     with open(settings_path, 'w') as f:

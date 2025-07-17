@@ -264,6 +264,7 @@ def build_header_query_config(task):
 def process_image_export(task):
     print('Processing image export')
     input_folder = task.input_folder
+    build_rclone_config(task)
     build_image_export_config(task)
 
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
@@ -290,14 +291,23 @@ def build_image_export_config(task):
     """Build the configuration for image export"""
     config = {
         'module': 'imageexport',
-        'rclone_config': RCLONE_CONFIG_PATH,
-        'storage_location': task.parameters['storage_location'],
-        'project_name': task.name
+        'container_name': task.parameters['container_name'],
+        'project_name': task.name,
     }
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
     return config
+
+def build_rclone_config(task):
+    """Build the configuration for rclone"""
+    config = f"""
+        [azure]
+        type = azureblob
+        sas_url = {task.parameters['blob_url']}
+    """
+    with open(RCLONE_CONFIG_PATH, 'w') as f:
+        f.write(config)
 
 def process_general_module(task):
     module_name = task.parameters['module_name']

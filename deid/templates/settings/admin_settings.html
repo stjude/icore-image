@@ -67,17 +67,16 @@
                     placeholder="Enter site ID">
             </div>
         </div>
-    </div>
-
-    <div class="mt-8">
-        <div class="text-md mb-4">File Export Configuration</div>
-        <div class="grid grid-cols-1 gap-4">
-            <div>
-                <textarea 
-                    class="w-full border-2 border-gray-400 p-2 font-mono text-sm h-64" 
-                    id="rclone_config"
-                    placeholder="Enter your cloud storage configuration here..."></textarea>
-                <div class="text-xs text-gray-400 mt-1">Configuration file for remote storage access</div>
+        <div class="mt-8">
+            <div class="text-md mb-4">Azure Storage Container</div>
+            <div class="grid grid-cols-2 gap-8">
+                <div>
+                    <div class="text-sm text-gray-500 mb-2">Container Name</div>
+                    <input type="text" 
+                        class="w-full border-2 border-gray-400 p-1" 
+                        id="container_name" 
+                        placeholder="Enter container name">
+                </div>
             </div>
         </div>
     </div>
@@ -110,10 +109,8 @@ async function verifyPassword() {
         const data = await response.json();
         
         if (data.valid) {
-            // Hide modal and show content
             document.getElementById('password-modal').style.display = 'none';
             document.getElementById('settings-content').classList.remove('hidden');
-            // Initialize settings after password verification
             loadSettings();
             setupEventListeners();
         } else {
@@ -161,8 +158,8 @@ async function loadSettings() {
         if (settings.site_id) {
             document.getElementById('site_id').value = settings.site_id;
         }
-        if (settings.rclone_config) {
-            document.getElementById('rclone_config').value = settings.rclone_config;
+        if (settings.container_name) {
+            document.getElementById('container_name').value = settings.container_name;
         }
     } catch (error) {
         console.error('Error loading settings:', error);
@@ -175,6 +172,7 @@ async function saveSettings() {
         const protocolFile = document.getElementById('protocol_file').files[0];
         const dateShiftRange = document.getElementById('date_shift_range').value;
         const siteId = document.getElementById('site_id').value;
+        const containerName = document.getElementById('container_name').value;
 
         if (protocolFile) {
             formData.append('protocol_file', protocolFile);
@@ -185,10 +183,9 @@ async function saveSettings() {
         if (siteId) {
             formData.append('site_id', siteId);
         }
-        if (rclone_config) {
-            formData.append('rclone_config', document.getElementById('rclone_config').value);
+        if (containerName) {
+            formData.append('container_name', containerName);
         }
-
         const response = await fetch('/save_admin_settings/', {
             method: 'POST',
             headers: {
