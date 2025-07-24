@@ -258,7 +258,41 @@ def build_header_query_config(task):
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
+
+    return config
     
+def process_header_extract(task):
+    print('Processing header extract')
+    input_folder = task.input_folder
+    build_header_extract_config(task)
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
+    docker_cmd = [
+        DOCKER, 'run', '--rm',
+        '-v', f'{CONFIG_PATH}:/config.yml',
+        '-v', f'{os.path.abspath(input_folder)}:/input',
+        '-v', f'{os.path.abspath(output_full_path)}:/output',
+        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
+        '-v', f'{os.path.abspath(MODULES_PATH)}:/modules',
+        'icore_processor'
+    ]
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+    try:
+        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+
+def build_header_extract_config(task):
+    """Build the configuration for header extract"""
+    config = {'module': 'headerextract'}
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+
     return config
 
 def process_image_export(task):
@@ -308,6 +342,7 @@ def build_rclone_config(task):
     """
     with open(RCLONE_CONFIG_PATH, 'w') as f:
         f.write(config)
+
 
 def process_general_module(task):
     module_name = task.parameters['module_name']
@@ -375,6 +410,8 @@ def run_worker():
                         process_image_query(task)
                     elif task.task_type == Project.TaskType.HEADER_QUERY:
                         process_header_query(task)
+                    elif task.task_type == Project.TaskType.HEADER_EXTRACT:
+                        process_header_extract(task)
                     elif task.task_type == Project.TaskType.IMAGE_EXPORT:
                         process_image_export(task)
                     elif task.task_type == Project.TaskType.GENERAL_MODULE:

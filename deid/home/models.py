@@ -15,6 +15,7 @@ class Project(models.Model):
         IMAGE_DEID = 'IMAGE_DEID', 'Image De-identification'
         IMAGE_QUERY = 'IMAGE_QUERY', 'Image Query'
         HEADER_QUERY = 'HEADER_QUERY', 'Header Query'
+        HEADER_EXTRACT = 'HEADER_EXTRACT', 'Header Extract'
         IMAGE_EXPORT = 'IMAGE_EXPORT', 'Image Export'
         GENERAL_MODULE = 'GENERAL_MODULE', 'General Module'
     task_type = models.CharField(max_length=20, choices=TaskType.choices)

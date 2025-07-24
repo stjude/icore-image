@@ -89,6 +89,12 @@ class HeaderQueryView(CommonContextMixin, CreateView):
     template_name = 'header_query.html'
     success_url = reverse_lazy('task_list')
 
+class HeaderExtractView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name', 'input_folder', 'output_folder']
+    template_name = 'header_extract.html'
+    success_url = reverse_lazy('task_list')
+
 class ImageExportView(CommonContextMixin, CreateView):
     model = Project
     fields = ['name', 'input_folder']
@@ -199,6 +205,31 @@ def run_header_query(request):
                 'general_filters': data['general_filters'],
                 'modality_filters': data['modality_filters'],
             }
+        )
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id,
+            'log_path': project.log_path
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+@csrf_exempt
+def run_header_extract(request):
+    print('Running header extract')
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        project = Project.objects.create(
+            name=data['study_name'],
+            timestamp=timestamp,
+            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            task_type=Project.TaskType.HEADER_EXTRACT,
+            input_folder=data['input_folder'],
+            output_folder=data['output_folder'],
+            status=Project.TaskStatus.PENDING,
+            parameters={}
         )
         return JsonResponse({
             'status': 'success',
@@ -772,7 +803,6 @@ def verify_admin_password(request):
         data = json.loads(request.body)
         password = data.get('password', '')
         is_valid = check_admin_password(password)
-        hostname = socket.gethostname()
         if is_valid:
             AUTH_LOGGER.info(f"Authentication successful for AET Title: {aet} and hostname: {request.META.get('REMOTE_ADDR')}")
         else:

@@ -4,11 +4,13 @@ from . import views
 
 urlpatterns = [
     path('headerquery/', views.HeaderQueryView.as_view(), name='header_query'),
+    path('header_extract/', views.HeaderExtractView.as_view(), name='header_extract'),
     path('imagedeid/', views.ImageDeIdentificationView.as_view(), name='image_deid'),
     path('imagequery/', views.ImageQueryView.as_view(), name='image_query'),
     path('image_export/', views.ImageExportView.as_view(), name='image_export'),
     path('tasks/', views.TaskListView.as_view(), name='task_list'),
     path('run_header_query/', views.run_header_query, name='run_header_query'),
+    path('run_header_extract/', views.run_header_extract, name='run_header_extract'),
     path('run_deid/', views.run_deid, name='run_deid'),
     path('run_query/', views.run_query, name='run_query'),
     path('run_export/', views.run_export, name='run_export'),

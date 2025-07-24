@@ -5,6 +5,7 @@ import signal
 import subprocess
 import sys
 import time
+import pydicom
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -467,6 +468,36 @@ def imageqr_main(**config):
         logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
     save_failed_accessions(failed_accessions)
 
+def header_extract_main(**config):
+    dicom_folder = "input"
+    excel_path = "output/headers.xlsx"
+    header_data = []
+
+    for root, _, files in os.walk(dicom_folder):
+        for i, filename in enumerate(files):
+            logging.info(f"Processing {i+1}/{len(files)} files in {root}")
+            filepath = os.path.join(root, filename)
+            if not os.path.isfile(filepath):
+                continue
+            if not filename.endswith('.dcm'):
+                continue
+            if filename.startswith('.'):
+                continue
+            try:
+                ds = pydicom.dcmread(filepath, stop_before_pixels=True)
+                headers = {elem.keyword or elem.tag: elem.value for elem in ds.iterall() if elem.VR != 'SQ'}
+                headers['__Filename__'] = filename
+                header_data.append(headers)
+            except Exception as e:
+                print(f"Error reading {filename}: {e}")
+    if not header_data:
+        print("No valid DICOM files found.")
+        return
+
+    df = pd.json_normalize(header_data)
+    df.to_excel(excel_path, index=False)
+    print(f"Extracted headers saved to {excel_path}")
+
 def imagedeid_func(_):
     save_metadata_csv()
     save_deid_metadata_csv()
@@ -675,6 +706,14 @@ def imageqr(**config):
     """
     imageqr_main(**config)
 
+def headerextract(**config):
+    """
+    Extracts DICOM headers from local directory.
+    Takes all files in the input directory and saves the headers 
+    to an Excel file.
+    """
+    header_extract_main(**config)
+
 def imagedeid(**config):
     """
     Deidentify DICOM images from local directory or PACS. If input
@@ -736,7 +775,7 @@ def generalmodule(**config):
 def run_module(**config):
     logging.info(f"Running module: {config.get('module')}")
     logging.info(f"Config: {config}")
-    if config.get("module") in ["imageqr", "imagedeid", "imageexport"]:
+    if config.get("module") in ["imageqr", "imagedeid", "imageexport", "headerextract"]:
         globals()[config.get("module")](**config)
     else:
         generalmodule(**config)
