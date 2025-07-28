@@ -41,10 +41,16 @@
     });
 
     async function runExport() {
+        if (!settings.site_id) {
+            alert('Site ID is not set. Please set the site ID in the settings.');
+            return;
+        }
+
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             input_folder: document.querySelector('[name="input_folder"]').value,
             container_name: settings.container_name || 'icorefiles',
+            site_id: settings.site_id,
             blob_url: document.querySelector('[name="blob_url"]').value
         };
         console.log(data);

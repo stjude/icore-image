@@ -591,10 +591,11 @@ def get_rclone_path(config):
 def image_export_main(**config):
     try:
         container_name = config.get('container_name')
+        site_id = config.get('site_id')
         project_name = config.get('project_name')
         if container_name is None or project_name is None:
             error_and_exit("Container name and project name are required.")
-        cmd = ["rclone", "copy", "--progress", "--config", "/rclone.conf", "input", f"azure:{container_name}/{project_name}"]
+        cmd = ["rclone", "copy", "--progress", "--config", "/rclone.conf", "input", f"azure:{container_name}/{site_id}/{project_name}"]
         logging.info(' '.join(cmd))
         with open(os.path.join("appdata", "log.txt"), "a") as logf:
             subprocess.run(cmd, text=True, stdout=logf, stderr=logf)

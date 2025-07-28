@@ -327,6 +327,7 @@ def build_image_export_config(task):
         'module': 'imageexport',
         'container_name': task.parameters['container_name'],
         'project_name': task.name,
+        'site_id': task.parameters['site_id'],
     }
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
