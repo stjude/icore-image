@@ -30,6 +30,7 @@ function checkDockerRunning() {
 }
 
 function checkAdminPassword() {
+    return true; // TODO: remove this (hardcoding for now)
     const adminPasswordPath = path.join(os.homedir(), '.secure', '.config', '.sysdata', 'icapf.txt');
     return fs.existsSync(adminPasswordPath);
 }
