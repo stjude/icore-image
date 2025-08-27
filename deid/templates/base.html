@@ -12,8 +12,9 @@
     <body class="bg-gray-100">
         <header class="fixed w-full z-20 p-4 flex bg-white text-white shadow">
             <div class="flex-1 text-lg my-auto">
-                <a href="/">
-                    <img src="{% static 'logo.png' %}" width="100px">
+                <a href="/" class="flex items-center space-x-2">
+                    <img id="app-logo" src="{% static 'logo.png' %}" width="50px" height="50px" alt="iCore Logo" class="object-contain">
+                    <span class="text-gray-700 font-semibold">iCore</span>
                 </a>
             </div>
             <div class="flex-initial my-auto text-sm text-gray-700">
