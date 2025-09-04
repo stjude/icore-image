@@ -112,12 +112,6 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             root="roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
             quarantine="quarantines/DicomDecompressor"/>
-        <DicomPixelAnonymizer
-            class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
-            name="DicomPixelAnonymizer"
-            root="roots/DicomPixelAnonymizer"
-            script="scripts/DicomPixelAnonymizer.script"
-            quarantine="quarantines/DicomPixelAnonymizer"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             name="IDMap"
@@ -194,12 +188,6 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             name="DicomDecompressor"
             root="roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
-            quarantine="../appdata/quarantine"/>
-        <DicomPixelAnonymizer
-            class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
-            name="DicomPixelAnonymizer"
-            root="roots/DicomPixelAnonymizer"
-            script="scripts/DicomPixelAnonymizer.script"
             quarantine="../appdata/quarantine"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
@@ -471,32 +459,122 @@ def imageqr_main(**config):
 def header_extract_main(**config):
     dicom_folder = "input"
     excel_path = "output/headers.xlsx"
-    header_data = []
-
+    batch_size = config.get('batch_size', 100)  # Process 100 files at a time by default
+    
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(excel_path), exist_ok=True)
+    
+    # Collect all DICOM files first
+    dicom_files = []
     for root, _, files in os.walk(dicom_folder):
-        for i, filename in enumerate(files):
-            logging.info(f"Processing {i+1}/{len(files)} files in {root}")
+        for filename in files:
             filepath = os.path.join(root, filename)
-            if not os.path.isfile(filepath):
-                continue
-            if not filename.endswith('.dcm'):
-                continue
-            if filename.startswith('.'):
-                continue
+            if (os.path.isfile(filepath) and 
+                filename.endswith('.dcm') and 
+                not filename.startswith('.')):
+                dicom_files.append(filepath)
+    
+    if not dicom_files:
+        logging.error("No valid DICOM files found.")
+        return
+    
+    total_files = len(dicom_files)
+    logging.info(f"Found {total_files} DICOM files to process")
+    
+    csv_path = excel_path.replace('.xlsx', '.csv')
+    total_headers_processed = 0
+    first_batch = True
+    known_columns = []
+    
+    for batch_start in range(0, total_files, batch_size):
+        batch_end = min(batch_start + batch_size, total_files)
+        batch_files = dicom_files[batch_start:batch_end]
+        
+        logging.info(f"Processing batch {batch_start//batch_size + 1}: files {batch_start+1}-{batch_end} of {total_files}")
+        
+        header_data = []
+        batch_columns = set()
+        
+        for filepath in batch_files:
+            filename = os.path.basename(filepath)
             try:
                 ds = pydicom.dcmread(filepath, stop_before_pixels=True)
-                headers = {elem.keyword or elem.tag: elem.value for elem in ds.iterall() if elem.VR != 'SQ'}
+                headers = {elem.keyword or str(elem.tag): elem.value for elem in ds.iterall() if elem.VR != 'SQ'}
                 headers['__Filename__'] = filename
+                batch_columns.update(headers.keys())
                 header_data.append(headers)
             except Exception as e:
-                print(f"Error reading {filename}: {e}")
-    if not header_data:
-        print("No valid DICOM files found.")
+                logging.error(f"Error reading {filename}: {e}")
+        
+        if header_data:
+            try:
+                # Check for new columns in this batch
+                new_columns = batch_columns - set(known_columns)
+                if new_columns:
+                    new_columns = sorted(list(new_columns))
+                    logging.info(f"Found {len(new_columns)} new columns: {new_columns}")
+                    known_columns.extend(new_columns)
+                    known_columns.sort()  # Keep columns sorted
+                
+                df = pd.json_normalize(header_data)
+                
+                # If this is not the first batch and we have new columns, update existing CSV
+                if not first_batch and new_columns:
+                    # Read existing CSV and add new columns
+                    existing_df = pd.read_csv(csv_path)
+                    
+                    # Add new columns to existing data (fill with None)
+                    for col in new_columns:
+                        existing_df[col] = None
+                    
+                    # Reorder columns to match known_columns
+                    existing_df = existing_df.reindex(columns=known_columns, fill_value=None)
+                    
+                    # Write updated CSV
+                    existing_df.to_csv(csv_path, index=False, mode='w')
+                    logging.info(f"Updated existing CSV with {len(new_columns)} new columns")
+                
+                # Ensure current batch has all known columns
+                df = df.reindex(columns=known_columns, fill_value=None)
+                
+                # Write to CSV (append mode for subsequent batches)
+                if first_batch:
+                    df.to_csv(csv_path, index=False, mode='w')
+                    first_batch = False
+                else:
+                    df.to_csv(csv_path, index=False, mode='a', header=False)
+                
+                total_headers_processed += len(df)
+                logging.info(f"Processed {len(header_data)} headers in this batch (total: {total_headers_processed})")
+                
+            except Exception as e:
+                logging.error(f"Error processing batch: {e}")
+    
+    if total_headers_processed == 0:
+        logging.error("No valid DICOM headers extracted.")
         return
-
-    df = pd.json_normalize(header_data)
-    df.to_excel(excel_path, index=False)
-    print(f"Extracted headers saved to {excel_path}")
+    
+    try:
+        logging.info(f"Converting CSV to Excel format in batches...")
+        
+        chunk_size = 1000  
+        all_chunks = []
+        
+        for chunk_df in pd.read_csv(csv_path, chunksize=chunk_size):
+            all_chunks.append(chunk_df)
+            logging.info(f"Loaded chunk of {len(chunk_df)} rows for Excel conversion")
+        
+        if all_chunks:
+            logging.info(f"Writing {len(all_chunks)} chunks to Excel...")
+            combined_df = pd.concat(all_chunks, ignore_index=True)
+            combined_df.to_excel(excel_path, index=False)
+        
+        os.remove(csv_path)
+        
+        logging.info(f"Successfully extracted and saved {total_headers_processed} headers to {excel_path}")
+    except Exception as e:
+        logging.error(f"Error converting CSV to Excel: {e}")
+        logging.info(f"CSV file saved at {csv_path} as backup")
 
 def imagedeid_func(_):
     save_metadata_csv()
