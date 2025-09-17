@@ -91,7 +91,8 @@ def build_image_deid_config(task):
         })
         if task.parameters['acc_col'] != '':
             config.update({
-                'acc_col': task.parameters['acc_col']
+                'acc_col': task.parameters['acc_col'],
+                'mrn_col': task.parameters['mrn_col']
             })
         elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
             config.update({
@@ -179,7 +180,8 @@ def build_image_query_config(task):
         })
     if task.parameters['acc_col'] != '':
         config.update({
-            'acc_col': task.parameters['acc_col']
+            'acc_col': task.parameters['acc_col'],
+            'mrn_col': task.parameters['mrn_col']
         })
     elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
         config.update({
@@ -289,6 +291,59 @@ def process_header_extract(task):
 def build_header_extract_config(task):
     """Build the configuration for header extract"""
     config = {'module': 'headerextract'}
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+
+    return config
+
+def process_text_deid(task):
+    print('Processing text deid')
+    build_text_deid_config(task)
+
+    output_folder = task.output_folder
+
+    os.makedirs(TMP_INPUT_PATH, exist_ok=True)
+    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
+    shutil.copy2(task.parameters['input_file'], temp_input)
+    input_folder = TMP_INPUT_PATH
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
+
+    docker_cmd = [
+        DOCKER, 'run', '--rm',
+        '-v', f'{CONFIG_PATH}:/config.yml', 
+        '-v', f'{os.path.abspath(input_folder)}:/input',
+        '-v', f'{os.path.abspath(output_full_path)}:/output',
+        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
+        'icore_processor'
+    ]
+
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+
+    try:
+        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+    finally:
+        if os.path.exists(TMP_INPUT_PATH):
+            shutil.rmtree(TMP_INPUT_PATH)
+
+def build_text_deid_config(task):
+    """Build the configuration for text deidentification"""
+    config = {'module': 'textdeid'}
+    to_keep_list = task.parameters['text_to_keep'].split('\n')
+    to_remove_list = task.parameters['text_to_remove'].split('\n')
+    date_shift_by = int(task.parameters['date_shift_days'])
+    config.update({
+        'to_keep_list': to_keep_list,
+        'to_remove_list': to_remove_list,
+        'date_shift_by': date_shift_by
+    })
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
@@ -413,6 +468,8 @@ def run_worker():
                         process_header_query(task)
                     elif task.task_type == Project.TaskType.HEADER_EXTRACT:
                         process_header_extract(task)
+                    elif task.task_type == Project.TaskType.TEXT_DEID:
+                        process_text_deid(task)
                     elif task.task_type == Project.TaskType.IMAGE_EXPORT:
                         process_image_export(task)
                     elif task.task_type == Project.TaskType.GENERAL_MODULE:

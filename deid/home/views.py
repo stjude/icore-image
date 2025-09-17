@@ -95,6 +95,12 @@ class HeaderExtractView(CommonContextMixin, CreateView):
     template_name = 'header_extract.html'
     success_url = reverse_lazy('task_list')
 
+class TextDeIdentificationView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name', 'output_folder']
+    template_name = 'text_deid.html'
+    success_url = reverse_lazy('task_list')
+
 class ImageExportView(CommonContextMixin, CreateView):
     model = Project
     fields = ['name', 'input_folder']
@@ -150,7 +156,7 @@ class ImageDeIdentificationSettingsView(CommonContextMixin, TemplateView):
         print(context['protocols'])
         return context
 
-class ReportDeIdentificationSettingsView(CommonContextMixin, TemplateView):
+class TextDeIdentificationSettingsView(CommonContextMixin, TemplateView):
     template_name = 'settings/text_deid.html'
 
 class NewModuleView(CommonContextMixin, TemplateView):
@@ -317,6 +323,14 @@ def run_query(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
+        scheduled_time = None
+        if 'scheduled_time' in data:
+            settings = json.load(open(os.path.join(SETTINGS_DIR, 'settings.json')))
+            timezone = settings.get('timezone', 'UTC')
+            timezone = pytz.timezone(timezone)
+            local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
+            scheduled_time = timezone.localize(local_dt)
+            scheduled_time = scheduled_time.astimezone(pytz.UTC)
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         project = Project.objects.create(
             name=data['study_name'],
@@ -337,6 +351,45 @@ def run_query(request):
             }
         )
 
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id,
+            'log_path': project.log_path
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+@csrf_exempt
+def run_text_deid(request):
+    print('Running text deid')
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+        scheduled_time = None
+        if 'scheduled_time' in data:
+            settings = json.load(open(os.path.join(SETTINGS_DIR, 'settings.json')))
+            timezone = settings.get('timezone', 'UTC')
+            timezone = pytz.timezone(timezone)
+            local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
+            scheduled_time = timezone.localize(local_dt)
+            scheduled_time = scheduled_time.astimezone(pytz.UTC)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        project = Project.objects.create(
+            name=data['study_name'],
+            timestamp=timestamp,
+            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            task_type=Project.TaskType.TEXT_DEID,
+            output_folder=data['output_folder'],
+            status=Project.TaskStatus.PENDING,
+            scheduled_time=scheduled_time,
+            parameters={
+                'input_file': data['input_file'],
+                'text_to_keep': data['text_to_keep'],
+                'text_to_remove': data['text_to_remove'],
+                'date_shift_days': data['date_shift_days'],
+            }
+        )
         return JsonResponse({
             'status': 'success',
             'project_id': project.id,
