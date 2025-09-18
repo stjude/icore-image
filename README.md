@@ -1,4 +1,4 @@
-# iCore Image
+# icore_processor
 
 ## Usage Guide
 For a detailed usage guide, please refer to the [User Guide](https://innolitics.notion.site/iCore-v0-0-7-User-Manual-160bd5b7a754804287bed990845636cd).

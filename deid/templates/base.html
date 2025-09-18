@@ -12,8 +12,9 @@
     <body class="bg-gray-100">
         <header class="fixed w-full z-20 p-4 flex bg-white text-white shadow">
             <div class="flex-1 text-lg my-auto">
-                <a href="/">
-                    <img src="{% static 'logo.png' %}" width="100px">
+                <a href="/" class="flex items-center space-x-2">
+                    <img id="app-logo" src="{% static 'logo.png' %}" width="50px" height="50px" alt="iCore Logo" class="object-contain">
+                    <span class="text-gray-700 font-semibold">iCore</span>
                 </a>
             </div>
             <div class="flex-initial my-auto text-sm text-gray-700">
@@ -23,7 +24,9 @@
         </header>
         <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24">
             <a href="/imagequery" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %}">Image Query / Retrieve</a>
+            <a href="/header_extract" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/header_extract/' %}bg-gray-100{% endif %}">DICOM Header Extraction</a>
             <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %}">Image De-identification</a>
+            <a href="/textdeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/textdeid/' %}bg-gray-100{% endif %}">Text De-identification</a>
             <a href="/image_export" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/image_export/' %}bg-gray-100{% endif %}">Secure Data Transfer</a>
         {% for module in modules %}
             <a href="/{{ module.name }}" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/{{ module.name }}/' %}bg-gray-100{% endif %}">{{ module.name }}</a>

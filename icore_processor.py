@@ -5,6 +5,9 @@ import signal
 import subprocess
 import sys
 import time
+import pydicom
+import string
+import tempfile
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -33,7 +36,7 @@ IMAGEQR_CONFIG = """<Configuration>
             port="50001"
             calledAETTag="{application_aet}"
             root="roots/DicomImportService"
-            quarantine="quarantines/DicomImportService"
+            quarantine="../appdata/quarantine/DicomImportService"
             logConnections="no" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
@@ -57,7 +60,7 @@ IMAGEQR_CONFIG = """<Configuration>
             setStandardExtensions="yes"
             acceptDuplicates="no"
             returnStoredFile="yes"
-            quarantine="quarantines/DirectoryStorageService"
+            quarantine="../appdata/quarantine/DirectoryStorageService"
             whitespaceReplacement="_" />
     </Pipeline>
 </Configuration>
@@ -86,7 +89,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             fsName="DICOM Image Directory"
             root="roots/ArchiveImportService"
             treeRoot="../input"
-            quarantine="quarantines/ArchiveImportService"
+            quarantine="../appdata/quarantine/ArchiveImportService"
             acceptFileObjects="no"
             acceptXmlObjects="no"
             acceptZipObjects="no"
@@ -96,7 +99,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             name="DicomFilter"
             root="roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../appdata/quarantine"/>
+            quarantine="../appdata/quarantine/DicomFilter"/>
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -110,13 +113,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             name="DicomDecompressor"
             root="roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
-            quarantine="quarantines/DicomDecompressor"/>
-        <DicomPixelAnonymizer
-            class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
-            name="DicomPixelAnonymizer"
-            root="roots/DicomPixelAnonymizer"
-            script="scripts/DicomPixelAnonymizer.script"
-            quarantine="quarantines/DicomPixelAnonymizer"/>
+            quarantine="../appdata/quarantine/DicomDecompressor"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             name="IDMap"
@@ -127,7 +124,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             root="roots/DicomAnonymizer"
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
-            quarantine="../appdata/quarantine" />
+            quarantine="../appdata/quarantine/DicomAnonymizer" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
@@ -144,7 +141,7 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
             setStandardExtensions="yes"
             acceptDuplicates="no"
             returnStoredFile="yes"
-            quarantine="quarantines/DirectoryStorageService"
+            quarantine="../appdata/quarantine/DirectoryStorageService"
             whitespaceReplacement="_" />
     </Pipeline>
 </Configuration>"""
@@ -194,12 +191,6 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
             root="roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
             quarantine="../appdata/quarantine"/>
-        <DicomPixelAnonymizer
-            class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
-            name="DicomPixelAnonymizer"
-            root="roots/DicomPixelAnonymizer"
-            script="scripts/DicomPixelAnonymizer.script"
-            quarantine="../appdata/quarantine"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             name="IDMap"
@@ -233,6 +224,19 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
 </Configuration>
 """
 
+NLM_CONFIG_TEMPALTE = """ClinicalReports_dir = {input_dir}
+nPHI_outdir = {output_dir}
+ClinicalReports_files = [^\\.].*
+Preserved_phrases = {preserved_file}
+Redacted_phrases = {pii_file}
+AutoOpenOutDir = Off
+"""
+
+COMMON_DATE_FORMATS = [
+    '%m/%d/%Y','%Y-%m-%d','%d/%m/%Y','%m-%d-%Y','%Y/%m/%d','%d-%m-%Y',
+    '%m/%d/%y','%y-%m-%d','%d/%m/%y'
+]
+
 
 def print_and_log(message):
     logging.info(message)
@@ -241,6 +245,10 @@ def print_and_log(message):
 def error_and_exit(error):
     print_and_log(error)
     sys.exit(1)
+
+def write(path, data):
+    with open(path, "w") as f:
+        f.write(data)
 
 def strip_ctp_cell(value):
     return value.strip('=(")') if isinstance(value, str) else value
@@ -260,7 +268,7 @@ def ctp_get_status(key):
     return int(re.search(re.compile(rf"{key}:\s*<\/td><td>(\d+)"), ctp_get("status")).group(1))
 
 def count_files(path, exclude_files):
-    return len([f for f in os.listdir(path) if not f.startswith('.') and os.path.isfile(os.path.join(path, f)) and f not in exclude_files])
+    return sum(len([f for f in files if not f.startswith('.') and f not in exclude_files]) for _, _, files in os.walk(path))
 
 def count_dicom_files(path):
     dicom_count = 0
@@ -357,10 +365,12 @@ def cmove_queries(**config):
     df = pd.read_excel(os.path.join("input", "input.xlsx"))
     queries = []
     accession_numbers = []  # Track all accession numbers
+    logging.info(f"acc_col: {config.get('acc_col')}, mrn_col: {config.get('mrn_col')}")
     if config.get("acc_col") is not None:
-        for acc in df[config.get("acc_col")]:
+        acc_mrn = list(df[[config.get("acc_col"), config.get("mrn_col")]].itertuples(index=False, name=None))
+        for acc, mrn in acc_mrn:
+            queries.append(f"-k QueryRetrieveLevel=STUDY -k AccessionNumber=*{str(acc)}* -k PatientID={str(mrn)}")
             accession_numbers.append(str(acc))
-            queries.append(f"-k QueryRetrieveLevel=STUDY -k AccessionNumber={str(acc)}")
     else:
         mrn_dates = list(df[[config.get("mrn_col"), config.get("date_col")]].itertuples(index=False, name=None))
         for mrn, dt in mrn_dates:
@@ -428,8 +438,11 @@ def cmove_images(logf, **config):
             current_moves = failed_moves
             retry_count += 1
 
-    # Compare original accession numbers with successful ones to determine failures
-    failed_accessions = [acc for acc in accession_numbers if acc not in successful_accessions]
+    failed_accessions = []
+    for acc in accession_numbers:
+        if acc not in successful_accessions:
+            if not any(acc in successful_acc for successful_acc in successful_accessions):
+                failed_accessions.append(acc)
     
     return failed_accessions
 
@@ -451,10 +464,103 @@ def save_failed_accessions(failed_accessions):
             line = f"{time.strftime('%Y-%m-%d %H:%M:%S')},{acc},Failed to retrieve\n"
             f.write(line)
 
+def save_quarantined_files_log():
+    """Save detailed log of quarantined files to appdata"""
+    log_path = os.path.join("appdata", "quarantined_files_log.csv")
+    
+    quarantine_dirs = {
+        "ArchiveImportService": "../appdata/quarantine/ArchiveImportService",
+        "DicomFilter": "../appdata/quarantine/DicomFilter", 
+        "DicomDecompressor": "../appdata/quarantine/DicomDecompressor",
+        "DicomAnonymizer": "../appdata/quarantine/DicomAnonymizer",
+        "DirectoryStorageService": "../appdata/quarantine/DirectoryStorageService"
+    }
+
+    with open(log_path, "w") as f:
+        f.write("Stage,Filename,Path\n")
+        
+        for stage, quarantine_path in quarantine_dirs.items():
+            if os.path.exists(quarantine_path):
+                for root, dirs, filenames in os.walk(quarantine_path):
+                    for filename in filenames:
+                        if not filename.startswith('.') and filename not in ['QuarantineIndex.db', 'QuarantineIndex.lg']:
+                            file_path = os.path.join(root, filename)
+                            f.write(f"{stage},{filename},{file_path}\n")
+    
+    logging.info(f"Quarantined files log saved to {log_path}")
+
 def save_linker_csv():
     linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
     with open(os.path.join("appdata", "linker.csv"), "w") as f:
         f.write(linker_csv)
+
+def scrub(data, whitelist, blacklist):
+    try:
+        # Create a specific temp directory instead of using default system temp
+        temp_dir = "/app/temp"  # or another path where we know we have write permissions
+        os.makedirs(temp_dir, exist_ok=True)
+        os.makedirs(f"{temp_dir}/input", exist_ok=True)
+        os.makedirs(f"{temp_dir}/output", exist_ok=True)
+        for i, d in enumerate(data):
+            text = str(d) if d is not None else "Empty" 
+            write(f"{temp_dir}/input/{i}.txt", ''.join(c for c in text if c in string.printable))
+        write(f"{temp_dir}/preserved.txt", "\n".join(whitelist))
+        write(f"{temp_dir}/pii.txt", "\n".join(blacklist))
+        write(f"{temp_dir}/config.txt", NLM_CONFIG_TEMPALTE.format(
+            input_dir=f"{temp_dir}/input",
+            output_dir=f"{temp_dir}/output", 
+            preserved_file=f"{temp_dir}/preserved.txt",
+            pii_file=f"{temp_dir}/pii.txt",
+        ))
+        result = subprocess.run(["/root/scrubber.19.0403.lnx", f"{temp_dir}/config.txt"], 
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={
+                'TMPDIR': temp_dir,
+                'TEMP': temp_dir,
+                'TMP': temp_dir,
+            })
+        results = []
+        for i in range(len(data)):
+            output_file = f"{temp_dir}/output/{i}.nphi.txt"
+            with open(output_file) as f:
+                scrubbed = f.read().split("##### DOCUMENT #")[0].strip()
+                results.append(scrubbed)
+            print_and_log(f"PROGRESS: {i}/{len(data)} rows de-identified")
+        return results
+    except Exception as e:
+        error_msg = f"Error in scrub function: {str(e)}"
+        logging.error(error_msg)
+        raise Exception(error_msg)
+
+def date_shift_text(original_list, deided_list, date_shift_by):
+    shifted_list = []
+    for i, (original, deided) in enumerate(zip(original_list, deided_list)):
+        dates = []
+        for d_line, o_line in zip(deided.split('\n'), original.split('\n')):
+            pos = 0
+            while '[DATE]' in d_line[pos:]:
+                pos = d_line.find('[DATE]', pos) 
+                context = o_line[max(0,pos-30):min(len(o_line),pos+35)]
+                for word in context.split():
+                    for fmt in COMMON_DATE_FORMATS:
+                        try:
+                            datetime.strptime(word, fmt)
+                            dates.append(word)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        continue
+                    break
+                pos += 1
+        result = deided
+        for date in dates:
+            shifted = datetime.strptime(date, '%m/%d/%Y') + timedelta(days=date_shift_by)
+            result = result.replace('[DATE]', shifted.strftime('%m/%d/%Y'), 1)
+        shifted_list.append(result)
+        print_and_log(f"PROGRESS: {i+1}/{len(original_list)} rows date shifted")
+    return shifted_list
 
 def imageqr_func(_):
     save_metadata_csv()
@@ -465,7 +571,132 @@ def imageqr_main(**config):
     with ctp_workspace(imageqr_func, {}) as logf:
         failed_accessions = cmove_images(logf, **config)
         logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
+
     save_failed_accessions(failed_accessions)
+    save_quarantined_files_log()
+
+def header_extract_main(**config):
+    dicom_folder = "input"
+    excel_path = "output/headers.xlsx"
+    batch_size = config.get('batch_size', 100)  # Process 100 files at a time by default
+    
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(excel_path), exist_ok=True)
+    
+    # Collect all DICOM files first
+    dicom_files = []
+    for root, _, files in os.walk(dicom_folder):
+        for filename in files:
+            filepath = os.path.join(root, filename)
+            if (os.path.isfile(filepath) and 
+                filename.endswith('.dcm') and 
+                not filename.startswith('.')):
+                dicom_files.append(filepath)
+    
+    if not dicom_files:
+        logging.error("No valid DICOM files found.")
+        return
+    
+    total_files = len(dicom_files)
+    logging.info(f"Found {total_files} DICOM files to process")
+    
+    csv_path = excel_path.replace('.xlsx', '.csv')
+    total_headers_processed = 0
+    first_batch = True
+    known_columns = []
+    
+    for batch_start in range(0, total_files, batch_size):
+        batch_end = min(batch_start + batch_size, total_files)
+        batch_files = dicom_files[batch_start:batch_end]
+        
+        logging.info(f"Processing batch {batch_start//batch_size + 1}: files {batch_start+1}-{batch_end} of {total_files}")
+        
+        header_data = []
+        batch_columns = set()
+        
+        for filepath in batch_files:
+            filename = os.path.basename(filepath)
+            try:
+                ds = pydicom.dcmread(filepath, stop_before_pixels=True)
+                headers = {elem.keyword or str(elem.tag): elem.value for elem in ds.iterall() if elem.VR != 'SQ'}
+                headers['__Filename__'] = filename
+                batch_columns.update(headers.keys())
+                header_data.append(headers)
+            except Exception as e:
+                logging.error(f"Error reading {filename}: {e}")
+        
+        if header_data:
+            try:
+                # Check for new columns in this batch
+                new_columns = batch_columns - set(known_columns)
+                if new_columns:
+                    new_columns = sorted(list(new_columns))
+                    logging.info(f"Found {len(new_columns)} new columns: {new_columns}")
+                    known_columns.extend(new_columns)
+                    known_columns.sort()  # Keep columns sorted
+                
+                df = pd.json_normalize(header_data)
+                
+                # If this is not the first batch and we have new columns, update existing CSV
+                if not first_batch and new_columns:
+                    # Read existing CSV and add new columns
+                    existing_df = pd.read_csv(csv_path)
+                    
+                    # Add new columns to existing data (fill with None)
+                    for col in new_columns:
+                        existing_df[col] = None
+                    
+                    # Reorder columns to match known_columns
+                    existing_df = existing_df.reindex(columns=known_columns, fill_value=None)
+                    
+                    # Write updated CSV
+                    existing_df.to_csv(csv_path, index=False, mode='w')
+                    logging.info(f"Updated existing CSV with {len(new_columns)} new columns")
+                
+                # Ensure current batch has all known columns
+                df = df.reindex(columns=known_columns, fill_value=None)
+                
+                # Write to CSV (append mode for subsequent batches)
+                if first_batch:
+                    df.to_csv(csv_path, index=False, mode='w')
+                    first_batch = False
+                else:
+                    df.to_csv(csv_path, index=False, mode='a', header=False)
+                
+                total_headers_processed += len(df)
+                logging.info(f"Processed {len(header_data)} headers in this batch (total: {total_headers_processed})")
+                
+            except Exception as e:
+                logging.error(f"Error processing batch: {e}")
+    
+    if total_headers_processed == 0:
+        logging.error("No valid DICOM headers extracted.")
+        return
+    
+    try:
+        logging.info(f"Converting CSV to Excel format in batches...")
+        
+        chunk_size = 1000  # Process 1000 rows at a time
+        all_chunks = []
+        
+        # Collect all chunks first (but still memory efficient)
+        for chunk_df in pd.read_csv(csv_path, chunksize=chunk_size):
+            all_chunks.append(chunk_df)
+            logging.info(f"Loaded chunk of {len(chunk_df)} rows for Excel conversion")
+        
+        # Write all chunks to Excel at once (more efficient than reading back)
+        if all_chunks:
+            logging.info(f"Writing {len(all_chunks)} chunks to Excel...")
+            combined_df = pd.concat(all_chunks, ignore_index=True)
+            combined_df.to_excel(excel_path, index=False)
+        
+        # Clean up CSV file
+        os.remove(csv_path)
+        
+        logging.info(f"Successfully extracted and saved {total_headers_processed} headers to {excel_path}")
+    except Exception as e:
+        logging.error(f"Error converting CSV to Excel: {e}")
+        logging.info(f"CSV file saved at {csv_path} as backup")
 
 def imagedeid_func(_):
     save_metadata_csv()
@@ -486,7 +717,12 @@ def imagedeid_main(**config):
             logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
         else:
             failed_accessions = []
+
     save_failed_accessions(failed_accessions)
+    save_quarantined_files_log()
+
+    total_quarantined = count_files(os.path.join("appdata", "quarantine"), {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"})
+    logging.info(f"PROCESSING COMPLETE - Failed accessions: {len(failed_accessions)}, Quarantined files: {total_quarantined}")
 
 def parse_rclone_config(config_path):
     """Parse rclone config file into sections"""
@@ -559,20 +795,41 @@ def get_rclone_path(config):
 
 def image_export_main(**config):
     try:
-        rclone_sections = parse_rclone_config('/rclone.conf')
-        storage_location = config.get('storage_location')
-        storage_config = rclone_sections[storage_location]
-        storage_type = storage_config.get('type')
-
-        cmd = ["rclone", "--config", "/rclone.conf"]
-        cmd.extend(get_rclone_flags(storage_type))
-        cmd.extend(["copy", "input", get_rclone_path(config)])
+        container_name = config.get('container_name')
+        site_id = config.get('site_id')
+        project_name = config.get('project_name')
+        if container_name is None or project_name is None:
+            error_and_exit("Container name and project name are required.")
+        cmd = ["rclone", "copy", "--progress", "--config", "/rclone.conf", "input", f"azure:{container_name}/{site_id}/{project_name}"]
         logging.info(' '.join(cmd))
-        with open(os.path.join("appdata", "log.txt"), "w") as logf:
+        with open(os.path.join("appdata", "log.txt"), "a") as logf:
             subprocess.run(cmd, text=True, stdout=logf, stderr=logf)
         logging.info("PROGRESS: COMPLETE")
     except Exception as e:
         error_and_exit(f"Error: {e}")
+
+def textdeid_main(**config):
+    try:
+        df = pd.read_excel(os.path.join("input", "input.xlsx"), header=None)
+        original_data = df.iloc[:,0].tolist()
+        deid_data = scrub(original_data, config.get("to_keep_list"), config.get("to_remove_list"))
+        shifted_data = date_shift_text(original_data, deid_data, config.get("date_shift_by"))
+        pd.DataFrame(shifted_data).to_excel(os.path.join("output", "output.xlsx"), index=False, header=False)
+        print_and_log("PROGRESS: COMPLETE")
+    except Exception as e:
+        error_and_exit(f"Error: {e}")
+
+def validate_config(input_dir, output_dir, config):
+    if config is None:
+        error_and_exit("Config file unable to load or invalid.")
+    if not os.path.exists(input_dir):
+        error_and_exit("Input directory not found.")
+    if os.listdir(output_dir) != []:
+        error_and_exit("Output directory must be empty.")
+    if config.get("to_keep_list") is None or config.get("to_remove_list") is None:
+        error_and_exit("to_keep_list and to_remove_list must be provided.")
+    if config.get("date_shift_by") is None:
+        error_and_exit("Date shift by must be provided.")
 
 def validate_ctp_filters(filters):
     grammar = r"""start: expr
@@ -678,6 +935,14 @@ def imageqr(**config):
     """
     imageqr_main(**config)
 
+def headerextract(**config):
+    """
+    Extracts DICOM headers from local directory.
+    Takes all files in the input directory and saves the headers 
+    to an Excel file.
+    """
+    header_extract_main(**config)
+
 def imagedeid(**config):
     """
     Deidentify DICOM images from local directory or PACS. If input
@@ -712,6 +977,19 @@ def imageexport(**config):
     """
     image_export_main(**config)
 
+def textdeid(**config):
+    """
+    De-identifies text from the input.xlsx file in the input directory.
+    The excel file should only have one column with text to be de-identified.
+    The excel file should not have any headers.
+
+    Keyword Args:
+        date_shift_by (int): Number of days to shift the date.
+        to_keep_list (list): List of phrases to be preserved.
+        to_remove_list (list): List of phrases to be de-identified.
+    """
+    textdeid_main(**config)
+
 def generalmodule(**config):
     logging.info(f"Running module: {config.get('module')}")
     logging.info(f"Config: {config}")
@@ -739,7 +1017,7 @@ def generalmodule(**config):
 def run_module(**config):
     logging.info(f"Running module: {config.get('module')}")
     logging.info(f"Config: {config}")
-    if config.get("module") in ["imageqr", "imagedeid", "imageexport"]:
+    if config.get("module") in ["imageqr", "imagedeid", "imageexport", "headerextract", "textdeid"]:
         globals()[config.get("module")](**config)
     else:
         generalmodule(**config)

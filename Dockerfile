@@ -3,6 +3,7 @@ WORKDIR /root
 COPY ./ctp /root/ctp
 COPY ./icore_processor.py /root/icore_processor.py
 COPY ./scrubber.19.0403.lnx /root/scrubber.19.0403.lnx
+RUN chmod +x /root/scrubber.19.0403.lnx
 RUN ln -s /config.yml /root/config.yml
 RUN ln -s /input /root/input
 RUN ln -s /output /root/output
@@ -14,5 +15,5 @@ RUN apt-get update --fix-missing &&\
 RUN curl https://rclone.org/install.sh | bash
 RUN python3 -m venv venv && \
     . venv/bin/activate && \
-    pip install lark openpyxl pandas pyyaml requests ruamel.yaml pyinstaller
+    pip install lark openpyxl pandas pyyaml pydicom requests ruamel.yaml pyinstaller
 CMD ["/root/venv/bin/python", "icore_processor.py"]

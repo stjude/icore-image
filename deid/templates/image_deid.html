@@ -44,6 +44,8 @@
             <div id="accession_input" class="flex items-center mt-4">
                 <div class="text-sm text-gray-600">Accession column header</div>
                 <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="accession_column" />
+                <div class="text-sm text-gray-600 ml-4">MRN column header</div>
+                <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="mrn_column" />
             </div>
             <div id="mrn_date_input" class="hidden flex items-center mt-4">
                 <div class="text-sm text-gray-600">MRN column header</div>
@@ -325,6 +327,13 @@
             ...filters
         };
 
+        if (data.image_source === 'PACS' && data.input_file) {
+            if (!data.input_file.endsWith('.xlsx')) {
+                alert('Input file must be an Excel file.');
+                return;
+            }
+        }
+
         if (isScheduled) {
             const scheduledTime = document.getElementById('scheduled_time').value;
             if (!scheduledTime) {
@@ -336,7 +345,7 @@
 
         if (isAccessionQuery) {
             data.acc_col = document.querySelector('[name="accession_column"]').value;
-            data.mrn_col = '';
+            data.mrn_col = document.querySelector('[name="mrn_column"]').value;
             data.date_col = '';
         } else {
             data.acc_col = '';

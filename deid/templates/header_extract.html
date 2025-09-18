@@ -9,23 +9,29 @@
 </script>
 
 <div class="px-4">
-    <h1 class="text-xl flex-1">Secure Data Transfer</h1>
+    <h1 class="text-xl flex-1">DICOM Header Extraction</h1>
 </div>
 
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
     <div class="text-sm text-black-5">Project Name</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
 
-    <div class="text-sm text-black-5 mt-4">Select Folder for Secure Data Transfer</div>
+    <div class="text-sm text-black-5 mt-4">Input Folder</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
-    
-    <div class="text-sm text-black-5 mt-4">SAS URL</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="blob_url" />
+
+    <div class="flex items-center mt-4">
+        <button class="text-black" onclick="toggleHeaderExtractOptions()" id="headerExtractOptionsButton">▼</button>
+        <div class="text-sm text-black ml-4">Header Extraction Options</div>
+    </div>
+    <div id="header_extract_options" class="mt-4 hidden ml-4">
+        <div class="text-sm text-gray-500 mt-4">Output Folder</div>
+        <input type="text" class="mt-2 mb-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
+    </div>
 </div>
 
 <div class="m-4">
-    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runExport()" id="export_button">
-        Run Export
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runHeaderExtract()" id="header_extract_button">
+        Run Extraction
     </button>
 </div>
 
@@ -35,28 +41,33 @@
         try {
             const response = await fetch('/load_settings/');
             settings = await response.json();
+
+            if (settings.default_output_folder) {
+                document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
+            }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
     });
 
-    async function runExport() {
-        if (!settings.site_id) {
-            alert('Site ID is not set. Please set the site ID in the settings.');
-            return;
-        }
+    function toggleHeaderExtractOptions() {
+        const headerExtractOptions = document.getElementById('header_extract_options');
+        const headerExtractOptionsButton = document.getElementById('headerExtractOptionsButton');
+        headerExtractOptions.classList.toggle('hidden');
+        headerExtractOptionsButton.textContent = headerExtractOptions.classList.contains('hidden') ? '▼' : '▲';
+    }
 
+    async function runHeaderExtract() {
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             input_folder: document.querySelector('[name="input_folder"]').value,
-            container_name: settings.container_name || 'icorefiles',
-            site_id: settings.site_id,
-            blob_url: document.querySelector('[name="blob_url"]').value
+            output_folder: document.querySelector('[name="output_folder"]').value,
+
         };
         console.log(data);
 
         try {
-            const response = await fetch('/run_export/', {
+            const response = await fetch('/run_header_extract/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -67,7 +78,7 @@
             if (result.status === 'success') {
                 window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}`;
             } else {
-                console.error('Error starting export:', result);
+                console.error('Error starting header extract:', result);
             }
         } catch (error) {
             console.error('Error:', error);

@@ -9,15 +9,21 @@ def get_password_file_path():
     return os.path.join(secure_dir, 'icapf.txt')
 
 def check_password_strength(password):
-    if len(password) < 8:
+    if len(password) < 20:
         return 1
-    if len(password) < 12:
-        return 2
-    return 3
+    if not any(c.islower() for c in password):
+        return 1
+    if not any(c.isupper() for c in password):
+        return 1
+    if not any(c.isdigit() for c in password):
+        return 1
+    if not any(c in "!@#$%^&*()-_=+[{]}\\|;:,<.>/?`~" for c in password):
+        return 1
+    return 0
 
 def initialize_admin_password(password):
     """Initialize admin password file by copying from source"""
-    if check_password_strength(password) < 3:
+    if check_password_strength(password) != 0:
         print("Password is too weak")
         return
     try:
