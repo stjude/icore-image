@@ -188,8 +188,7 @@ app.on('ready', async () => {
         height: 720,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
-            webSecurity: false,
+            contextIsolation: true
         },
     });
 
