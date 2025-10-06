@@ -1,3 +1,3 @@
 - uses: github/codeql-action/init@v3
   with:
-    languages: javascript, python
+    languages: javascript # Not including python becaues it runs in fully isolated docker container
