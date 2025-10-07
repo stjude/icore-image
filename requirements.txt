@@ -1,5 +1,5 @@
 # Core dependencies
-numpy==2.0.2
+numpy==2.3.3
 pandas==2.2.3
 pydicom==2.4.4
 PyYAML==6.0.2

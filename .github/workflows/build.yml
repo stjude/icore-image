@@ -1,0 +1,83 @@
+on: [push, workflow_dispatch]
+
+
+jobs:
+  build_processor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image-processor
+        run: ./build_processor.sh
+      - name: Store image
+        uses: actions/upload-artifact@v4
+        with:
+          name: icore_processor.tar
+          path: icore_processor.tar
+
+  build_django:
+    strategy:
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create executables
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+          cd deid
+          pyinstaller --clean --noconfirm manage.spec
+          pyinstaller --clean --noconfirm processor.spec
+          pyinstaller --clean --noconfirm initialize_admin_password.spec
+          cp home/settings.json dist/
+          cd dist
+          zip -r icore_django.zip .
+      - name: Store application
+        uses: actions/upload-artifact@v4
+        with:
+          name: icore_django_${{ matrix.os }}.zip
+          path: deid/dist/icore_django.zip
+
+  build_electron:
+    strategy:
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    needs: [build_processor, build_django]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: brew install create-dmg
+      - name: Download image-processor artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: icore_processor.tar
+      - name: Download django application artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: icore_django_${{ matrix.os }}.zip
+      - name: Unpack artifacts into assets
+        run: |
+          cp icore_processor.tar electron/assets/
+          unzip -o icore_django.zip -d electron/assets
+      - name: Build application
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install pillow
+          python convert_to_icns.py --png_path deid/static/logo.png --output_dir electron/assets
+          python update_app_name.py iCore
+          cd electron
+          npm ci
+          npm run build_electron
+          APP_NAME=$(node -e "console.log(require('./package.json').name)")
+          cd ${APP_NAME}-darwin-$(node -p "process.arch")
+          ../create-dmg.sh
+          DMG_NAME=$(ls *.dmg)
+          cp "$DMG_NAME" "../../${APP_NAME}-$(node -p "process.arch").dmg"
+      - name: Store application
+        uses: actions/upload-artifact@v4
+        with:
+          name: icore_${{ matrix.os }}.dmg
+          path: ./*.dmg
