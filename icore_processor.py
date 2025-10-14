@@ -368,6 +368,7 @@ def ctp_workspace(func, data):
         finally:
             finish_ctp_run(process, thread, data)
             shutil.rmtree(temp_roots_dir, ignore_errors=True)
+            os.remove(os.path.join("ctp", "config.xml"))
 
 def save_ctp_filters(ctp_filters):
     with open(os.path.join("ctp", "scripts", "dicom-filter.script"), "w") as f:
