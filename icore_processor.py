@@ -19,6 +19,13 @@ import requests
 import yaml
 from lark import Lark
 
+INPUT_DIR = "input"
+OUTPUT_DIR = "output"
+APPDATA_DIR = "appdata"
+MODULES_DIR = "modules"
+CONFIG_PATH = "config.yml"
+
+
 IMAGEQR_CONFIG = """<Configuration>
     <Server
         maxThreads="20"
@@ -29,26 +36,26 @@ IMAGEQR_CONFIG = """<Configuration>
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="AuditLog"
         name="AuditLog"
-        root="../appdata/temp/roots/AuditLog"/>
+        root="{appdata_dir}/temp/roots/AuditLog"/>
     <Pipeline name="imagedeid">
         <DicomImportService
             class="org.rsna.ctp.stdstages.DicomImportService"
             name="DicomImportService"
             port="50001"
             calledAETTag="{application_aet}"
-            root="../appdata/temp/roots/DicomImportService"
-            quarantine="../appdata/quarantine/DicomImportService"
+            root="{appdata_dir}/temp/roots/DicomImportService"
+            quarantine="{appdata_dir}/quarantine/DicomImportService"
             logConnections="no" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
-            root="../appdata/temp/roots/DicomFilter"
+            root="{appdata_dir}/temp/roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../appdata/quarantine" />
+            quarantine="{appdata_dir}/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="../appdata/temp/roots/DicomAuditLogger"
+            root="{appdata_dir}/temp/roots/DicomAuditLogger"
             auditLogID="AuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -56,12 +63,12 @@ IMAGEQR_CONFIG = """<Configuration>
         <DirectoryStorageServices
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
-            root="../output/images"
+            root="{output_dir}/images"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
             acceptDuplicates="no"
             returnStoredFile="yes"
-            quarantine="../appdata/quarantine/DirectoryStorageService"
+            quarantine="{appdata_dir}/quarantine/DirectoryStorageService"
             whitespaceReplacement="_" />
     </Pipeline>
 </Configuration>
@@ -77,20 +84,20 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="AuditLog"
         name="AuditLog"
-        root="../appdata/temp/roots/AuditLog"/>
+        root="{appdata_dir}/temp/roots/AuditLog"/>
     <Plugin
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="DeidAuditLog"
         name="DeidAuditLog"
-        root="../appdata/temp/roots/DeidAuditLog"/>
+        root="{appdata_dir}/temp/roots/DeidAuditLog"/>
     <Pipeline name="imagedeid">
         <ArchiveImportService
             class="org.rsna.ctp.stdstages.ArchiveImportService"
             name="ArchiveImportService"
             fsName="DICOM Image Directory"
-            root="../appdata/temp/roots/ArchiveImportService"
-            treeRoot="../input"
-            quarantine="../appdata/quarantine/ArchiveImportService"
+            root="{appdata_dir}/temp/roots/ArchiveImportService"
+            treeRoot="{input_dir}"
+            quarantine="{appdata_dir}/quarantine/ArchiveImportService"
             acceptFileObjects="no"
             acceptXmlObjects="no"
             acceptZipObjects="no"
@@ -98,13 +105,13 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
-            root="../appdata/temp/roots/DicomFilter"
+            root="{appdata_dir}/temp/roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../appdata/quarantine/DicomFilter"/>
+            quarantine="{appdata_dir}/quarantine/DicomFilter"/>
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="../appdata/temp/roots/DicomAuditLogger"
+            root="{appdata_dir}/temp/roots/DicomAuditLogger"
             auditLogID="AuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -112,24 +119,24 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
-            root="../appdata/temp/roots/DicomDecompressor"
+            root="{appdata_dir}/temp/roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
-            quarantine="../appdata/quarantine/DicomDecompressor"/>
+            quarantine="{appdata_dir}/quarantine/DicomDecompressor"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             name="IDMap"
-            root="../appdata/temp/roots/IDMap" />
+            root="{appdata_dir}/temp/roots/IDMap" />
         <DicomAnonymizer
             class="org.rsna.ctp.stdstages.DicomAnonymizer"
             name="DicomAnonymizer"
-            root="../appdata/temp/roots/DicomAnonymizer"
+            root="{appdata_dir}/temp/roots/DicomAnonymizer"
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
-            quarantine="../appdata/quarantine/DicomAnonymizer" />
+            quarantine="{appdata_dir}/quarantine/DicomAnonymizer" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="../appdata/temp/roots/DicomAuditLogger"
+            root="{appdata_dir}/temp/roots/DicomAuditLogger"
             auditLogID="DeidAuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -137,12 +144,12 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
-            root="../output/"
+            root="{output_dir}/"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
             acceptDuplicates="no"
             returnStoredFile="yes"
-            quarantine="../appdata/quarantine/DirectoryStorageService"
+            quarantine="{appdata_dir}/quarantine/DirectoryStorageService"
             whitespaceReplacement="_" />
     </Pipeline>
 </Configuration>"""
@@ -157,31 +164,31 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="AuditLog"
         name="AuditLog"
-        root="../appdata/temp/roots/AuditLog"/>
+        root="{appdata_dir}/temp/roots/AuditLog"/>
     <Plugin
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="DeidAuditLog"
         name="DeidAuditLog"
-        root="../appdata/temp/roots/DeidAuditLog"/>
+        root="{appdata_dir}/temp/roots/DeidAuditLog"/>
     <Pipeline name="imagedeid">
         <DicomImportService
             class="org.rsna.ctp.stdstages.DicomImportService"
             name="DicomImportService"
             port="50001"
             calledAETTag="{application_aet}"
-            root="../appdata/temp/roots/DicomImportService"
-            quarantine="../appdata/quarantine"
+            root="{appdata_dir}/temp/roots/DicomImportService"
+            quarantine="{appdata_dir}/quarantine"
             logConnections="no" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
-            root="../appdata/temp/roots/DicomFilter"
+            root="{appdata_dir}/temp/roots/DicomFilter"
             script="scripts/dicom-filter.script"
-            quarantine="../appdata/quarantine" />
+            quarantine="{appdata_dir}/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="../appdata/temp/roots/DicomAuditLogger"
+            root="{appdata_dir}/temp/roots/DicomAuditLogger"
             auditLogID="AuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -189,24 +196,24 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
-            root="../appdata/temp/roots/DicomDecompressor"
+            root="{appdata_dir}/temp/roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
-            quarantine="../appdata/quarantine"/>
+            quarantine="{appdata_dir}/quarantine"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             name="IDMap"
-            root="../appdata/temp/roots/IDMap" />
+            root="{appdata_dir}/temp/roots/IDMap" />
         <DicomAnonymizer
             class="org.rsna.ctp.stdstages.DicomAnonymizer"
             name="DicomAnonymizer"
-            root="../appdata/temp/roots/DicomAnonymizer"
+            root="{appdata_dir}/temp/roots/DicomAnonymizer"
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
-            quarantine="../appdata/quarantine" />
+            quarantine="{appdata_dir}/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="../appdata/temp/roots/DicomAuditLogger"
+            root="{appdata_dir}/temp/roots/DicomAuditLogger"
             auditLogID="DeidAuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -214,12 +221,12 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         <DirectoryStorageService
             class="org.rsna.ctp.stdstages.DirectoryStorageService"
             name="DirectoryStorageService"
-            root="../output"
+            root="{output_dir}"
             structure="{{StudyInstanceUID}}/{{SeriesInstanceUID}}"
             setStandardExtensions="yes"
             acceptDuplicates="no"
             returnStoredFile="yes"
-            quarantine="../appdata/quarantine"
+            quarantine="{appdata_dir}/quarantine"
             whitespaceReplacement="_" />
     </Pipeline>
 </Configuration>
@@ -286,7 +293,7 @@ def count_dicom_files(path):
 
 def run_progress(data):
     received = ctp_get_status("Files received") if data["querying_pacs"] else data["dicom_count"]
-    quarantined = count_files(os.path.join("appdata", "quarantine"), {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"})
+    quarantined = count_files(os.path.join(APPDATA_DIR, "quarantine"), {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"})
     saved = ctp_get_status("Files actually stored")
     stable = received == (quarantined + saved)
     return saved, quarantined, received, stable
@@ -306,21 +313,27 @@ def tick(tick_func, data):
             print_and_log(f"PROGRESS: {num}/{denom} files")
     print_and_log("PROGRESS: COMPLETE")
 
-def start_ctp_run(tick_func, tick_data, logf):
-    java_home = os.environ.get('JAVA_HOME')
-    java_executable = f"{java_home}/bin/java"
+def start_ctp_run(tick_func, tick_data, logf, ctp_dir):
+    if hasattr(sys, '_MEIPASS'):
+        java_home = os.path.join(sys._MEIPASS, 'jre8', 'Contents', 'Home')
+    else:
+        java_home = os.environ.get('JAVA_HOME')
+    
+    java_executable = os.path.join(java_home, "bin", "java")
     env = os.environ.copy()
     env['JAVA_HOME'] = java_home
+    
     ctp_process = subprocess.Popen(
         [java_executable, "-Xms16g", "-Xmx16g", "-jar", "Runner.jar"],
-        cwd="ctp", stdout=logf, stderr=logf, text=True, env=env
+        cwd=ctp_dir, stdout=logf, stderr=logf, text=True, env=env
     )
-    tick_data = {"complete": False, "querying_pacs": True, "dicom_count": count_dicom_files("input")} | tick_data
+    
+    tick_data = {"complete": False, "querying_pacs": True, "dicom_count": count_dicom_files(INPUT_DIR)} | tick_data
     tick_thread = Thread(target=tick, args=(tick_func, tick_data,), daemon=True)
     tick_thread.start()
     return (ctp_process, tick_thread, tick_data)
 
-def finish_ctp_run(ctp_process, tick_thread, tick_data):
+def finish_ctp_run(ctp_process, tick_thread, tick_data, temp_ctp_dir):
     tick_data["complete"] = True
     tick_thread.join()
     try:
@@ -354,38 +367,56 @@ def finish_ctp_run(ctp_process, tick_thread, tick_data):
             ctp_process.kill()
             ctp_process.wait()
             logging.info("CTP process force killed")
+    finally:
+        shutil.rmtree(temp_ctp_dir, ignore_errors=True)
 
 @contextmanager
-def ctp_workspace(func, data):
-    temp_roots_dir = os.path.join("appdata", "temp", "roots")
+def ctp_workspace(func, data, config_setup_func=None):
+    temp_roots_dir = os.path.join(APPDATA_DIR, "temp", "roots")
     os.makedirs(temp_roots_dir, exist_ok=True)
+    temp_ctp_dir = setup_ctp_directory()
     
-    with open(os.path.join("appdata", "log.txt"), "a") as logf:
+    if config_setup_func:
+        config_setup_func(temp_ctp_dir)
+    
+    with open(os.path.join(APPDATA_DIR, "log.txt"), "a") as logf:
         try:
-            process, thread, data = start_ctp_run(func, data, logf)
+            process, thread, data = start_ctp_run(func, data, logf, temp_ctp_dir)
             time.sleep(3)
             yield logf
         finally:
-            finish_ctp_run(process, thread, data)
+            finish_ctp_run(process, thread, data, temp_ctp_dir)
             shutil.rmtree(temp_roots_dir, ignore_errors=True)
-            os.remove(os.path.join("ctp", "config.xml"))
 
-def save_ctp_filters(ctp_filters):
-    with open(os.path.join("ctp", "scripts", "dicom-filter.script"), "w") as f:
+def setup_ctp_directory():
+    if hasattr(sys, '_MEIPASS'):
+        source_ctp_dir = os.path.join(sys._MEIPASS, 'ctp')
+    else:
+        source_ctp_dir = "ctp"
+    
+    temp_ctp_dir = tempfile.mkdtemp(prefix='ctp_')
+    shutil.copytree(source_ctp_dir, temp_ctp_dir, dirs_exist_ok=True)
+    return temp_ctp_dir
+
+def save_ctp_filters(ctp_filters, ctp_dir):
+    with open(os.path.join(ctp_dir, "scripts", "dicom-filter.script"), "w") as f:
         f.write(ctp_filters if ctp_filters is not None else "true.")
 
-def save_ctp_anonymizer(ctp_anonymizer):
+def save_ctp_anonymizer(ctp_anonymizer, ctp_dir):
     if ctp_anonymizer is not None:
-        with open(os.path.join("ctp", "scripts", "DicomAnonymizer.script"), "w") as f:
+        with open(os.path.join(ctp_dir, "scripts", "DicomAnonymizer.script"), "w") as f:
             f.write(ctp_anonymizer)
 
-def save_ctp_lookup_table(ctp_lookup_table):
+def save_ctp_lookup_table(ctp_lookup_table, ctp_dir):
     if ctp_lookup_table is not None:
-        with open(os.path.join("ctp", "scripts", "LookupTable.properties"), "w") as f:
+        with open(os.path.join(ctp_dir, "scripts", "LookupTable.properties"), "w") as f:
             f.write(ctp_lookup_table)
+    else:
+        with open(os.path.join(ctp_dir, "scripts", "LookupTable.properties"), "w") as f:
+            f.write("")
 
-def save_config(config):
-    with open(os.path.join("ctp", "config.xml"), "w") as f:
+def save_config(config, ctp_dir):
+    with open(os.path.join(ctp_dir, "config.xml"), "w") as f:
         f.write(config)
 
 def parse_dicom_tag_dict(output):
@@ -405,7 +436,7 @@ def parse_dicom_tag_dict(output):
     return tags
 
 def cmove_queries(**config):
-    df = pd.read_excel(os.path.join("input", "input.xlsx"))
+    df = pd.read_excel(os.path.join(INPUT_DIR, "input.xlsx"))
     queries = []
     accession_numbers = []  # Track all accession numbers
     logging.info(f"acc_col: {config.get('acc_col')}, mrn_col: {config.get('mrn_col')}")
@@ -491,16 +522,16 @@ def cmove_images(logf, **config):
 
 def save_metadata_csv():
     metadata_csv = ctp_get("AuditLog?export&csv&suppress")
-    with open(os.path.join("appdata", "metadata.csv"), "w") as f:
+    with open(os.path.join(APPDATA_DIR, "metadata.csv"), "w") as f:
         f.write(metadata_csv)
 
 def save_deid_metadata_csv():
     deid_metadata_csv = ctp_get("DeidAuditLog?export&csv&suppress")
-    with open(os.path.join("appdata", "deid_metadata.csv"), "w") as f:
+    with open(os.path.join(APPDATA_DIR, "deid_metadata.csv"), "w") as f:
         f.write(deid_metadata_csv)
 
 def save_failed_accessions(failed_accessions):
-    metadata_path = os.path.join("appdata", "metadata.csv")
+    metadata_path = os.path.join(APPDATA_DIR, "metadata.csv")
     
     with open(metadata_path, "a") as f:
         for acc in failed_accessions:
@@ -509,14 +540,14 @@ def save_failed_accessions(failed_accessions):
 
 def save_quarantined_files_log():
     """Save detailed log of quarantined files to appdata"""
-    log_path = os.path.join("appdata", "quarantined_files_log.csv")
+    log_path = os.path.join(APPDATA_DIR, "quarantined_files_log.csv")
     
     quarantine_dirs = {
-        "ArchiveImportService": "../appdata/quarantine/ArchiveImportService",
-        "DicomFilter": "../appdata/quarantine/DicomFilter", 
-        "DicomDecompressor": "../appdata/quarantine/DicomDecompressor",
-        "DicomAnonymizer": "../appdata/quarantine/DicomAnonymizer",
-        "DirectoryStorageService": "../appdata/quarantine/DirectoryStorageService"
+        "ArchiveImportService": os.path.join(APPDATA_DIR, "quarantine", "ArchiveImportService"),
+        "DicomFilter": os.path.join(APPDATA_DIR, "quarantine", "DicomFilter"), 
+        "DicomDecompressor": os.path.join(APPDATA_DIR, "quarantine", "DicomDecompressor"),
+        "DicomAnonymizer": os.path.join(APPDATA_DIR, "quarantine", "DicomAnonymizer"),
+        "DirectoryStorageService": os.path.join(APPDATA_DIR, "quarantine", "DirectoryStorageService")
     }
 
     with open(log_path, "w") as f:
@@ -534,7 +565,7 @@ def save_quarantined_files_log():
 
 def save_linker_csv():
     linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
-    with open(os.path.join("appdata", "linker.csv"), "w") as f:
+    with open(os.path.join(APPDATA_DIR, "linker.csv"), "w") as f:
         f.write(linker_csv)
 
 def scrub(data, whitelist, blacklist):
@@ -609,9 +640,14 @@ def imageqr_func(_):
     save_metadata_csv()
 
 def imageqr_main(**config):
-    save_ctp_filters(config.get("ctp_filters"))
-    save_config(IMAGEQR_CONFIG)
-    with ctp_workspace(imageqr_func, {}) as logf:
+    def setup_config(temp_ctp_dir):
+        save_ctp_filters(config.get("ctp_filters"), temp_ctp_dir)
+        appdata_abs = os.path.abspath(APPDATA_DIR)
+        output_abs = os.path.abspath(OUTPUT_DIR)
+        formatted_config = IMAGEQR_CONFIG.format(appdata_dir=appdata_abs, output_dir=output_abs, application_aet=config.get("application_aet"))
+        save_config(formatted_config, temp_ctp_dir)
+    
+    with ctp_workspace(imageqr_func, {}, setup_config) as logf:
         failed_accessions = cmove_images(logf, **config)
         logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
 
@@ -619,8 +655,8 @@ def imageqr_main(**config):
     save_quarantined_files_log()
 
 def header_extract_main(**config):
-    dicom_folder = "input"
-    excel_path = "output/headers.xlsx"
+    dicom_folder = INPUT_DIR
+    excel_path = os.path.join(OUTPUT_DIR, "headers.xlsx")
     batch_size = config.get('batch_size', 100)  # Process 100 files at a time by default
     
     # Ensure output directory exists
@@ -747,14 +783,20 @@ def imagedeid_func(_):
     save_linker_csv()
 
 def imagedeid_main(**config):
-    save_ctp_filters(config.get("ctp_filters"))
-    save_ctp_anonymizer(config.get("ctp_anonymizer"))
-    save_ctp_lookup_table(config.get("ctp_lookup_table"))
-    querying_pacs = os.path.exists(os.path.join("input", "input.xlsx"))
-    config_template = IMAGEDEID_PACS_CONFIG if querying_pacs else IMAGEDEID_LOCAL_CONFIG
-    formatted_config = config_template.format(application_aet=config.get("application_aet"))
-    save_config(formatted_config)
-    with ctp_workspace(imagedeid_func, {"querying_pacs": querying_pacs}) as logf:
+    querying_pacs = os.path.exists(os.path.join(INPUT_DIR, "input.xlsx"))
+    
+    def setup_config(temp_ctp_dir):
+        save_ctp_filters(config.get("ctp_filters"), temp_ctp_dir)
+        save_ctp_anonymizer(config.get("ctp_anonymizer"), temp_ctp_dir)
+        save_ctp_lookup_table(config.get("ctp_lookup_table"), temp_ctp_dir)
+        config_template = IMAGEDEID_PACS_CONFIG if querying_pacs else IMAGEDEID_LOCAL_CONFIG
+        appdata_abs = os.path.abspath(APPDATA_DIR)
+        output_abs = os.path.abspath(OUTPUT_DIR)
+        input_abs = os.path.abspath(INPUT_DIR)
+        formatted_config = config_template.format(appdata_dir=appdata_abs, output_dir=output_abs, input_dir=input_abs, application_aet=config.get("application_aet"))
+        save_config(formatted_config, temp_ctp_dir)
+    
+    with ctp_workspace(imagedeid_func, {"querying_pacs": querying_pacs}, setup_config) as logf:
         if querying_pacs:
             failed_accessions = cmove_images(logf, **config)
             logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
@@ -764,7 +806,7 @@ def imagedeid_main(**config):
     save_failed_accessions(failed_accessions)
     save_quarantined_files_log()
 
-    total_quarantined = count_files(os.path.join("appdata", "quarantine"), {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"})
+    total_quarantined = count_files(os.path.join(APPDATA_DIR, "quarantine"), {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"})
     logging.info(f"PROCESSING COMPLETE - Failed accessions: {len(failed_accessions)}, Quarantined files: {total_quarantined}")
 
 def parse_rclone_config(config_path):
@@ -843,9 +885,9 @@ def image_export_main(**config):
         project_name = config.get('project_name')
         if container_name is None or project_name is None:
             error_and_exit("Container name and project name are required.")
-        cmd = ["rclone", "copy", "--progress", "--config", "/rclone.conf", "input", f"azure:{container_name}/{site_id}/{project_name}"]
+        cmd = ["rclone", "copy", "--progress", "--config", "/rclone.conf", INPUT_DIR, f"azure:{container_name}/{site_id}/{project_name}"]
         logging.info(' '.join(cmd))
-        with open(os.path.join("appdata", "log.txt"), "a") as logf:
+        with open(os.path.join(APPDATA_DIR, "log.txt"), "a") as logf:
             subprocess.run(cmd, text=True, stdout=logf, stderr=logf)
         logging.info("PROGRESS: COMPLETE")
     except Exception as e:
@@ -853,11 +895,11 @@ def image_export_main(**config):
 
 def textdeid_main(**config):
     try:
-        df = pd.read_excel(os.path.join("input", "input.xlsx"), header=None)
+        df = pd.read_excel(os.path.join(INPUT_DIR, "input.xlsx"), header=None)
         original_data = df.iloc[:,0].tolist()
         deid_data = scrub(original_data, config.get("to_keep_list"), config.get("to_remove_list"))
         shifted_data = date_shift_text(original_data, deid_data, config.get("date_shift_by"))
-        pd.DataFrame(shifted_data).to_excel(os.path.join("output", "output.xlsx"), index=False, header=False)
+        pd.DataFrame(shifted_data).to_excel(os.path.join(OUTPUT_DIR, "output.xlsx"), index=False, header=False)
         print_and_log("PROGRESS: COMPLETE")
     except Exception as e:
         error_and_exit(f"Error: {e}")
@@ -926,19 +968,19 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
-    if not os.environ.get('JAVA_HOME'):
+    if not os.environ.get('JAVA_HOME') and not hasattr(sys, '_MEIPASS'):
         error_and_exit("JAVA_HOME environment variable is not set")
     # if config.get("module") not in ["imageqr", "imagedeid", "imageexport"]:
     #     error_and_exit("Module invalid or not implemented.")
-    if not os.path.exists("input"):
-        error_and_exit("Input directory not found.")
+    if not os.path.exists(INPUT_DIR):
+        error_and_exit(f"Input directory not found: {INPUT_DIR}")
     if config.get("ctp_filters") is not None:
         validate_ctp_filters(config.get("ctp_filters"))
     if config.get("ctp_anonymizer") is not None:
         validate_ctp_anonymizer(config.get("ctp_anonymizer"))
-    if config.get("module") in ["imageqr", "imagedeid"] and os.listdir("output") != []:
+    if config.get("module") in ["imageqr", "imagedeid"] and os.listdir(OUTPUT_DIR) != []:
         error_and_exit("Output directory must be empty.")
-    if os.path.exists(os.path.join("input", "input.xlsx")):
+    if os.path.exists(os.path.join(INPUT_DIR, "input.xlsx")):
         if config.get("module") in ["imageqr", "imagedeid"]:
             if any([config.get("pacs_ip"), config.get("pacs_port"), config.get("pacs_aet")]):
                 error_and_exit("pacs_ip, pacs_port, and pacs_aet have been deprecated. Please use the pacs list instead.")
@@ -955,9 +997,9 @@ def validate_config(config):
                 error_and_exit("Can only query using one of accession or mrn + date. Not both.")
             if config.get("date_window") is not None and not isinstance(config.get("date_window"), int):
                 error_and_exit("Date window must be an integer.")
-            validate_excel(os.path.join("input", "input.xlsx"), **config)
+            validate_excel(os.path.join(INPUT_DIR, "input.xlsx"), **config)
     elif config.get("module") in ["imagedeid", "imageexport"]:
-        if count_dicom_files("input") == 0:
+        if count_dicom_files(INPUT_DIR) == 0:
             error_and_exit("No DICOM files found in input directory.")
 
 def imageqr(**config):
@@ -1039,17 +1081,19 @@ def generalmodule(**config):
     logging.info(f"Running module: {config.get('module')}")
     logging.info(f"Config: {config}")
     module = config.get("module")
-    print(os.listdir("modules"))
-    module_path = os.path.abspath(os.path.join("modules", f"{module}"))
+    if not MODULES_DIR:
+        error_and_exit("ICORE_MODULES_DIR environment variable must be set for custom modules")
+    print(os.listdir(MODULES_DIR))
+    module_path = os.path.abspath(os.path.join(MODULES_DIR, f"{module}"))
     if not os.path.exists(module_path):
         error_and_exit(f"Module {module} not found.")
 
     module_cmd = [
         module_path,
-        "config.yml",
-        "input",
-        "output",
-        "appdata/log.txt"
+        CONFIG_PATH,
+        INPUT_DIR,
+        OUTPUT_DIR,
+        os.path.join(APPDATA_DIR, "log.txt")
     ]
 
     try:
@@ -1067,12 +1111,25 @@ def run_module(**config):
     else:
         generalmodule(**config)
 
-if __name__ == "__main__":  
-    if not os.path.exists("config.yml"):
-        error_and_exit("File config.yml not found.")
-    with open("config.yml", "r") as file:
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        error_and_exit("Usage: icore_processor <config.yml> <input_dir> <output_dir>")
+    
+    CONFIG_PATH = sys.argv[1]
+    INPUT_DIR = sys.argv[2]
+    OUTPUT_DIR = sys.argv[3]
+    APPDATA_DIR = os.environ.get('ICORE_APPDATA_DIR')
+    MODULES_DIR = os.environ.get('ICORE_MODULES_DIR')
+    
+    if not APPDATA_DIR:
+        error_and_exit("ICORE_APPDATA_DIR environment variable must be set")
+    
+    if not os.path.exists(CONFIG_PATH):
+        error_and_exit(f"Config file not found: {CONFIG_PATH}")
+    
+    with open(CONFIG_PATH, "r") as file:
         config = yaml.safe_load(file)
-    logging.basicConfig(filename=os.path.join("appdata", "log.txt"), level=logging.INFO,
+    logging.basicConfig(filename=os.path.join(APPDATA_DIR, "log.txt"), level=logging.INFO,
         format="%(asctime)s %(levelname)-5s %(message)s", datefmt="%H:%M:%S")
     validate_config(config)
     run_module(**config)
