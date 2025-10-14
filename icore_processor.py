@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -28,26 +29,26 @@ IMAGEQR_CONFIG = """<Configuration>
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="AuditLog"
         name="AuditLog"
-        root="roots/AuditLog"/>
+        root="../appdata/temp/roots/AuditLog"/>
     <Pipeline name="imagedeid">
         <DicomImportService
             class="org.rsna.ctp.stdstages.DicomImportService"
             name="DicomImportService"
             port="50001"
             calledAETTag="{application_aet}"
-            root="roots/DicomImportService"
+            root="../appdata/temp/roots/DicomImportService"
             quarantine="../appdata/quarantine/DicomImportService"
             logConnections="no" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
-            root="roots/DicomFilter"
+            root="../appdata/temp/roots/DicomFilter"
             script="scripts/dicom-filter.script"
             quarantine="../appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="roots/DicomAuditLogger"
+            root="../appdata/temp/roots/DicomAuditLogger"
             auditLogID="AuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -76,18 +77,18 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="AuditLog"
         name="AuditLog"
-        root="roots/AuditLog"/>
+        root="../appdata/temp/roots/AuditLog"/>
     <Plugin
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="DeidAuditLog"
         name="DeidAuditLog"
-        root="roots/DeidAuditLog"/>
+        root="../appdata/temp/roots/DeidAuditLog"/>
     <Pipeline name="imagedeid">
         <ArchiveImportService
             class="org.rsna.ctp.stdstages.ArchiveImportService"
             name="ArchiveImportService"
             fsName="DICOM Image Directory"
-            root="roots/ArchiveImportService"
+            root="../appdata/temp/roots/ArchiveImportService"
             treeRoot="../input"
             quarantine="../appdata/quarantine/ArchiveImportService"
             acceptFileObjects="no"
@@ -97,13 +98,13 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
-            root="roots/DicomFilter"
+            root="../appdata/temp/roots/DicomFilter"
             script="scripts/dicom-filter.script"
             quarantine="../appdata/quarantine/DicomFilter"/>
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="roots/DicomAuditLogger"
+            root="../appdata/temp/roots/DicomAuditLogger"
             auditLogID="AuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -111,24 +112,24 @@ IMAGEDEID_LOCAL_CONFIG = """<Configuration>
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
-            root="roots/DicomDecompressor"
+            root="../appdata/temp/roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
             quarantine="../appdata/quarantine/DicomDecompressor"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             name="IDMap"
-            root="roots/IDMap" />
+            root="../appdata/temp/roots/IDMap" />
         <DicomAnonymizer
             class="org.rsna.ctp.stdstages.DicomAnonymizer"
             name="DicomAnonymizer"
-            root="roots/DicomAnonymizer"
+            root="../appdata/temp/roots/DicomAnonymizer"
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
             quarantine="../appdata/quarantine/DicomAnonymizer" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="roots/DicomAuditLogger"
+            root="../appdata/temp/roots/DicomAuditLogger"
             auditLogID="DeidAuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -156,31 +157,31 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="AuditLog"
         name="AuditLog"
-        root="roots/AuditLog"/>
+        root="../appdata/temp/roots/AuditLog"/>
     <Plugin
         class="org.rsna.ctp.stdplugins.AuditLog"
         id="DeidAuditLog"
         name="DeidAuditLog"
-        root="roots/DeidAuditLog"/>
+        root="../appdata/temp/roots/DeidAuditLog"/>
     <Pipeline name="imagedeid">
         <DicomImportService
             class="org.rsna.ctp.stdstages.DicomImportService"
             name="DicomImportService"
             port="50001"
             calledAETTag="{application_aet}"
-            root="roots/DicomImportService"
+            root="../appdata/temp/roots/DicomImportService"
             quarantine="../appdata/quarantine"
             logConnections="no" />
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
-            root="roots/DicomFilter"
+            root="../appdata/temp/roots/DicomFilter"
             script="scripts/dicom-filter.script"
             quarantine="../appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="roots/DicomAuditLogger"
+            root="../appdata/temp/roots/DicomAuditLogger"
             auditLogID="AuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -188,24 +189,24 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
-            root="roots/DicomDecompressor"
+            root="../appdata/temp/roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
             quarantine="../appdata/quarantine"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             name="IDMap"
-            root="roots/IDMap" />
+            root="../appdata/temp/roots/IDMap" />
         <DicomAnonymizer
             class="org.rsna.ctp.stdstages.DicomAnonymizer"
             name="DicomAnonymizer"
-            root="roots/DicomAnonymizer"
+            root="../appdata/temp/roots/DicomAnonymizer"
             script="scripts/DicomAnonymizer.script"
             lookupTable="scripts/LookupTable.properties"
             quarantine="../appdata/quarantine" />
         <DicomAuditLogger
             name="DicomAuditLogger"
             class="org.rsna.ctp.stdstages.DicomAuditLogger"
-            root="roots/DicomAuditLogger"
+            root="../appdata/temp/roots/DicomAuditLogger"
             auditLogID="DeidAuditLog"
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
@@ -356,6 +357,9 @@ def finish_ctp_run(ctp_process, tick_thread, tick_data):
 
 @contextmanager
 def ctp_workspace(func, data):
+    temp_roots_dir = os.path.join("appdata", "temp", "roots")
+    os.makedirs(temp_roots_dir, exist_ok=True)
+    
     with open(os.path.join("appdata", "log.txt"), "a") as logf:
         try:
             process, thread, data = start_ctp_run(func, data, logf)
@@ -363,6 +367,7 @@ def ctp_workspace(func, data):
             yield logf
         finally:
             finish_ctp_run(process, thread, data)
+            shutil.rmtree(temp_roots_dir, ignore_errors=True)
 
 def save_ctp_filters(ctp_filters):
     with open(os.path.join("ctp", "scripts", "dicom-filter.script"), "w") as f:
