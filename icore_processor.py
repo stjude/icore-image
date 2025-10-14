@@ -1120,6 +1120,9 @@ if __name__ == "__main__":
     OUTPUT_DIR = sys.argv[3]
     APPDATA_DIR = os.environ.get('ICORE_APPDATA_DIR')
     MODULES_DIR = os.environ.get('ICORE_MODULES_DIR')
+
+    os.makedirs(APPDATA_DIR, exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     
     if not APPDATA_DIR:
         error_and_exit("ICORE_APPDATA_DIR environment variable must be set")
