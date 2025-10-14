@@ -306,7 +306,14 @@ def tick(tick_func, data):
     print_and_log("PROGRESS: COMPLETE")
 
 def start_ctp_run(tick_func, tick_data, logf):
-    ctp_process = subprocess.Popen(["java", "-Xms16g", "-Xmx16g", "-jar", "Runner.jar"], cwd="ctp", stdout=logf, stderr=logf, text=True)
+    java_home = os.environ.get('JAVA_HOME')
+    java_executable = f"{java_home}/bin/java"
+    env = os.environ.copy()
+    env['JAVA_HOME'] = java_home
+    ctp_process = subprocess.Popen(
+        [java_executable, "-Xms16g", "-Xmx16g", "-jar", "Runner.jar"],
+        cwd="ctp", stdout=logf, stderr=logf, text=True, env=env
+    )
     tick_data = {"complete": False, "querying_pacs": True, "dicom_count": count_dicom_files("input")} | tick_data
     tick_thread = Thread(target=tick, args=(tick_func, tick_data,), daemon=True)
     tick_thread.start()
@@ -315,7 +322,37 @@ def start_ctp_run(tick_func, tick_data, logf):
 def finish_ctp_run(ctp_process, tick_thread, tick_data):
     tick_data["complete"] = True
     tick_thread.join()
+    try:
+        response = requests.get(
+            "http://localhost:50000/shutdown",
+            headers={"servicemanager": "shutdown"},
+            timeout=5
+        )
+        logging.info(f"HTTP shutdown response: {response.status_code}")
+        try:
+            ctp_process.wait(timeout=30)
+            logging.info("CTP process terminated via HTTP shutdown")
+            return
+        except subprocess.TimeoutExpired:
+            logging.warning("HTTP shutdown did not complete in time, falling back to signals")
+    except Exception as e:
+        logging.warning(f"HTTP shutdown failed: {e}, falling back to signals")
+
     ctp_process.send_signal(signal.SIGINT)
+    try:
+        ctp_process.wait(timeout=30)
+        logging.info("CTP process terminated gracefully via SIGINT")
+    except subprocess.TimeoutExpired:
+        logging.warning("SIGINT did not terminate CTP, sending SIGTERM")
+        ctp_process.terminate()
+        try:
+            ctp_process.wait(timeout=10)
+            logging.info("CTP process terminated after SIGTERM")
+        except subprocess.TimeoutExpired:
+            logging.warning("CTP process did not terminate after SIGTERM, sending SIGKILL")
+            ctp_process.kill()
+            ctp_process.wait()
+            logging.info("CTP process force killed")
 
 @contextmanager
 def ctp_workspace(func, data):
@@ -883,6 +920,8 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
+    if not os.environ.get('JAVA_HOME'):
+        error_and_exit("JAVA_HOME environment variable is not set")
     # if config.get("module") not in ["imageqr", "imagedeid", "imageexport"]:
     #     error_and_exit("Module invalid or not implemented.")
     if not os.path.exists("input"):
