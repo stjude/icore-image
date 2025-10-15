@@ -314,14 +314,14 @@ def tick(tick_func, data):
     print_and_log("PROGRESS: COMPLETE")
 
 def start_ctp_run(tick_func, tick_data, logf, ctp_dir):
-    if hasattr(sys, '_MEIPASS'):
-        java_home = os.path.join(sys._MEIPASS, 'jre8', 'Contents', 'Home')
+    if getattr(sys, 'frozen', False):
+        bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
+        java_home = os.path.join(bundle_dir, '_internal', 'jre8', 'Contents', 'Home')
     else:
         java_home = os.environ.get('JAVA_HOME')
     
     java_executable = os.path.join(java_home, "bin", "java")
-    env = os.environ.copy()
-    env['JAVA_HOME'] = java_home
+    env = {'JAVA_HOME': java_home}
     
     ctp_process = subprocess.Popen(
         [java_executable, "-Xms16g", "-Xmx16g", "-jar", "Runner.jar"],
