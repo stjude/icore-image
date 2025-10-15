@@ -324,7 +324,7 @@ def start_ctp_run(tick_func, tick_data, logf, ctp_dir):
     env = {'JAVA_HOME': java_home}
     
     ctp_process = subprocess.Popen(
-        [java_executable, "-Xms16g", "-Xmx16g", "-jar", "Runner.jar"],
+        [java_executable, "-Djava.awt.headless=true", "-Dapple.awt.UIElement=true", "-Xms2048m", "-Xmx16384m", "-jar", "libraries/CTP.jar"],
         cwd=ctp_dir, stdout=logf, stderr=logf, text=True, env=env
     )
     
