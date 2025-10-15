@@ -1121,6 +1121,9 @@ if __name__ == "__main__":
     APPDATA_DIR = os.environ.get('ICORE_APPDATA_DIR')
     MODULES_DIR = os.environ.get('ICORE_MODULES_DIR')
 
+    if not APPDATA_DIR:
+        APPDATA_DIR = os.path.abspath(os.path.join(os.getcwd(), "appdata"))
+
     os.makedirs(APPDATA_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
