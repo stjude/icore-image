@@ -30,52 +30,38 @@ RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'rclone.co
 MODULES_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'modules'))
 APP_DATA_PATH = os.path.abspath(os.path.join(HOME_DIR, 'iCore', 'app_data'))
 TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'temp_input'))
-DOCKER = which('docker') or '/usr/local/bin/docker'
+ICORE_PROCESSOR_PATH = '/Users/bimba-innolitics/repos/aiminer/dist/icore_processor/icore_processor'
 
 def process_image_deid(task):
     output_folder = task.output_folder
     build_image_deid_config(task)
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
-    if task.image_source == 'PACS':
 
+    if task.image_source == 'PACS':
         os.makedirs(TMP_INPUT_PATH, exist_ok=True)
         temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
         shutil.copy2(task.parameters['input_file'], temp_input)
         input_folder = TMP_INPUT_PATH
-        docker_cmd = [
-            DOCKER, 'run', '--rm',
-            '-v', f'{CONFIG_PATH}:/config.yml',
-            '-v', f'{os.path.abspath(input_folder)}:/input',
-            '-v', f'{os.path.abspath(output_full_path)}:/output',
-            '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-            '-p', '50001:50001',
-        ]
-        for port in {config["port"] for config in task.pacs_configs}:
-            docker_cmd.extend(['-p', f'{port}:{port}'])
-        docker_cmd.append('icore_processor')
     else:
         input_folder = task.input_folder
-        docker_cmd = [
-            DOCKER, 'run', '--rm',
-            '-v', f'{CONFIG_PATH}:/config.yml',
-            '-v', f'{os.path.abspath(input_folder)}:/input',
-            '-v', f'{os.path.abspath(output_full_path)}:/output',
-            '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-            'icore_processor'
-        ]
     
-    # Print a shell-ready version of the command
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
     
     try:
-        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
-        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
     finally:
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
@@ -144,29 +130,22 @@ def process_image_query(task):
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}"))
 
-    docker_cmd = [
-        DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml',
-        '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_full_path)}:/output',
-        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        '-p', '50001:50001',
-    ]
-    for port in {config["port"] for config in task.pacs_configs}:
-        docker_cmd.extend(['-p', f'{port}:{port}'])
-    docker_cmd.append('icore_processor')
+    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
     
-    # Print a shell-ready version of the command
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
     
     try:
-        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
-        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
     finally:
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
@@ -209,29 +188,23 @@ def process_header_query(task):
     input_folder = os.path.dirname(task.parameters['input_file'])
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}"))
-    docker_cmd = [
-        DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml',
-        '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_full_path)}:/output',
-        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        '-p', '50001:50001',
-    ]
-    for port in {config["port"] for config in task.pacs_configs}:
-        docker_cmd.extend(['-p', f'{port}:{port}'])
-    docker_cmd.append('icore_processor')
     
-    # Print a shell-ready version of the command
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
     
     try:
-        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
-        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
 
 
 def build_header_query_config(task):
@@ -269,24 +242,22 @@ def process_header_extract(task):
     build_header_extract_config(task)
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
-    docker_cmd = [
-        DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml',
-        '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_full_path)}:/output',
-        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        '-v', f'{os.path.abspath(MODULES_PATH)}:/modules',
-        'icore_processor'
-    ]
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    
+    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
     try:
-        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
-        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
 
 def build_header_extract_config(task):
     """Build the configuration for header extract"""
@@ -310,25 +281,22 @@ def process_text_deid(task):
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
 
-    docker_cmd = [
-        DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml', 
-        '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_full_path)}:/output',
-        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        'icore_processor'
-    ]
+    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
 
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
 
     try:
-        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
-        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
     finally:
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
@@ -357,24 +325,24 @@ def process_image_export(task):
     build_image_export_config(task)
 
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'temp_output'))
+    os.makedirs(output_full_path, exist_ok=True)
 
-    docker_cmd = [
-        DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml',
-        '-v', f'{RCLONE_CONFIG_PATH}:/rclone.conf',
-        '-v', f'{os.path.abspath(input_folder)}:/input',
-        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        'icore_processor'
-    ]
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
     try:
-        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
-        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
 
 def build_image_export_config(task):
     """Build the configuration for image export"""
@@ -409,24 +377,22 @@ def process_general_module(task):
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
 
     print(output_full_path)
-    docker_cmd = [
-        DOCKER, 'run', '--rm',
-        '-v', f'{CONFIG_PATH}:/config.yml', 
-        '-v', f'{os.path.abspath(task.input_folder)}:/input',
-        '-v', f'{os.path.abspath(output_full_path)}:/output',
-        '-v', f'{os.path.abspath(app_data_full_path)}:/appdata',
-        '-v', f'{os.path.abspath(MODULES_PATH)}:/modules',
-        'icore_processor'
-    ]
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd)
+    
+    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(task.input_folder), os.path.abspath(output_full_path)]
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
     try:
-        result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
         print("Output:", result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
-        raise Exception(f"Docker container failed with exit code {e.returncode}: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
 
 def build_general_module_config(task):
     """Build the configuration for general module"""

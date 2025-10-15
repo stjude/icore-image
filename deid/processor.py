@@ -1,10 +1,9 @@
 import argparse
 import os
 import yaml
-from shutil import which
 import subprocess
 
-DOCKER = which('docker') or '/usr/local/bin/docker'
+ICORE_PROCESSOR_PATH = '/Users/bimba-innolitics/repos/aiminer/dist/icore_processor/icore_processor'
 
 
 def create_parser():
@@ -53,23 +52,18 @@ if __name__ == '__main__':
     parser = create_parser()
     args = parser.parse_args()
 
-    config = yaml.safe_load(open(args.config))
-
-    docker_cmd = [
-            DOCKER, 'run', '--rm',
-            '-v', f'{os.path.abspath(args.config)}:/config.yml',
-            '-v', f'{os.path.abspath(args.input_dir)}:/input',
-            '-v', f'{os.path.abspath(args.output_dir)}:/output',
-            '-v', f'{os.path.abspath(args.appdata_dir)}:/appdata',
+    cmd = [
+        ICORE_PROCESSOR_PATH,
+        os.path.abspath(args.config),
+        os.path.abspath(args.input_dir),
+        os.path.abspath(args.output_dir)
     ]
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = os.path.abspath(args.appdata_dir)
     if args.module:
-        docker_cmd.extend(['-v', f'{os.path.dirname(args.module)}:/modules'])
-    if config.get('pacs'):
-        for p in config['pacs']:
-            if p.get('port'):
-                docker_cmd.extend(['-p', f"{p.get('port')}:{p.get('port')}"])
-                docker_cmd.extend(['-p', "50001:50001"])
-    docker_cmd.append('icore_processor')
+        env['ICORE_MODULES_DIR'] = os.path.dirname(args.module)
+    
     print("Copy and run this command to test:")
-    print(' '.join(f'"{arg}"' if ' ' in arg else arg for arg in docker_cmd))
-    subprocess.run(docker_cmd)
+    print(' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd))
+    subprocess.run(cmd, env=env)
