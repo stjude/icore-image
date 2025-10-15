@@ -18,6 +18,10 @@ ctp_path = os.path.join(project_path, 'ctp')
 if os.path.exists(ctp_path):
     datas.append((ctp_path, 'ctp'))
 
+dcmtk_path = os.path.join(project_path, 'dcmtk')
+if os.path.exists(dcmtk_path):
+    datas.append((dcmtk_path, 'dcmtk'))
+
 
 try:
     lark_datas = collect_data_files('lark')
