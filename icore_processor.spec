@@ -18,9 +18,6 @@ ctp_path = os.path.join(project_path, 'ctp')
 if os.path.exists(ctp_path):
     datas.append((ctp_path, 'ctp'))
 
-scrubber_path = os.path.join(project_path, 'scrubber.19.0403.lnx')
-if os.path.exists(scrubber_path):
-    datas.append((scrubber_path, '.'))
 
 try:
     lark_datas = collect_data_files('lark')
@@ -52,6 +49,41 @@ try:
 except:
     pass
 
+try:
+    spacy_datas = collect_data_files('spacy')
+    datas.extend(spacy_datas)
+except:
+    pass
+
+try:
+    en_core_web_lg_datas = collect_data_files('en_core_web_lg')
+    datas.extend(en_core_web_lg_datas)
+except:
+    pass
+
+try:
+    presidio_analyzer_datas = collect_data_files('presidio_analyzer')
+    datas.extend(presidio_analyzer_datas)
+    import presidio_analyzer
+    presidio_analyzer_path = os.path.dirname(presidio_analyzer.__file__)
+    recognizer_registry_path = os.path.join(presidio_analyzer_path, 'recognizer_registry')
+    if os.path.exists(recognizer_registry_path):
+        datas.append((recognizer_registry_path, 'presidio_analyzer/recognizer_registry'))
+except:
+    pass
+
+try:
+    presidio_anonymizer_datas = collect_data_files('presidio_anonymizer')
+    datas.extend(presidio_anonymizer_datas)
+except:
+    pass
+
+try:
+    thinc_datas = collect_data_files('thinc')
+    datas.extend(thinc_datas)
+except:
+    pass
+
 a = Analysis(
     [os.path.join(project_path, 'icore_processor.py')],
     pathex=[project_path],
@@ -80,12 +112,47 @@ a = Analysis(
         'shutil',
         'time',
         'os',
-        'sys'
+        'sys',
+        'warnings',
+        'presidio_analyzer',
+        'presidio_analyzer.nlp_engine',
+        'presidio_analyzer.entity_recognizer',
+        'presidio_analyzer.pattern_recognizer',
+        'presidio_anonymizer',
+        'presidio_anonymizer.entities',
+        'spacy',
+        'spacy.cli',
+        'spacy.lang.en',
+        'spacy.util',
+        'spacy.errors',
+        'spacy.compat',
+        'thinc',
+        'thinc.api',
+        'thinc.backends',
+        'thinc.config',
+        'thinc.types',
+        'thinc.compat',
+        'cymem',
+        'murmurhash',
+        'preshed',
+        'blis',
+        'srsly',
+        'catalogue',
+        'wasabi',
+        'typer',
+        'pydantic',
+        'pydantic_core',
+        'torch',
+        'torch._C',
+        'torch.functional',
+        'torch.nn',
+        'torch.nn.modules',
+        'torch.nn.modules.transformer'
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['torch', 'tensorflow', 'matplotlib', 'scipy', 'IPython', 'jupyter', 'notebook', 'sympy', 'numba', 'llvmlite'],
+    excludes=['tensorflow', 'matplotlib', 'scipy', 'IPython', 'jupyter', 'notebook', 'sympy', 'numba', 'llvmlite'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

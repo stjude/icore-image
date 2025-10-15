@@ -10,6 +10,7 @@ import pydicom
 import string
 import tempfile
 import xml.etree.ElementTree as ET
+import warnings
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from threading import Thread
@@ -18,6 +19,13 @@ import pandas as pd
 import requests
 import yaml
 from lark import Lark
+from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
+from presidio_analyzer.nlp_engine import NlpEngineProvider
+from presidio_anonymizer import AnonymizerEngine
+from presidio_anonymizer.entities import OperatorConfig
+
+warnings.filterwarnings('ignore')
+os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 
 INPUT_DIR = "input"
 OUTPUT_DIR = "output"
@@ -232,18 +240,94 @@ IMAGEDEID_PACS_CONFIG = """<Configuration>
 </Configuration>
 """
 
-NLM_CONFIG_TEMPALTE = """ClinicalReports_dir = {input_dir}
-nPHI_outdir = {output_dir}
-ClinicalReports_files = [^\\.].*
-Preserved_phrases = {preserved_file}
-Redacted_phrases = {pii_file}
-AutoOpenOutDir = Off
-"""
-
 COMMON_DATE_FORMATS = [
     '%m/%d/%Y','%Y-%m-%d','%d/%m/%Y','%m-%d-%Y','%Y/%m/%d','%d-%m-%Y',
     '%m/%d/%y','%y-%m-%d','%d/%m/%y'
 ]
+
+
+def create_analyzer_engine():
+    if getattr(sys, 'frozen', False):
+        bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
+        model_path = os.path.join(bundle_dir, '_internal', 'en_core_web_lg', 'en_core_web_lg-3.7.1')
+        import spacy
+        from presidio_analyzer.nlp_engine import SpacyNlpEngine
+        nlp_engine = SpacyNlpEngine(models=[{"lang_code": "en", "model_name": model_path}])
+    else:
+        configuration = {
+            "nlp_engine_name": "spacy",
+            "models": [{"lang_code": "en", "model_name": "en_core_web_lg"}],
+        }
+        provider = NlpEngineProvider(nlp_configuration=configuration)
+        nlp_engine = provider.create_engine()
+    
+    analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
+    
+    mrn_recognizer = PatternRecognizer(
+        supported_entity="MRN",
+        name="mrn_recognizer",
+        patterns=[
+            Pattern(name="mrn_pattern", regex=r"\b(?!0{7,10}\b)\d{7,10}\b", score=0.5),
+            Pattern(name="mrn_prefix_pattern", regex=r"\b[A-Z]{2,6}-\d{4,10}\b", score=0.7),
+        ],
+    )
+    
+    alphanumeric_id_recognizer = PatternRecognizer(
+        supported_entity="ALPHANUMERIC_ID",
+        name="alphanumeric_id_recognizer",
+        patterns=[
+            Pattern(name="date_id_pattern", regex=r"\b\d{4}-\d{2}-\d{2}\b", score=0.95),
+        ],
+    )
+    
+    title_name_recognizer = PatternRecognizer(
+        supported_entity="PERSON",
+        name="title_name_recognizer",
+        patterns=[
+            Pattern(
+                name="dr_name_pattern",
+                regex=r"(?<=Dr\.\s)([A-Z][A-Z]+)\b",
+                score=0.85
+            ),
+            Pattern(
+                name="dr_no_period_pattern",
+                regex=r"(?<=Dr\s)([A-Z][A-Z]+)\b",
+                score=0.85
+            ),
+        ],
+    )
+    
+    last_name_recognizer = PatternRecognizer(
+        supported_entity="PERSON",
+        name="last_name_recognizer",
+        patterns=[
+            Pattern(
+                name="patient_full_name_pattern",
+                regex=r"(?<=Patient:\s)([A-Z][a-z]+\s+[A-Z]{2,})\b",
+                score=0.85
+            ),
+        ],
+    )
+    
+    ssn_recognizer = PatternRecognizer(
+        supported_entity="US_SSN",
+        name="ssn_recognizer",
+        patterns=[
+            Pattern(
+                name="ssn_pattern",
+                regex=r"\b\d{3}-\d{2}-\d{4}\b",
+                score=0.95
+            ),
+        ],
+    )
+    
+    analyzer.registry.add_recognizer(mrn_recognizer)
+    analyzer.registry.add_recognizer(alphanumeric_id_recognizer)
+    analyzer.registry.add_recognizer(title_name_recognizer)
+    analyzer.registry.add_recognizer(last_name_recognizer)
+    analyzer.registry.add_recognizer(ssn_recognizer)
+    
+    return analyzer
 
 
 def print_and_log(message):
@@ -576,37 +660,129 @@ def save_linker_csv():
 
 def scrub(data, whitelist, blacklist):
     try:
-        # Create a specific temp directory instead of using default system temp
-        temp_dir = "/app/temp"  # or another path where we know we have write permissions
-        os.makedirs(temp_dir, exist_ok=True)
-        os.makedirs(f"{temp_dir}/input", exist_ok=True)
-        os.makedirs(f"{temp_dir}/output", exist_ok=True)
-        for i, d in enumerate(data):
-            text = str(d) if d is not None else "Empty" 
-            write(f"{temp_dir}/input/{i}.txt", ''.join(c for c in text if c in string.printable))
-        write(f"{temp_dir}/preserved.txt", "\n".join(whitelist))
-        write(f"{temp_dir}/pii.txt", "\n".join(blacklist))
-        write(f"{temp_dir}/config.txt", NLM_CONFIG_TEMPALTE.format(
-            input_dir=f"{temp_dir}/input",
-            output_dir=f"{temp_dir}/output", 
-            preserved_file=f"{temp_dir}/preserved.txt",
-            pii_file=f"{temp_dir}/pii.txt",
-        ))
-        result = subprocess.run(["/root/scrubber.19.0403.lnx", f"{temp_dir}/config.txt"], 
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env={
-                'TMPDIR': temp_dir,
-                'TEMP': temp_dir,
-                'TMP': temp_dir,
-            })
+        analyzer = create_analyzer_engine()
+        anonymizer = AnonymizerEngine()
+        
+        medical_terms_deny_list = {
+            'cardiomediastinal', 'ventricles', 'medullaris', 'conus', 'calvarium',
+            'paraspinal', 'mediastinum', 'pleura', 'parenchyma', 'foramina',
+            'mucosal', 'multiplanar', 'heterogeneously', 'schmorl',
+            'md', 'pneumonia', 'pneumothorax', 'effusion', 'opacity', 
+            'consolidation', 'calcification', 'abnormality', 'silhouette',
+            'technique', 'ap', 'lateral', 'ct', 'mri', 'radiograph', 'examination',
+            'copd', 'emg', 'npi', 'acr', 'lmp', 'afi',
+            'hu', 'ed', 'npo', 'iv', 'or', 'er', 'icu', 'po', 'im', 'sc',
+            'degrees', 'cm', 'mm', 'ml'
+        }
+        
+        medical_person_deny_list = {
+            'ventricles', 'mucosal', 'multiplanar', 'schmorl', 'medullaris', 'conus',
+            'standard', 'g2p1', 'referring',
+            'son', 'daughter', 'wife', 'husband', 'mother', 'father', 'parent',
+            'pine', 'cedar', 'oak', 'maple',
+            'diverticulosis', 'diverticulitis'
+        }
+        
+        if whitelist:
+            medical_terms_deny_list.update(whitelist)
+            medical_person_deny_list.update(whitelist)
+        
+        for item in blacklist:
+            blacklist_recognizer = PatternRecognizer(
+                supported_entity="CUSTOM_BLACKLIST",
+                name=f"blacklist_{hash(item)}",
+                patterns=[Pattern(name=f"blacklist_pattern_{hash(item)}", regex=re.escape(item), score=0.95)],
+            )
+            analyzer.registry.add_recognizer(blacklist_recognizer)
+        
+        entities_to_detect = [
+            "PERSON", "DATE_TIME", "MRN", "ALPHANUMERIC_ID", "PHONE_NUMBER",
+            "EMAIL_ADDRESS", "LOCATION", "US_SSN", "MEDICAL_LICENSE",
+            "US_DRIVER_LICENSE", "US_PASSPORT", "CREDIT_CARD", "US_ITIN",
+            "NRP", "IBAN_CODE", "CUSTOM_BLACKLIST"
+        ]
+        
+        alphanumeric_date_pattern = re.compile(r'\b\d{4}-\d{2}-\d{2}\b')
+        age_pattern = re.compile(r'\b\d{1,3}[-\s]year[-\s]old\b', re.IGNORECASE)
+        duration_pattern = re.compile(r'\b\d{1,3}\s+(weeks?|months?|days?|hours?|minutes?|seconds?|mins?|secs?)\b', re.IGNORECASE)
+        time_pattern = re.compile(r'\b\d{1,2}:\d{2}(\s*[AP]M)?\b', re.IGNORECASE)
+        gestational_age_pattern = re.compile(r'\b\d{1,2}\s*weeks?\s*\d*\s*days?\b', re.IGNORECASE)
+        time_reference_pattern = re.compile(r'\b(midnight|noon|morning|evening|afternoon)\b', re.IGNORECASE)
+        complex_age_pattern = re.compile(r'\b\d{1,3}\s+years?,\s*\d{1,2}\s+(months?|days?)\s+old\b', re.IGNORECASE)
+        
+        operators = {
+            "PERSON": OperatorConfig("replace", {"new_value": "[PERSONALNAME]"}),
+            "DATE_TIME": OperatorConfig("replace", {"new_value": "[DATE]"}),
+            "MRN": OperatorConfig("replace", {"new_value": "[MRN]"}),
+            "ALPHANUMERIC_ID": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+            "PHONE_NUMBER": OperatorConfig("replace", {"new_value": "[PHONE]"}),
+            "EMAIL_ADDRESS": OperatorConfig("replace", {"new_value": "[EMAIL]"}),
+            "LOCATION": OperatorConfig("replace", {"new_value": "[LOCATION]"}),
+            "US_SSN": OperatorConfig("replace", {"new_value": "[SSN]"}),
+            "MEDICAL_LICENSE": OperatorConfig("replace", {"new_value": "[MEDICALID]"}),
+            "US_DRIVER_LICENSE": OperatorConfig("replace", {"new_value": "[DRIVERSLICENSE]"}),
+            "US_PASSPORT": OperatorConfig("replace", {"new_value": "[PASSPORT]"}),
+            "CREDIT_CARD": OperatorConfig("replace", {"new_value": "[CREDITCARD]"}),
+            "US_ITIN": OperatorConfig("replace", {"new_value": "[ITIN]"}),
+            "NRP": OperatorConfig("replace", {"new_value": "[NRP]"}),
+            "IBAN_CODE": OperatorConfig("replace", {"new_value": "[IBAN]"}),
+            "CUSTOM_BLACKLIST": OperatorConfig("replace", {"new_value": "[REDACTED]"}),
+        }
+        
         results = []
-        for i in range(len(data)):
-            output_file = f"{temp_dir}/output/{i}.nphi.txt"
-            with open(output_file) as f:
-                scrubbed = f.read().split("##### DOCUMENT #")[0].strip()
-                results.append(scrubbed)
-            print_and_log(f"PROGRESS: {i}/{len(data)} rows de-identified")
+        for i, text_item in enumerate(data):
+            text = str(text_item) if text_item is not None else "Empty"
+            text = ''.join(c for c in text if c in string.printable)
+            
+            results_analysis = analyzer.analyze(
+                text=text,
+                entities=entities_to_detect,
+                language='en',
+                score_threshold=0.5
+            )
+            
+            filtered_results = []
+            for result in results_analysis:
+                detected_text = text[result.start:result.end]
+                detected_lower = detected_text.lower()
+                
+                if result.entity_type == "LOCATION":
+                    if detected_lower in medical_terms_deny_list:
+                        continue
+                
+                if result.entity_type == "PERSON":
+                    if detected_lower in medical_person_deny_list:
+                        continue
+                
+                if result.entity_type == "DATE_TIME":
+                    if alphanumeric_date_pattern.match(detected_text):
+                        continue
+                    if age_pattern.search(detected_text):
+                        continue
+                    if complex_age_pattern.search(detected_text):
+                        continue
+                    if duration_pattern.search(detected_text):
+                        continue
+                    if time_pattern.match(detected_text):
+                        continue
+                    if gestational_age_pattern.match(detected_text):
+                        continue
+                    if time_reference_pattern.search(detected_text):
+                        continue
+                
+                filtered_results.append(result)
+            
+            filtered_results = sorted(filtered_results, key=lambda x: x.start)
+            
+            anonymized_result = anonymizer.anonymize(
+                text=text,
+                analyzer_results=filtered_results,
+                operators=operators
+            )
+            
+            results.append(anonymized_result.text)
+            print_and_log(f"PROGRESS: {i+1}/{len(data)} rows de-identified")
+        
         return results
     except Exception as e:
         error_msg = f"Error in scrub function: {str(e)}"
@@ -904,8 +1080,8 @@ def textdeid_main(**config):
         df = pd.read_excel(os.path.join(INPUT_DIR, "input.xlsx"), header=None)
         original_data = df.iloc[:,0].tolist()
         deid_data = scrub(original_data, config.get("to_keep_list"), config.get("to_remove_list"))
-        shifted_data = date_shift_text(original_data, deid_data, config.get("date_shift_by"))
-        pd.DataFrame(shifted_data).to_excel(os.path.join(OUTPUT_DIR, "output.xlsx"), index=False, header=False)
+        # shifted_data = date_shift_text(original_data, deid_data, config.get("date_shift_by"))
+        pd.DataFrame(deid_data).to_excel(os.path.join(OUTPUT_DIR, "output.xlsx"), index=False, header=False)
         print_and_log("PROGRESS: COMPLETE")
     except Exception as e:
         error_and_exit(f"Error: {e}")
