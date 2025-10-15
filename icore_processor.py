@@ -252,7 +252,17 @@ def get_dcmtk_binary(binary_name):
         binary_path = os.path.join(bundle_dir, '_internal', 'dcmtk', 'bin', binary_name)
         return binary_path
     else:
-        return binary_name
+        dcmtk_home = os.environ.get('DCMTK_HOME')
+        return os.path.join(dcmtk_home, 'bin', binary_name)
+
+
+def get_dcmtk_dict_path():
+    if getattr(sys, 'frozen', False):
+        bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
+        return os.path.join(bundle_dir, '_internal', 'dcmtk', 'share', 'dcmtk-3.6.9', 'dicom.dic')
+    else:
+        dcmtk_home = os.environ.get('DCMTK_HOME')
+        return os.path.join(dcmtk_home, 'share', 'dcmtk-3.6.9', 'dicom.dic')
 
 
 def create_analyzer_engine():
@@ -567,7 +577,9 @@ def cmove_images(logf, **config):
         for i, query in enumerate(queries):
             cmd = [get_dcmtk_binary("findscu"), "-v", "-aet", aet, "-aec", aec, "-S"] + query.split() + ["-k", "StudyInstanceUID", ip, str(port)]
             logging.info(" ".join(cmd))
-            process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            env = os.environ.copy()
+            env['DCMDICTPATH'] = get_dcmtk_dict_path()
+            process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
             output = process.stderr
             for entry in output.split("Find Response:")[1:]:
                 tags = parse_dicom_tag_dict(entry)
@@ -595,7 +607,9 @@ def cmove_images(logf, **config):
             for i, study_uid in enumerate(current_moves):
                 cmd = [get_dcmtk_binary("movescu"), "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
                 logging.info(" ".join(cmd))
-                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                env = os.environ.copy()
+                env['DCMDICTPATH'] = get_dcmtk_dict_path()
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
                 stdout, stderr = process.communicate()
                 process.wait()
                 
@@ -1161,6 +1175,9 @@ def validate_config(config):
         error_and_exit("Module not specified in config file.")
     if not os.environ.get('JAVA_HOME') and not hasattr(sys, '_MEIPASS'):
         error_and_exit("JAVA_HOME environment variable is not set")
+    if not getattr(sys, 'frozen', False):
+        if not os.environ.get('DCMTK_HOME'):
+            error_and_exit("DCMTK_HOME environment variable is not set")
     # if config.get("module") not in ["imageqr", "imagedeid", "imageexport"]:
     #     error_and_exit("Module invalid or not implemented.")
     if not os.path.exists(INPUT_DIR):
