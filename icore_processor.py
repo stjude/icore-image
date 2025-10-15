@@ -263,8 +263,14 @@ def strip_ctp_cell(value):
 
 def ctp_get(url):
     request_url = f"http://localhost:50000/{url}"
-    response = requests.get(request_url, auth=("admin", "password"))
-    return response.text
+    for attempt in range(3):
+        try:
+            return requests.get(request_url, auth=("admin", "password")).text
+        except Exception:
+            if attempt < 2:
+                time.sleep(3)
+            else:
+                raise
 
 def ctp_post(url, data):
     request_url = f"http://localhost:50000/{url}"
