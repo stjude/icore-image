@@ -60,8 +60,8 @@ except:
     pass
 
 try:
-    en_core_web_lg_datas = collect_data_files('en_core_web_lg')
-    datas.extend(en_core_web_lg_datas)
+    en_core_web_sm_datas = collect_data_files('en_core_web_sm')
+    datas.extend(en_core_web_sm_datas)
 except:
     pass
 
@@ -145,18 +145,12 @@ a = Analysis(
         'wasabi',
         'typer',
         'pydantic',
-        'pydantic_core',
-        'torch',
-        'torch._C',
-        'torch.functional',
-        'torch.nn',
-        'torch.nn.modules',
-        'torch.nn.modules.transformer'
+        'pydantic_core'
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tensorflow', 'matplotlib', 'scipy', 'IPython', 'jupyter', 'notebook', 'sympy', 'numba', 'llvmlite'],
+    excludes=['tensorflow', 'matplotlib', 'scipy', 'IPython', 'jupyter', 'notebook', 'sympy', 'numba', 'llvmlite', 'torch', 'torch._C', 'torch.functional', 'torch.nn', 'cupy', 'jax'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

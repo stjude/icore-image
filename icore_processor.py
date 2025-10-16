@@ -268,14 +268,14 @@ def get_dcmtk_dict_path():
 def create_analyzer_engine():
     if getattr(sys, 'frozen', False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
-        model_path = os.path.join(bundle_dir, '_internal', 'en_core_web_lg', 'en_core_web_lg-3.7.1')
+        model_path = os.path.join(bundle_dir, '_internal', 'en_core_web_sm', 'en_core_web_sm-3.7.1')
         import spacy
         from presidio_analyzer.nlp_engine import SpacyNlpEngine
         nlp_engine = SpacyNlpEngine(models=[{"lang_code": "en", "model_name": model_path}])
     else:
         configuration = {
             "nlp_engine_name": "spacy",
-            "models": [{"lang_code": "en", "model_name": "en_core_web_lg"}],
+            "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
         }
         provider = NlpEngineProvider(nlp_configuration=configuration)
         nlp_engine = provider.create_engine()
