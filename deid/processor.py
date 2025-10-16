@@ -3,7 +3,7 @@ import os
 import yaml
 import subprocess
 
-ICORE_PROCESSOR_PATH = '/Users/bimba-innolitics/repos/aiminer/dist/icore_processor/icore_processor'
+ICORE_PROCESSOR_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'bin', 'icore_processor', 'icore_processor')
 
 
 def create_parser():
@@ -64,6 +64,13 @@ if __name__ == '__main__':
     if args.module:
         env['ICORE_MODULES_DIR'] = os.path.dirname(args.module)
     
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
-    print(' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd))
-    subprocess.run(cmd, env=env)
+    print(shell_cmd)
+    
+    try:
+        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
