@@ -54,6 +54,13 @@ async function initializeFirstRun() {
             ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
             : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
 
+        // Ensure db.sqlite3 exists before migration
+        const dbPath = path.join(logsDir, 'db.sqlite3');
+        if (!fs.existsSync(dbPath)) {
+            fs.writeFileSync(dbPath, '');
+            logWithTimestamp(mainLogStream, 'Created empty db.sqlite3 file');
+        }
+
         // Run migrate command
         await new Promise((resolve, reject) => {
             const migrateProcess = spawn(managePath, ['migrate']);
@@ -170,6 +177,12 @@ app.on('ready', async () => {
     const managePath = app.isPackaged 
         ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
         : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+
+    // Ensure db.sqlite3 exists before migration
+    if (!fs.existsSync(dbPath)) {
+        fs.writeFileSync(dbPath, '');
+        logWithTimestamp(mainLogStream, 'Created empty db.sqlite3 file');
+    }
 
     // Run migrate command
     try {
