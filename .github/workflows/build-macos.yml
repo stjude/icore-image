@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-15-intel
 
     steps:
       - name: Checkout code
@@ -18,18 +18,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
-
-      - name: Patch PyInstaller Django hook
+      - name: Create virtual environment and install dependencies
         run: |
-          HOOK_FILE=$(python3 -c "import PyInstaller.hooks; import os; print(os.path.join(os.path.dirname(PyInstaller.hooks.__file__), 'hook-django.py'))")
-          if [ -f "$HOOK_FILE" ]; then
-            sed -i '' '/mod_path = hooks.get_module_file_attribute(mod_name)/a\
-                    if mod_path == None:\
-                        continue
-          ' "$HOOK_FILE"
-          fi
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -63,12 +56,14 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
+          source venv/bin/activate
           rm -rf dist
           pyinstaller --clean -y icore_processor.spec
 
       - name: Build deid components
         working-directory: deid
         run: |
+          source ../venv/bin/activate
           pyinstaller --clean -y manage.spec
           pyinstaller --clean -y processor.spec
           pyinstaller --clean -y initialize_admin_password.spec
