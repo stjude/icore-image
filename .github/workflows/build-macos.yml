@@ -18,11 +18,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Create virtual environment and install dependencies
-        run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -56,14 +53,12 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          source venv/bin/activate
           rm -rf dist
           pyinstaller --clean -y icore_processor.spec
 
       - name: Build deid components
         working-directory: deid
         run: |
-          source ../venv/bin/activate
           pyinstaller --clean -y manage.spec
           pyinstaller --clean -y processor.spec
           pyinstaller --clean -y initialize_admin_password.spec
