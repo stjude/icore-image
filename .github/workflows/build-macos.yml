@@ -34,6 +34,23 @@ jobs:
         working-directory: electron
         run: npm install
 
+      - name: Download and setup jre8
+        run: |
+          curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=x64&image_type=jre&jvm_impl=hotspot" \
+          | jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
+          | head -n1 \
+          | xargs curl -L \
+          | tar -xj
+          mv jdk8*-jre jre8
+
+      - name: Download and setup dcmtk
+        run: |
+          curl -L https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 | tar -xj
+          mv dcmtk-3.6.9-macosx-x86_64 dcmtk
+          cd dcmtk/bin
+          find . -type f ! -name 'findscu' ! -name 'movescu' -delete
+          cd ../..
+
       - name: Build with PyInstaller
         run: |
           rm -rf dist

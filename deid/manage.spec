@@ -17,7 +17,6 @@ project_datas = [
     (os.path.join(project_path, 'home'), 'home'),  # Application directory
     (os.path.join(project_path, 'templates'), 'templates'),  # Templates
     (os.path.join(project_path, 'static'), 'static'),  # Static files
-    (os.path.join(project_path, 'db.sqlite3'), '.'),  # SQLite database
     (os.path.join(project_path, 'dictionary.xml'), '.'),  # Other data files
 ]
 
