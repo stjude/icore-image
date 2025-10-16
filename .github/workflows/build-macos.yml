@@ -1,0 +1,71 @@
+name: Build macOS App
+
+on:
+  push:
+    branches:
+      - build
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deid dependencies
+        working-directory: deid
+        run: npm install
+
+      - name: Install electron dependencies
+        working-directory: electron
+        run: npm install
+
+      - name: Build with PyInstaller
+        run: |
+          rm -rf dist
+          pyinstaller --clean -y icore_processor.spec
+
+      - name: Build deid components
+        working-directory: deid
+        run: |
+          pyinstaller --clean -y manage.spec
+          pyinstaller --clean -y processor.spec
+          pyinstaller --clean -y initialize_admin_password.spec
+
+      - name: Prepare electron assets
+        run: |
+          rm -rf electron/assets/dist
+          cp deid/home/settings.json electron/assets
+          cp -r deid/dist electron/assets
+          cp -r dist/icore_processor electron/assets/dist
+
+      - name: Build and sign DMG
+        working-directory: electron
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: npm run build_signed
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iCore-dmg
+          path: electron/dist/*.dmg
+
