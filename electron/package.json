@@ -3,19 +3,47 @@
   "version": "0.0.9",
   "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
-    "build_all_but_image": "cd ../deid && pyinstaller --clean --noconfirm manage.spec && pyinstaller --clean --noconfirm processor.spec && pyinstaller --clean --noconfirm initialize_admin_password.spec && cd .. && cp -r dist/icore_processor electron/assets/dist/ && cd electron && cp ../deid/home/settings.json assets && cp -r ../deid/dist/* assets/dist/ && electron-packager . iCore --platform=$(node -p \"process.platform\") --arch=$(node -p \"process.arch\") --icon=assets/icon.icns --overwrite",
-    "build_electron": "electron-packager . iCore --platform=$(node -p \"process.platform\") --arch=$(node -p \"process.arch\") --icon=assets/icon.icns --overwrite",
-    "build": "cd ../deid && pyinstaller --clean --noconfirm manage.spec && pyinstaller --clean --noconfirm processor.spec && pyinstaller --clean --noconfirm initialize_admin_password.spec && cd .. && cp -r dist/icore_processor electron/assets/dist/ && cd electron && cp ../deid/home/settings.json assets && cp -r ../deid/dist/* assets/dist/ && electron-packager . iCore --platform=$(node -p \"process.platform\") --arch=$(node -p \"process.arch\") --icon=assets/icon.icns --overwrite"
+    "build": "electron-builder --mac dmg",
+    "build_signed": "CSC_IDENTITY_AUTO_DISCOVERY=true electron-builder --mac dmg"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "devDependencies": {
     "electron": "^33.2.1",
-    "electron-builder": "^26.0.12",
-    "electron-packager": "^17.1.2"
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.icore.app",
+    "productName": "iCore",
+    "asar": false,
+    "files": [
+      "main.js",
+      "preload.js",
+      "loading.html",
+      "assets/**/*"
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns",
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist"
+    },
+    "dmg": {
+      "title": "iCore",
+      "background": "background.png",
+      "contents": [
+        {
+          "x": 150,
+          "y": 90,
+          "type": "file"
+        },
+        {
+          "x": 150,
+          "y": 240,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
   }
 }
