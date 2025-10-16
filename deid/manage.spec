@@ -17,6 +17,7 @@ project_datas = [
     (os.path.join(project_path, 'home'), 'home'),  # Application directory
     (os.path.join(project_path, 'templates'), 'templates'),  # Templates
     (os.path.join(project_path, 'static'), 'static'),  # Static files
+    # (os.path.join(project_path, 'db.sqlite3'), '.'),  # SQLite database
     (os.path.join(project_path, 'dictionary.xml'), '.'),  # Other data files
 ]
 
@@ -26,6 +27,7 @@ gdal_datas = collect_data_files('django.contrib.gis')
 # Collect openpyxl and pandas data files
 openpyxl_datas = collect_data_files('openpyxl')
 pandas_datas = collect_data_files('pandas')
+# psycopg2_datas = collect_data_files('psycopg2')
 pynetdicom_datas = collect_data_files('pynetdicom')
 
 a = Analysis(
@@ -38,12 +40,13 @@ a = Analysis(
         'django.core.management.commands.migrate',  # Include migrate
         'openpyxl',  # Explicitly include openpyxl
         'pandas',    # Explicitly include pandas
+        # 'psycopg2',  # Explicitly include psycopg2
         'pynetdicom',  # Explicitly include pynetdicom
     ] + collect_all('django')[1],  # Include all Django modules
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['psycopg2', 'django.contrib.postgres'],
+    excludes=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
