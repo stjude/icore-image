@@ -21,13 +21,6 @@ function logWithTimestamp(stream, message) {
     stream.write(`[${timestamp}] ${message}\n`);
 }
 
-function checkDockerRunning() {
-    return new Promise((resolve) => {
-        exec('/usr/local/bin/docker info', (error) => {
-            resolve(!error);
-        });
-    });
-}
 
 function checkAdminPassword() {
     return true; // TODO: remove this (hardcoding for now)
@@ -35,83 +28,21 @@ function checkAdminPassword() {
     return fs.existsSync(adminPasswordPath);
 }
 
-async function installDocker() {
-    const installScript = app.isPackaged
-        ? path.join(process.resourcesPath, 'app', 'assets', 'install-docker.sh')
-        : path.join(__dirname, 'assets', 'install-docker.sh');
 
-    return new Promise((resolve, reject) => {
-        mainWindow.loadFile(path.join(__dirname, 'loading.html'));
-        mainWindow.webContents.executeJavaScript(`
-            document.getElementById('status').textContent = 'Setting up Docker...';
-        `);
-
-        const dockerLogStream = fs.createWriteStream(path.join(logsDir, 'docker-install.log'), { flags: 'a' });
-        const installation = spawn('bash', [installScript]);
-
-        installation.stdout.on('data', (data) => {
-            const message = data.toString();
-            logWithTimestamp(dockerLogStream, message);
-            console.log(message);
-        });
-
-        installation.stderr.on('data', (data) => {
-            const message = data.toString();
-            logWithTimestamp(dockerLogStream, `ERROR: ${message}`);
-            console.error(message);
-        });
-
-        installation.on('error', (error) => {
-            const message = `Failed to start Docker installation: ${error}`;
-            logWithTimestamp(dockerLogStream, `ERROR: ${message}`);
-            console.error(message);
-            reject(error);
-        });
-
-        installation.on('close', (code) => {
-            if (code === 0) {
-                logWithTimestamp(dockerLogStream, 'Docker installation completed successfully');
-                resolve();
-            } else {
-                const message = `Docker installation failed with code ${code}`;
-                logWithTimestamp(dockerLogStream, `ERROR: ${message}`);
-                reject(new Error(message));
-            }
-        });
-    });
-}
-
-async function loadDockerImage() {
-    const imagePath = app.isPackaged
-        ? path.join(process.resourcesPath, 'app', 'assets', 'icore_processor.tar')
-        : path.join(__dirname, 'assets', 'icore_processor.tar');
-
-    return new Promise((resolve, reject) => {
-        mainWindow.loadFile(path.join(__dirname, 'loading.html'));
-        mainWindow.webContents.executeJavaScript(`
-            document.getElementById('status').textContent = 'Loading Docker image...';
-        `);
-        
-        exec(`/usr/local/bin/docker load -i "${imagePath}"`, (error, stdout, stderr) => {
-            if (error) {
-                reject(error);
-            } else {
-                resolve();
-            }
-        });
-    });
-}
 
 function installProcessor() {
     if (app.isPackaged) {
-        const userProcessorDir = path.join(os.homedir(), 'iCore', 'bin');
-        const userProcessorPath = path.join(userProcessorDir, 'processor');
+        const userProcessorDir = path.join(os.homedir(), 'iCore', 'bin', 'icore_processor');
         
-        if (!fs.existsSync(userProcessorPath)) {
-            fs.mkdirSync(userProcessorDir, { recursive: true });
-            const resourceProcessorPath = path.join(process.resourcesPath, 'app', 'assets', 'dist', 'processor');
-            fs.copyFileSync(resourceProcessorPath, userProcessorPath);
-            fs.chmodSync(userProcessorPath, '755');
+        if (!fs.existsSync(userProcessorDir)) {
+            fs.mkdirSync(path.dirname(userProcessorDir), { recursive: true });
+            const resourceProcessorPath = path.join(process.resourcesPath, 'app', 'assets', 'dist', 'icore_processor');
+            fs.cpSync(resourceProcessorPath, userProcessorDir, { recursive: true });
+            // Make the binary executable
+            const binaryPath = path.join(userProcessorDir, 'icore_processor');
+            if (fs.existsSync(binaryPath)) {
+                fs.chmodSync(binaryPath, '755');
+            }
         }
     }
 }
@@ -195,22 +126,6 @@ app.on('ready', async () => {
 
     mainWindow.loadFile(path.join(__dirname, 'loading.html'));
 
-    // Install Docker
-    try {
-        await installDocker();
-        logWithTimestamp(mainLogStream, 'Docker installed successfully');
-    } catch (error) {
-        logWithTimestamp(mainLogStream, `Docker installation failed: ${error}`);
-        dialog.showMessageBox({
-            type: 'error',
-            title: 'Docker Installation Failed',
-            message: 'Failed to install Docker. Please try again.',
-            buttons: ['OK']
-        }).then(() => {
-            app.quit();
-        });
-        return;
-    }
 
     // Initialize first run if needed
     try {
@@ -230,21 +145,6 @@ app.on('ready', async () => {
         return;
     }
 
-    // Check if Docker is running
-    const isDockerRunning = await checkDockerRunning();
-    if (!isDockerRunning) {
-        const message = 'Docker Desktop is not running. Please start Docker Desktop and try again.';
-        logWithTimestamp(mainLogStream, `Error: ${message}`);
-        dialog.showMessageBox({
-            type: 'error',
-            title: 'Docker Not Running',
-            message: message,
-            buttons: ['OK']
-        }).then(() => {
-            app.quit();
-        });
-        return;
-    }
     const adminPasswordExists = checkAdminPassword();
     if (!adminPasswordExists) {
         const message = 'The application is not properly set up. Admin password file is missing.';
@@ -260,22 +160,6 @@ app.on('ready', async () => {
         return;
     }
 
-    // Load docker image
-    try {
-        await loadDockerImage();
-        logWithTimestamp(mainLogStream, 'Docker image loaded successfully');
-    } catch (error) {
-        logWithTimestamp(mainLogStream, `Failed to load docker image: ${error}`);
-        dialog.showMessageBox({
-            type: 'error',
-            title: 'Docker Image Load Failed',
-            message: 'Failed to load required docker image. Please try again.',
-            buttons: ['OK']
-        }).then(() => {
-            app.quit();
-        });
-        return;
-    }
 
     // Delete existing database and re-migrate
     const dbPath = path.join(os.homedir(), '.icore', 'db.sqlite3');
@@ -399,15 +283,7 @@ app.on('ready', async () => {
                     workerProcess.kill();
                     workerProcess = null;
                 }
-                // Kill all running docker containers
-                exec('/usr/local/bin/docker kill $(/usr/local/bin/docker ps -q)', (error) => {
-                    if (error) {
-                        logWithTimestamp(mainLogStream, `Failed to kill docker containers: ${error}`);
-                    } else {
-                        logWithTimestamp(mainLogStream, 'All docker containers killed successfully');
-                    }
-                    mainWindow.close();
-                });
+                mainWindow.close();
             }
         }
     });

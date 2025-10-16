@@ -30,7 +30,7 @@ RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'rclone.co
 MODULES_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'modules'))
 APP_DATA_PATH = os.path.abspath(os.path.join(HOME_DIR, 'iCore', 'app_data'))
 TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'temp_input'))
-ICORE_PROCESSOR_PATH = '/Users/bimba-innolitics/repos/aiminer/dist/icore_processor/icore_processor'
+ICORE_PROCESSOR_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'bin', 'icore_processor', 'icore_processor')
 
 def process_image_deid(task):
     output_folder = task.output_folder
