@@ -26,8 +26,9 @@ jobs:
           HOOK_FILE=$(python3 -c "import PyInstaller.hooks; import os; print(os.path.join(os.path.dirname(PyInstaller.hooks.__file__), 'hook-django.py'))")
           if [ -f "$HOOK_FILE" ]; then
             sed -i '' '/mod_path = hooks.get_module_file_attribute(mod_name)/a\
-        if mod_path == None:\
-            continue' "$HOOK_FILE"
+                    if mod_path == None:\
+                        continue
+          ' "$HOOK_FILE"
           fi
 
       - name: Setup Node.js 20
