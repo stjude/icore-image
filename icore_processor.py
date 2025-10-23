@@ -564,8 +564,8 @@ def cmove_queries(**config):
 
 def cmove_images(logf, **config):
     failed_accessions = []
-    successful_accessions = set()
-    study_uids_accessions = {}
+    successful_rows = set()
+    study_uids_rows = {}
     
     queries, accession_numbers = cmove_queries(**config)
     
@@ -584,11 +584,9 @@ def cmove_images(logf, **config):
             for entry in output.split("Find Response:")[1:]:
                 tags = parse_dicom_tag_dict(entry)
                 study_uid = tags.get("StudyInstanceUID")
-                acc_num = tags.get("AccessionNumber")
                 if len(study_uid) > 0:
                     study_uids.add(study_uid)
-                    if acc_num:
-                        study_uids_accessions[study_uid] = acc_num
+                    study_uids_rows[study_uid] = i
                 else:
                     logging.info(f"No studies found for query: {query}")
                 
@@ -615,7 +613,7 @@ def cmove_images(logf, **config):
                 
                 success = "Received Final Move Response (Success)" in (stdout + stderr)
                 if success:
-                    successful_accessions.add(study_uids_accessions[study_uid])
+                    successful_rows.add(study_uids_rows[study_uid])
                 else:
                     failed_moves.append(study_uid)
                     logging.info(f"Failed to move study: {study_uid}")
@@ -626,10 +624,9 @@ def cmove_images(logf, **config):
             retry_count += 1
 
     failed_accessions = []
-    for acc in accession_numbers:
-        if acc not in successful_accessions:
-            if not any(acc in successful_acc for successful_acc in successful_accessions):
-                failed_accessions.append(acc)
+    for i in range(len(queries)):
+        if i not in successful_rows:
+            failed_accessions.append(i)
     
     return failed_accessions
 
