@@ -15,11 +15,6 @@ jobs:
             jre-arch: x64
             dcmtk-url: https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2
             artifact-name: icore_processor-macos-intel
-          - platform: macos-arm
-            runs-on: macos-15
-            jre-arch: aarch64
-            dcmtk-url: https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2
-            artifact-name: icore_processor-macos-arm
           - platform: ubuntu
             runs-on: ubuntu-latest
             jre-arch: x64
