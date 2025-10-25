@@ -15,6 +15,7 @@
     "appId": "com.icore.app",
     "productName": "iCore",
     "asar": false,
+    "afterSign": "afterSign.js",
     "files": [
       "main.js",
       "preload.js",
@@ -26,8 +27,7 @@
       "icon": "assets/icon.icns",
       "hardenedRuntime": true,
       "entitlements": "entitlements.mac.plist",
-      "entitlementsInherit": "entitlements.mac.plist",
-      "afterSign": "afterSign.js"
+      "entitlementsInherit": "entitlements.mac.plist"
     },
     "dmg": {
       "title": "iCore",
