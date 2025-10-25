@@ -64,6 +64,24 @@ done
 
 echo -e "${GREEN}  All internal binaries signed${NC}"
 
+# Step 1.5: Sign all other files to prevent electron-builder from trying to sign them
+echo -e "${GREEN}Step 1.5: Signing all other files to prevent re-signing...${NC}"
+
+# Find all files that are NOT Mach-O binaries and sign them without timestamp
+find "$DIST_DIR/_internal" -type f | while read file; do
+    # Skip if it's already a Mach-O binary (we signed those above)
+    if ! file "$file" | grep -q "Mach-O"; then
+        echo "  Signing (no timestamp): $file"
+        codesign --force --sign "$SIGNING_IDENTITY" \
+            "$file" 2>&1 || {
+                # If signing fails, it's probably not a signable file - that's OK
+                echo "  Skipping (not signable): $file"
+            }
+    fi
+done
+
+echo -e "${GREEN}  All other files signed${NC}"
+
 # Step 2: Sign the main executable
 echo -e "${GREEN}Step 2: Signing main executable...${NC}"
 MAIN_EXEC="$DIST_DIR/icore_processor"
