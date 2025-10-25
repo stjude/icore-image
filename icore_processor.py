@@ -1,5 +1,6 @@
 import logging
 import os
+import platform
 import re
 import shutil
 import signal
@@ -425,7 +426,10 @@ def tick(tick_func, data):
 def start_ctp_run(tick_func, tick_data, logf, ctp_dir):
     if getattr(sys, 'frozen', False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
-        java_home = os.path.join(bundle_dir, '_internal', 'jre8', 'Contents', 'Home')
+        if platform.system() == 'Darwin':
+            java_home = os.path.join(bundle_dir, '_internal', 'jre8', 'Contents', 'Home')
+        else:
+            java_home = os.path.join(bundle_dir, '_internal', 'jre8')
     else:
         java_home = os.environ.get('JAVA_HOME')
     
