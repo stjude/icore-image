@@ -56,6 +56,11 @@ jobs:
           rm -rf dist
           pyinstaller --clean -y icore_processor.spec
 
+      - name: Sign icore_processor bundle
+        run: |
+          chmod +x .github/scripts/sign-icore-processor.sh
+          .github/scripts/sign-icore-processor.sh
+
       - name: Build deid components
         working-directory: deid
         run: |

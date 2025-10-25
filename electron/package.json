@@ -15,7 +15,6 @@
     "appId": "com.icore.app",
     "productName": "iCore",
     "asar": false,
-    "afterSign": "afterSign.js",
     "files": [
       "main.js",
       "preload.js",
