@@ -10,3 +10,4 @@ icore_processor.tar
 iCore-darwin-arm64
 create-dmg-arm.sh
 *.dmg
+.env

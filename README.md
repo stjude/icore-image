@@ -206,3 +206,15 @@ The app can be packaged using the build.sh script.
 ```
 
 The packaged app will be in the electron/iCore-darwin-arm64 directory.
+
+# Code Signing
+
+These environment variables need to be set
+
+```
+APPLE_ID=your-apple-id@example.com
+APPLE_APP_SPECIFIC_PASSWORD=your-app-specific-password
+APPLE_TEAM_ID=your-team-id
+CSC_LINK=base64-encoded-certificate
+CSC_KEY_PASSWORD=your-certificate-password
+```
