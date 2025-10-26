@@ -51,11 +51,6 @@ jobs:
           find . -type f ! -name 'findscu' ! -name 'movescu' -delete
           cd ../..
 
-      - name: Build with PyInstaller
-        run: |
-          rm -rf dist
-          pyinstaller --clean -y icore_processor.spec
-
       - name: Import signing certificate
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -75,10 +70,12 @@ jobs:
           # Clean up
           rm certificate.p12
 
-      - name: Sign icore_processor bundle
+      - name: Build with PyInstaller
+        env:
+          CODESIGN_IDENTITY: "Developer ID Application: BImba Shrestha (${{ secrets.APPLE_TEAM_ID }})"
         run: |
-          chmod +x .github/scripts/sign-icore-processor.sh
-          .github/scripts/sign-icore-processor.sh
+          rm -rf dist
+          pyinstaller --clean -y icore_processor.spec
 
       - name: Build deid components
         working-directory: deid
