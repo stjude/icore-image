@@ -93,8 +93,8 @@ jobs:
         run: |
           rm -rf electron/assets/dist
           cp deid/home/settings.json electron/assets
-          cp -r deid/dist electron/assets
-          cp -r dist/icore_processor electron/assets/dist
+          ditto deid/dist electron/assets/dist
+          ditto dist/icore_processor electron/assets/dist/icore_processor
 
       - name: Build and sign DMG
         working-directory: electron
