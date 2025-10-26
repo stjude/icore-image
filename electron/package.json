@@ -19,7 +19,14 @@
       "main.js",
       "preload.js",
       "loading.html",
-      "assets/**/*"
+      "assets/icon.icns",
+      "assets/settings.json"
+    ],
+    "extraFiles": [
+      {
+        "from": "assets/dist",
+        "to": "app/assets/dist"
+      }
     ],
     "mac": {
       "target": "dmg",
