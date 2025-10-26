@@ -86,43 +86,5 @@
             ]
         }
     },
-    "pacs_configs": [
-        {
-            "ip": "10.200.24.102",
-            "port": "5000", 
-            "ae": "SJCP1MDB01"
-        },
-        {
-            "ip": "10.200.24.104",
-            "port": "5000",
-            "ae": "SJCP1MOD01"
-        },
-        {
-            "ip": "10.200.24.106", 
-            "port": "5000",
-            "ae": "SJCP1DEPOT01"
-        },
-        {
-            "ip": "10.200.24.110",
-            "port": "5000",
-            "ae": "SJCP1MOD02"
-        },
-        {
-            "ip": "10.200.24.114",
-            "port": "5000",
-            "ae": "SJCP2MDB03"
-        },
-        {
-            "ip": "10.200.24.116",
-            "port": "5000",
-            "ae": "SJCP2MOD03"
-        },
-        {
-            "ip": "10.200.24.118",
-            "port": "5000",
-            "ae": "SJCP2DEPOT03"
-        }
-    ],
-    "application_aet": "ICORE_RANDOM",
     "default_output_folder": ""
 }
