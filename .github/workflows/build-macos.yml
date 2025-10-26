@@ -18,95 +18,41 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
-
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install deid dependencies
-        working-directory: deid
-        run: npm install
-
-      - name: Install electron dependencies
-        working-directory: electron
-        run: npm install
-
-      - name: Download and setup jre8
-        run: |
-          curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=x64&image_type=jre&jvm_impl=hotspot" \
-          | jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
-          | head -n1 \
-          | xargs curl -L \
-          | tar -xj
-          mv jdk8*-jre jre8
-
-      - name: Download and setup dcmtk
-        run: |
-          curl -L https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 | tar -xj
-          mv dcmtk-3.6.9-macosx-x86_64 dcmtk
-          cd dcmtk/bin
-          find . -type f ! -name 'findscu' ! -name 'movescu' -delete
-          cd ../..
 
       - name: Import signing certificate
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: |
-          # Create a temporary keychain
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           security create-keychain -p "" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "" $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
-          
-          # Decode and import the certificate
           echo "$CSC_LINK" | base64 --decode > certificate.p12
           security import certificate.p12 -P "$CSC_KEY_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
-          
-          # Extract Developer ID for logging (optional)
-          DEVELOPER_ID=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | head -1 | awk -F '"' '{print $2}')
-          echo "DEVELOPER_ID=$DEVELOPER_ID" >> $GITHUB_ENV
-          echo "Code signing certificate imported successfully with identity: $DEVELOPER_ID"
-          
-          # Clean up
           rm certificate.p12
 
-      - name: Build with PyInstaller
-        run: |
-          rm -rf dist
-          pyinstaller --clean -y icore_processor.spec
-
-      - name: Build deid components
-        working-directory: deid
-        run: |
-          pyinstaller --clean -y manage.spec
-          pyinstaller --clean -y processor.spec
-          pyinstaller --clean -y initialize_admin_password.spec
-
-      - name: Prepare electron assets
-        run: |
-          rm -rf electron/assets/dist
-          cp deid/home/settings.json electron/assets
-          ditto deid/dist electron/assets/dist
-          ditto dist/icore_processor electron/assets/dist/icore_processor
-
-      - name: Build and sign DMG
-        working-directory: electron
+      - name: Build signed DMG
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run build_signed
+        run: make signed
+
+      - name: Rename DMG for upload
+        run: |
+          VERSION=$(node -p "require('./electron/package.json').version")
+          mv electron/dist/*.dmg electron/dist/icore-x64-$VERSION.dmg
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iCore-dmg
-          path: electron/dist/*.dmg
-
+          name: icore-x64-dmg
+          path: electron/dist/icore-x64-*.dmg
