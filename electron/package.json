@@ -26,7 +26,8 @@
       "icon": "assets/icon.icns",
       "hardenedRuntime": true,
       "entitlements": "entitlements.mac.plist",
-      "entitlementsInherit": "entitlements.mac.plist"
+      "entitlementsInherit": "entitlements.mac.plist",
+      "type": "distribution"
     },
     "dmg": {
       "title": "iCore",
