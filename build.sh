@@ -57,11 +57,11 @@ echo "Preparing electron assets..."
 cd electron
 rm -rf assets/dist
 cp ../deid/home/settings.json assets
-cp -r ../deid/dist assets
-cp -r ../dist/icore_processor assets/dist
+ditto ../deid/dist assets/dist
+ditto ../dist/icore_processor assets/dist/icore_processor
 
-echo "Checking code signing environment variables..."
-required_vars=("APPLE_ID" "APPLE_APP_SPECIFIC_PASSWORD" "APPLE_TEAM_ID" "CSC_LINK" "CSC_KEY_PASSWORD")
+echo "Checking notarization environment variables..."
+required_vars=("APPLE_ID" "APPLE_APP_SPECIFIC_PASSWORD" "APPLE_TEAM_ID")
 missing_vars=()
 
 for var in "${required_vars[@]}"; do
@@ -71,7 +71,7 @@ for var in "${required_vars[@]}"; do
 done
 
 if [ ${#missing_vars[@]} -ne 0 ]; then
-    echo "Error: Missing required environment variables for code signing:"
+    echo "Error: Missing required environment variables for notarization:"
     for var in "${missing_vars[@]}"; do
         echo "  - $var"
     done
@@ -80,13 +80,12 @@ if [ ${#missing_vars[@]} -ne 0 ]; then
     echo "  export APPLE_ID=\"your-apple-id@example.com\""
     echo "  export APPLE_APP_SPECIFIC_PASSWORD=\"your-app-specific-password\""
     echo "  export APPLE_TEAM_ID=\"your-team-id\""
-    echo "  export CSC_LINK=\"path/to/your/certificate.p12\""
-    echo "  export CSC_KEY_PASSWORD=\"your-certificate-password\""
     echo ""
     echo "Or create a .env file with these variables and source it before running the script."
+    echo "Note: Code signing certificates will be auto-discovered from your keychain."
     exit 1
 fi
 
-echo "All code signing environment variables are set"
+echo "All notarization environment variables are set"
 echo "Building and signing DMG..."
 npm run build_signed

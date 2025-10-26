@@ -11,3 +11,5 @@ iCore-darwin-arm64
 create-dmg-arm.sh
 *.dmg
 .env
+dcmtk
+jre8
