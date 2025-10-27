@@ -6,7 +6,7 @@ For a detailed usage guide, please refer to the [User Guide](https://innolitics.
 ## Build macOS App
 
 ```
-make clean all
+make
 ```
 
 ## Build Signed macOS App
@@ -20,7 +20,7 @@ Note: the following env variables must be set
 - APPLE_TEAM_ID
 
 ```
-make clean signed
+make signed
 ```
 
 If not, trigger `workflow_dispatch` from Actions tab manually and select `signed` from dropdown.
