@@ -3,7 +3,8 @@ name: Build macOS App
 on:
   push:
     branches:
-      - build
+      - main
+      - release
 
 jobs:
   build:
@@ -24,6 +25,7 @@ jobs:
           node-version: '20'
 
       - name: Import signing certificate
+        if: github.ref == 'refs/heads/release'
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -39,20 +41,20 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
           rm certificate.p12
 
+      - name: Build unsigned DMG
+        if: github.ref == 'refs/heads/main'
+        run: make
+
       - name: Build signed DMG
+        if: github.ref == 'refs/heads/release'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: make signed
 
-      - name: Rename DMG for upload
-        run: |
-          VERSION=$(node -p "require('./electron/package.json').version")
-          mv electron/dist/*.dmg electron/dist/icore-x64-$VERSION.dmg
-
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
           name: icore-x64-dmg
-          path: electron/dist/icore-x64-*.dmg
+          path: icore-x64-*.dmg
