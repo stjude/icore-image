@@ -548,6 +548,45 @@ def parse_dicom_tag_dict(output):
         tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
     return tags
 
+def generate_series_date_filter(config):
+    input_path = os.path.join(INPUT_DIR, "input.xlsx")
+    if not os.path.exists(input_path):
+        return None
+        
+    df = pd.read_excel(input_path)
+    patient_ids = df[config.get('mrn_col')].unique().tolist()
+    
+    if config.get('date_col'):
+        dates = df[config.get('date_col')].tolist()
+        date_min = min(dates) - timedelta(days=config.get('date_window', 0))
+        date_max = max(dates) + timedelta(days=config.get('date_window', 0))
+        date_start = date_min.strftime("%Y%m%d")
+        date_end = date_max.strftime("%Y%m%d")
+    else:
+        return None
+    
+    patient_conditions = " + ".join([f'PatientID.equals("{pid}")' for pid in patient_ids])
+    
+    study_date_in_range = f'(StudyDate.equals("{date_start}") + StudyDate.equals("{date_end}") + (StudyDate.isGreaterThan("{date_start}") * StudyDate.isLessThan("{date_end}")))'
+    series_date_in_range = f'(SeriesDate.equals("{date_start}") + SeriesDate.equals("{date_end}") + (SeriesDate.isGreaterThan("{date_start}") * SeriesDate.isLessThan("{date_end}")))'
+    series_date_missing = '!SeriesDate.matches(".+")'
+    
+    date_condition = f'({study_date_in_range} * ({series_date_missing} + {series_date_in_range}))'
+    filter_expr = f'({patient_conditions}) * {date_condition}'
+    
+    return filter_expr
+
+def get_combined_ctp_filter(config):
+    generated_filter = generate_series_date_filter(config)
+    user_filter = config.get("ctp_filters")
+    
+    if generated_filter and user_filter:
+        return f'({user_filter}) * ({generated_filter})'
+    elif generated_filter:
+        return generated_filter
+    else:
+        return user_filter
+
 def cmove_queries(**config):
     df = pd.read_excel(os.path.join(INPUT_DIR, "input.xlsx"))
     queries = []
@@ -596,14 +635,13 @@ def cmove_images(logf, **config):
                 
                 logging.info(f"Processed {i+1}/{len(queries)} rows")
 
-        # Process all moves with up to 3 attempts
         retry_count = 0
         current_moves = list(study_uids)
         
         while current_moves and retry_count < 3:
             if retry_count > 0:
                 logging.info(f"Retry attempt {retry_count} for {len(current_moves)} failed moves")
-                time.sleep(5)  # Wait between retry batches
+                time.sleep(5)
                 
             failed_moves = []
             for i, study_uid in enumerate(current_moves):
@@ -847,7 +885,8 @@ def imageqr_func(_):
 
 def imageqr_main(**config):
     def setup_config(temp_ctp_dir):
-        save_ctp_filters(config.get("ctp_filters"), temp_ctp_dir)
+        combined_filter = get_combined_ctp_filter(config)
+        save_ctp_filters(combined_filter, temp_ctp_dir)
         appdata_abs = os.path.abspath(APPDATA_DIR)
         output_abs = os.path.abspath(OUTPUT_DIR)
         formatted_config = IMAGEQR_CONFIG.format(appdata_dir=appdata_abs, output_dir=output_abs, application_aet=config.get("application_aet"))
@@ -992,7 +1031,8 @@ def imagedeid_main(**config):
     querying_pacs = os.path.exists(os.path.join(INPUT_DIR, "input.xlsx"))
     
     def setup_config(temp_ctp_dir):
-        save_ctp_filters(config.get("ctp_filters"), temp_ctp_dir)
+        combined_filter = get_combined_ctp_filter(config)
+        save_ctp_filters(combined_filter, temp_ctp_dir)
         save_ctp_anonymizer(config.get("ctp_anonymizer"), temp_ctp_dir)
         save_ctp_lookup_table(config.get("ctp_lookup_table"), temp_ctp_dir)
         config_template = IMAGEDEID_PACS_CONFIG if querying_pacs else IMAGEDEID_LOCAL_CONFIG
