@@ -855,7 +855,7 @@ def imageqr_main(**config):
     
     with ctp_workspace(imageqr_func, {}, setup_config) as logf:
         failed_accessions = cmove_images(logf, **config)
-        logging.info(f"Accessions that failed to process: {', '.join(failed_accessions)}")
+        logging.info(f"Accessions that failed to process: {', '.join(map(str, failed_accessions))}")
 
     save_failed_accessions(failed_accessions)
     save_quarantined_files_log()
@@ -1204,6 +1204,8 @@ def validate_config(config):
                 error_and_exit("Either the accession column name or mrn + date column names are required.")
             if config.get("acc_col") is not None and config.get("mrn_col") is not None and config.get("date_col") is not None:
                 error_and_exit("Can only query using one of accession or mrn + date. Not both.")
+            if config.get("acc_col") is None and config.get("date_window") is None:
+                error_and_exit("Date window is required when querying by MRN + date.")
             if config.get("date_window") is not None and not isinstance(config.get("date_window"), int):
                 error_and_exit("Date window must be an integer.")
             validate_excel(os.path.join(INPUT_DIR, "input.xlsx"), **config)
