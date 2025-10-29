@@ -83,7 +83,8 @@ def build_image_deid_config(task):
         elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
             config.update({
                 'mrn_col': task.parameters['mrn_col'],
-                'date_col': task.parameters['date_col']
+                'date_col': task.parameters['date_col'],
+                'date_window': 0
             })
 
     general_filters = task.parameters['general_filters']
@@ -165,7 +166,8 @@ def build_image_query_config(task):
     elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
         config.update({
             'mrn_col': task.parameters['mrn_col'],
-            'date_col': task.parameters['date_col']
+            'date_col': task.parameters['date_col'],
+            'date_window': 0
         })
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
@@ -221,7 +223,8 @@ def build_header_query_config(task):
     elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
         config.update({
             'mrn_col': task.parameters['mrn_col'],
-            'date_col': task.parameters['date_col']
+            'date_col': task.parameters['date_col'],
+            'date_window': 0
         })
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
