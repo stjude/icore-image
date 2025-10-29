@@ -406,7 +406,7 @@
      * and the third one is the TCP port number corresponding
      * to the DICOM protocol on the remote modality (usually 104).
      **/
-    "AIMINER" : [ "AIMINER", "127.0.0.1", 50001 ]
+    "ICORE" : [ "ICORE", "127.0.0.1", 50001 ]
 
     /**
      * A fourth parameter is available to enable patches for
