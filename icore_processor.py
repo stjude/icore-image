@@ -554,25 +554,41 @@ def generate_series_date_filter(config):
         return None
         
     df = pd.read_excel(input_path)
-    patient_ids = df[config.get('mrn_col')].unique().tolist()
     
-    if config.get('date_col'):
-        dates = df[config.get('date_col')].tolist()
-        date_min = min(dates) - timedelta(days=config.get('date_window', 0))
-        date_max = max(dates) + timedelta(days=config.get('date_window', 0))
-        date_start = date_min.strftime("%Y%m%d")
-        date_end = date_max.strftime("%Y%m%d")
-    else:
+    if not config.get('date_col'):
         return None
     
-    patient_conditions = " + ".join([f'PatientID.equals("{pid}")' for pid in patient_ids])
+    # Get patient-date pairs
+    mrn_col = config.get('mrn_col')
+    date_col = config.get('date_col')
+    date_window = config.get('date_window', 0)
     
-    study_date_in_range = f'(StudyDate.equals("{date_start}") + StudyDate.equals("{date_end}") + (StudyDate.isGreaterThan("{date_start}") * StudyDate.isLessThan("{date_end}")))'
-    series_date_in_range = f'(SeriesDate.equals("{date_start}") + SeriesDate.equals("{date_end}") + (SeriesDate.isGreaterThan("{date_start}") * SeriesDate.isLessThan("{date_end}")))'
-    series_date_missing = '!SeriesDate.matches(".+")'
+    # Group by patient and get their dates
+    patient_date_pairs = df[[mrn_col, date_col]].drop_duplicates()
     
-    date_condition = f'({study_date_in_range} * ({series_date_missing} + {series_date_in_range}))'
-    filter_expr = f'({patient_conditions}) * {date_condition}'
+    # Create per-patient conditions with their specific date ranges
+    patient_conditions = []
+    for _, row in patient_date_pairs.iterrows():
+        pid = str(row[mrn_col])
+        target_date = row[date_col]
+        
+        # Calculate date range for this specific patient
+        date_start = (target_date - timedelta(days=date_window)).strftime("%Y%m%d")
+        date_end = (target_date + timedelta(days=date_window)).strftime("%Y%m%d")
+        
+        # Create date condition for this patient
+        if date_window == 0:
+            # If no window, just match the exact date
+            date_condition = f'StudyDate.equals("{date_start}")'
+        else:
+            # If window, match start date OR end date OR anything in between
+            date_condition = f'(StudyDate.equals("{date_start}") + StudyDate.equals("{date_end}") + (StudyDate.isGreaterThan("{date_start}") * StudyDate.isLessThan("{date_end}")))'
+        
+        # Combine patient ID with their specific date condition
+        patient_conditions.append(f'(PatientID.equals("{pid}") * {date_condition})')
+    
+    # OR all patient conditions together
+    filter_expr = " + ".join(patient_conditions)
     
     return filter_expr
 
@@ -592,17 +608,28 @@ def cmove_queries(**config):
     queries = []
     accession_numbers = []  # Track all accession numbers
     logging.info(f"acc_col: {config.get('acc_col')}, mrn_col: {config.get('mrn_col')}")
+    logging.info(f"Processing {len(df)} rows from input.xlsx")
+    
     if config.get("acc_col") is not None:
         acc_mrn = list(df[[config.get("acc_col"), config.get("mrn_col")]].itertuples(index=False, name=None))
-        for acc, mrn in acc_mrn:
-            queries.append(f"-k QueryRetrieveLevel=STUDY -k AccessionNumber=*{str(acc)}* -k PatientID={str(mrn)}")
+        for i, (acc, mrn) in enumerate(acc_mrn, 1):
+            query = f"-k QueryRetrieveLevel=STUDY -k AccessionNumber=*{str(acc)}* -k PatientID={str(mrn)}"
+            queries.append(query)
             accession_numbers.append(str(acc))
+            logging.info(f"Row {i}: Accession={acc}, MRN={mrn}")
+            logging.info(f"  Query: {query}")
     else:
         mrn_dates = list(df[[config.get("mrn_col"), config.get("date_col")]].itertuples(index=False, name=None))
-        for mrn, dt in mrn_dates:
+        for i, (mrn, dt) in enumerate(mrn_dates, 1):
             dts = datetime.strftime((dt - timedelta(days=config.get("date_window"))), "%Y%m%d")
             dte = datetime.strftime((dt + timedelta(days=config.get("date_window"))), "%Y%m%d")
-            queries.append(f"-k QueryRetrieveLevel=STUDY -k PatientID={str(mrn)} -k StudyDate={dts}-{dte}")
+            query = f"-k QueryRetrieveLevel=STUDY -k PatientID={str(mrn)} -k StudyDate={dts}-{dte}"
+            queries.append(query)
+            logging.info(f"Row {i}: MRN={mrn}, TargetDate={dt.strftime('%Y-%m-%d')}, Window={config.get('date_window')} days")
+            logging.info(f"  Date Range: {dts} to {dte}")
+            logging.info(f"  Query: {query}")
+    
+    logging.info(f"Total queries generated: {len(queries)}")
     return queries, accession_numbers
 
 def cmove_images(logf, **config):
@@ -616,24 +643,47 @@ def cmove_images(logf, **config):
         study_uids = set()
         ip, port, aec = pacs.get("ip"), pacs.get("port"), pacs.get("ae")
         aet, aem = config.get("application_aet"), config.get("application_aet")
+        logging.info(f"Querying PACS: {ip}:{port} (AE: {aec})")
+        
         queries, accession_numbers = cmove_queries(**config)
         for i, query in enumerate(queries):
+            logging.info(f"\n{'='*80}")
+            logging.info(f"FINDSCU Query {i+1}/{len(queries)}")
+            logging.info(f"{'='*80}")
             cmd = [get_dcmtk_binary("findscu"), "-v", "-aet", aet, "-aec", aec, "-S"] + query.split() + ["-k", "StudyInstanceUID", ip, str(port)]
-            logging.info(" ".join(cmd))
+            logging.info(f"Command: {' '.join(cmd)}")
             env = os.environ.copy()
             env['DCMDICTPATH'] = get_dcmtk_dict_path()
             process = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+            
+            # Log full debug output
+            logging.info("FINDSCU STDOUT:")
+            logging.info(process.stdout)
+            logging.info("FINDSCU STDERR:")
+            logging.info(process.stderr)
+            
             output = process.stderr
+            studies_found_this_query = 0
             for entry in output.split("Find Response:")[1:]:
                 tags = parse_dicom_tag_dict(entry)
                 study_uid = tags.get("StudyInstanceUID")
-                if len(study_uid) > 0:
+                if study_uid and len(study_uid) > 0:
                     study_uids.add(study_uid)
                     study_uids_rows[study_uid] = i
-                else:
-                    logging.info(f"No studies found for query: {query}")
-                
-                logging.info(f"Processed {i+1}/{len(queries)} rows")
+                    studies_found_this_query += 1
+                    study_date = tags.get("StudyDate", "N/A")
+                    logging.info(f"  Found StudyInstanceUID: {study_uid}, StudyDate: {study_date}")
+            
+            if studies_found_this_query == 0:
+                logging.info(f"  No studies found for this query")
+            else:
+                logging.info(f"  Total studies found for this query: {studies_found_this_query}")
+            
+            logging.info(f"Processed {i+1}/{len(queries)} query rows")
+
+        logging.info(f"\n{'='*80}")
+        logging.info(f"FINDSCU SUMMARY: Found {len(study_uids)} unique studies total from PACS {ip}:{port}")
+        logging.info(f"{'='*80}\n")
 
         retry_count = 0
         current_moves = list(study_uids)
@@ -645,22 +695,34 @@ def cmove_images(logf, **config):
                 
             failed_moves = []
             for i, study_uid in enumerate(current_moves):
+                logging.info(f"\n{'='*80}")
+                logging.info(f"MOVESCU {i+1}/{len(current_moves)} (Retry {retry_count})")
+                logging.info(f"{'='*80}")
                 cmd = [get_dcmtk_binary("movescu"), "-v", "-aet", aet, "-aem", aem, "-aec", aec, "-S", "-k", "QueryRetrieveLevel=STUDY", "-k", f"StudyInstanceUID={study_uid}", ip, str(port)]
-                logging.info(" ".join(cmd))
+                logging.info(f"Command: {' '.join(cmd)}")
+                logging.info(f"StudyInstanceUID: {study_uid}")
+                
                 env = os.environ.copy()
                 env['DCMDICTPATH'] = get_dcmtk_dict_path()
                 process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
                 stdout, stderr = process.communicate()
                 process.wait()
                 
+                # Log full debug output
+                logging.info("MOVESCU STDOUT:")
+                logging.info(stdout)
+                logging.info("MOVESCU STDERR:")
+                logging.info(stderr)
+                
                 success = "Received Final Move Response (Success)" in (stdout + stderr)
                 if success:
                     successful_rows.add(study_uids_rows[study_uid])
+                    logging.info(f"✓ SUCCESS: Study {study_uid} moved successfully")
                 else:
                     failed_moves.append(study_uid)
-                    logging.info(f"Failed to move study: {study_uid}")
+                    logging.info(f"✗ FAILED: Study {study_uid} failed to move")
                 
-                logging.info(f"Downloaded {i+1}/{len(current_moves)} studies")
+                logging.info(f"Progress: {i+1}/{len(current_moves)} studies processed in this batch")
             
             current_moves = failed_moves
             retry_count += 1
@@ -880,17 +942,97 @@ def date_shift_text(original_list, deided_list, date_shift_by):
         print_and_log(f"PROGRESS: {i+1}/{len(original_list)} rows date shifted")
     return shifted_list
 
+def format_ctp_filter(filter_expr):
+    """Format CTP filter expression for better readability"""
+    if not filter_expr:
+        return ""
+    
+    # Replace * with AND and + with OR
+    formatted = filter_expr.replace(" * ", " AND ")
+    formatted = formatted.replace(" + ", " OR ")
+    
+    # Split on OR that's between major patient conditions (not inside parens)
+    # Find OR that separates PatientID conditions
+    import re
+    # Split by ") OR (" pattern which separates patient conditions
+    parts = re.split(r'\) OR \((?=PatientID)', formatted)
+    
+    if len(parts) > 1:
+        # Reconstruct with newlines between patient conditions
+        result = []
+        for i, part in enumerate(parts):
+            if i == 0:
+                result.append(part + ")")
+            elif i == len(parts) - 1:
+                result.append("\nOR (" + part)
+            else:
+                result.append("\nOR (" + part + ")")
+        return ''.join(result)
+    else:
+        # No split needed, just return with operators replaced
+        return formatted
+
 def imageqr_func(_):
     save_metadata_csv()
 
 def imageqr_main(**config):
     def setup_config(temp_ctp_dir):
+        # Log filter generation details
+        logging.info("\n" + "="*80)
+        logging.info("CTP FILTER GENERATION")
+        logging.info("="*80)
+        
+        generated_filter = generate_series_date_filter(config)
+        user_filter = config.get("ctp_filters")
         combined_filter = get_combined_ctp_filter(config)
+        
+        if generated_filter:
+            logging.info("Generated Series/Date Filter:")
+            logging.info("Raw: " + generated_filter)
+            logging.info("Formatted:")
+            logging.info(format_ctp_filter(generated_filter))
+        else:
+            logging.info("No series/date filter generated (no input.xlsx with date columns)")
+        
+        if user_filter:
+            logging.info("User-provided CTP Filter:")
+            logging.info("Raw: " + user_filter)
+            logging.info("Formatted:")
+            logging.info(format_ctp_filter(user_filter))
+        else:
+            logging.info("No user-provided CTP filter")
+        
+        if combined_filter:
+            logging.info("Combined CTP Filter (used by CTP):")
+            logging.info("Raw: " + combined_filter)
+            logging.info("Formatted:")
+            logging.info(format_ctp_filter(combined_filter))
+        else:
+            logging.info("No CTP filter will be applied (all studies will pass)")
+        
         save_ctp_filters(combined_filter, temp_ctp_dir)
+        
+        # Log the actual filter script that was saved
+        logging.info("\n" + "="*80)
+        logging.info("ACTUAL CTP FILTER SCRIPT SAVED TO: scripts/dicom-filter.script")
+        logging.info("="*80)
+        with open(os.path.join(temp_ctp_dir, "scripts", "dicom-filter.script"), "r") as f:
+            logging.info(f.read())
+        logging.info("="*80 + "\n")
+        
+        # Log CTP configuration
+        logging.info("\n" + "="*80)
+        logging.info("FINAL CTP CONFIG.XML (saved to temp directory)")
+        logging.info("="*80)
         appdata_abs = os.path.abspath(APPDATA_DIR)
         output_abs = os.path.abspath(OUTPUT_DIR)
         formatted_config = IMAGEQR_CONFIG.format(appdata_dir=appdata_abs, output_dir=output_abs, application_aet=config.get("application_aet"))
         save_config(formatted_config, temp_ctp_dir)
+        
+        # Read back and log the actual saved config
+        with open(os.path.join(temp_ctp_dir, "config.xml"), "r") as f:
+            logging.info(f.read())
+        logging.info("="*80 + "\n")
     
     with ctp_workspace(imageqr_func, {}, setup_config) as logf:
         failed_accessions = cmove_images(logf, **config)
@@ -1031,16 +1173,66 @@ def imagedeid_main(**config):
     querying_pacs = os.path.exists(os.path.join(INPUT_DIR, "input.xlsx"))
     
     def setup_config(temp_ctp_dir):
+        # Log filter generation details
+        logging.info("\n" + "="*80)
+        logging.info("CTP FILTER GENERATION")
+        logging.info("="*80)
+        
+        generated_filter = generate_series_date_filter(config)
+        user_filter = config.get("ctp_filters")
         combined_filter = get_combined_ctp_filter(config)
+        
+        if generated_filter:
+            logging.info("Generated Series/Date Filter:")
+            logging.info("Raw: " + generated_filter)
+            logging.info("Formatted:")
+            logging.info(format_ctp_filter(generated_filter))
+        else:
+            logging.info("No series/date filter generated (no input.xlsx with date columns)")
+        
+        if user_filter:
+            logging.info("User-provided CTP Filter:")
+            logging.info("Raw: " + user_filter)
+            logging.info("Formatted:")
+            logging.info(format_ctp_filter(user_filter))
+        else:
+            logging.info("No user-provided CTP filter")
+        
+        if combined_filter:
+            logging.info("Combined CTP Filter (used by CTP):")
+            logging.info("Raw: " + combined_filter)
+            logging.info("Formatted:")
+            logging.info(format_ctp_filter(combined_filter))
+        else:
+            logging.info("No CTP filter will be applied (all studies will pass)")
+        
         save_ctp_filters(combined_filter, temp_ctp_dir)
         save_ctp_anonymizer(config.get("ctp_anonymizer"), temp_ctp_dir)
         save_ctp_lookup_table(config.get("ctp_lookup_table"), temp_ctp_dir)
+        
+        # Log the actual filter script that was saved
+        logging.info("\n" + "="*80)
+        logging.info("ACTUAL CTP FILTER SCRIPT SAVED TO: scripts/dicom-filter.script")
+        logging.info("="*80)
+        with open(os.path.join(temp_ctp_dir, "scripts", "dicom-filter.script"), "r") as f:
+            logging.info(f.read())
+        logging.info("="*80 + "\n")
+        
+        # Log CTP configuration
+        logging.info("\n" + "="*80)
+        logging.info("FINAL CTP CONFIG.XML (saved to temp directory)")
+        logging.info("="*80)
         config_template = IMAGEDEID_PACS_CONFIG if querying_pacs else IMAGEDEID_LOCAL_CONFIG
         appdata_abs = os.path.abspath(APPDATA_DIR)
         output_abs = os.path.abspath(OUTPUT_DIR)
         input_abs = os.path.abspath(INPUT_DIR)
         formatted_config = config_template.format(appdata_dir=appdata_abs, output_dir=output_abs, input_dir=input_abs, application_aet=config.get("application_aet"))
         save_config(formatted_config, temp_ctp_dir)
+        
+        # Read back and log the actual saved config
+        with open(os.path.join(temp_ctp_dir, "config.xml"), "r") as f:
+            logging.info(f.read())
+        logging.info("="*80 + "\n")
     
     with ctp_workspace(imagedeid_func, {"querying_pacs": querying_pacs}, setup_config) as logf:
         if querying_pacs:
@@ -1356,7 +1548,10 @@ def generalmodule(**config):
 
 def run_module(**config):
     logging.info(f"Running module: {config.get('module')}")
-    logging.info(f"Config: {config}")
+    logging.info("="*80)
+    logging.info("FULL CONFIG:")
+    logging.info(yaml.dump(config, default_flow_style=False, sort_keys=False))
+    logging.info("="*80)
     if config.get("module") in ["imageqr", "imagedeid", "imageexport", "headerextract", "textdeid"]:
         globals()[config.get("module")](**config)
     else:
