@@ -788,7 +788,7 @@ def save_quarantined_files_log():
     logging.info(f"Quarantined files log saved to {log_path}")
 
 def save_linker_csv():
-    linker_csv = ctp_post("idmap", {"p": 0, "s": 5, "keytype": "trialAN", "keys": "", "format": "csv"})
+    linker_csv = ctp_post("idmap", {"p": 0, "s": 4, "keytype": "trialAN", "keys": "", "format": "csv"})
     with open(os.path.join(APPDATA_DIR, "linker.csv"), "w") as f:
         f.write(linker_csv)
 
