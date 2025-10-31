@@ -611,13 +611,23 @@ def cmove_queries(**config):
     logging.info(f"Processing {len(df)} rows from input.xlsx")
     
     if config.get("acc_col") is not None:
-        acc_mrn = list(df[[config.get("acc_col"), config.get("mrn_col")]].itertuples(index=False, name=None))
-        for i, (acc, mrn) in enumerate(acc_mrn, 1):
-            query = f"-k QueryRetrieveLevel=STUDY -k AccessionNumber=*{str(acc)}* -k PatientID={str(mrn)}"
-            queries.append(query)
-            accession_numbers.append(str(acc))
-            logging.info(f"Row {i}: Accession={acc}, MRN={mrn}")
-            logging.info(f"  Query: {query}")
+        mrn_col = config.get("mrn_col")
+        if mrn_col and mrn_col in df.columns:
+            acc_mrn = list(df[[config.get("acc_col"), mrn_col]].itertuples(index=False, name=None))
+            for i, (acc, mrn) in enumerate(acc_mrn, 1):
+                query = f"-k QueryRetrieveLevel=STUDY -k AccessionNumber=*{str(acc)}* -k PatientID={str(mrn)}"
+                queries.append(query)
+                accession_numbers.append(str(acc))
+                logging.info(f"Row {i}: Accession={acc}, MRN={mrn}")
+                logging.info(f"  Query: {query}")
+        else:
+            acc_list = df[config.get("acc_col")].tolist()
+            for i, acc in enumerate(acc_list, 1):
+                query = f"-k QueryRetrieveLevel=STUDY -k AccessionNumber=*{str(acc)}*"
+                queries.append(query)
+                accession_numbers.append(str(acc))
+                logging.info(f"Row {i}: Accession={acc}")
+                logging.info(f"  Query: {query}")
     else:
         mrn_dates = list(df[[config.get("mrn_col"), config.get("date_col")]].itertuples(index=False, name=None))
         for i, (mrn, dt) in enumerate(mrn_dates, 1):
@@ -1389,6 +1399,9 @@ def validate_excel(path, **config):
             error_and_exit(f"Column {acc_col} not found in excel file.")
         if df[acc_col].isnull().values.any():
             error_and_exit(f"Column {acc_col} has empty values.")
+        if mrn_col and mrn_col in df.columns:
+            if df[mrn_col].isnull().values.any():
+                error_and_exit(f"Column {mrn_col} has empty values.")
     else:
         if mrn_col not in df.columns:
             error_and_exit(f"Column {mrn_col} not found in excel file.")
@@ -1434,8 +1447,6 @@ def validate_config(config):
                 error_and_exit("Application AET missing in config file.")
             if config.get("acc_col") is None and (config.get("mrn_col") is None or config.get("date_col") is None):
                 error_and_exit("Either the accession column name or mrn + date column names are required.")
-            if config.get("acc_col") is not None and config.get("mrn_col") is not None and config.get("date_col") is not None:
-                error_and_exit("Can only query using one of accession or mrn + date. Not both.")
             if config.get("acc_col") is None and config.get("date_window") is None:
                 error_and_exit("Date window is required when querying by MRN + date.")
             if config.get("date_window") is not None and not isinstance(config.get("date_window"), int):
