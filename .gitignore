@@ -13,3 +13,6 @@ create-dmg-arm.sh
 .env
 dcmtk
 jre8
+input
+output
+appdata
