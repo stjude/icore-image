@@ -23,6 +23,19 @@ def ctp_get(url, port, timeout=3):
         return None
 
 
+def ctp_post(url, port, data, timeout=6):
+    try:
+        return requests.post(
+            f"http://localhost:{port}/{url}",
+            auth=("admin", "password"),
+            data=data,
+            headers={"Referer": f"http://localhost:{port}/{url}"},
+            timeout=timeout
+        )
+    except Exception:
+        return None
+
+
 class CTPMetrics:
     def __init__(self):
         self.files_received = 0
