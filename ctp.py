@@ -62,6 +62,7 @@ class CTPMetrics:
         self.files_saved = 0
         self.files_quarantined = 0
         self.stable_count = 0
+        self.last_change_time = time.time()
         self._lock = Lock()
     
     def is_stable(self):
@@ -70,6 +71,15 @@ class CTPMetrics:
     
     def update(self, received, saved, quarantined):
         with self._lock:
+            metrics_changed = (
+                received != self.files_received or
+                saved != self.files_saved or
+                quarantined != self.files_quarantined
+            )
+            
+            if metrics_changed:
+                self.last_change_time = time.time()
+            
             self.files_received = received
             self.files_saved = saved
             self.files_quarantined = quarantined
@@ -80,16 +90,22 @@ class CTPMetrics:
                 self.stable_count += 1
             else:
                 self.stable_count = 0
+    
+    def time_since_last_change(self):
+        with self._lock:
+            return time.time() - self.last_change_time
 
 
 class CTPServer:
-    def __init__(self, ctp_dir):
+    def __init__(self, ctp_dir, stall_timeout=300):
         self.ctp_dir = ctp_dir
         self.process = None
         self.monitor_thread = None
         self.metrics = CTPMetrics()
         self._running = False
         self._monitor_running = False
+        self._monitor_exception = None
+        self.stall_timeout = stall_timeout
         
         config_path = os.path.join(ctp_dir, "config.xml")
         tree = ET.parse(config_path)
@@ -156,6 +172,8 @@ class CTPServer:
             self._running = False
     
     def is_complete(self):
+        if self._monitor_exception:
+            raise self._monitor_exception
         return self.metrics.stable_count > 3
     
     def _send_shutdown_request(self):
@@ -243,9 +261,15 @@ class CTPServer:
         self.metrics.update(received, saved, quarantined)
     
     def _monitor_loop(self):
-        while self._monitor_running:
-            time.sleep(3)
-            self._update_metrics()
+        try:
+            while self._monitor_running:
+                time.sleep(3)
+                self._update_metrics()
+                
+                if self.metrics.time_since_last_change() > self.stall_timeout:
+                    raise TimeoutError(f"CTP metrics have not changed for {self.stall_timeout} seconds")
+        except Exception as e:
+            self._monitor_exception = e
 
 
 PIPELINE_TEMPLATES = {
@@ -478,7 +502,7 @@ PIPELINE_TEMPLATES = {
 class CTPPipeline:
     def __init__(self, pipeline_type, input_dir, output_dir,
                  filter_script=None, anonymizer_script=None, lookup_table=None,
-                 application_aet=None, source_ctp_dir=None):
+                 application_aet=None, source_ctp_dir=None, stall_timeout=300):
         if pipeline_type not in PIPELINE_TEMPLATES:
             raise ValueError(f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}")
         
@@ -490,6 +514,7 @@ class CTPPipeline:
         self.anonymizer_script = anonymizer_script
         self.lookup_table = lookup_table
         self.application_aet = application_aet
+        self.stall_timeout = stall_timeout
         
         self.port = self._find_available_port()
         self._tempdir = tempfile.mkdtemp(prefix='ctp_')
@@ -556,7 +581,7 @@ class CTPPipeline:
             with open(os.path.join(scripts_dir, "LookupTable.properties"), "w") as f:
                 f.write("")
         
-        self.server = CTPServer(ctp_workspace)
+        self.server = CTPServer(ctp_workspace, stall_timeout=self.stall_timeout)
         self.server.start()
         
         return self

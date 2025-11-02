@@ -174,15 +174,10 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
             else:
                 logging.warning(f"Failed to move study {study_uid} from {pacs.host}:{pacs.port}")
         
-        start_time = time.time()
-        timeout = 300
         save_interval = 5
         last_save_time = 0
         
         while not pipeline.is_complete():
-            if time.time() - start_time > timeout:
-                raise TimeoutError("Pipeline did not complete within timeout")
-            
             current_time = time.time()
             if current_time - last_save_time >= save_interval:
                 _save_metadata_files(pipeline, appdata_dir)

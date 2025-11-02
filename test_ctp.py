@@ -1267,3 +1267,30 @@ def test_id_map_audit_log_extraction(tmp_path):
     finally:
         orthanc.stop()
 
+
+def test_ctp_server_stall_timeout(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    with pytest.raises(TimeoutError, match="CTP metrics have not changed for 10 seconds"):
+        with CTPPipeline(
+            pipeline_type="imagecopy_local",
+            input_dir=str(input_dir),
+            output_dir=str(output_dir),
+            source_ctp_dir=str(source_ctp),
+            stall_timeout=10
+        ) as pipeline:
+            start_time = time.time()
+            safety_timeout = 30
+            while not pipeline.is_complete():
+                if time.time() - start_time > safety_timeout:
+                    raise AssertionError(f"Stall timeout did not trigger within {safety_timeout} seconds")
+                time.sleep(1)
+
