@@ -21,14 +21,11 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     
     study_pacs_map, failed_find_indices = find_studies_from_pacs_list(pacs_list, query_params_list, application_aet)
     
-    input_dir = os.path.join(appdata_dir, "temp_input")
-    os.makedirs(input_dir, exist_ok=True)
-    
     pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
     
     with CTPPipeline(
         pipeline_type=pipeline_type,
-        input_dir=input_dir,
+        input_dir=None,
         output_dir=output_dir,
         application_aet=application_aet,
         filter_script=combined_filter,

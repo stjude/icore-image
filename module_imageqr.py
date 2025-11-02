@@ -26,12 +26,9 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     
     study_pacs_map, failed_find_indices = find_studies_from_pacs_list(pacs_list, query_params_list, application_aet)
     
-    input_dir = os.path.join(appdata_dir, "temp_input")
-    os.makedirs(input_dir, exist_ok=True)
-    
     with CTPPipeline(
         pipeline_type="imageqr",
-        input_dir=input_dir,
+        input_dir=None,
         output_dir=output_dir,
         application_aet=application_aet,
         filter_script=combined_filter
