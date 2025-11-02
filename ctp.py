@@ -341,12 +341,6 @@ PIPELINE_TEMPLATES = {
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
             level="study" />
-        <DicomDecompressor
-            class="org.rsna.ctp.stdstages.DicomDecompressor"
-            name="DicomDecompressor"
-            root="{tempdir}/roots/DicomDecompressor"
-            script="scripts/DicomDecompressor.script"
-            quarantine="{tempdir}/quarantine/DicomDecompressor"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             id="IDMap"
@@ -413,12 +407,172 @@ PIPELINE_TEMPLATES = {
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
             level="study" />
+        <IDMap
+            class="org.rsna.ctp.stdstages.IDMap"
+            id="IDMap"
+            name="IDMap"
+            root="{tempdir}/roots/IDMap" />
+        <DicomAnonymizer
+            class="org.rsna.ctp.stdstages.DicomAnonymizer"
+            name="DicomAnonymizer"
+            root="{tempdir}/roots/DicomAnonymizer"
+            script="scripts/DicomAnonymizer.script"
+            lookupTable="scripts/LookupTable.properties"
+            quarantine="{tempdir}/quarantine" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="DeidAuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
+        <DirectoryStorageService
+            class="org.rsna.ctp.stdstages.DirectoryStorageService"
+            name="DirectoryStorageService"
+            root="{output_dir}"
+            structure="{{StudyDate}}-{{Modality}}-{{PatientID}}/S{{SeriesNumber}}"
+            setStandardExtensions="yes"
+            acceptDuplicates="yes"
+            returnStoredFile="yes"
+            quarantine="{tempdir}/quarantine"
+            whitespaceReplacement="_"/>
+        </Pipeline>
+    </Configuration>
+    """,
+
+    "imagedeid_local_pixel": """
+    <Configuration>
+        <Server maxThreads="20" port="{port}">
+            <Log/>
+        </Server>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="AuditLog" name="AuditLog"
+                root="{tempdir}/roots/AuditLog"/>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="DeidAuditLog" name="DeidAuditLog"
+                root="{tempdir}/roots/DeidAuditLog"/>
+        <Pipeline name="imagedeid">
+        <ArchiveImportService
+            class="org.rsna.ctp.stdstages.ArchiveImportService"
+            name="ArchiveImportService"
+            fsName="DICOM Image Directory"
+            root="{tempdir}/roots/ArchiveImportService"
+            treeRoot="{input_dir}"
+            quarantine="{tempdir}/quarantine/ArchiveImportService"
+            minAge="1000"
+            acceptFileObjects="no"
+            acceptXmlObjects="no"
+            acceptZipObjects="no"
+            expandTARs="no"/>
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="DicomFilter"
+            root="{tempdir}/roots/DicomFilter"
+            script="scripts/dicom-filter.script"
+            quarantine="{tempdir}/quarantine/DicomFilter"/>
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="AuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
+        <DicomDecompressor
+            class="org.rsna.ctp.stdstages.DicomDecompressor"
+            name="DicomDecompressor"
+            root="{tempdir}/roots/DicomDecompressor"
+            script="scripts/DicomDecompressor.script"
+            quarantine="{tempdir}/quarantine/DicomDecompressor"/>
+        <DicomPixelAnonymizer
+            name="DicomPixelAnonymizer"
+            class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
+            root="{tempdir}/roots/DicomPixelAnonymizer" 
+            log="no"
+            script="scripts/DicomPixelAnonymizer.script"
+            setBurnedInAnnotation="no"
+            test="no"
+            quarantine="{tempdir}/quarantine/DicomPixelAnonymizer" />
+        <IDMap
+            class="org.rsna.ctp.stdstages.IDMap"
+            id="IDMap"
+            name="IDMap"
+            root="{tempdir}/roots/IDMap" />
+        <DicomAnonymizer
+            class="org.rsna.ctp.stdstages.DicomAnonymizer"
+            name="DicomAnonymizer"
+            root="{tempdir}/roots/DicomAnonymizer"
+            script="scripts/DicomAnonymizer.script"
+            lookupTable="scripts/LookupTable.properties"
+            quarantine="{tempdir}/quarantine/DicomAnonymizer" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="DeidAuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
+        <DirectoryStorageService
+            class="org.rsna.ctp.stdstages.DirectoryStorageService"
+            name="DirectoryStorageService"
+            root="{output_dir}/"
+            structure="{{StudyDate}}-{{Modality}}-{{PatientID}}/S{{SeriesNumber}}"
+            setStandardExtensions="yes"
+            acceptDuplicates="yes"
+            returnStoredFile="yes"
+            quarantine="{tempdir}/quarantine/DirectoryStorageService"
+            whitespaceReplacement="_"/>
+        </Pipeline>
+    </Configuration>
+    """,
+
+    "imagedeid_pacs_pixel": """
+    <Configuration>
+        <Server maxThreads="20" port="{port}">
+            <Log/>
+        </Server>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="AuditLog" name="AuditLog"
+                root="{tempdir}/roots/AuditLog"/>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="DeidAuditLog" name="DeidAuditLog"
+                root="{tempdir}/roots/DeidAuditLog"/>
+        <Pipeline name="imagedeid">
+        <DicomImportService
+            class="org.rsna.ctp.stdstages.DicomImportService"
+            name="DicomImportService"
+            port="{dicom_port}"
+            calledAETTag="{application_aet}"
+            root="{tempdir}/roots/DicomImportService"
+            quarantine="{tempdir}/quarantine"
+            logConnections="no" />
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="DicomFilter"
+            root="{tempdir}/roots/DicomFilter"
+            script="scripts/dicom-filter.script"
+            quarantine="{tempdir}/quarantine" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="AuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
             root="{tempdir}/roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
             quarantine="{tempdir}/quarantine"/>
+        <DicomPixelAnonymizer
+            name="DicomPixelAnonymizer"
+            class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
+            root="{tempdir}/roots/DicomPixelAnonymizer" 
+            log="no"
+            script="scripts/DicomPixelAnonymizer.script"
+            setBurnedInAnnotation="no"
+            test="no"
+            quarantine="{tempdir}/quarantine/DicomPixelAnonymizer" />
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             id="IDMap"
