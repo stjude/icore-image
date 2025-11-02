@@ -471,6 +471,76 @@ def test_imagedeid_local_pipeline(tmp_path):
         assert len(output_files) == 10
 
 
+def test_imagedeid_local_with_filter(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    for i in range(6):
+        modality = "CT" if i < 3 else "MR"
+        ds = Fixtures.create_minimal_dicom(
+            patient_id=f"P{i:03d}",
+            patient_name=f"Patient{i}^Test",
+            accession=f"ACC{i:03d}",
+            study_date="20250101",
+            modality=modality
+        )
+        ds.SeriesNumber = 1
+        ds.InstanceNumber = i + 1
+        ds.SamplesPerPixel = 1
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        ds.Rows = 64
+        ds.Columns = 64
+        ds.BitsAllocated = 16
+        ds.BitsStored = 16
+        ds.HighBit = 15
+        ds.PixelRepresentation = 0
+        ds.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
+        
+        filepath = input_dir / f"f{i+1:03d}.dcm"
+        ds.save_as(str(filepath), write_like_original=False)
+    
+    time.sleep(2)
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+</script>"""
+    
+    with CTPPipeline(
+        source_ctp_dir=str(source_ctp),
+        pipeline_type="imagedeid_local",
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        port=50090,
+        anonymizer_script=anonymizer_script,
+        filter_script='Modality.contains("CT")'
+    ) as pipeline:
+        start_time = time.time()
+        timeout = 60
+        
+        while not pipeline.is_complete():
+            if time.time() - start_time > timeout:
+                raise TimeoutError("Pipeline did not complete")
+            time.sleep(1)
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 3, f"Expected 3 CT files in output, got {len(output_files)}"
+        
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            assert ds.Modality == "CT", f"Only CT files should be in output, found {ds.Modality}"
+            assert ds.PatientName == "", f"PatientName should be anonymized"
+        
+        assert pipeline.metrics.files_saved == 3, f"Expected 3 CT files saved"
+        assert pipeline.metrics.files_quarantined == 3, f"Expected 3 MR files quarantined"
+
+
 def test_pipeline_auto_cleanup(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
@@ -599,6 +669,87 @@ def test_imageqr_pipeline(tmp_path):
 
 
 @pytest.mark.docker
+def test_imageqr_with_filter(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50061)
+    orthanc.start()
+    
+    try:
+        for i in range(6):
+            modality = "CT" if i < 3 else "MR"
+            ds = Fixtures.create_minimal_dicom(
+                patient_id=f"P{i:03d}",
+                accession=f"ACC{i:03d}",
+                study_date="20250101",
+                modality=modality
+            )
+            ds.SeriesNumber = 1
+            ds.InstanceNumber = i + 1
+            
+            temp_file = tempfile.mktemp(suffix=".dcm")
+            ds.save_as(temp_file)
+            orthanc.upload_dicom(temp_file)
+            os.remove(temp_file)
+        
+        source_ctp = Path(__file__).parent / "ctp"
+        
+        with CTPPipeline(
+            source_ctp_dir=str(source_ctp),
+            pipeline_type="imageqr",
+            input_dir=str(input_dir),
+            output_dir=str(output_dir),
+            port=50060,
+            application_aet="TEST_AET",
+            filter_script='Modality.contains("CT")'
+        ) as pipeline:
+            time.sleep(3)
+            
+            studies_response = requests.get(f"{orthanc.base_url}/studies")
+            studies = studies_response.json()
+            
+            for study_id in studies:
+                study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
+                study_uid = study_info['MainDicomTags']['StudyInstanceUID']
+                
+                trigger_cmove(
+                    study_uid,
+                    "localhost",
+                    orthanc.dicom_port,
+                    orthanc.aet,
+                    "TEST_AET"
+                )
+            
+            start_time = time.time()
+            timeout = 60
+            
+            while not pipeline.is_complete():
+                if time.time() - start_time > timeout:
+                    raise TimeoutError("Pipeline did not complete")
+                time.sleep(1)
+            
+            images_dir = Path(output_dir) / "images"
+            output_files = list(images_dir.rglob("*.dcm"))
+            assert len(output_files) == 3, f"Expected 3 CT files in output, got {len(output_files)}"
+            
+            for file in output_files:
+                ds = pydicom.dcmread(file)
+                assert ds.Modality == "CT", f"Expected CT modality, got {ds.Modality}"
+            
+            assert pipeline.metrics.files_quarantined == 3, f"Expected 3 MR files quarantined, got {pipeline.metrics.files_quarantined}"
+    
+    finally:
+        orthanc.stop()
+
+
+@pytest.mark.docker
 def test_imagedeid_pacs_pipeline(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
@@ -671,6 +822,95 @@ def test_imagedeid_pacs_pipeline(tmp_path):
             
             output_files = list(output_dir.rglob("*.dcm"))
             assert len(output_files) >= 9
+    
+    finally:
+        orthanc.stop()
+
+
+@pytest.mark.docker
+def test_imagedeid_pacs_with_filter(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50081)
+    orthanc.start()
+    
+    try:
+        for i in range(6):
+            modality = "CT" if i < 3 else "MR"
+            ds = Fixtures.create_minimal_dicom(
+                patient_id=f"P{i:03d}",
+                patient_name=f"Patient{i}^Test",
+                accession=f"ACC{i:03d}",
+                study_date="20250101",
+                modality=modality
+            )
+            ds.SeriesNumber = 1
+            ds.InstanceNumber = i + 1
+            
+            temp_file = tempfile.mktemp(suffix=".dcm")
+            ds.save_as(temp_file)
+            orthanc.upload_dicom(temp_file)
+            os.remove(temp_file)
+        
+        source_ctp = Path(__file__).parent / "ctp"
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+</script>"""
+        
+        with CTPPipeline(
+            source_ctp_dir=str(source_ctp),
+            pipeline_type="imagedeid_pacs",
+            input_dir=str(input_dir),
+            output_dir=str(output_dir),
+            port=50080,
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            filter_script='Modality.contains("CT")'
+        ) as pipeline:
+            time.sleep(3)
+            
+            studies_response = requests.get(f"{orthanc.base_url}/studies")
+            studies = studies_response.json()
+            
+            for study_id in studies:
+                study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
+                study_uid = study_info['MainDicomTags']['StudyInstanceUID']
+                
+                trigger_cmove(
+                    study_uid,
+                    "localhost",
+                    orthanc.dicom_port,
+                    orthanc.aet,
+                    "TEST_AET"
+                )
+            
+            start_time = time.time()
+            timeout = 120
+            
+            while not pipeline.is_complete():
+                if time.time() - start_time > timeout:
+                    raise TimeoutError("Pipeline did not complete")
+                time.sleep(1)
+            
+            output_files = list(output_dir.rglob("*.dcm"))
+            assert len(output_files) == 3, f"Expected 3 CT files in output, got {len(output_files)}"
+            
+            for file in output_files:
+                ds = pydicom.dcmread(file)
+                assert ds.Modality == "CT", f"Only CT files should be in output, found {ds.Modality}"
+                assert ds.PatientName == "", f"PatientName should be anonymized, got '{ds.PatientName}'"
+            
+            assert pipeline.metrics.files_saved == 3, f"Expected 3 CT files saved"
+            assert pipeline.metrics.files_quarantined == 3, f"Expected 3 MR files quarantined"
+            assert pipeline.metrics.files_received == 6, f"Expected 6 files received"
     
     finally:
         orthanc.stop()

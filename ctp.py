@@ -65,11 +65,12 @@ class CTPServer:
         server_elem = root.find("Server")
         self.port = int(server_elem.get("port", "50000"))
         
-        self.quarantine_dirs = []
+        quarantine_set = set()
         for elem in root.iter():
             quarantine = elem.get("quarantine")
             if quarantine:
-                self.quarantine_dirs.append(quarantine)
+                quarantine_set.add(quarantine)
+        self.quarantine_dirs = list(quarantine_set)
     
     def start(self):
         self._cleanup_existing_server()
