@@ -480,6 +480,7 @@ PIPELINE_TEMPLATES = {
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
+            skipJPEGBaseline="yes"
             root="{tempdir}/roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
             quarantine="{tempdir}/quarantine/DicomDecompressor"/>
@@ -492,6 +493,15 @@ PIPELINE_TEMPLATES = {
             setBurnedInAnnotation="no"
             test="no"
             quarantine="{tempdir}/quarantine/DicomPixelAnonymizer" />
+        <DicomTranscoder
+            name="DicomTranscoder"
+            class="org.rsna.ctp.stdstages.DicomTranscoder"
+            tsuid="1.2.840.10008.1.2.4.70"
+            quality="100"
+            root="{tempdir}/roots/DicomTranscoder" 
+            skipJPEGBaseline="yes"
+            script="scripts/dicom-transcoder.script"
+            quarantine="{tempdir}/quarantine/DicomTranscoder" />
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             id="IDMap"
@@ -561,6 +571,7 @@ PIPELINE_TEMPLATES = {
         <DicomDecompressor
             class="org.rsna.ctp.stdstages.DicomDecompressor"
             name="DicomDecompressor"
+            skipJPEGBaseline="yes"
             root="{tempdir}/roots/DicomDecompressor"
             script="scripts/DicomDecompressor.script"
             quarantine="{tempdir}/quarantine"/>
@@ -573,6 +584,15 @@ PIPELINE_TEMPLATES = {
             setBurnedInAnnotation="no"
             test="no"
             quarantine="{tempdir}/quarantine/DicomPixelAnonymizer" />
+        <DicomTranscoder
+            name="DicomTranscoder"
+            class="org.rsna.ctp.stdstages.DicomTranscoder"
+            tsuid="1.2.840.10008.1.2.4.70"
+            quality="100"
+            root="{tempdir}/roots/DicomTranscoder" 
+            skipJPEGBaseline="yes"
+            script="scripts/dicom-transcoder.script"
+            quarantine="{tempdir}/quarantine/DicomTranscoder" />
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             id="IDMap"
