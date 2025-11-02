@@ -36,14 +36,16 @@ class Spreadsheet:
         return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
 
 
-def _generate_queries_from_spreadsheet(spreadsheet):
+def _generate_queries_and_filter(spreadsheet):
     query_params_list = []
+    filter_conditions = []
     
     for _, row in spreadsheet.dataframe.iterrows():
         if spreadsheet.acc_col and pd.notna(row.get(spreadsheet.acc_col)):
             acc = str(row[spreadsheet.acc_col])
             query_params = {"AccessionNumber": f"*{acc}*"}
             query_params_list.append(query_params)
+            filter_conditions.append(f'AccessionNumber.contains("{acc}")')
         elif (spreadsheet.mrn_col and spreadsheet.date_col and 
               pd.notna(row.get(spreadsheet.mrn_col)) and 
               pd.notna(row.get(spreadsheet.date_col))):
@@ -57,10 +59,13 @@ def _generate_queries_from_spreadsheet(spreadsheet):
                 "StudyDate": study_date_str
             }
             query_params_list.append(query_params)
+            filter_conditions.append(f'(PatientID.contains("{mrn}") * StudyDate.contains("{study_date_str}"))')
         else:
             raise ValueError(f"Row must have either acc_col or both mrn_col and date_col with valid values")
     
-    return query_params_list
+    generated_filter = " + ".join(filter_conditions) if filter_conditions else None
+    
+    return query_params_list, generated_filter
 
 
 def _save_metadata_files(pipeline, appdata_dir):
@@ -86,7 +91,13 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
-    query_params_list = _generate_queries_from_spreadsheet(query_spreadsheet)
+    query_params_list, generated_filter = _generate_queries_and_filter(query_spreadsheet)
+    
+    combined_filter = None
+    if filter_script and generated_filter:
+        combined_filter = f"({filter_script}) * ({generated_filter})"
+    elif filter_script or generated_filter:
+        combined_filter = filter_script or generated_filter
     
     study_to_pacs = {}
     failed_query_indices = []
@@ -128,7 +139,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         input_dir=input_dir,
         output_dir=output_dir,
         application_aet=application_aet,
-        filter_script=filter_script,
+        filter_script=combined_filter,
         anonymizer_script=anonymizer_script
     ) as pipeline:
         time.sleep(3)

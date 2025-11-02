@@ -3,6 +3,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 import numpy as np
 import pandas as pd
@@ -306,6 +307,93 @@ def test_imagedeid_failures_reported(tmp_path):
     assert result["failed_query_indices"] == [0, 1, 2], "Failed indices should be [0, 1, 2]"
     assert result["num_studies_found"] == 0, "No studies should be found"
     assert result["num_images_saved"] == 0, "No images should be saved"
+
+
+def test_imagedeid_filter_script_generation(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    
+    with patch('module_imagedeid_pacs.find_studies') as mock_find, \
+         patch('module_imagedeid_pacs.CTPPipeline') as mock_pipeline_class:
+        
+        mock_find.return_value = []
+        mock_pipeline_instance = MagicMock()
+        mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
+        mock_pipeline_instance.is_complete.return_value = True
+        mock_pipeline_instance.metrics = MagicMock(files_saved=0, files_quarantined=0)
+        mock_pipeline_instance.get_audit_log_csv.return_value = None
+        mock_pipeline_instance.get_idmap_csv.return_value = None
+        
+        query_file = appdata_dir / "query_acc.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
+        query_df.to_excel(query_file, index=False)
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir)
+        )
+        
+        call_kwargs = mock_pipeline_class.call_args[1]
+        expected_filter = 'AccessionNumber.contains("ACC001") + AccessionNumber.contains("ACC002")'
+        assert call_kwargs['filter_script'] == expected_filter, f"Expected filter: {expected_filter}, got: {call_kwargs['filter_script']}"
+        
+        mock_pipeline_class.reset_mock()
+        mock_find.reset_mock()
+        
+        query_file = appdata_dir / "query_mrn.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": [None, None],
+            "PatientID": ["MRN001", "MRN002"],
+            "StudyDate": [pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-15")]
+        })
+        query_df.to_excel(query_file, index=False)
+        query_spreadsheet = Spreadsheet.from_file(
+            str(query_file), 
+            acc_col="AccessionNumber",
+            mrn_col="PatientID",
+            date_col="StudyDate"
+        )
+        
+        imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir)
+        )
+        
+        call_kwargs = mock_pipeline_class.call_args[1]
+        expected_filter = '(PatientID.contains("MRN001") * StudyDate.contains("20250101")) + (PatientID.contains("MRN002") * StudyDate.contains("20250115"))'
+        assert call_kwargs['filter_script'] == expected_filter, f"Expected filter: {expected_filter}, got: {call_kwargs['filter_script']}"
+        
+        mock_pipeline_class.reset_mock()
+        mock_find.reset_mock()
+        
+        user_filter = 'Modality.contains("CT")'
+        
+        imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            filter_script=user_filter
+        )
+        
+        call_kwargs = mock_pipeline_class.call_args[1]
+        expected_combined = '(Modality.contains("CT")) * ((PatientID.contains("MRN001") * StudyDate.contains("20250101")) + (PatientID.contains("MRN002") * StudyDate.contains("20250115")))'
+        assert call_kwargs['filter_script'] == expected_combined, f"Expected filter: {expected_combined}, got: {call_kwargs['filter_script']}"
 
 
 def test_imagedeid_multiple_pacs(tmp_path):
