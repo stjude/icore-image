@@ -56,6 +56,33 @@ def ctp_post(url, port, data, timeout=6):
         return None
 
 
+def _update_log4j_properties(log4j_path, log_path=None, log_level=None):
+    if not log_path and not log_level:
+        return
+    
+    with open(log4j_path) as f:
+        content = f.read()
+    
+    if log_path:
+        if not os.path.isabs(log_path):
+            raise ValueError(f"log_path must be an absolute path, got: {log_path}")
+        content = re.sub(
+            r'log4j\.appender\.RootAppender\.File\s*=.*',
+            f'log4j.appender.RootAppender.File = {log_path}',
+            content
+        )
+    
+    if log_level:
+        content = re.sub(
+            r'log4j\.logger\.org\.rsna\s*=.*',
+            f'log4j.logger.org.rsna = {log_level}',
+            content
+        )
+    
+    with open(log4j_path, "w") as f:
+        f.write(content)
+
+
 class CTPMetrics:
     def __init__(self):
         self.files_received = 0
@@ -674,7 +701,7 @@ PIPELINE_TEMPLATES = {
 class CTPPipeline:
     def __init__(self, pipeline_type, output_dir, input_dir=None,
                  filter_script=None, anonymizer_script=None, lookup_table=None,
-                 application_aet=None, source_ctp_dir=None, stall_timeout=300, log_path=None):
+                 application_aet=None, source_ctp_dir=None, stall_timeout=300, log_path=None, log_level=None):
         if pipeline_type not in PIPELINE_TEMPLATES:
             raise ValueError(f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}")
         
@@ -688,6 +715,7 @@ class CTPPipeline:
         self.application_aet = application_aet
         self.stall_timeout = stall_timeout
         self.log_path = log_path
+        self.log_level = log_level
         
         self.port = self._find_available_port()
         self._tempdir = tempfile.mkdtemp(prefix='ctp_')
@@ -724,19 +752,8 @@ class CTPPipeline:
                 os.makedirs(ctp_workspace, exist_ok=True)
                 shutil.copy(src_path, dst_path)
         
-        if self.log_path:
-            if not os.path.isabs(self.log_path):
-                raise ValueError(f"log_path must be an absolute path, got: {self.log_path}")
-            
-            log4j_path = os.path.join(ctp_workspace, "log4j.properties")
-            with open(log4j_path) as f:
-                content = re.sub(
-                    r'log4j\.appender\.RootAppender\.File\s*=.*',
-                    f'log4j.appender.RootAppender.File = {self.log_path}',
-                    f.read()
-                )
-            with open(log4j_path, "w") as f:
-                f.write(content)
+        log4j_path = os.path.join(ctp_workspace, "log4j.properties")
+        _update_log4j_properties(log4j_path, self.log_path, self.log_level)
         
         config_template = PIPELINE_TEMPLATES[self.pipeline_type]
         config_xml = config_template.format(

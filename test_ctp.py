@@ -297,7 +297,8 @@ def test_imagecopy_local_pipeline(tmp_path):
         output_dir=str(output_dir),
         input_dir=str(input_dir),
         source_ctp_dir=str(source_ctp),
-        log_path=str(log_path)
+        log_path=str(log_path),
+        log_level="DEBUG"
     ) as pipeline:
         start_time = time.time()
         timeout = 60
@@ -322,6 +323,9 @@ def test_imagecopy_local_pipeline(tmp_path):
     
     assert log_path.exists(), "CTP log file should exist"
     assert log_path.stat().st_size > 0, "CTP log file should contain content"
+    
+    log_content = log_path.read_text()
+    assert "DEBUG" in log_content, "Log file should contain DEBUG level messages"
 
 
 def test_imagedeid_local_pipeline(tmp_path):
