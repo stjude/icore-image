@@ -28,7 +28,6 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     
     with CTPPipeline(
         pipeline_type="imageqr",
-        input_dir=None,
         output_dir=output_dir,
         application_aet=application_aet,
         filter_script=combined_filter

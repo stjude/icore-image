@@ -30,8 +30,8 @@ def imagedeid_local(input_dir, output_dir, appdata_dir, filter_script=None,
     
     with CTPPipeline(
         pipeline_type=pipeline_type,
-        input_dir=input_dir,
         output_dir=output_dir,
+        input_dir=input_dir,
         filter_script=filter_script,
         anonymizer_script=anonymizer_script
     ) as pipeline:

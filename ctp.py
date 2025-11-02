@@ -672,7 +672,7 @@ PIPELINE_TEMPLATES = {
 
 
 class CTPPipeline:
-    def __init__(self, pipeline_type, input_dir, output_dir,
+    def __init__(self, pipeline_type, output_dir, input_dir=None,
                  filter_script=None, anonymizer_script=None, lookup_table=None,
                  application_aet=None, source_ctp_dir=None, stall_timeout=300):
         if pipeline_type not in PIPELINE_TEMPLATES:

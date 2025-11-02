@@ -67,8 +67,8 @@ def test_ctp_pipeline_port_selection(tmp_path):
     
     pipeline = CTPPipeline(
         pipeline_type="imagecopy_local",
-        input_dir=str(input_dir),
         output_dir=str(output_dir),
+        input_dir=str(input_dir),
         source_ctp_dir=str(source_ctp)
     )
     assert pipeline.port == 50000, "Should pick port 50000 when available"
@@ -94,8 +94,8 @@ def test_ctp_pipeline_port_selection(tmp_path):
         pipeline = CTPPipeline(
             source_ctp_dir=str(source_ctp),
             pipeline_type="imagecopy_local",
-            input_dir=str(input_dir),
-            output_dir=str(output_dir)
+            output_dir=str(output_dir),
+            input_dir=str(input_dir)
         )
         assert pipeline.port == 50030, "Should pick port 50030 when 50000, 50010, 50020 are blocked"
         
@@ -125,8 +125,8 @@ def test_ctp_pipeline_port_selection(tmp_path):
             CTPPipeline(
                 source_ctp_dir=str(source_ctp),
                 pipeline_type="imagecopy_local",
-                input_dir=str(input_dir),
-                output_dir=str(output_dir)
+                output_dir=str(output_dir),
+                input_dir=str(input_dir)
             )
     
     finally:
@@ -293,8 +293,8 @@ def test_imagecopy_local_pipeline(tmp_path):
     
     with CTPPipeline(
         pipeline_type="imagecopy_local",
-        input_dir=str(input_dir),
         output_dir=str(output_dir),
+        input_dir=str(input_dir),
         source_ctp_dir=str(source_ctp)
     ) as pipeline:
         start_time = time.time()
@@ -361,8 +361,8 @@ def test_imagedeid_local_pipeline(tmp_path):
     
     with CTPPipeline(
         pipeline_type="imagedeid_local",
-        input_dir=str(input_dir),
         output_dir=str(output_dir),
+        input_dir=str(input_dir),
         anonymizer_script=anonymizer_script,
         source_ctp_dir=str(source_ctp)
     ) as pipeline:
@@ -423,8 +423,8 @@ def test_imagedeid_local_with_filter(tmp_path):
     
     with CTPPipeline(
         pipeline_type="imagedeid_local",
-        input_dir=str(input_dir),
         output_dir=str(output_dir),
+        input_dir=str(input_dir),
         anonymizer_script=anonymizer_script,
         filter_script='Modality.contains("CT")',
         source_ctp_dir=str(source_ctp)
@@ -501,8 +501,8 @@ def test_imagedeid_local_with_anonymizer_script(tmp_path):
     
     with CTPPipeline(
         pipeline_type="imagedeid_local",
-        input_dir=str(input_dir),
         output_dir=str(output_dir),
+        input_dir=str(input_dir),
         anonymizer_script=anonymizer_script,
         source_ctp_dir=str(source_ctp)
     ) as pipeline:
@@ -566,8 +566,8 @@ def test_pipeline_auto_cleanup(tmp_path):
     
     with CTPPipeline(
         pipeline_type="imagecopy_local",
-        input_dir=str(input_dir),
         output_dir=str(output_dir),
+        input_dir=str(input_dir),
         source_ctp_dir=str(source_ctp)
     ) as pipeline:
         tempdir_path = pipeline._tempdir
@@ -616,7 +616,6 @@ def test_imageqr_pipeline(tmp_path):
         
         with CTPPipeline(
             pipeline_type="imageqr",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             source_ctp_dir=str(source_ctp)
@@ -690,7 +689,6 @@ def test_imageqr_with_filter(tmp_path):
         
         with CTPPipeline(
             pipeline_type="imageqr",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             filter_script='Modality.contains("CT")',
@@ -775,7 +773,6 @@ def test_imagedeid_pacs_pipeline(tmp_path):
         
         with CTPPipeline(
             pipeline_type="imagedeid_pacs",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
@@ -854,7 +851,6 @@ def test_imagedeid_pacs_with_filter(tmp_path):
         
         with CTPPipeline(
             pipeline_type="imagedeid_pacs",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
@@ -952,7 +948,6 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
         
         with CTPPipeline(
             pipeline_type="imagedeid_pacs",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
@@ -1043,7 +1038,6 @@ def test_id_map_audit_log_extraction(tmp_path):
         
         with CTPPipeline(
             pipeline_type="imagedeid_pacs",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
@@ -1153,8 +1147,8 @@ def test_imagedeid_local_pixel_with_anonymizer_script(tmp_path):
     
     with CTPPipeline(
         pipeline_type="imagedeid_local_pixel",
-        input_dir=str(input_dir),
         output_dir=str(output_dir),
+        input_dir=str(input_dir),
         anonymizer_script=anonymizer_script,
         source_ctp_dir=str(source_ctp)
     ) as pipeline:
@@ -1239,7 +1233,6 @@ def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path):
         
         with CTPPipeline(
             pipeline_type="imagedeid_pacs_pixel",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
@@ -1306,8 +1299,8 @@ def test_ctp_server_stall_timeout(tmp_path):
     with pytest.raises(TimeoutError, match="CTP metrics have not changed for 10 seconds"):
         with CTPPipeline(
             pipeline_type="imagecopy_local",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
+            input_dir=str(input_dir),
             source_ctp_dir=str(source_ctp),
             stall_timeout=10
         ) as pipeline:
