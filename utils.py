@@ -1,6 +1,8 @@
 import logging
+import os
+import sys
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -147,4 +149,38 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
                 failed_query_indices.append(query_index)
     
     return successful_moves, failed_query_indices
+
+
+def setup_run_directories():
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    icore_base = os.path.expanduser("~/Documents/iCore")
+    log_dir = os.path.join(icore_base, "logs", timestamp)
+    appdata_dir = os.path.join(icore_base, "appdata", timestamp)
+    
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(appdata_dir, exist_ok=True)
+    
+    ctp_log_path = os.path.join(log_dir, "ctp.txt")
+    run_log_path = os.path.join(log_dir, "run.txt")
+    
+    return {
+        "log_dir": log_dir,
+        "ctp_log_path": ctp_log_path,
+        "run_log_path": run_log_path,
+        "appdata_dir": appdata_dir
+    }
+
+
+def configure_run_logging(log_file_path):
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        handlers=[
+            logging.FileHandler(log_file_path, mode='w'),
+            logging.StreamHandler(sys.stdout)
+        ],
+        force=True
+    )
 

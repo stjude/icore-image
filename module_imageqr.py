@@ -4,7 +4,7 @@ import time
 from ctp import CTPPipeline
 from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
                    combine_filters, validate_date_window_days, find_studies_from_pacs_list,
-                   move_studies_from_study_pacs_map)
+                   move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging)
 
 
 def _save_metadata_files(pipeline, appdata_dir):
@@ -15,7 +15,13 @@ def _save_metadata_files(pipeline, appdata_dir):
 
 
 def imageqr(pacs_list, query_spreadsheet, application_aet, 
-            output_dir, appdata_dir, filter_script=None, date_window_days=0):
+            output_dir, appdata_dir=None, filter_script=None, date_window_days=0):
+    run_dirs = setup_run_directories()
+    configure_run_logging(run_dirs["run_log_path"])
+    
+    if appdata_dir is None:
+        appdata_dir = run_dirs["appdata_dir"]
+    
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
@@ -30,7 +36,8 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
         pipeline_type="imageqr",
         output_dir=output_dir,
         application_aet=application_aet,
-        filter_script=combined_filter
+        filter_script=combined_filter,
+        log_path=run_dirs["ctp_log_path"]
     ) as pipeline:
         time.sleep(3)
         

@@ -2,6 +2,7 @@ import os
 import time
 
 from ctp import CTPPipeline
+from utils import setup_run_directories, configure_run_logging
 
 
 def _save_metadata_files(pipeline, appdata_dir):
@@ -21,8 +22,14 @@ def _save_metadata_files(pipeline, appdata_dir):
             f.write(linker_csv)
 
 
-def imagedeid_local(input_dir, output_dir, appdata_dir, filter_script=None, 
+def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None, 
                    anonymizer_script=None, deid_pixels=False):
+    run_dirs = setup_run_directories()
+    configure_run_logging(run_dirs["run_log_path"])
+    
+    if appdata_dir is None:
+        appdata_dir = run_dirs["appdata_dir"]
+    
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
@@ -33,7 +40,8 @@ def imagedeid_local(input_dir, output_dir, appdata_dir, filter_script=None,
         output_dir=output_dir,
         input_dir=input_dir,
         filter_script=filter_script,
-        anonymizer_script=anonymizer_script
+        anonymizer_script=anonymizer_script,
+        log_path=run_dirs["ctp_log_path"]
     ) as pipeline:
         time.sleep(3)
         
