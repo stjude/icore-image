@@ -340,11 +340,12 @@ def test_imagedeid_filter_script_generation(tmp_path):
     
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     
-    with patch('module_imagedeid_pacs.find_studies') as mock_find, \
-         patch('module_imagedeid_pacs.CTPPipeline') as mock_pipeline_class, \
-         patch('module_imagedeid_pacs.move_study') as mock_move:
+    with patch('module_imagedeid_pacs.find_studies_from_pacs_list') as mock_find_studies, \
+         patch('module_imagedeid_pacs.move_studies_from_study_pacs_map') as mock_move, \
+         patch('module_imagedeid_pacs.CTPPipeline') as mock_pipeline_class:
         
-        mock_find.return_value = []
+        mock_find_studies.return_value = ({}, [])
+        mock_move.return_value = (0, [])
         mock_pipeline_instance = MagicMock()
         mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
         mock_pipeline_instance.is_complete.return_value = True
@@ -370,7 +371,8 @@ def test_imagedeid_filter_script_generation(tmp_path):
         assert call_kwargs['filter_script'] == expected_filter, f"Expected filter: {expected_filter}, got: {call_kwargs['filter_script']}"
         
         mock_pipeline_class.reset_mock()
-        mock_find.reset_mock()
+        mock_find_studies.reset_mock()
+        mock_move.reset_mock()
         
         query_file = appdata_dir / "query_mrn.xlsx"
         query_df = pd.DataFrame({
@@ -399,7 +401,8 @@ def test_imagedeid_filter_script_generation(tmp_path):
         assert call_kwargs['filter_script'] == expected_filter, f"Expected filter: {expected_filter}, got: {call_kwargs['filter_script']}"
         
         mock_pipeline_class.reset_mock()
-        mock_find.reset_mock()
+        mock_find_studies.reset_mock()
+        mock_move.reset_mock()
         
         user_filter = 'Modality.contains("CT")'
         

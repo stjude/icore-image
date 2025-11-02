@@ -1,7 +1,10 @@
+import logging
 from dataclasses import dataclass
 from datetime import timedelta
 
 import pandas as pd
+
+from dcmtk import find_studies, move_study
 
 
 @dataclass
@@ -83,4 +86,65 @@ def combine_filters(user_filter, generated_filter):
 def validate_date_window_days(date_window_days):
     if date_window_days < 0 or date_window_days > 10:
         raise ValueError(f"date_window_days must be between 0 and 10, got {date_window_days}")
+
+
+def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
+    study_pacs_map = {}
+    failed_query_indices = []
+    
+    for pacs in pacs_list:
+        logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
+        
+        for i, query_params in enumerate(query_params_list):
+            try:
+                results = find_studies(
+                    host=pacs.host,
+                    port=pacs.port,
+                    calling_aet=application_aet,
+                    called_aet=pacs.aet,
+                    query_params=query_params,
+                    return_tags=["StudyInstanceUID", "StudyDate"]
+                )
+                
+                for result in results:
+                    study_uid = result.get("StudyInstanceUID")
+                    if study_uid and study_uid not in study_pacs_map:
+                        study_pacs_map[study_uid] = (pacs, i)
+                        logging.info(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
+                
+                if not results:
+                    logging.warning(f"No studies found for query {i}: {query_params}")
+            except Exception as e:
+                logging.error(f"Query {i} failed: {e}")
+                if i not in failed_query_indices:
+                    failed_query_indices.append(i)
+    
+    logging.info(f"Found {len(study_pacs_map)} unique studies total")
+    
+    return study_pacs_map, failed_query_indices
+
+
+def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
+    successful_moves = 0
+    failed_query_indices = []
+    
+    for study_uid, (pacs, query_index) in study_pacs_map.items():
+        result = move_study(
+            host=pacs.host,
+            port=pacs.port,
+            calling_aet=application_aet,
+            called_aet=pacs.aet,
+            move_destination=application_aet,
+            study_uid=study_uid
+        )
+        
+        if result["success"]:
+            successful_moves += 1
+            logging.info(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
+        else:
+            logging.warning(f"Failed to move study {study_uid} from {pacs.host}:{pacs.port}")
+            if query_index not in failed_query_indices:
+                failed_query_indices.append(query_index)
+    
+    return successful_moves, failed_query_indices
 
