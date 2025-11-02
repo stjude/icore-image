@@ -2,15 +2,20 @@ import os
 import time
 
 from ctp import CTPPipeline
-from module_imagedeid_local import _save_metadata_files
 from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
                    combine_filters, validate_date_window_days, find_studies_from_pacs_list,
                    move_studies_from_study_pacs_map)
 
 
-def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
-                   output_dir, appdata_dir, filter_script=None, 
-                   date_window_days=0, anonymizer_script=None, deid_pixels=False):
+def _save_metadata_files(pipeline, appdata_dir):
+    audit_log_csv = pipeline.get_audit_log_csv("AuditLog")
+    if audit_log_csv:
+        with open(os.path.join(appdata_dir, "metadata.csv"), "w") as f:
+            f.write(audit_log_csv)
+
+
+def imageqr(pacs_list, query_spreadsheet, application_aet, 
+            output_dir, appdata_dir, filter_script=None, date_window_days=0):
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
@@ -24,15 +29,12 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     input_dir = os.path.join(appdata_dir, "temp_input")
     os.makedirs(input_dir, exist_ok=True)
     
-    pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
-    
     with CTPPipeline(
-        pipeline_type=pipeline_type,
+        pipeline_type="imageqr",
         input_dir=input_dir,
         output_dir=output_dir,
         application_aet=application_aet,
-        filter_script=combined_filter,
-        anonymizer_script=anonymizer_script
+        filter_script=combined_filter
     ) as pipeline:
         time.sleep(3)
         

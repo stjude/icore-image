@@ -1,6 +1,5 @@
 import logging
 import os
-import tempfile
 import threading
 import time
 from pathlib import Path
@@ -11,36 +10,10 @@ import pytest
 import pydicom
 
 from module_imagedeid_local import imagedeid_local
-from test_ctp import Fixtures
+from test_utils import _create_test_dicom, Fixtures
 
 
 logging.basicConfig(level=logging.INFO)
-
-
-def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
-    ds = Fixtures.create_minimal_dicom(
-        patient_id=patient_id,
-        patient_name=patient_name,
-        accession=accession,
-        study_date="20250101",
-        modality=modality,
-        SliceThickness=slice_thickness
-    )
-    ds.InstitutionName = "Test Hospital"
-    ds.ReferringPhysicianName = "Dr. Referring"
-    ds.Manufacturer = "TestManufacturer"
-    ds.ManufacturerModelName = "TestModel"
-    ds.SeriesNumber = 1
-    ds.SamplesPerPixel = 1
-    ds.PhotometricInterpretation = "MONOCHROME2"
-    ds.Rows = 64
-    ds.Columns = 64
-    ds.BitsAllocated = 16
-    ds.BitsStored = 16
-    ds.HighBit = 15
-    ds.PixelRepresentation = 0
-    ds.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
-    return ds
 
 
 def test_imagedeid_local(tmp_path):
