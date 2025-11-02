@@ -368,3 +368,97 @@ def test_imagedeid_multiple_pacs(tmp_path):
         orthanc1.stop()
         orthanc2.stop()
 
+
+def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds1.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds1, orthanc)
+        
+        ds2 = _create_test_dicom("", "MRN002", "Patient2", "CT", "3.0")
+        ds2.InstanceNumber = 2
+        _upload_dicom_to_orthanc(ds2, orthanc)
+        
+        ds3 = _create_test_dicom("", "MRN003", "Patient3", "CT", "3.0")
+        ds3.InstanceNumber = 3
+        _upload_dicom_to_orthanc(ds3, orthanc)
+        
+        time.sleep(2)
+        
+        query_file_valid = appdata_dir / "query_valid.xlsx"
+        query_data_valid = {
+            "AccessionNumber": ["ACC001", None, None],
+            "PatientID": ["MRN001", "MRN002", "MRN003"],
+            "StudyDate": [pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-01")]
+        }
+        query_df_valid = pd.DataFrame(query_data_valid)
+        query_df_valid.to_excel(query_file_valid, index=False)
+        
+        query_spreadsheet_valid = Spreadsheet.from_file(
+            str(query_file_valid), 
+            acc_col="AccessionNumber",
+            mrn_col="PatientID",
+            date_col="StudyDate"
+        )
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet_valid,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir)
+        )
+        
+        assert result["num_studies_found"] == 3, f"Should find 3 studies, found {result['num_studies_found']}"
+        assert result["num_images_saved"] == 3, f"Should save 3 images, saved {result['num_images_saved']}"
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 3, f"Expected 3 .dcm files, found {len(output_files)}"
+        
+        query_file_invalid = appdata_dir / "query_invalid.xlsx"
+        query_data_invalid = {
+            "AccessionNumber": ["ACC001", None, None, None],
+            "PatientID": ["MRN001", "MRN002", "MRN003", "MRN004"],
+            "StudyDate": [pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-01"), "invalid-date"]
+        }
+        query_df_invalid = pd.DataFrame(query_data_invalid)
+        query_df_invalid.to_excel(query_file_invalid, index=False)
+        
+        query_spreadsheet_invalid = Spreadsheet.from_file(
+            str(query_file_invalid), 
+            acc_col="AccessionNumber",
+            mrn_col="PatientID",
+            date_col="StudyDate"
+        )
+        
+        with pytest.raises(ValueError, match="StudyDate must be in Excel date format"):
+            imagedeid_pacs(
+                pacs_list=[pacs_config],
+                query_spreadsheet=query_spreadsheet_invalid,
+                application_aet="TEST_AET",
+                output_dir=str(output_dir),
+                appdata_dir=str(appdata_dir)
+            )
+    
+    finally:
+        orthanc.stop()
+

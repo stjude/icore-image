@@ -39,13 +39,26 @@ class Spreadsheet:
 def _generate_queries_from_spreadsheet(spreadsheet):
     query_params_list = []
     
-    if not spreadsheet.acc_col:
-        raise ValueError("acc_col is required")
-    
     for _, row in spreadsheet.dataframe.iterrows():
-        acc = str(row[spreadsheet.acc_col])
-        query_params = {"AccessionNumber": f"*{acc}*"}
-        query_params_list.append(query_params)
+        if spreadsheet.acc_col and pd.notna(row.get(spreadsheet.acc_col)):
+            acc = str(row[spreadsheet.acc_col])
+            query_params = {"AccessionNumber": f"*{acc}*"}
+            query_params_list.append(query_params)
+        elif (spreadsheet.mrn_col and spreadsheet.date_col and 
+              pd.notna(row.get(spreadsheet.mrn_col)) and 
+              pd.notna(row.get(spreadsheet.date_col))):
+            mrn = str(row[spreadsheet.mrn_col])
+            study_date = row[spreadsheet.date_col]
+            if not isinstance(study_date, pd.Timestamp):
+                raise ValueError(f"StudyDate must be in Excel date format (pd.Timestamp), got {type(study_date).__name__}: {study_date}")
+            study_date_str = study_date.strftime("%Y%m%d")
+            query_params = {
+                "PatientID": mrn,
+                "StudyDate": study_date_str
+            }
+            query_params_list.append(query_params)
+        else:
+            raise ValueError(f"Row must have either acc_col or both mrn_col and date_col with valid values")
     
     return query_params_list
 
