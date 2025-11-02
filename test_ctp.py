@@ -16,25 +16,25 @@ from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.uid import generate_uid
 
 from ctp import CTPServer, CTPPipeline, PIPELINE_TEMPLATES
+from dcmtk import move_study
 
 
-def trigger_cmove(study_uid, orthanc_ip, orthanc_port, orthanc_aet, application_aet):
-    dcmtk_path = Path(__file__).parent / "dcmtk" / "bin"
-    movescu_cmd = str(dcmtk_path / "movescu")
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_docker_containers():
+    result = subprocess.run(
+        ["docker", "ps", "-a", "--filter", "name=orthanc_test_", "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True
+    )
     
-    cmd = [
-        movescu_cmd,
-        "-aet", application_aet,
-        "-aem", application_aet,
-        "-aec", orthanc_aet,
-        "-k", "QueryRetrieveLevel=STUDY",
-        "-k", f"StudyInstanceUID={study_uid}",
-        orthanc_ip,
-        str(orthanc_port)
-    ]
+    container_names = result.stdout.strip().split('\n')
+    container_names = [name for name in container_names if name]
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    return "Received Final Move Response (Success)" in (result.stdout + result.stderr)
+    for container_name in container_names:
+        subprocess.run(["docker", "stop", container_name], capture_output=True)
+        subprocess.run(["docker", "rm", container_name], capture_output=True)
+    
+    yield
 
 
 class Fixtures:
@@ -751,6 +751,7 @@ def test_pipeline_auto_cleanup(tmp_path):
 
 def test_imageqr_pipeline(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -759,7 +760,7 @@ def test_imageqr_pipeline(tmp_path):
     output_dir.mkdir()
     
     orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50041)
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
     
     try:
@@ -796,12 +797,13 @@ def test_imageqr_pipeline(tmp_path):
                 study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
                 study_uid = study_info['MainDicomTags']['StudyInstanceUID']
                 
-                trigger_cmove(
-                    study_uid,
-                    "localhost",
-                    orthanc.dicom_port,
-                    orthanc.aet,
-                    "TEST_AET"
+                move_study(
+                    host="localhost",
+                    port=orthanc.dicom_port,
+                    calling_aet="TEST_AET",
+                    called_aet=orthanc.aet,
+                    move_destination="TEST_AET",
+                    study_uid=study_uid
                 )
             
             start_time = time.time()
@@ -822,6 +824,7 @@ def test_imageqr_pipeline(tmp_path):
 
 def test_imageqr_with_filter(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -830,7 +833,7 @@ def test_imageqr_with_filter(tmp_path):
     output_dir.mkdir()
     
     orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50061)
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
     
     try:
@@ -869,12 +872,13 @@ def test_imageqr_with_filter(tmp_path):
                 study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
                 study_uid = study_info['MainDicomTags']['StudyInstanceUID']
                 
-                trigger_cmove(
-                    study_uid,
-                    "localhost",
-                    orthanc.dicom_port,
-                    orthanc.aet,
-                    "TEST_AET"
+                move_study(
+                    host="localhost",
+                    port=orthanc.dicom_port,
+                    calling_aet="TEST_AET",
+                    called_aet=orthanc.aet,
+                    move_destination="TEST_AET",
+                    study_uid=study_uid
                 )
             
             start_time = time.time()
@@ -901,6 +905,7 @@ def test_imageqr_with_filter(tmp_path):
 
 def test_imagedeid_pacs_pipeline(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -909,7 +914,7 @@ def test_imagedeid_pacs_pipeline(tmp_path):
     output_dir.mkdir()
     
     orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50051)
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
     
     try:
@@ -952,12 +957,13 @@ def test_imagedeid_pacs_pipeline(tmp_path):
                 study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
                 study_uid = study_info['MainDicomTags']['StudyInstanceUID']
                 
-                trigger_cmove(
-                    study_uid,
-                    "localhost",
-                    orthanc.dicom_port,
-                    orthanc.aet,
-                    "TEST_AET"
+                move_study(
+                    host="localhost",
+                    port=orthanc.dicom_port,
+                    calling_aet="TEST_AET",
+                    called_aet=orthanc.aet,
+                    move_destination="TEST_AET",
+                    study_uid=study_uid
                 )
             
             start_time = time.time()
@@ -977,6 +983,7 @@ def test_imagedeid_pacs_pipeline(tmp_path):
 
 def test_imagedeid_pacs_with_filter(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -985,7 +992,7 @@ def test_imagedeid_pacs_with_filter(tmp_path):
     output_dir.mkdir()
     
     orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50081)
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
     
     try:
@@ -1030,12 +1037,13 @@ def test_imagedeid_pacs_with_filter(tmp_path):
                 study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
                 study_uid = study_info['MainDicomTags']['StudyInstanceUID']
                 
-                trigger_cmove(
-                    study_uid,
-                    "localhost",
-                    orthanc.dicom_port,
-                    orthanc.aet,
-                    "TEST_AET"
+                move_study(
+                    host="localhost",
+                    port=orthanc.dicom_port,
+                    calling_aet="TEST_AET",
+                    called_aet=orthanc.aet,
+                    move_destination="TEST_AET",
+                    study_uid=study_uid
                 )
             
             start_time = time.time()
@@ -1064,6 +1072,7 @@ def test_imagedeid_pacs_with_filter(tmp_path):
 
 def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1072,7 +1081,7 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
     output_dir.mkdir()
     
     orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50111)
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
     
     try:
@@ -1125,12 +1134,13 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
                 study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
                 study_uid = study_info['MainDicomTags']['StudyInstanceUID']
                 
-                trigger_cmove(
-                    study_uid,
-                    "localhost",
-                    orthanc.dicom_port,
-                    orthanc.aet,
-                    "TEST_AET"
+                move_study(
+                    host="localhost",
+                    port=orthanc.dicom_port,
+                    calling_aet="TEST_AET",
+                    called_aet=orthanc.aet,
+                    move_destination="TEST_AET",
+                    study_uid=study_uid
                 )
             
             start_time = time.time()
