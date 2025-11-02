@@ -307,3 +307,64 @@ def test_imagedeid_failures_reported(tmp_path):
     assert result["num_studies_found"] == 0, "No studies should be found"
     assert result["num_images_saved"] == 0, "No images should be saved"
 
+
+def test_imagedeid_multiple_pacs(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc1 = OrthancServer(aet="ORTHANC1")
+    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc1.start()
+    
+    orthanc2 = OrthancServer(aet="ORTHANC2")
+    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc2.start()
+    
+    try:
+        for i in range(2):
+            ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc1)
+        
+        for i in range(2, 4):
+            ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc2)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(4)]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_configs = [
+            PacsConfiguration(host="localhost", port=orthanc1.dicom_port, aet=orthanc1.aet),
+            PacsConfiguration(host="localhost", port=orthanc2.dicom_port, aet=orthanc2.aet)
+        ]
+        
+        result = imagedeid_pacs(
+            pacs_list=pacs_configs,
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir)
+        )
+        
+        assert result["num_studies_found"] == 4, f"Should find 4 studies (2 from each PACS), found {result['num_studies_found']}"
+        assert result["num_images_saved"] == 4, f"Should save 4 images, saved {result['num_images_saved']}"
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 4, f"Expected 4 .dcm files, found {len(output_files)}"
+    
+    finally:
+        orthanc1.stop()
+        orthanc2.stop()
+

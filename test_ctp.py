@@ -233,10 +233,10 @@ def test_ctp_pipeline_port_selection(tmp_path):
     source_ctp = Path(__file__).parent / "ctp"
     
     pipeline = CTPPipeline(
-        source_ctp_dir=str(source_ctp),
         pipeline_type="imagecopy_local",
         input_dir=str(input_dir),
-        output_dir=str(output_dir)
+        output_dir=str(output_dir),
+        source_ctp_dir=str(source_ctp)
     )
     assert pipeline.port == 50000, "Should pick port 50000 when available"
     
@@ -459,10 +459,10 @@ def test_imagecopy_local_pipeline(tmp_path):
     source_ctp = Path(__file__).parent / "ctp"
     
     with CTPPipeline(
-        source_ctp_dir=str(source_ctp),
         pipeline_type="imagecopy_local",
         input_dir=str(input_dir),
-        output_dir=str(output_dir)
+        output_dir=str(output_dir),
+        source_ctp_dir=str(source_ctp)
     ) as pipeline:
         start_time = time.time()
         timeout = 60
@@ -527,11 +527,11 @@ def test_imagedeid_local_pipeline(tmp_path):
 </script>"""
     
     with CTPPipeline(
-        source_ctp_dir=str(source_ctp),
         pipeline_type="imagedeid_local",
         input_dir=str(input_dir),
         output_dir=str(output_dir),
-        anonymizer_script=anonymizer_script
+        anonymizer_script=anonymizer_script,
+        source_ctp_dir=str(source_ctp)
     ) as pipeline:
         start_time = time.time()
         timeout = 60
@@ -589,12 +589,12 @@ def test_imagedeid_local_with_filter(tmp_path):
 </script>"""
     
     with CTPPipeline(
-        source_ctp_dir=str(source_ctp),
         pipeline_type="imagedeid_local",
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         anonymizer_script=anonymizer_script,
-        filter_script='Modality.contains("CT")'
+        filter_script='Modality.contains("CT")',
+        source_ctp_dir=str(source_ctp)
     ) as pipeline:
         start_time = time.time()
         timeout = 60
@@ -667,11 +667,11 @@ def test_imagedeid_local_with_anonymizer_script(tmp_path):
 </script>"""
     
     with CTPPipeline(
-        source_ctp_dir=str(source_ctp),
         pipeline_type="imagedeid_local",
         input_dir=str(input_dir),
         output_dir=str(output_dir),
-        anonymizer_script=anonymizer_script
+        anonymizer_script=anonymizer_script,
+        source_ctp_dir=str(source_ctp)
     ) as pipeline:
         start_time = time.time()
         timeout = 60
@@ -732,10 +732,10 @@ def test_pipeline_auto_cleanup(tmp_path):
     tempdir_path = None
     
     with CTPPipeline(
-        source_ctp_dir=str(source_ctp),
         pipeline_type="imagecopy_local",
         input_dir=str(input_dir),
-        output_dir=str(output_dir)
+        output_dir=str(output_dir),
+        source_ctp_dir=str(source_ctp)
     ) as pipeline:
         tempdir_path = pipeline._tempdir
         assert os.path.exists(tempdir_path)
@@ -782,11 +782,11 @@ def test_imageqr_pipeline(tmp_path):
         source_ctp = Path(__file__).parent / "ctp"
         
         with CTPPipeline(
-            source_ctp_dir=str(source_ctp),
             pipeline_type="imageqr",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
-            application_aet="TEST_AET"
+            application_aet="TEST_AET",
+            source_ctp_dir=str(source_ctp)
         ) as pipeline:
             time.sleep(3)
             
@@ -856,12 +856,12 @@ def test_imageqr_with_filter(tmp_path):
         source_ctp = Path(__file__).parent / "ctp"
         
         with CTPPipeline(
-            source_ctp_dir=str(source_ctp),
             pipeline_type="imageqr",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
-            filter_script='Modality.contains("CT")'
+            filter_script='Modality.contains("CT")',
+            source_ctp_dir=str(source_ctp)
         ) as pipeline:
             time.sleep(3)
             
@@ -941,12 +941,12 @@ def test_imagedeid_pacs_pipeline(tmp_path):
 </script>"""
         
         with CTPPipeline(
-            source_ctp_dir=str(source_ctp),
             pipeline_type="imagedeid_pacs",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
-            anonymizer_script=anonymizer_script
+            anonymizer_script=anonymizer_script,
+            source_ctp_dir=str(source_ctp)
         ) as pipeline:
             time.sleep(3)
             
@@ -1020,13 +1020,13 @@ def test_imagedeid_pacs_with_filter(tmp_path):
 </script>"""
         
         with CTPPipeline(
-            source_ctp_dir=str(source_ctp),
             pipeline_type="imagedeid_pacs",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
-            filter_script='Modality.contains("CT")'
+            filter_script='Modality.contains("CT")',
+            source_ctp_dir=str(source_ctp)
         ) as pipeline:
             time.sleep(3)
             
@@ -1118,12 +1118,12 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
 </script>"""
         
         with CTPPipeline(
-            source_ctp_dir=str(source_ctp),
             pipeline_type="imagedeid_pacs",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
-            anonymizer_script=anonymizer_script
+            anonymizer_script=anonymizer_script,
+            source_ctp_dir=str(source_ctp)
         ) as pipeline:
             time.sleep(3)
             
@@ -1164,6 +1164,105 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
                 assert ds.Manufacturer == "TestManufacturer", "Manufacturer should be kept"
                 assert ds.ManufacturerModelName == "TestModel", "ManufacturerModelName should be kept"
                 assert ds.Modality == "CT", "Modality should be kept"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_id_map_audit_log_extraction(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        for i in range(5):
+            ds = Fixtures.create_minimal_dicom(
+                patient_id=f"MRN{i:04d}",
+                patient_name=f"Patient{i}^Test",
+                accession=f"ACC{i:03d}",
+                study_date="20250101",
+                modality="CT"
+            )
+            ds.SeriesNumber = 1
+            ds.InstanceNumber = i + 1
+            
+            temp_file = tempfile.mktemp(suffix=".dcm")
+            ds.save_as(temp_file)
+            orthanc.upload_dicom(temp_file)
+            os.remove(temp_file)
+        
+        source_ctp = Path(__file__).parent / "ctp"
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+<e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
+</script>"""
+        
+        with CTPPipeline(
+            pipeline_type="imagedeid_pacs",
+            input_dir=str(input_dir),
+            output_dir=str(output_dir),
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            source_ctp_dir=str(source_ctp)
+        ) as pipeline:
+            time.sleep(3)
+            
+            studies_response = requests.get(f"{orthanc.base_url}/studies")
+            studies = studies_response.json()
+            
+            for study_id in studies:
+                study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
+                study_uid = study_info['MainDicomTags']['StudyInstanceUID']
+                
+                move_study(
+                    host="localhost",
+                    port=orthanc.dicom_port,
+                    calling_aet="TEST_AET",
+                    called_aet=orthanc.aet,
+                    move_destination="TEST_AET",
+                    study_uid=study_uid
+                )
+            
+            start_time = time.time()
+            timeout = 60
+            
+            while not pipeline.is_complete():
+                if time.time() - start_time > timeout:
+                    raise TimeoutError("Pipeline did not complete")
+                time.sleep(1)
+            
+            audit_log_csv = pipeline.get_audit_log_csv("AuditLog")
+            assert audit_log_csv is not None, "AuditLog CSV should be retrieved"
+            assert len(audit_log_csv.split('\n')) > 1, "AuditLog should have data rows"
+            
+            deid_audit_log_csv = pipeline.get_audit_log_csv("DeidAuditLog")
+            assert deid_audit_log_csv is not None, "DeidAuditLog CSV should be retrieved"
+            assert len(deid_audit_log_csv.split('\n')) > 1, "DeidAuditLog should have data rows"
+            
+            linker_csv = pipeline.get_idmap_csv()
+            assert linker_csv is not None, "IDMap linker CSV should be retrieved"
+            assert len(linker_csv.split('\n')) > 1, "Linker CSV should have data rows"
+            
+            audit_lines = [line for line in audit_log_csv.split('\n') if line.strip()]
+            deid_audit_lines = [line for line in deid_audit_log_csv.split('\n') if line.strip()]
+            linker_lines = [line for line in linker_csv.split('\n') if line.strip()]
+            
+            assert len(audit_lines) >= 2, "AuditLog should have header + data rows"
+            assert len(deid_audit_lines) >= 2, "DeidAuditLog should have header + data rows"
+            assert len(linker_lines) >= 2, "Linker should have header + data rows"
+            
+            assert 'ACC' in audit_log_csv, "Original accession numbers should be in AuditLog"
     
     finally:
         orthanc.stop()

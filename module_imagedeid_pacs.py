@@ -75,7 +75,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     
     query_params_list = _generate_queries_from_spreadsheet(query_spreadsheet)
     
-    all_study_uids = []
+    study_to_pacs = {}
     failed_query_indices = []
     
     for pacs in pacs_list:
@@ -94,17 +94,18 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
                 
                 for result in results:
                     study_uid = result.get("StudyInstanceUID")
-                    if study_uid:
-                        all_study_uids.append((study_uid, i))
-                        logging.info(f"Found study: {study_uid}")
+                    if study_uid and study_uid not in study_to_pacs:
+                        study_to_pacs[study_uid] = (pacs, i)
+                        logging.info(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
                 
                 if not results:
                     logging.warning(f"No studies found for query {i}: {query_params}")
             except Exception as e:
                 logging.error(f"Query {i} failed: {e}")
-                failed_query_indices.append(i)
+                if i not in failed_query_indices:
+                    failed_query_indices.append(i)
     
-    logging.info(f"Found {len(all_study_uids)} studies total")
+    logging.info(f"Found {len(study_to_pacs)} unique studies total")
     
     input_dir = os.path.join(appdata_dir, "temp_input")
     os.makedirs(input_dir, exist_ok=True)
@@ -120,23 +121,21 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         time.sleep(3)
         
         successful_moves = 0
-        for study_uid, query_index in all_study_uids:
-            for pacs in pacs_list:
-                result = move_study(
-                    host=pacs.host,
-                    port=pacs.port,
-                    calling_aet=application_aet,
-                    called_aet=pacs.aet,
-                    move_destination=application_aet,
-                    study_uid=study_uid
-                )
-                
-                if result["success"]:
-                    successful_moves += 1
-                    logging.info(f"Successfully moved study {study_uid}")
-                    break
-                else:
-                    logging.warning(f"Failed to move study {study_uid} from {pacs.host}")
+        for study_uid, (pacs, query_index) in study_to_pacs.items():
+            result = move_study(
+                host=pacs.host,
+                port=pacs.port,
+                calling_aet=application_aet,
+                called_aet=pacs.aet,
+                move_destination=application_aet,
+                study_uid=study_uid
+            )
+            
+            if result["success"]:
+                successful_moves += 1
+                logging.info(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
+            else:
+                logging.warning(f"Failed to move study {study_uid} from {pacs.host}:{pacs.port}")
         
         start_time = time.time()
         timeout = 300
@@ -157,7 +156,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         _save_metadata_files(pipeline, appdata_dir)
         
         return {
-            "num_studies_found": len(all_study_uids),
+            "num_studies_found": len(study_to_pacs),
             "num_images_saved": pipeline.metrics.files_saved if pipeline.metrics else 0,
             "num_images_quarantined": pipeline.metrics.files_quarantined if pipeline.metrics else 0,
             "failed_query_indices": failed_query_indices

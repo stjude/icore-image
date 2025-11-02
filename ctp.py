@@ -4,6 +4,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
@@ -11,6 +12,15 @@ from threading import Thread, Lock
 
 import psutil
 import requests
+
+
+def _get_default_ctp_source_dir():
+    if getattr(sys, 'frozen', False):
+        bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
+        source_ctp_dir = os.path.join(bundle_dir, '_internal', 'ctp')
+    else:
+        source_ctp_dir = "ctp"
+    return source_ctp_dir
 
 
 def is_port_available(port):
@@ -315,6 +325,7 @@ PIPELINE_TEMPLATES = {
             quarantine="{tempdir}/quarantine/DicomDecompressor"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
+            id="IDMap"
             name="IDMap"
             root="{tempdir}/roots/IDMap" />
         <DicomAnonymizer
@@ -386,6 +397,7 @@ PIPELINE_TEMPLATES = {
             quarantine="{tempdir}/quarantine"/>
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
+            id="IDMap"
             name="IDMap"
             root="{tempdir}/roots/IDMap" />
         <DicomAnonymizer
@@ -464,13 +476,13 @@ PIPELINE_TEMPLATES = {
 
 
 class CTPPipeline:
-    def __init__(self, source_ctp_dir, pipeline_type, input_dir, output_dir,
+    def __init__(self, pipeline_type, input_dir, output_dir,
                  filter_script=None, anonymizer_script=None, lookup_table=None,
-                 application_aet=None):
+                 application_aet=None, source_ctp_dir=None):
         if pipeline_type not in PIPELINE_TEMPLATES:
             raise ValueError(f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}")
         
-        self.source_ctp_dir = source_ctp_dir
+        self.source_ctp_dir = source_ctp_dir if source_ctp_dir is not None else _get_default_ctp_source_dir()
         self.pipeline_type = pipeline_type
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -563,3 +575,37 @@ class CTPPipeline:
     @property
     def metrics(self):
         return self.server.metrics if self.server else None
+    
+    def get_audit_log_csv(self, plugin_id):
+        response = ctp_get(f"{plugin_id}?export&csv&suppress", self.port)
+        return response.text if response else None
+    
+    def get_idmap_csv(self, stage_id="IDMap"):
+        stage_index = self._find_stage_index_by_id(stage_id)
+        if stage_index is None:
+            return None
+        response = ctp_post("idmap", self.port, 
+                           {"p": 0, "s": stage_index, "keytype": "trialAN", 
+                            "keys": "", "format": "csv"})
+        return response.text if response else None
+    
+    def _find_stage_index_by_id(self, stage_id):
+        config_path = os.path.join(self.server.ctp_dir, "config.xml")
+        tree = ET.parse(config_path)
+        root = tree.getroot()
+        
+        pipeline = root.find("Pipeline")
+        if pipeline is None:
+            return None
+        
+        stage_index = 0
+        for child in pipeline:
+            if child.tag in ["Plugin", "Server"]:
+                continue
+            
+            if child.get("id") == stage_id:
+                return stage_index
+            
+            stage_index += 1
+        
+        return None
