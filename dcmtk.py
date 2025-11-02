@@ -1,0 +1,196 @@
+import logging
+import os
+import re
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
+
+
+class DCMTKError(Exception):
+    pass
+
+
+class DCMTKCommandError(DCMTKError):
+    pass
+
+
+class DCMTKParseError(DCMTKError):
+    pass
+
+
+def _build_dcmtk_env():
+    env = os.environ.copy()
+    dcmtk_home = os.environ['DCMTK_HOME']
+    env['DCMDICTPATH'] = os.path.join(dcmtk_home, 'share', 'dcmtk-3.6.9', 'dicom.dic')
+    return env
+
+
+def _parse_find_xml(xml_content):
+    try:
+        root = ET.fromstring(xml_content)
+    except ET.ParseError as e:
+        raise DCMTKParseError(f"Failed to parse XML response: {e}")
+    
+    results = []
+    
+    for dataset in root.findall('data-set'):
+        study_data = {}
+        for element in dataset.findall('element'):
+            name = element.get('name')
+            value = element.text
+            if name and value:
+                study_data[name] = value
+        
+        if study_data:
+            results.append(study_data)
+    
+    return results
+
+
+def _parse_move_output(stderr, returncode):
+    result = {
+        "success": False,
+        "num_completed": 0,
+        "num_failed": 0,
+        "num_warning": 0,
+        "message": ""
+    }
+    
+    if "Received Final Move Response (Success)" in stderr:
+        result["success"] = True
+        
+        completed_match = re.search(r'Sub-Operations Complete:\s*(\d+)', stderr)
+        if completed_match:
+            result["num_completed"] = int(completed_match.group(1))
+        
+        failed_match = re.search(r'Complete:\s*\d+,\s*Failed:\s*(\d+)', stderr)
+        if failed_match:
+            result["num_failed"] = int(failed_match.group(1))
+        
+        warning_match = re.search(r'Failed:\s*\d+,\s*Warning:\s*(\d+)', stderr)
+        if warning_match:
+            result["num_warning"] = int(warning_match.group(1))
+        
+        result["message"] = "Move completed successfully"
+    else:
+        if "Failed: UnableToProcess" in stderr:
+            result["message"] = "Move failed: UnableToProcess"
+        elif "Failed" in stderr:
+            result["message"] = "Move failed"
+        else:
+            result["message"] = f"Move failed with exit code {returncode}"
+    
+    return result
+
+
+def find_studies(host, port, calling_aet, called_aet, query_params, query_level="STUDY", return_tags=None):
+    """
+    Query PACS for studies using findscu.
+    
+    Args:
+        host: PACS hostname or IP address
+        port: PACS DICOM port
+        calling_aet: AE title of the calling application
+        called_aet: AE title of the PACS
+        query_params: Dict of DICOM tags to query (e.g. {"AccessionNumber": "12345"})
+        query_level: Query/retrieve level (default: "STUDY")
+        return_tags: Optional list of DICOM tags to retrieve in results
+        
+    Returns:
+        List of dicts, one per matching study, with DICOM tag names as keys
+        
+    Raises:
+        DCMTKCommandError: If findscu command fails
+        DCMTKParseError: If XML response cannot be parsed
+    """
+    dcmtk_home = os.environ['DCMTK_HOME']
+    findscu_binary = os.path.join(dcmtk_home, 'bin', 'findscu')
+    
+    with tempfile.NamedTemporaryFile(suffix='.xml', delete=False, mode='w') as xml_file:
+        xml_path = xml_file.name
+    
+    try:
+        cmd = [
+            findscu_binary,
+            "-Xs", xml_path,
+            "-aet", calling_aet,
+            "-aec", called_aet,
+            "-S",
+            "-k", f"QueryRetrieveLevel={query_level}"
+        ]
+        
+        for tag, value in query_params.items():
+            cmd.extend(["-k", f"{tag}={value}"])
+        
+        if return_tags:
+            for tag in return_tags:
+                cmd.extend(["-k", tag])
+        else:
+            cmd.extend(["-k", "StudyInstanceUID"])
+        
+        cmd.extend([host, str(port)])
+        
+        logging.info(f"Running findscu: {' '.join(cmd)}")
+        
+        env = _build_dcmtk_env()
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        
+        if result.returncode != 0:
+            raise DCMTKCommandError(
+                f"findscu command failed with exit code {result.returncode}: {result.stderr}"
+            )
+        
+        try:
+            with open(xml_path, 'r') as f:
+                xml_content = f.read()
+        except FileNotFoundError:
+            raise DCMTKCommandError("findscu did not produce XML output file")
+        
+        return _parse_find_xml(xml_content)
+    
+    finally:
+        try:
+            os.unlink(xml_path)
+        except:
+            pass
+
+
+def move_study(host, port, calling_aet, called_aet, move_destination, study_uid, query_level="STUDY"):
+    """
+    Move a study from PACS using movescu.
+    
+    Args:
+        host: PACS hostname or IP address
+        port: PACS DICOM port
+        calling_aet: AE title of the calling application
+        called_aet: AE title of the PACS
+        move_destination: AE title of the move destination
+        study_uid: StudyInstanceUID to move
+        query_level: Query/retrieve level (default: "STUDY")
+        
+    Returns:
+        Dict with keys: success (bool), num_completed (int), num_failed (int),
+        num_warning (int), message (str)
+    """
+    dcmtk_home = os.environ['DCMTK_HOME']
+    movescu_binary = os.path.join(dcmtk_home, 'bin', 'movescu')
+    
+    cmd = [
+        movescu_binary,
+        "-v",
+        "-aet", calling_aet,
+        "-aem", move_destination,
+        "-aec", called_aet,
+        "-k", f"QueryRetrieveLevel={query_level}",
+        "-k", f"StudyInstanceUID={study_uid}",
+        host,
+        str(port)
+    ]
+    
+    logging.info(f"Running movescu: {' '.join(cmd)}")
+    
+    env = _build_dcmtk_env()
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    
+    return _parse_move_output(result.stderr, result.returncode)
+
