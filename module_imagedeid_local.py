@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -23,9 +24,10 @@ def _save_metadata_files(pipeline, appdata_dir):
 
 
 def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None, 
-                   anonymizer_script=None, deid_pixels=False):
+                   anonymizer_script=None, deid_pixels=False, debug=False):
     run_dirs = setup_run_directories()
-    configure_run_logging(run_dirs["run_log_path"])
+    log_level = logging.DEBUG if debug else logging.INFO
+    configure_run_logging(run_dirs["run_log_path"], log_level)
     
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
@@ -34,6 +36,7 @@ def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
     os.makedirs(appdata_dir, exist_ok=True)
     
     pipeline_type = "imagedeid_local_pixel" if deid_pixels else "imagedeid_local"
+    ctp_log_level = "DEBUG" if debug else None
     
     with CTPPipeline(
         pipeline_type=pipeline_type,
@@ -41,7 +44,8 @@ def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
         input_dir=input_dir,
         filter_script=filter_script,
         anonymizer_script=anonymizer_script,
-        log_path=run_dirs["ctp_log_path"]
+        log_path=run_dirs["ctp_log_path"],
+        log_level=ctp_log_level
     ) as pipeline:
         time.sleep(3)
         

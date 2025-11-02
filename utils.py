@@ -172,9 +172,9 @@ def setup_run_directories():
     }
 
 
-def configure_run_logging(log_file_path):
+def configure_run_logging(log_file_path, log_level=logging.INFO):
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format='%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[

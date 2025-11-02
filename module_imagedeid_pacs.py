@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -10,9 +11,10 @@ from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter,
 
 def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
                    output_dir, appdata_dir=None, filter_script=None, 
-                   date_window_days=0, anonymizer_script=None, deid_pixels=False):
+                   date_window_days=0, anonymizer_script=None, deid_pixels=False, debug=False):
     run_dirs = setup_run_directories()
-    configure_run_logging(run_dirs["run_log_path"])
+    log_level = logging.DEBUG if debug else logging.INFO
+    configure_run_logging(run_dirs["run_log_path"], log_level)
     
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
@@ -28,6 +30,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     study_pacs_map, failed_find_indices = find_studies_from_pacs_list(pacs_list, query_params_list, application_aet)
     
     pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
+    ctp_log_level = "DEBUG" if debug else None
     
     with CTPPipeline(
         pipeline_type=pipeline_type,
@@ -35,7 +38,8 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         application_aet=application_aet,
         filter_script=combined_filter,
         anonymizer_script=anonymizer_script,
-        log_path=run_dirs["ctp_log_path"]
+        log_path=run_dirs["ctp_log_path"],
+        log_level=ctp_log_level
     ) as pipeline:
         time.sleep(3)
         

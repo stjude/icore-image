@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -15,9 +16,10 @@ def _save_metadata_files(pipeline, appdata_dir):
 
 
 def imageqr(pacs_list, query_spreadsheet, application_aet, 
-            output_dir, appdata_dir=None, filter_script=None, date_window_days=0):
+            output_dir, appdata_dir=None, filter_script=None, date_window_days=0, debug=False):
     run_dirs = setup_run_directories()
-    configure_run_logging(run_dirs["run_log_path"])
+    log_level = logging.DEBUG if debug else logging.INFO
+    configure_run_logging(run_dirs["run_log_path"], log_level)
     
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
@@ -32,12 +34,15 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     
     study_pacs_map, failed_find_indices = find_studies_from_pacs_list(pacs_list, query_params_list, application_aet)
     
+    ctp_log_level = "DEBUG" if debug else None
+    
     with CTPPipeline(
         pipeline_type="imageqr",
         output_dir=output_dir,
         application_aet=application_aet,
         filter_script=combined_filter,
-        log_path=run_dirs["ctp_log_path"]
+        log_path=run_dirs["ctp_log_path"],
+        log_level=ctp_log_level
     ) as pipeline:
         time.sleep(3)
         
