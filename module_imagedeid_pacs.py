@@ -2,26 +2,10 @@ import os
 import time
 
 from ctp import CTPPipeline
+from module_imagedeid_local import _save_metadata_files
 from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
                    combine_filters, validate_date_window_days, find_studies_from_pacs_list,
                    move_studies_from_study_pacs_map)
-
-
-def _save_metadata_files(pipeline, appdata_dir):
-    audit_log_csv = pipeline.get_audit_log_csv("AuditLog")
-    if audit_log_csv:
-        with open(os.path.join(appdata_dir, "metadata.csv"), "w") as f:
-            f.write(audit_log_csv)
-    
-    deid_audit_log_csv = pipeline.get_audit_log_csv("DeidAuditLog")
-    if deid_audit_log_csv:
-        with open(os.path.join(appdata_dir, "deid_metadata.csv"), "w") as f:
-            f.write(deid_audit_log_csv)
-    
-    linker_csv = pipeline.get_idmap_csv()
-    if linker_csv:
-        with open(os.path.join(appdata_dir, "linker.csv"), "w") as f:
-            f.write(linker_csv)
 
 
 def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
