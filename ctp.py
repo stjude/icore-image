@@ -1,7 +1,9 @@
 import os
 import re
+import shutil
 import signal
 import subprocess
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 from threading import Thread, Lock
@@ -187,8 +189,14 @@ class CTPServer:
         saved_match = re.search(r"Files actually stored:\s*</td><td>(\d+)", html)
         saved = int(saved_match.group(1)) if saved_match else 0
         
-        received_match = re.search(r"Archive files supplied:\s*</td><td>(\d+)", html)
-        received = int(received_match.group(1)) if received_match else 0
+        archive_received_match = re.search(r"Archive files supplied:\s*</td><td>(\d+)", html)
+        dicom_received_match = re.search(r"Files received:\s*</td><td>(\d+)", html)
+        
+        received = 0
+        if archive_received_match:
+            received = int(archive_received_match.group(1))
+        elif dicom_received_match:
+            received = int(dicom_received_match.group(1))
         
         quarantined = 0
         exclude_files = {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"}
@@ -204,3 +212,316 @@ class CTPServer:
         while self._monitor_running:
             time.sleep(3)
             self._update_metrics()
+
+
+PIPELINE_TEMPLATES = {
+    "imagecopy_local": """
+    <Configuration>
+        <Server maxThreads="20" port="{port}">
+            <Log/>
+        </Server>
+        <Pipeline name="imagecopy">
+            <ArchiveImportService
+                class="org.rsna.ctp.stdstages.ArchiveImportService"
+                name="ArchiveImportService"
+                fsName="DICOM Image Directory"
+                root="{tempdir}/roots/ArchiveImportService"
+                treeRoot="{input_dir}"
+                quarantine="{tempdir}/quarantine/ArchiveImportService"
+                minAge="1000"
+                acceptFileObjects="no"
+                acceptXmlObjects="no"
+                acceptZipObjects="no"
+                expandTARs="no"/>
+            <DirectoryStorageService
+                class="org.rsna.ctp.stdstages.DirectoryStorageService"
+                name="DirectoryStorageService"
+                root="{output_dir}/"
+                structure="{{StudyDate}}-{{Modality}}-{{PatientID}}/S{{SeriesNumber}}"
+                setStandardExtensions="yes"
+                acceptDuplicates="yes"
+                returnStoredFile="yes"
+                quarantine="{tempdir}/quarantine/DirectoryStorageService"
+                whitespaceReplacement="_"/>
+        </Pipeline>
+    </Configuration>
+    """,
+
+    "imagedeid_local": """
+    <Configuration>
+        <Server maxThreads="20" port="{port}">
+            <Log/>
+        </Server>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="AuditLog" name="AuditLog"
+                root="{tempdir}/roots/AuditLog"/>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="DeidAuditLog" name="DeidAuditLog"
+                root="{tempdir}/roots/DeidAuditLog"/>
+        <Pipeline name="imagedeid">
+        <ArchiveImportService
+            class="org.rsna.ctp.stdstages.ArchiveImportService"
+            name="ArchiveImportService"
+            fsName="DICOM Image Directory"
+            root="{tempdir}/roots/ArchiveImportService"
+            treeRoot="{input_dir}"
+            quarantine="{tempdir}/quarantine/ArchiveImportService"
+            minAge="1000"
+            acceptFileObjects="no"
+            acceptXmlObjects="no"
+            acceptZipObjects="no"
+            expandTARs="no"/>
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="DicomFilter"
+            root="{tempdir}/roots/DicomFilter"
+            script="scripts/dicom-filter.script"
+            quarantine="{tempdir}/quarantine/DicomFilter"/>
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="AuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
+        <DicomDecompressor
+            class="org.rsna.ctp.stdstages.DicomDecompressor"
+            name="DicomDecompressor"
+            root="{tempdir}/roots/DicomDecompressor"
+            script="scripts/DicomDecompressor.script"
+            quarantine="{tempdir}/quarantine/DicomDecompressor"/>
+        <IDMap
+            class="org.rsna.ctp.stdstages.IDMap"
+            name="IDMap"
+            root="{tempdir}/roots/IDMap" />
+        <DicomAnonymizer
+            class="org.rsna.ctp.stdstages.DicomAnonymizer"
+            name="DicomAnonymizer"
+            root="{tempdir}/roots/DicomAnonymizer"
+            script="scripts/DicomAnonymizer.script"
+            lookupTable="scripts/LookupTable.properties"
+            quarantine="{tempdir}/quarantine/DicomAnonymizer" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="DeidAuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
+        <DirectoryStorageService
+            class="org.rsna.ctp.stdstages.DirectoryStorageService"
+            name="DirectoryStorageService"
+            root="{output_dir}/"
+            structure="{{StudyDate}}-{{Modality}}-{{PatientID}}/S{{SeriesNumber}}"
+            setStandardExtensions="yes"
+            acceptDuplicates="yes"
+            returnStoredFile="yes"
+            quarantine="{tempdir}/quarantine/DirectoryStorageService"
+            whitespaceReplacement="_"/>
+        </Pipeline>
+    </Configuration>
+    """,
+
+    "imagedeid_pacs": """
+    <Configuration>
+        <Server maxThreads="20" port="{port}">
+            <Log/>
+        </Server>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="AuditLog" name="AuditLog"
+                root="{tempdir}/roots/AuditLog"/>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="DeidAuditLog" name="DeidAuditLog"
+                root="{tempdir}/roots/DeidAuditLog"/>
+        <Pipeline name="imagedeid">
+        <DicomImportService
+            class="org.rsna.ctp.stdstages.DicomImportService"
+            name="DicomImportService"
+            port="{dicom_port}"
+            calledAETTag="{application_aet}"
+            root="{tempdir}/roots/DicomImportService"
+            quarantine="{tempdir}/quarantine"
+            logConnections="no" />
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="DicomFilter"
+            root="{tempdir}/roots/DicomFilter"
+            script="scripts/dicom-filter.script"
+            quarantine="{tempdir}/quarantine" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="AuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
+        <DicomDecompressor
+            class="org.rsna.ctp.stdstages.DicomDecompressor"
+            name="DicomDecompressor"
+            root="{tempdir}/roots/DicomDecompressor"
+            script="scripts/DicomDecompressor.script"
+            quarantine="{tempdir}/quarantine"/>
+        <IDMap
+            class="org.rsna.ctp.stdstages.IDMap"
+            name="IDMap"
+            root="{tempdir}/roots/IDMap" />
+        <DicomAnonymizer
+            class="org.rsna.ctp.stdstages.DicomAnonymizer"
+            name="DicomAnonymizer"
+            root="{tempdir}/roots/DicomAnonymizer"
+            script="scripts/DicomAnonymizer.script"
+            lookupTable="scripts/LookupTable.properties"
+            quarantine="{tempdir}/quarantine" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="DeidAuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
+        <DirectoryStorageService
+            class="org.rsna.ctp.stdstages.DirectoryStorageService"
+            name="DirectoryStorageService"
+            root="{output_dir}"
+            structure="{{StudyDate}}-{{Modality}}-{{PatientID}}/S{{SeriesNumber}}"
+            setStandardExtensions="yes"
+            acceptDuplicates="yes"
+            returnStoredFile="yes"
+            quarantine="{tempdir}/quarantine"
+            whitespaceReplacement="_"/>
+        </Pipeline>
+    </Configuration>
+    """,
+
+    "imageqr": """
+    <Configuration>
+        <Server maxThreads="20" port="{port}">
+            <Log/>
+        </Server>
+        <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="AuditLog" name="AuditLog"
+                root="{tempdir}/roots/AuditLog"/>
+        <Pipeline name="imagedeid">
+        <DicomImportService
+            class="org.rsna.ctp.stdstages.DicomImportService"
+            name="DicomImportService"
+            port="{dicom_port}"
+            calledAETTag="{application_aet}"
+            root="{tempdir}/roots/DicomImportService"
+            quarantine="{tempdir}/quarantine/DicomImportService"
+            logConnections="no" />
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="DicomFilter"
+            root="{tempdir}/roots/DicomFilter"
+            script="scripts/dicom-filter.script"
+            quarantine="{tempdir}/quarantine" />
+        <DicomAuditLogger
+            name="DicomAuditLogger"
+            class="org.rsna.ctp.stdstages.DicomAuditLogger"
+            root="{tempdir}/roots/DicomAuditLogger"
+            auditLogID="AuditLog"
+            auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
+            cacheID="ObjectCache"
+            level="study" />
+        <DirectoryStorageService
+            class="org.rsna.ctp.stdstages.DirectoryStorageService"
+            name="DirectoryStorageService"
+            root="{output_dir}/images"
+            structure="{{StudyDate}}-{{Modality}}-{{PatientID}}/S{{SeriesNumber}}"
+            setStandardExtensions="yes"
+            acceptDuplicates="yes"
+            returnStoredFile="yes"
+            quarantine="{tempdir}/quarantine/DirectoryStorageService"
+            whitespaceReplacement="_"/>
+        </Pipeline>
+    </Configuration>
+    """
+}
+
+
+class CTPPipeline:
+    def __init__(self, source_ctp_dir, pipeline_type, input_dir, output_dir, port,
+                 filter_script=None, anonymizer_script=None, lookup_table=None,
+                 application_aet=None):
+        if pipeline_type not in PIPELINE_TEMPLATES:
+            raise ValueError(f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}")
+        
+        self.source_ctp_dir = source_ctp_dir
+        self.pipeline_type = pipeline_type
+        self.input_dir = input_dir
+        self.output_dir = output_dir
+        self.port = port
+        self.filter_script = filter_script if filter_script is not None else "true."
+        self.anonymizer_script = anonymizer_script
+        self.lookup_table = lookup_table
+        self.application_aet = application_aet
+        
+        self._tempdir = tempfile.mkdtemp(prefix='ctp_')
+        self._dicom_port = port + 1
+        self.server = None
+    
+    def __enter__(self):
+        os.makedirs(os.path.join(self._tempdir, "roots"), exist_ok=True)
+        os.makedirs(os.path.join(self._tempdir, "quarantine"), exist_ok=True)
+        
+        ctp_workspace = os.path.join(self._tempdir, "ctp")
+        source_ctp = self.source_ctp_dir
+        
+        for item in os.listdir(source_ctp):
+            src_path = os.path.join(source_ctp, item)
+            dst_path = os.path.join(ctp_workspace, item)
+            if os.path.isdir(src_path):
+                shutil.copytree(src_path, dst_path)
+            else:
+                os.makedirs(ctp_workspace, exist_ok=True)
+                shutil.copy(src_path, dst_path)
+        
+        config_template = PIPELINE_TEMPLATES[self.pipeline_type]
+        config_xml = config_template.format(
+            input_dir=os.path.abspath(self.input_dir),
+            output_dir=os.path.abspath(self.output_dir),
+            tempdir=os.path.abspath(self._tempdir),
+            port=self.port,
+            dicom_port=self._dicom_port,
+            application_aet=self.application_aet if self.application_aet else ""
+        )
+        
+        with open(os.path.join(ctp_workspace, "config.xml"), "w") as f:
+            f.write(config_xml)
+        
+        scripts_dir = os.path.join(ctp_workspace, "scripts")
+        os.makedirs(scripts_dir, exist_ok=True)
+        
+        with open(os.path.join(scripts_dir, "dicom-filter.script"), "w") as f:
+            f.write(self.filter_script)
+        
+        if self.anonymizer_script:
+            with open(os.path.join(scripts_dir, "DicomAnonymizer.script"), "w") as f:
+                f.write(self.anonymizer_script)
+        
+        if self.lookup_table:
+            with open(os.path.join(scripts_dir, "LookupTable.properties"), "w") as f:
+                f.write(self.lookup_table)
+        else:
+            with open(os.path.join(scripts_dir, "LookupTable.properties"), "w") as f:
+                f.write("")
+        
+        self.server = CTPServer(ctp_workspace)
+        self.server.start()
+        
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.server:
+            self.server.stop()
+        
+        shutil.rmtree(self._tempdir, ignore_errors=True)
+        
+        return False
+    
+    def is_complete(self):
+        return self.server.is_complete() if self.server else False
+    
+    @property
+    def metrics(self):
+        return self.server.metrics if self.server else None
