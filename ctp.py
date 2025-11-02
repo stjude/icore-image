@@ -725,7 +725,7 @@ class CTPPipeline:
         
         config_template = PIPELINE_TEMPLATES[self.pipeline_type]
         config_xml = config_template.format(
-            input_dir=os.path.abspath(self.input_dir),
+            input_dir=os.path.abspath(self.input_dir) if self.input_dir else "",
             output_dir=os.path.abspath(self.output_dir),
             tempdir=os.path.abspath(self._tempdir),
             port=self.port,
