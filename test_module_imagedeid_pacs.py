@@ -11,8 +11,9 @@ import pandas as pd
 import pytest
 import pydicom
 
-from module_imagedeid_pacs import PacsConfiguration, Spreadsheet, imagedeid_pacs
+from module_imagedeid_pacs import imagedeid_pacs
 from test_ctp import Fixtures, OrthancServer
+from utils import PacsConfiguration, Spreadsheet
 
 
 logging.basicConfig(level=logging.INFO)
@@ -340,7 +341,8 @@ def test_imagedeid_filter_script_generation(tmp_path):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     
     with patch('module_imagedeid_pacs.find_studies') as mock_find, \
-         patch('module_imagedeid_pacs.CTPPipeline') as mock_pipeline_class:
+         patch('module_imagedeid_pacs.CTPPipeline') as mock_pipeline_class, \
+         patch('module_imagedeid_pacs.move_study') as mock_move:
         
         mock_find.return_value = []
         mock_pipeline_instance = MagicMock()

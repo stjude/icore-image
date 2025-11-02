@@ -1,0 +1,86 @@
+from dataclasses import dataclass
+from datetime import timedelta
+
+import pandas as pd
+
+
+@dataclass
+class PacsConfiguration:
+    host: str
+    port: int
+    aet: str
+
+
+@dataclass
+class Spreadsheet:
+    dataframe: pd.DataFrame
+    acc_col: str = None
+    mrn_col: str = None
+    date_col: str = None
+    
+    @classmethod
+    def from_file(cls, path, acc_col=None, mrn_col=None, date_col=None):
+        if path.endswith('.xlsx'):
+            df = pd.read_excel(path)
+        elif path.endswith('.csv'):
+            df = pd.read_csv(path)
+        else:
+            raise ValueError(f"Unsupported file format: {path}")
+        
+        return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
+
+
+def generate_queries_and_filter(spreadsheet, date_window_days=0):
+    query_params_list = []
+    filter_conditions = []
+    
+    for _, row in spreadsheet.dataframe.iterrows():
+        if spreadsheet.acc_col and pd.notna(row.get(spreadsheet.acc_col)):
+            acc = str(row[spreadsheet.acc_col])
+            query_params = {"AccessionNumber": f"*{acc}*"}
+            query_params_list.append(query_params)
+            filter_conditions.append(f'AccessionNumber.contains("{acc}")')
+        elif (spreadsheet.mrn_col and spreadsheet.date_col and 
+              pd.notna(row.get(spreadsheet.mrn_col)) and 
+              pd.notna(row.get(spreadsheet.date_col))):
+            mrn = str(row[spreadsheet.mrn_col])
+            study_date = row[spreadsheet.date_col]
+            if not isinstance(study_date, pd.Timestamp):
+                raise ValueError(f"StudyDate must be in Excel date format (pd.Timestamp), got {type(study_date).__name__}: {study_date}")
+            
+            start_date = study_date - timedelta(days=date_window_days)
+            end_date = study_date + timedelta(days=date_window_days)
+            
+            start_date_str = start_date.strftime("%Y%m%d")
+            end_date_str = end_date.strftime("%Y%m%d")
+            
+            query_params = {
+                "PatientID": mrn,
+                "StudyDate": f"{start_date_str}-{end_date_str}"
+            }
+            query_params_list.append(query_params)
+            
+            start_minus_one = (start_date - timedelta(days=1)).strftime("%Y%m%d")
+            end_plus_one = (end_date + timedelta(days=1)).strftime("%Y%m%d")
+            filter_conditions.append(f'(PatientID.contains("{mrn}") * StudyDate.isGreaterThan("{start_minus_one}") * StudyDate.isLessThan("{end_plus_one}"))')
+        else:
+            raise ValueError(f"Row must have either acc_col or both mrn_col and date_col with valid values")
+    
+    generated_filter = " + ".join(filter_conditions) if filter_conditions else None
+    
+    return query_params_list, generated_filter
+
+
+def combine_filters(user_filter, generated_filter):
+    combined_filter = None
+    if user_filter and generated_filter:
+        combined_filter = f"({user_filter}) * ({generated_filter})"
+    elif user_filter or generated_filter:
+        combined_filter = user_filter or generated_filter
+    return combined_filter
+
+
+def validate_date_window_days(date_window_days):
+    if date_window_days < 0 or date_window_days > 10:
+        raise ValueError(f"date_window_days must be between 0 and 10, got {date_window_days}")
+

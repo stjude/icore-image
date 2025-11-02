@@ -1,81 +1,11 @@
 import logging
 import os
 import time
-from dataclasses import dataclass
-from datetime import timedelta
-from pathlib import Path
-
-import pandas as pd
 
 from ctp import CTPPipeline
 from dcmtk import find_studies, move_study
-
-
-@dataclass
-class PacsConfiguration:
-    host: str
-    port: int
-    aet: str
-
-
-@dataclass
-class Spreadsheet:
-    dataframe: pd.DataFrame
-    acc_col: str = None
-    mrn_col: str = None
-    date_col: str = None
-    
-    @classmethod
-    def from_file(cls, path, acc_col=None, mrn_col=None, date_col=None):
-        if path.endswith('.xlsx'):
-            df = pd.read_excel(path)
-        elif path.endswith('.csv'):
-            df = pd.read_csv(path)
-        else:
-            raise ValueError(f"Unsupported file format: {path}")
-        
-        return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
-
-
-def _generate_queries_and_filter(spreadsheet, date_window_days=0):
-    query_params_list = []
-    filter_conditions = []
-    
-    for _, row in spreadsheet.dataframe.iterrows():
-        if spreadsheet.acc_col and pd.notna(row.get(spreadsheet.acc_col)):
-            acc = str(row[spreadsheet.acc_col])
-            query_params = {"AccessionNumber": f"*{acc}*"}
-            query_params_list.append(query_params)
-            filter_conditions.append(f'AccessionNumber.contains("{acc}")')
-        elif (spreadsheet.mrn_col and spreadsheet.date_col and 
-              pd.notna(row.get(spreadsheet.mrn_col)) and 
-              pd.notna(row.get(spreadsheet.date_col))):
-            mrn = str(row[spreadsheet.mrn_col])
-            study_date = row[spreadsheet.date_col]
-            if not isinstance(study_date, pd.Timestamp):
-                raise ValueError(f"StudyDate must be in Excel date format (pd.Timestamp), got {type(study_date).__name__}: {study_date}")
-            
-            start_date = study_date - timedelta(days=date_window_days)
-            end_date = study_date + timedelta(days=date_window_days)
-            
-            start_date_str = start_date.strftime("%Y%m%d")
-            end_date_str = end_date.strftime("%Y%m%d")
-            
-            query_params = {
-                "PatientID": mrn,
-                "StudyDate": f"{start_date_str}-{end_date_str}"
-            }
-            query_params_list.append(query_params)
-            
-            start_minus_one = (start_date - timedelta(days=1)).strftime("%Y%m%d")
-            end_plus_one = (end_date + timedelta(days=1)).strftime("%Y%m%d")
-            filter_conditions.append(f'(PatientID.contains("{mrn}") * StudyDate.isGreaterThan("{start_minus_one}") * StudyDate.isLessThan("{end_plus_one}"))')
-        else:
-            raise ValueError(f"Row must have either acc_col or both mrn_col and date_col with valid values")
-    
-    generated_filter = " + ".join(filter_conditions) if filter_conditions else None
-    
-    return query_params_list, generated_filter
+from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
+                   combine_filters, validate_date_window_days)
 
 
 def _save_metadata_files(pipeline, appdata_dir):
@@ -101,16 +31,10 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
-    if date_window_days < 0 or date_window_days > 10:
-        raise ValueError(f"date_window_days must be between 0 and 10, got {date_window_days}")
+    validate_date_window_days(date_window_days)
     
-    query_params_list, generated_filter = _generate_queries_and_filter(query_spreadsheet, date_window_days)
-    
-    combined_filter = None
-    if filter_script and generated_filter:
-        combined_filter = f"({filter_script}) * ({generated_filter})"
-    elif filter_script or generated_filter:
-        combined_filter = filter_script or generated_filter
+    query_params_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
+    combined_filter = combine_filters(filter_script, generated_filter)
     
     study_to_pacs = {}
     failed_query_indices = []
