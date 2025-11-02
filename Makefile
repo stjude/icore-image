@@ -1,8 +1,12 @@
-.PHONY: all signed clean deps deps-python deps-deid deps-electron
+.PHONY: all signed clean deps deps-python deps-deid deps-electron test
 .PHONY: external-deps jre8 dcmtk build-binaries build-icore-processor build-django-app
 .PHONY: prepare-assets build-dmg build-dmg-signed
 
 .DEFAULT_GOAL := all
+
+test:
+	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
+	pytest -v test_ctp.py
 
 deps: deps-python deps-deid deps-electron
 
