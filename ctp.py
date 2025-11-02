@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import tempfile
 import time
@@ -10,6 +11,15 @@ from threading import Thread, Lock
 
 import psutil
 import requests
+
+
+def is_port_available(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('localhost', port))
+            return True
+        except OSError:
+            return False
 
 
 def ctp_get(url, port, timeout=3):
@@ -454,7 +464,7 @@ PIPELINE_TEMPLATES = {
 
 
 class CTPPipeline:
-    def __init__(self, source_ctp_dir, pipeline_type, input_dir, output_dir, port,
+    def __init__(self, source_ctp_dir, pipeline_type, input_dir, output_dir,
                  filter_script=None, anonymizer_script=None, lookup_table=None,
                  application_aet=None):
         if pipeline_type not in PIPELINE_TEMPLATES:
@@ -464,15 +474,29 @@ class CTPPipeline:
         self.pipeline_type = pipeline_type
         self.input_dir = input_dir
         self.output_dir = output_dir
-        self.port = port
         self.filter_script = filter_script if filter_script is not None else "true."
         self.anonymizer_script = anonymizer_script
         self.lookup_table = lookup_table
         self.application_aet = application_aet
         
+        self.port = self._find_available_port()
         self._tempdir = tempfile.mkdtemp(prefix='ctp_')
-        self._dicom_port = port + 1
+        self._dicom_port = self.port + 1
         self.server = None
+    
+    def _find_available_port(self):
+        start_port = 50000
+        max_attempts = 10
+        port_increment = 10
+        
+        for attempt in range(max_attempts):
+            port = start_port + (attempt * port_increment)
+            dicom_port = port + 1
+            
+            if is_port_available(port) and is_port_available(dicom_port):
+                return port
+        
+        raise RuntimeError(f"Could not find available port after {max_attempts} attempts (tried ports {start_port} to {start_port + (max_attempts - 1) * port_increment})")
     
     def __enter__(self):
         os.makedirs(os.path.join(self._tempdir, "roots"), exist_ok=True)

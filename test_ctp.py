@@ -223,6 +223,84 @@ def create_test_dicoms(input_dir, num_files=10):
         ds.save_as(str(filepath), write_like_original=False)
 
 
+def test_ctp_pipeline_port_selection(tmp_path):
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    pipeline = CTPPipeline(
+        source_ctp_dir=str(source_ctp),
+        pipeline_type="imagecopy_local",
+        input_dir=str(input_dir),
+        output_dir=str(output_dir)
+    )
+    assert pipeline.port == 50000, "Should pick port 50000 when available"
+    
+    blocked_sockets = []
+    try:
+        for attempt in range(3):
+            port = 50000 + (attempt * 10)
+            dicom_port = port + 1
+            
+            sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock1.bind(('localhost', port))
+            sock1.listen(1)
+            blocked_sockets.append(sock1)
+            
+            sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock2.bind(('localhost', dicom_port))
+            sock2.listen(1)
+            blocked_sockets.append(sock2)
+        
+        pipeline = CTPPipeline(
+            source_ctp_dir=str(source_ctp),
+            pipeline_type="imagecopy_local",
+            input_dir=str(input_dir),
+            output_dir=str(output_dir)
+        )
+        assert pipeline.port == 50030, "Should pick port 50030 when 50000, 50010, 50020 are blocked"
+        
+    finally:
+        for sock in blocked_sockets:
+            sock.close()
+    
+    blocked_sockets = []
+    try:
+        for attempt in range(10):
+            port = 50000 + (attempt * 10)
+            dicom_port = port + 1
+            
+            sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock1.bind(('localhost', port))
+            sock1.listen(1)
+            blocked_sockets.append(sock1)
+            
+            sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock2.bind(('localhost', dicom_port))
+            sock2.listen(1)
+            blocked_sockets.append(sock2)
+        
+        with pytest.raises(RuntimeError, match="Could not find available port after 10 attempts"):
+            CTPPipeline(
+                source_ctp_dir=str(source_ctp),
+                pipeline_type="imagecopy_local",
+                input_dir=str(input_dir),
+                output_dir=str(output_dir)
+            )
+    
+    finally:
+        for sock in blocked_sockets:
+            sock.close()
+
+
 def test_archive_import_to_directory_storage(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
@@ -384,8 +462,7 @@ def test_imagecopy_local_pipeline(tmp_path):
         source_ctp_dir=str(source_ctp),
         pipeline_type="imagecopy_local",
         input_dir=str(input_dir),
-        output_dir=str(output_dir),
-        port=50010
+        output_dir=str(output_dir)
     ) as pipeline:
         start_time = time.time()
         timeout = 60
@@ -454,7 +531,6 @@ def test_imagedeid_local_pipeline(tmp_path):
         pipeline_type="imagedeid_local",
         input_dir=str(input_dir),
         output_dir=str(output_dir),
-        port=50020,
         anonymizer_script=anonymizer_script
     ) as pipeline:
         start_time = time.time()
@@ -517,7 +593,6 @@ def test_imagedeid_local_with_filter(tmp_path):
         pipeline_type="imagedeid_local",
         input_dir=str(input_dir),
         output_dir=str(output_dir),
-        port=50090,
         anonymizer_script=anonymizer_script,
         filter_script='Modality.contains("CT")'
     ) as pipeline:
@@ -596,7 +671,6 @@ def test_imagedeid_local_with_anonymizer_script(tmp_path):
         pipeline_type="imagedeid_local",
         input_dir=str(input_dir),
         output_dir=str(output_dir),
-        port=50100,
         anonymizer_script=anonymizer_script
     ) as pipeline:
         start_time = time.time()
@@ -661,8 +735,7 @@ def test_pipeline_auto_cleanup(tmp_path):
         source_ctp_dir=str(source_ctp),
         pipeline_type="imagecopy_local",
         input_dir=str(input_dir),
-        output_dir=str(output_dir),
-        port=50030
+        output_dir=str(output_dir)
     ) as pipeline:
         tempdir_path = pipeline._tempdir
         assert os.path.exists(tempdir_path)
@@ -713,7 +786,6 @@ def test_imageqr_pipeline(tmp_path):
             pipeline_type="imageqr",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
-            port=50040,
             application_aet="TEST_AET"
         ) as pipeline:
             time.sleep(3)
@@ -787,7 +859,6 @@ def test_imageqr_with_filter(tmp_path):
             pipeline_type="imageqr",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
-            port=50060,
             application_aet="TEST_AET",
             filter_script='Modality.contains("CT")'
         ) as pipeline:
@@ -872,7 +943,6 @@ def test_imagedeid_pacs_pipeline(tmp_path):
             pipeline_type="imagedeid_pacs",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
-            port=50050,
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script
         ) as pipeline:
@@ -951,7 +1021,6 @@ def test_imagedeid_pacs_with_filter(tmp_path):
             pipeline_type="imagedeid_pacs",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
-            port=50080,
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
             filter_script='Modality.contains("CT")'
@@ -1049,7 +1118,6 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
             pipeline_type="imagedeid_pacs",
             input_dir=str(input_dir),
             output_dir=str(output_dir),
-            port=50110,
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script
         ) as pipeline:
