@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -36,7 +37,7 @@ class Spreadsheet:
         return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
 
 
-def _generate_queries_and_filter(spreadsheet):
+def _generate_queries_and_filter(spreadsheet, date_window_days=0):
     query_params_list = []
     filter_conditions = []
     
@@ -53,13 +54,22 @@ def _generate_queries_and_filter(spreadsheet):
             study_date = row[spreadsheet.date_col]
             if not isinstance(study_date, pd.Timestamp):
                 raise ValueError(f"StudyDate must be in Excel date format (pd.Timestamp), got {type(study_date).__name__}: {study_date}")
-            study_date_str = study_date.strftime("%Y%m%d")
+            
+            start_date = study_date - timedelta(days=date_window_days)
+            end_date = study_date + timedelta(days=date_window_days)
+            
+            start_date_str = start_date.strftime("%Y%m%d")
+            end_date_str = end_date.strftime("%Y%m%d")
+            
             query_params = {
                 "PatientID": mrn,
-                "StudyDate": study_date_str
+                "StudyDate": f"{start_date_str}-{end_date_str}"
             }
             query_params_list.append(query_params)
-            filter_conditions.append(f'(PatientID.contains("{mrn}") * StudyDate.contains("{study_date_str}"))')
+            
+            start_minus_one = (start_date - timedelta(days=1)).strftime("%Y%m%d")
+            end_plus_one = (end_date + timedelta(days=1)).strftime("%Y%m%d")
+            filter_conditions.append(f'(PatientID.contains("{mrn}") * StudyDate.isGreaterThan("{start_minus_one}") * StudyDate.isLessThan("{end_plus_one}"))')
         else:
             raise ValueError(f"Row must have either acc_col or both mrn_col and date_col with valid values")
     
@@ -87,11 +97,14 @@ def _save_metadata_files(pipeline, appdata_dir):
 
 def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
                    output_dir, appdata_dir, filter_script=None, 
-                   anonymizer_script=None):
+                   anonymizer_script=None, date_window_days=0):
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
-    query_params_list, generated_filter = _generate_queries_and_filter(query_spreadsheet)
+    if date_window_days < 0 or date_window_days > 10:
+        raise ValueError(f"date_window_days must be between 0 and 10, got {date_window_days}")
+    
+    query_params_list, generated_filter = _generate_queries_and_filter(query_spreadsheet, date_window_days)
     
     combined_filter = None
     if filter_script and generated_filter:

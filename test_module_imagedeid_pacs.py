@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -15,6 +16,24 @@ from test_ctp import Fixtures, OrthancServer
 
 
 logging.basicConfig(level=logging.INFO)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_docker_containers():
+    result = subprocess.run(
+        ["docker", "ps", "-a", "--filter", "name=orthanc_test_", "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True
+    )
+    
+    container_names = result.stdout.strip().split('\n')
+    container_names = [name for name in container_names if name]
+    
+    for container_name in container_names:
+        subprocess.run(["docker", "stop", container_name], capture_output=True)
+        subprocess.run(["docker", "rm", container_name], capture_output=True)
+    
+    yield
 
 
 def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
@@ -374,7 +393,7 @@ def test_imagedeid_filter_script_generation(tmp_path):
         )
         
         call_kwargs = mock_pipeline_class.call_args[1]
-        expected_filter = '(PatientID.contains("MRN001") * StudyDate.contains("20250101")) + (PatientID.contains("MRN002") * StudyDate.contains("20250115"))'
+        expected_filter = '(PatientID.contains("MRN001") * StudyDate.isGreaterThan("20241231") * StudyDate.isLessThan("20250102")) + (PatientID.contains("MRN002") * StudyDate.isGreaterThan("20250114") * StudyDate.isLessThan("20250116"))'
         assert call_kwargs['filter_script'] == expected_filter, f"Expected filter: {expected_filter}, got: {call_kwargs['filter_script']}"
         
         mock_pipeline_class.reset_mock()
@@ -392,7 +411,7 @@ def test_imagedeid_filter_script_generation(tmp_path):
         )
         
         call_kwargs = mock_pipeline_class.call_args[1]
-        expected_combined = '(Modality.contains("CT")) * ((PatientID.contains("MRN001") * StudyDate.contains("20250101")) + (PatientID.contains("MRN002") * StudyDate.contains("20250115")))'
+        expected_combined = '(Modality.contains("CT")) * ((PatientID.contains("MRN001") * StudyDate.isGreaterThan("20241231") * StudyDate.isLessThan("20250102")) + (PatientID.contains("MRN002") * StudyDate.isGreaterThan("20250114") * StudyDate.isLessThan("20250116")))'
         assert call_kwargs['filter_script'] == expected_combined, f"Expected filter: {expected_combined}, got: {call_kwargs['filter_script']}"
 
 
@@ -546,6 +565,146 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path):
                 output_dir=str(output_dir),
                 appdata_dir=str(appdata_dir)
             )
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_date_window(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds1 = Fixtures.create_minimal_dicom(
+            patient_id="MRN001",
+            patient_name="Patient1",
+            accession="",
+            study_date="20250101",
+            modality="CT",
+            SliceThickness="3.0"
+        )
+        ds1.InstitutionName = "Test Hospital"
+        ds1.Manufacturer = "TestManufacturer"
+        ds1.ManufacturerModelName = "TestModel"
+        ds1.SeriesNumber = 1
+        ds1.InstanceNumber = 1
+        ds1.SamplesPerPixel = 1
+        ds1.PhotometricInterpretation = "MONOCHROME2"
+        ds1.Rows = 64
+        ds1.Columns = 64
+        ds1.BitsAllocated = 16
+        ds1.BitsStored = 16
+        ds1.HighBit = 15
+        ds1.PixelRepresentation = 0
+        ds1.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
+        _upload_dicom_to_orthanc(ds1, orthanc)
+        
+        ds2 = Fixtures.create_minimal_dicom(
+            patient_id="MRN001",
+            patient_name="Patient1",
+            accession="",
+            study_date="20250103",
+            modality="CT",
+            SliceThickness="3.0"
+        )
+        ds2.InstitutionName = "Test Hospital"
+        ds2.Manufacturer = "TestManufacturer"
+        ds2.ManufacturerModelName = "TestModel"
+        ds2.SeriesNumber = 1
+        ds2.InstanceNumber = 2
+        ds2.SamplesPerPixel = 1
+        ds2.PhotometricInterpretation = "MONOCHROME2"
+        ds2.Rows = 64
+        ds2.Columns = 64
+        ds2.BitsAllocated = 16
+        ds2.BitsStored = 16
+        ds2.HighBit = 15
+        ds2.PixelRepresentation = 0
+        ds2.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
+        _upload_dicom_to_orthanc(ds2, orthanc)
+        
+        ds3 = Fixtures.create_minimal_dicom(
+            patient_id="MRN001",
+            patient_name="Patient1",
+            accession="",
+            study_date="20250110",
+            modality="CT",
+            SliceThickness="3.0"
+        )
+        ds3.InstitutionName = "Test Hospital"
+        ds3.Manufacturer = "TestManufacturer"
+        ds3.ManufacturerModelName = "TestModel"
+        ds3.SeriesNumber = 1
+        ds3.InstanceNumber = 3
+        ds3.SamplesPerPixel = 1
+        ds3.PhotometricInterpretation = "MONOCHROME2"
+        ds3.Rows = 64
+        ds3.Columns = 64
+        ds3.BitsAllocated = 16
+        ds3.BitsStored = 16
+        ds3.HighBit = 15
+        ds3.PixelRepresentation = 0
+        ds3.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
+        _upload_dicom_to_orthanc(ds3, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": [None],
+            "PatientID": ["MRN001"],
+            "StudyDate": [pd.Timestamp("2025-01-03")]
+        })
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(
+            str(query_file),
+            acc_col="AccessionNumber",
+            mrn_col="PatientID",
+            date_col="StudyDate"
+        )
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00080020" n="StudyDate">@keep()</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            date_window_days=2
+        )
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        
+        study_dates_found = set()
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            study_dates_found.add(ds.StudyDate)
+        
+        assert result["num_studies_found"] >= 2, f"Should find at least 2 studies within 2-day window, found {result['num_studies_found']}"
+        assert result["num_images_saved"] >= 2, f"Should save at least 2 images, saved {result['num_images_saved']}"
+        assert "20250101" in study_dates_found and "20250103" in study_dates_found, f"Should find both studies within 2-day window. Found dates: {study_dates_found}"
+        assert "20250110" not in study_dates_found, f"Should not find study outside window. Found dates: {study_dates_found}"
     
     finally:
         orthanc.stop()
