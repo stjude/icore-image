@@ -26,7 +26,7 @@ def _save_metadata_files(pipeline, appdata_dir):
 
 def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
                    output_dir, appdata_dir, filter_script=None, 
-                   anonymizer_script=None, date_window_days=0):
+                   anonymizer_script=None, date_window_days=0, deid_pixels=False):
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
@@ -40,8 +40,10 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     input_dir = os.path.join(appdata_dir, "temp_input")
     os.makedirs(input_dir, exist_ok=True)
     
+    pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
+    
     with CTPPipeline(
-        pipeline_type="imagedeid_pacs",
+        pipeline_type=pipeline_type,
         input_dir=input_dir,
         output_dir=output_dir,
         application_aet=application_aet,

@@ -714,3 +714,61 @@ def test_imagedeid_pacs_date_window(tmp_path):
     finally:
         orthanc.stop()
 
+
+def test_imagedeid_pacs_deid_pixels_parameter(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            deid_pixels=True
+        )
+        
+        assert result["num_studies_found"] == 1, f"Should find 1 study, found {result['num_studies_found']}"
+        assert result["num_images_saved"] == 1, f"Should save 1 image, saved {result['num_images_saved']}"
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 1, f"Expected 1 .dcm file, found {len(output_files)}"
+        
+        linker_path = appdata_dir / "linker.csv"
+        assert linker_path.exists(), "linker.csv should exist"
+        
+        deid_metadata_path = appdata_dir / "deid_metadata.csv"
+        assert deid_metadata_path.exists(), "deid_metadata.csv should exist"
+    
+    finally:
+        orthanc.stop()
+
