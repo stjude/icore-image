@@ -749,7 +749,6 @@ def test_pipeline_auto_cleanup(tmp_path):
     assert not os.path.exists(tempdir_path)
 
 
-@pytest.mark.docker
 def test_imageqr_pipeline(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
@@ -821,7 +820,6 @@ def test_imageqr_pipeline(tmp_path):
         orthanc.stop()
 
 
-@pytest.mark.docker
 def test_imageqr_with_filter(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
@@ -901,7 +899,6 @@ def test_imageqr_with_filter(tmp_path):
         orthanc.stop()
 
 
-@pytest.mark.docker
 def test_imagedeid_pacs_pipeline(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
@@ -978,7 +975,6 @@ def test_imagedeid_pacs_pipeline(tmp_path):
         orthanc.stop()
 
 
-@pytest.mark.docker
 def test_imagedeid_pacs_with_filter(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
@@ -1066,7 +1062,6 @@ def test_imagedeid_pacs_with_filter(tmp_path):
         orthanc.stop()
 
 
-@pytest.mark.docker
 def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
