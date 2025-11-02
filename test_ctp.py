@@ -281,6 +281,7 @@ def test_imagecopy_local_pipeline(tmp_path):
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
+    log_path = tmp_path / "ctp.log"
     
     input_dir.mkdir()
     output_dir.mkdir()
@@ -295,7 +296,8 @@ def test_imagecopy_local_pipeline(tmp_path):
         pipeline_type="imagecopy_local",
         output_dir=str(output_dir),
         input_dir=str(input_dir),
-        source_ctp_dir=str(source_ctp)
+        source_ctp_dir=str(source_ctp),
+        log_path=str(log_path)
     ) as pipeline:
         start_time = time.time()
         timeout = 60
@@ -317,6 +319,9 @@ def test_imagecopy_local_pipeline(tmp_path):
             assert len(parts) >= 2
             assert "-CT-" in parts[0]
             assert parts[1].startswith("S")
+    
+    assert log_path.exists(), "CTP log file should exist"
+    assert log_path.stat().st_size > 0, "CTP log file should contain content"
 
 
 def test_imagedeid_local_pipeline(tmp_path):
