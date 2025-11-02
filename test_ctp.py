@@ -1268,6 +1268,197 @@ def test_id_map_audit_log_extraction(tmp_path):
         orthanc.stop()
 
 
+def test_imagedeid_local_pixel_with_anonymizer_script(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    for i in range(10):
+        ds = Fixtures.create_minimal_dicom(
+            patient_id=f"MRN{i:04d}",
+            patient_name=f"Smith^John{i}",
+            accession=f"ACC{i:03d}",
+            study_date="20250101",
+            modality="CT"
+        )
+        ds.InstitutionName = "Test Hospital"
+        ds.ReferringPhysicianName = "Dr. Referring"
+        ds.Manufacturer = "TestManufacturer"
+        ds.ManufacturerModelName = "TestModel"
+        ds.SeriesNumber = (i % 2) + 1
+        ds.InstanceNumber = i + 1
+        ds.SamplesPerPixel = 1
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        ds.Rows = 512
+        ds.Columns = 512
+        ds.BitsAllocated = 16
+        ds.BitsStored = 16
+        ds.HighBit = 15
+        ds.PixelRepresentation = 0
+        ds.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
+        
+        filepath = input_dir / f"f{i+1:03d}.dcm"
+        ds.save_as(str(filepath), write_like_original=False)
+    
+    time.sleep(2)
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+<e en="T" t="00080080" n="InstitutionName">@remove()</e>
+<e en="T" t="00080090" n="ReferringPhysicianName">@remove()</e>
+<e en="T" t="00080070" n="Manufacturer">@keep()</e>
+<e en="T" t="00081090" n="ManufacturerModelName">@keep()</e>
+<e en="T" t="00080060" n="Modality">@keep()</e>
+</script>"""
+    
+    with CTPPipeline(
+        pipeline_type="imagedeid_local_pixel",
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        anonymizer_script=anonymizer_script,
+        source_ctp_dir=str(source_ctp)
+    ) as pipeline:
+        start_time = time.time()
+        timeout = 60
+        
+        while not pipeline.is_complete():
+            if time.time() - start_time > timeout:
+                raise TimeoutError("Pipeline did not complete")
+            time.sleep(1)
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 10, f"Expected 10 output files, got {len(output_files)}"
+        
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            
+            assert ds.PatientName == "", "PatientName should be empty"
+            assert ds.PatientID == "", "PatientID should be empty"
+            assert not hasattr(ds, 'InstitutionName') or ds.InstitutionName == "", "InstitutionName should be removed"
+            assert not hasattr(ds, 'ReferringPhysicianName') or ds.ReferringPhysicianName == "", "ReferringPhysicianName should be removed"
+            assert ds.Manufacturer == "TestManufacturer", "Manufacturer should be kept"
+            assert ds.ManufacturerModelName == "TestModel", "ManufacturerModelName should be kept"
+            assert ds.Modality == "CT", "Modality should be kept"
+
+
+def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        for i in range(10):
+            ds = Fixtures.create_minimal_dicom(
+                patient_id=f"MRN{i:04d}",
+                patient_name=f"Smith^John{i}",
+                accession=f"ACC{i:03d}",
+                study_date="20250101",
+                modality="CT"
+            )
+            ds.InstitutionName = "Test Hospital"
+            ds.ReferringPhysicianName = "Dr. Referring"
+            ds.Manufacturer = "TestManufacturer"
+            ds.ManufacturerModelName = "TestModel"
+            ds.SeriesNumber = (i % 2) + 1
+            ds.InstanceNumber = i + 1
+            ds.SamplesPerPixel = 1
+            ds.PhotometricInterpretation = "MONOCHROME2"
+            ds.Rows = 512
+            ds.Columns = 512
+            ds.BitsAllocated = 16
+            ds.BitsStored = 16
+            ds.HighBit = 15
+            ds.PixelRepresentation = 0
+            ds.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
+            
+            temp_file = tempfile.mktemp(suffix=".dcm")
+            ds.save_as(temp_file, write_like_original=False)
+            orthanc.upload_dicom(temp_file)
+            os.remove(temp_file)
+        
+        source_ctp = Path(__file__).parent / "ctp"
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+<e en="T" t="00080080" n="InstitutionName">@remove()</e>
+<e en="T" t="00080090" n="ReferringPhysicianName">@remove()</e>
+<e en="T" t="00080070" n="Manufacturer">@keep()</e>
+<e en="T" t="00081090" n="ManufacturerModelName">@keep()</e>
+<e en="T" t="00080060" n="Modality">@keep()</e>
+</script>"""
+        
+        with CTPPipeline(
+            pipeline_type="imagedeid_pacs_pixel",
+            input_dir=str(input_dir),
+            output_dir=str(output_dir),
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            source_ctp_dir=str(source_ctp)
+        ) as pipeline:
+            time.sleep(3)
+            
+            studies_response = requests.get(f"{orthanc.base_url}/studies")
+            studies = studies_response.json()
+            
+            for study_id in studies:
+                study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
+                study_uid = study_info['MainDicomTags']['StudyInstanceUID']
+                
+                move_study(
+                    host="localhost",
+                    port=orthanc.dicom_port,
+                    calling_aet="TEST_AET",
+                    called_aet=orthanc.aet,
+                    move_destination="TEST_AET",
+                    study_uid=study_uid
+                )
+            
+            start_time = time.time()
+            timeout = 60
+            
+            while not pipeline.is_complete():
+                if time.time() - start_time > timeout:
+                    raise TimeoutError("Pipeline did not complete")
+                time.sleep(1)
+            
+            output_files = list(output_dir.rglob("*.dcm"))
+            
+            assert pipeline.metrics.files_received >= 9, f"Expected at least 9 files received, got {pipeline.metrics.files_received}"
+            assert pipeline.metrics.files_saved + pipeline.metrics.files_quarantined >= 9, f"Expected at least 9 files processed"
+            assert len(output_files) >= 9, f"Expected at least 9 output files, got {len(output_files)}"
+            
+            for file in output_files:
+                ds = pydicom.dcmread(file)
+                
+                assert ds.PatientName == "", "PatientName should be empty"
+                assert ds.PatientID == "", "PatientID should be empty"
+                assert not hasattr(ds, 'InstitutionName') or ds.InstitutionName == "", "InstitutionName should be removed"
+                assert not hasattr(ds, 'ReferringPhysicianName') or ds.ReferringPhysicianName == "", "ReferringPhysicianName should be removed"
+                assert ds.Manufacturer == "TestManufacturer", "Manufacturer should be kept"
+                assert ds.ManufacturerModelName == "TestModel", "ManufacturerModelName should be kept"
+                assert ds.Modality == "CT", "Modality should be kept"
+    
+    finally:
+        orthanc.stop()
+
+
 def test_ctp_server_stall_timeout(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     

@@ -496,8 +496,7 @@ PIPELINE_TEMPLATES = {
         <DicomTranscoder
             name="DicomTranscoder"
             class="org.rsna.ctp.stdstages.DicomTranscoder"
-            tsuid="1.2.840.10008.1.2.4.70"
-            quality="100"
+            tsuid="1.2.840.10008.1.2.1"
             root="{tempdir}/roots/DicomTranscoder" 
             skipJPEGBaseline="yes"
             script="scripts/dicom-transcoder.script"
@@ -587,8 +586,7 @@ PIPELINE_TEMPLATES = {
         <DicomTranscoder
             name="DicomTranscoder"
             class="org.rsna.ctp.stdstages.DicomTranscoder"
-            tsuid="1.2.840.10008.1.2.4.70"
-            quality="100"
+            tsuid="1.2.840.10008.1.2.1"
             root="{tempdir}/roots/DicomTranscoder" 
             skipJPEGBaseline="yes"
             script="scripts/dicom-transcoder.script"
