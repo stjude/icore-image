@@ -6,6 +6,8 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, retry_if_result
+
 
 class DCMTKError(Exception):
     pass
@@ -93,6 +95,12 @@ def _parse_move_output(stderr, returncode):
     return result
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=(retry_if_exception_type(DCMTKCommandError) | retry_if_exception_type(DCMTKParseError)),
+    reraise=True
+)
 def find_studies(host, port, calling_aet, called_aet, query_params, query_level="STUDY", return_tags=None):
     """
     Query PACS for studies using findscu.
@@ -165,6 +173,12 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
             pass
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_result(lambda result: not result["success"]),
+    reraise=True
+)
 def move_study(host, port, calling_aet, called_aet, move_destination, study_uid, query_level="STUDY"):
     """
     Move a study from PACS using movescu.
