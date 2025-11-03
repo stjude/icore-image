@@ -16,6 +16,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     run_dirs = setup_run_directories()
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
+    logging.info("Running imagedeid_pacs")
     
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
