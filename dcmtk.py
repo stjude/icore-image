@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -124,12 +125,13 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
     dcmtk_home = _get_default_dcmtk_home()
     findscu_binary = os.path.join(dcmtk_home, 'bin', 'findscu')
     
-    with tempfile.NamedTemporaryFile(suffix='.xml', delete=False, mode='w') as xml_file:
-        xml_path = xml_file.name
+    temp_dir = tempfile.mkdtemp()
+    xml_path = os.path.join(temp_dir, 'output.xml')
     
     try:
         cmd = [
             findscu_binary,
+            "-od", temp_dir,
             "-Xs", xml_path,
             "-aet", calling_aet,
             "-aec", called_aet,
@@ -168,7 +170,7 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
     
     finally:
         try:
-            os.unlink(xml_path)
+            shutil.rmtree(temp_dir)
         except:
             pass
 
