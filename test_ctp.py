@@ -447,9 +447,11 @@ def test_imagedeid_local_with_filter(tmp_path):
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
+    custom_quarantine_dir = tmp_path / "custom_quarantine"
     
     input_dir.mkdir()
     output_dir.mkdir()
+    custom_quarantine_dir.mkdir()
     
     for i in range(6):
         modality = "CT" if i < 3 else "MR"
@@ -489,7 +491,8 @@ def test_imagedeid_local_with_filter(tmp_path):
         input_dir=str(input_dir),
         anonymizer_script=anonymizer_script,
         filter_script='Modality.contains("CT")',
-        source_ctp_dir=str(source_ctp)
+        source_ctp_dir=str(source_ctp),
+        quarantine_dir=str(custom_quarantine_dir)
     ) as pipeline:
         start_time = time.time()
         timeout = 60
@@ -509,6 +512,13 @@ def test_imagedeid_local_with_filter(tmp_path):
         
         assert pipeline.metrics.files_saved == 3, f"Expected 3 CT files saved"
         assert pipeline.metrics.files_quarantined == 3, f"Expected 3 MR files quarantined"
+        
+        quarantined_files = list(custom_quarantine_dir.rglob("*.dcm"))
+        assert len(quarantined_files) == 3, f"Expected 3 quarantined files in custom directory, got {len(quarantined_files)}"
+        
+        for file in quarantined_files:
+            ds = pydicom.dcmread(file)
+            assert ds.Modality == "MR", f"Quarantined file should be MR, found {ds.Modality}"
 
 
 def test_imagedeid_local_with_anonymizer_script(tmp_path):

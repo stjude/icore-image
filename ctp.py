@@ -701,7 +701,8 @@ PIPELINE_TEMPLATES = {
 class CTPPipeline:
     def __init__(self, pipeline_type, output_dir, input_dir=None,
                  filter_script=None, anonymizer_script=None, lookup_table=None,
-                 application_aet=None, source_ctp_dir=None, stall_timeout=300, log_path=None, log_level=None):
+                 application_aet=None, source_ctp_dir=None, stall_timeout=300, log_path=None, log_level=None,
+                 quarantine_dir=None):
         if pipeline_type not in PIPELINE_TEMPLATES:
             raise ValueError(f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}")
         
@@ -716,6 +717,7 @@ class CTPPipeline:
         self.stall_timeout = stall_timeout
         self.log_path = log_path
         self.log_level = log_level
+        self.quarantine_dir = quarantine_dir
         
         self.port = self._find_available_port()
         self._tempdir = tempfile.mkdtemp(prefix='ctp_')
@@ -740,6 +742,10 @@ class CTPPipeline:
         os.makedirs(os.path.join(self._tempdir, "roots"), exist_ok=True)
         os.makedirs(os.path.join(self._tempdir, "quarantine"), exist_ok=True)
         
+        if self.quarantine_dir is None:
+            self.quarantine_dir = os.path.join(self._tempdir, "quarantine")
+        os.makedirs(self.quarantine_dir, exist_ok=True)
+        
         ctp_workspace = os.path.join(self._tempdir, "ctp")
         source_ctp = self.source_ctp_dir
         
@@ -763,6 +769,12 @@ class CTPPipeline:
             port=self.port,
             dicom_port=self._dicom_port,
             application_aet=self.application_aet if self.application_aet else ""
+        )
+        
+        config_xml = re.sub(
+            r'quarantine="[^"]*"',
+            f'quarantine="{os.path.abspath(self.quarantine_dir)}"',
+            config_xml
         )
         
         with open(os.path.join(ctp_workspace, "config.xml"), "w") as f:
