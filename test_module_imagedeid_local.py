@@ -130,6 +130,21 @@ def test_imagedeid_local(tmp_path):
             assert trial_acc != orig_acc, f"Trial accession should be different from original: {trial_acc} vs {orig_acc}"
     
     assert result["num_images_saved"] == 3
+    
+    quarantine_dir = appdata_dir / "quarantine"
+    assert quarantine_dir.exists(), "Quarantine directory should exist in appdata"
+    
+    quarantined_files = list(quarantine_dir.rglob("*.dcm"))
+    assert len(quarantined_files) == 6, f"Expected 6 quarantined files, found {len(quarantined_files)}"
+    
+    for file in quarantined_files:
+        ds = pydicom.dcmread(file)
+        assert ds.Modality in ["CT", "MR"], "Quarantined file should be either CT or MR"
+        if ds.Modality == "CT":
+            slice_thickness = float(ds.SliceThickness)
+            assert slice_thickness <= 1.0 or slice_thickness >= 5.0, f"Quarantined CT should have slice thickness <=1 or >=5, got {slice_thickness}"
+        else:
+            assert ds.Modality == "MR", "Non-CT quarantined file should be MR"
 
 
 def test_imagedeid_local_pixel(tmp_path):

@@ -36,6 +36,9 @@ def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
+    quarantine_dir = os.path.join(appdata_dir, "quarantine")
+    os.makedirs(quarantine_dir, exist_ok=True)
+    
     pipeline_type = "imagedeid_local_pixel" if deid_pixels else "imagedeid_local"
     ctp_log_level = "DEBUG" if debug else None
     
@@ -47,7 +50,8 @@ def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
         anonymizer_script=anonymizer_script,
         lookup_table=lookup_table,
         log_path=run_dirs["ctp_log_path"],
-        log_level=ctp_log_level
+        log_level=ctp_log_level,
+        quarantine_dir=quarantine_dir
     ) as pipeline:
         time.sleep(3)
         

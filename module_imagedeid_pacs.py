@@ -23,6 +23,9 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
     
+    quarantine_dir = os.path.join(appdata_dir, "quarantine")
+    os.makedirs(quarantine_dir, exist_ok=True)
+    
     validate_date_window_days(date_window_days)
     
     query_params_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
@@ -41,7 +44,8 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         anonymizer_script=anonymizer_script,
         lookup_table=lookup_table,
         log_path=run_dirs["ctp_log_path"],
-        log_level=ctp_log_level
+        log_level=ctp_log_level,
+        quarantine_dir=quarantine_dir
     ) as pipeline:
         time.sleep(3)
         
