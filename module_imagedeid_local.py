@@ -24,7 +24,8 @@ def _save_metadata_files(pipeline, appdata_dir):
 
 
 def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None, 
-                   anonymizer_script=None, deid_pixels=False, debug=False):
+                   anonymizer_script=None, deid_pixels=False, lookup_table=None, 
+                   debug=False):
     run_dirs = setup_run_directories()
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
@@ -44,6 +45,7 @@ def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
         input_dir=input_dir,
         filter_script=filter_script,
         anonymizer_script=anonymizer_script,
+        lookup_table=lookup_table,
         log_path=run_dirs["ctp_log_path"],
         log_level=ctp_log_level
     ) as pipeline:

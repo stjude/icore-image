@@ -11,7 +11,8 @@ from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter,
 
 def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
                    output_dir, appdata_dir=None, filter_script=None, 
-                   date_window_days=0, anonymizer_script=None, deid_pixels=False, debug=False):
+                   date_window_days=0, anonymizer_script=None, deid_pixels=False,
+                   lookup_table=None, debug=False):
     run_dirs = setup_run_directories()
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
@@ -38,6 +39,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         application_aet=application_aet,
         filter_script=combined_filter,
         anonymizer_script=anonymizer_script,
+        lookup_table=lookup_table,
         log_path=run_dirs["ctp_log_path"],
         log_level=ctp_log_level
     ) as pipeline:
