@@ -6,7 +6,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
-from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result
+from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result, RetryCallState
 
 
 class DCMTKError(Exception):
@@ -173,11 +173,14 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
             pass
 
 
+def _return_last_result(retry_state: RetryCallState):
+    return retry_state.outcome.result()
+
 @retry(
     stop=stop_after_attempt(4),
     wait=wait_chain(wait_fixed(4), wait_fixed(16), wait_fixed(32)),
     retry=retry_if_result(lambda result: not result["success"]),
-    reraise=True
+    retry_error_callback=_return_last_result
 )
 def move_study(host, port, calling_aet, called_aet, move_destination, study_uid, query_level="STUDY"):
     """
