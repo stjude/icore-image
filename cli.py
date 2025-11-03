@@ -6,6 +6,7 @@ import yaml
 from module_imageqr import imageqr
 from module_imagedeid_local import imagedeid_local
 from module_imagedeid_pacs import imagedeid_pacs
+from module_textdeid import textdeid
 from utils import PacsConfiguration, Spreadsheet
 
 
@@ -93,6 +94,16 @@ def build_imagedeid_local_params(config, input_dir, output_dir):
     }
 
 
+def build_textdeid_params(config, input_dir, output_dir):
+    input_file = os.path.join(input_dir, "input.xlsx")
+    return {
+        "input_file": input_file,
+        "output_dir": output_dir,
+        "to_keep_list": config.get("to_keep_list"),
+        "to_remove_list": config.get("to_remove_list")
+    }
+
+
 def run(config_path, input_dir, output_dir):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -108,6 +119,9 @@ def run(config_path, input_dir, output_dir):
     elif module == "imagedeid_local":
         params = build_imagedeid_local_params(config, input_dir, output_dir)
         return imagedeid_local(**params)
+    elif module == "textdeid":
+        params = build_textdeid_params(config, input_dir, output_dir)
+        return textdeid(**params)
     else:
         raise ValueError(f"Unknown module: {module}")
 

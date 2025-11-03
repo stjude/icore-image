@@ -9,6 +9,7 @@ from cli import (
     build_imageqr_params,
     build_imagedeid_pacs_params,
     build_imagedeid_local_params,
+    build_textdeid_params,
     run
 )
 from utils import PacsConfiguration, Spreadsheet
@@ -297,4 +298,59 @@ def test_run_calls_imagedeid_local_with_correct_params(tmp_path):
         assert call_kwargs["output_dir"] == output_dir
         assert call_kwargs["filter_script"] == "Modality.contains(\"CT\")"
         assert result == {"num_images_saved": 50}
+
+
+def test_build_textdeid_params_maps_config_keys_correctly(tmp_path):
+    config = {
+        "to_keep_list": ["medical", "term"],
+        "to_remove_list": ["secret", "data"]
+    }
+    input_dir = str(tmp_path)
+    input_file = tmp_path / "input.xlsx"
+    input_file.touch()
+    output_dir = str(tmp_path / "output")
+    
+    params = build_textdeid_params(config, input_dir, output_dir)
+    
+    assert params["input_file"] == str(input_file)
+    assert params["output_dir"] == output_dir
+    assert params["to_keep_list"] == ["medical", "term"]
+    assert params["to_remove_list"] == ["secret", "data"]
+
+
+def test_build_textdeid_params_handles_missing_optional_params(tmp_path):
+    config = {}
+    input_dir = str(tmp_path)
+    input_file = tmp_path / "input.xlsx"
+    input_file.touch()
+    output_dir = str(tmp_path / "output")
+    
+    params = build_textdeid_params(config, input_dir, output_dir)
+    
+    assert params["input_file"] == str(input_file)
+    assert params["output_dir"] == output_dir
+    assert params["to_keep_list"] is None
+    assert params["to_remove_list"] is None
+
+
+def test_run_calls_textdeid_with_correct_params(tmp_path):
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("module: textdeid\nto_keep_list:\n  - medical\nto_remove_list:\n  - secret")
+    input_dir = str(tmp_path / "input")
+    os.makedirs(input_dir)
+    (tmp_path / "input" / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('cli.textdeid') as mock_textdeid:
+        mock_textdeid.return_value = {"num_rows_processed": 10}
+        
+        result = run(str(config_path), input_dir, output_dir)
+        
+        mock_textdeid.assert_called_once()
+        call_kwargs = mock_textdeid.call_args.kwargs
+        assert call_kwargs["input_file"] == os.path.join(input_dir, "input.xlsx")
+        assert call_kwargs["output_dir"] == output_dir
+        assert call_kwargs["to_keep_list"] == ["medical"]
+        assert call_kwargs["to_remove_list"] == ["secret"]
+        assert result == {"num_rows_processed": 10}
 
