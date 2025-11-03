@@ -364,8 +364,29 @@ def test_imagedeid_local_pipeline(tmp_path):
     
     source_ctp = Path(__file__).parent / "ctp"
     
+    lookup_table = """acc/ACC000=100
+acc/ACC001=101
+acc/ACC002=102
+acc/ACC003=103
+acc/ACC004=104
+acc/ACC005=105
+acc/ACC006=106
+acc/ACC007=107
+acc/ACC008=108
+acc/ACC009=109
+ptid/P000=P100
+ptid/P001=P101
+ptid/P002=P102
+ptid/P003=P103
+ptid/P004=P104
+ptid/P005=P105
+ptid/P006=P106
+"""
+    
     anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@lookup(this, ptid, default, "test")</e>
+<e en="T" t="00080050" n="AccessionNumber">@lookup(this, acc, default, "test")</e>
 </script>"""
     
     with CTPPipeline(
@@ -373,6 +394,7 @@ def test_imagedeid_local_pipeline(tmp_path):
         output_dir=str(output_dir),
         input_dir=str(input_dir),
         anonymizer_script=anonymizer_script,
+        lookup_table=lookup_table,
         source_ctp_dir=str(source_ctp)
     ) as pipeline:
         start_time = time.time()
@@ -383,10 +405,41 @@ def test_imagedeid_local_pipeline(tmp_path):
                 raise TimeoutError("Pipeline did not complete")
             time.sleep(1)
         
-        assert pipeline.metrics.files_saved + pipeline.metrics.files_quarantined == 10
+        assert pipeline.metrics.files_saved + pipeline.metrics.files_quarantined == 10, \
+            f"Expected 10 total files, got {pipeline.metrics.files_saved} saved + {pipeline.metrics.files_quarantined} quarantined"
         
         output_files = list(output_dir.rglob("*.dcm"))
-        assert len(output_files) == 10
+        assert len(output_files) == 10, f"Expected 10 output files, got {len(output_files)}"
+        
+        found_patient_ids = set()
+        found_accessions = set()
+        
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            
+            assert ds.PatientName == "", f"PatientName should be empty"
+            
+            found_patient_ids.add(ds.PatientID)
+            found_accessions.add(ds.AccessionNumber)
+            
+            if ds.PatientID.startswith("P1"):
+                original_index = int(ds.PatientID[1:]) - 100
+                expected_accession = str(100 + original_index)
+                assert ds.AccessionNumber == expected_accession, \
+                    f"PatientID {ds.PatientID}: AccessionNumber should be {expected_accession}, got {ds.AccessionNumber}"
+            elif ds.PatientID == "test":
+                assert ds.AccessionNumber in ["107", "108", "109"], \
+                    f"PatientID 'test': AccessionNumber should be 107, 108, or 109, got {ds.AccessionNumber}"
+            else:
+                raise AssertionError(f"Unexpected PatientID: {ds.PatientID}")
+        
+        expected_patient_ids = {f"P{100+i}" for i in range(7)} | {"test"}
+        assert found_patient_ids == expected_patient_ids, \
+            f"Expected PatientIDs {expected_patient_ids}, found {found_patient_ids}"
+        
+        expected_accessions = {str(100+i) for i in range(10)}
+        assert found_accessions == expected_accessions, \
+            f"Expected AccessionNumbers {expected_accessions}, found {found_accessions}"
 
 
 def test_imagedeid_local_with_filter(tmp_path):
