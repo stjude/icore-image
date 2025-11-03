@@ -19,8 +19,17 @@ def _get_default_ctp_source_dir():
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
         source_ctp_dir = os.path.join(bundle_dir, '_internal', 'ctp')
     else:
-        source_ctp_dir = "ctp"
+        source_ctp_dir = os.path.join(os.path.dirname(__file__), 'ctp')
     return source_ctp_dir
+
+
+def _get_default_java_home():
+    if getattr(sys, 'frozen', False):
+        bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
+        java_home = os.path.join(bundle_dir, '_internal', 'jre8', 'Contents', 'Home')
+    else:
+        java_home = os.path.join(os.path.dirname(__file__), 'jre8', 'Contents', 'Home')
+    return java_home
 
 
 def is_port_available(port):
@@ -151,10 +160,7 @@ class CTPServer:
     def start(self):
         self._cleanup_existing_server()
         
-        java_home = os.environ.get('JAVA_HOME')
-        if not java_home:
-            raise RuntimeError("JAVA_HOME environment variable is not set")
-        
+        java_home = _get_default_java_home()
         java_executable = os.path.join(java_home, "bin", "java")
         
         cmd = [

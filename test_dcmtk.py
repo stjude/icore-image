@@ -247,20 +247,6 @@ def test_move_study_failure():
     assert "UnableToProcess" in result["message"]
 
 
-def test_dcmtk_home_not_set():
-    from dcmtk import find_studies
-    
-    with mock.patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(KeyError, match="DCMTK_HOME"):
-            find_studies(
-                host="localhost",
-                port=11112,
-                calling_aet="TEST_SCU",
-                called_aet="ORTHANC_TEST",
-                query_params={"AccessionNumber": "TEST"},
-            )
-
-
 def test_invalid_xml_response(tmp_path):
     from dcmtk import find_studies, DCMTKParseError
     

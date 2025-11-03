@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -18,9 +19,18 @@ class DCMTKParseError(DCMTKError):
     pass
 
 
+def _get_default_dcmtk_home():
+    if getattr(sys, 'frozen', False):
+        bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
+        dcmtk_home = os.path.join(bundle_dir, '_internal', 'dcmtk')
+    else:
+        dcmtk_home = os.path.join(os.path.dirname(__file__), 'dcmtk')
+    return dcmtk_home
+
+
 def _build_dcmtk_env():
     env = os.environ.copy()
-    dcmtk_home = os.environ['DCMTK_HOME']
+    dcmtk_home = _get_default_dcmtk_home()
     env['DCMDICTPATH'] = os.path.join(dcmtk_home, 'share', 'dcmtk-3.6.9', 'dicom.dic')
     return env
 
@@ -103,7 +113,7 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
         DCMTKCommandError: If findscu command fails
         DCMTKParseError: If XML response cannot be parsed
     """
-    dcmtk_home = os.environ['DCMTK_HOME']
+    dcmtk_home = _get_default_dcmtk_home()
     findscu_binary = os.path.join(dcmtk_home, 'bin', 'findscu')
     
     with tempfile.NamedTemporaryFile(suffix='.xml', delete=False, mode='w') as xml_file:
@@ -172,7 +182,7 @@ def move_study(host, port, calling_aet, called_aet, move_destination, study_uid,
         Dict with keys: success (bool), num_completed (int), num_failed (int),
         num_warning (int), message (str)
     """
-    dcmtk_home = os.environ['DCMTK_HOME']
+    dcmtk_home = _get_default_dcmtk_home()
     movescu_binary = os.path.join(dcmtk_home, 'bin', 'movescu')
     
     cmd = [
