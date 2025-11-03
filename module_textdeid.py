@@ -3,10 +3,12 @@ import re
 import string
 import sys
 import pandas as pd
+import logging
 from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
+from utils import setup_run_directories, configure_run_logging
 
 
 def create_analyzer_engine():
