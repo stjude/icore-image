@@ -6,7 +6,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, retry_if_result
+from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result
 
 
 class DCMTKError(Exception):
@@ -96,8 +96,8 @@ def _parse_move_output(stderr, returncode):
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
+    stop=stop_after_attempt(4),
+    wait=wait_chain(wait_fixed(4), wait_fixed(16), wait_fixed(32)),
     retry=(retry_if_exception_type(DCMTKCommandError) | retry_if_exception_type(DCMTKParseError)),
     reraise=True
 )
@@ -174,8 +174,8 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
+    stop=stop_after_attempt(4),
+    wait=wait_chain(wait_fixed(4), wait_fixed(16), wait_fixed(32)),
     retry=retry_if_result(lambda result: not result["success"]),
     reraise=True
 )
