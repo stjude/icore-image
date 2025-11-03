@@ -3,7 +3,7 @@ import os
 import yaml
 import subprocess
 
-ICORE_PROCESSOR_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'bin', 'icore_processor', 'icore_processor')
+ICORE_PROCESSOR_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'bin', 'icorecli', 'icorecli')
 
 
 def create_parser():

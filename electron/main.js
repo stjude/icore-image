@@ -32,10 +32,9 @@ function checkAdminPassword() {
 
 function installProcessor() {
     if (app.isPackaged) {
-        const userProcessorDir = path.join(os.homedir(), 'iCore', 'bin', 'icore_processor');
-        const resourceProcessorPath = path.join(process.resourcesPath, 'app', 'assets', 'dist', 'icore_processor');
+        const userProcessorDir = path.join(os.homedir(), 'iCore', 'bin', 'icorecli');
+        const resourceProcessorPath = path.join(process.resourcesPath, 'app', 'assets', 'dist', 'icorecli');
         
-        // Always copy to ensure updates are deployed
         if (fs.existsSync(userProcessorDir)) {
             fs.rmSync(userProcessorDir, { recursive: true, force: true });
         }
@@ -43,8 +42,7 @@ function installProcessor() {
         fs.mkdirSync(path.dirname(userProcessorDir), { recursive: true });
         fs.cpSync(resourceProcessorPath, userProcessorDir, { recursive: true });
         
-        // Make the binary executable
-        const binaryPath = path.join(userProcessorDir, 'icore_processor');
+        const binaryPath = path.join(userProcessorDir, 'icorecli');
         if (fs.existsSync(binaryPath)) {
             fs.chmodSync(binaryPath, '755');
         }

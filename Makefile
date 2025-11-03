@@ -1,5 +1,5 @@
 .PHONY: all signed clean deps deps-python deps-deid deps-electron test
-.PHONY: external-deps jre8 dcmtk build-binaries build-icore-processor build-django-app
+.PHONY: external-deps jre8 dcmtk build-binaries build-icorecli build-django-app
 .PHONY: prepare-assets build-dmg build-dmg-signed
 
 .DEFAULT_GOAL := all
@@ -44,9 +44,9 @@ dcmtk:
 
 external-deps: jre8 dcmtk
 
-build-icore-processor:
+build-icorecli:
 	rm -rf dist
-	pyinstaller --clean -y icore_processor.spec
+	pyinstaller --clean -y icorecli.spec
 
 build-django-app:
 	cd deid && \
@@ -54,13 +54,13 @@ build-django-app:
 		pyinstaller --clean -y processor.spec && \
 		pyinstaller --clean -y initialize_admin_password.spec
 
-build-binaries: build-icore-processor build-django-app
+build-binaries: build-icorecli build-django-app
 
 prepare-assets:
 	rm -rf electron/assets/dist
 	cp deid/home/settings.json electron/assets
 	ditto deid/dist electron/assets/dist
-	ditto dist/icore_processor electron/assets/dist/icore_processor
+	ditto dist/icorecli electron/assets/dist/icorecli
 
 build-dmg:
 	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=false npm run build

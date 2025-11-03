@@ -30,6 +30,7 @@ SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.icore')
 APP_DATA_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'app_data')
 AUTHENTICATION_LOG_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'authentication.log')
 SECURE_DIR = os.path.join(os.path.expanduser('~'), '.secure', '.config', '.sysdata')
+LOGS_DIR = os.path.join(os.path.expanduser('~'), 'Documents', 'iCore', 'logs')
 
 AUTH_LOGGER = logging.getLogger('authentication')
 AUTH_LOGGER.setLevel(logging.INFO)
@@ -40,6 +41,18 @@ auth_formatter = logging.Formatter("%(asctime)s %(levelname)-5s %(message)s", da
 auth_handler.setFormatter(auth_formatter)
 
 AUTH_LOGGER.addHandler(auth_handler)
+
+def get_latest_log_path():
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    try:
+        timestamp_folders = [d for d in os.listdir(LOGS_DIR) if os.path.isdir(os.path.join(LOGS_DIR, d))]
+        if not timestamp_folders:
+            return None
+        latest_folder = max(timestamp_folders)
+        log_path = os.path.join(LOGS_DIR, latest_folder, 'run.txt')
+        return log_path
+    except Exception:
+        return None
 
 class CommonContextMixin:
     def get_common_context(self):
@@ -197,7 +210,7 @@ def run_header_query(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            log_path=get_latest_log_path(),
             task_type=Project.TaskType.HEADER_QUERY,
             output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
@@ -230,7 +243,7 @@ def run_header_extract(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            log_path=get_latest_log_path(),
             task_type=Project.TaskType.HEADER_EXTRACT,
             input_folder=data['input_folder'],
             output_folder=data['output_folder'],
@@ -269,7 +282,7 @@ def run_deid(request):
             project = Project.objects.create(
                 name=data['study_name'],
                 timestamp=timestamp,
-                log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+                log_path=get_latest_log_path(),
                 task_type=Project.TaskType.IMAGE_DEID,
                 image_source=data['image_source'],
                 input_folder=data['input_folder'],
@@ -335,7 +348,7 @@ def run_query(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            log_path=get_latest_log_path(),
             task_type=Project.TaskType.IMAGE_QUERY,
             output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
@@ -378,7 +391,7 @@ def run_text_deid(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            log_path=get_latest_log_path(),
             task_type=Project.TaskType.TEXT_DEID,
             output_folder=data['output_folder'],
             status=Project.TaskStatus.PENDING,
@@ -409,7 +422,7 @@ def run_export(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            log_path=get_latest_log_path(),
             task_type=Project.TaskType.IMAGE_EXPORT,
             input_folder=data['input_folder'],
             status=Project.TaskStatus.PENDING,
@@ -437,7 +450,7 @@ def run_general_module(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=f"{APP_DATA_PATH}/PHI_{data['study_name']}_{timestamp}/log.txt",
+            log_path=get_latest_log_path(),
             task_type=Project.TaskType.GENERAL_MODULE,
             input_folder=data['input_folder'],
             output_folder=data['output_folder'],

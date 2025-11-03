@@ -18,19 +18,19 @@
                 </a>
             </div>
             <div class="flex-initial my-auto text-sm text-gray-700">
-                <a href="/task_list" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/task_list/' %}bg-gray-100{% endif %}">Tasks</a>
+                <!-- <a href="/task_list" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/task_list/' %}bg-gray-100{% endif %}">Tasks</a> -->
                 <a href="/settings/general" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/settings/general/' %}bg-gray-100{% endif %}">Settings</a>
             </div>
         </header>
         <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24">
             <a href="/imagequery" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %}">Image Query / Retrieve</a>
-            <a href="/header_extract" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/header_extract/' %}bg-gray-100{% endif %}">DICOM Header Extraction</a>
+            <!-- <a href="/header_extract" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/header_extract/' %}bg-gray-100{% endif %}">DICOM Header Extraction</a> -->
             <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %}">Image De-identification</a>
             <a href="/textdeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/textdeid/' %}bg-gray-100{% endif %}">Text De-identification</a>
-            <a href="/image_export" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/image_export/' %}bg-gray-100{% endif %}">Secure Data Transfer</a>
-        {% for module in modules %}
+            <!-- <a href="/image_export" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/image_export/' %}bg-gray-100{% endif %}">Secure Data Transfer</a> -->
+        <!-- {% for module in modules %}
             <a href="/{{ module.name }}" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/{{ module.name }}/' %}bg-gray-100{% endif %}">{{ module.name }}</a>
-        {% endfor %}
+        {% endfor %} -->
         </section>
         <section class="w-full h-screen pt-24 pl-64">
             <div class="max-w-4xl mx-auto mb-10">
