@@ -21,8 +21,21 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Setup Docker (macOS)
-        uses: douglascamata/setup-docker-macos-action@v1
+      - name: Install Colima and Docker
+        run: |
+          brew install docker colima
+      
+      - name: Start Colima with Docker
+        run: |
+          colima start --cpu 4 --memory 8
+          
+      - name: Verify Docker is working
+        run: |
+          docker version
+          docker info
+          
+      - name: Wait for Docker to be fully ready
+        run: sleep 10
       
       - name: Install dependencies
         run: make deps external-deps
