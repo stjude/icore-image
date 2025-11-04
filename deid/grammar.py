@@ -64,8 +64,8 @@ def build_tag_dict():
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
         bundle_dir = sys._MEIPASS
-        dict_path = os.path.join(bundle_dir, 'resources', 'dictionary.xml')
-        mapping_path = os.path.join(bundle_dir, 'resources', 'pydicom_ctp_tag_dictionary.xml')
+        dict_path = Path(bundle_dir) / 'resources' / 'dictionary.xml'
+        mapping_path = Path(bundle_dir) / 'resources' / 'pydicom_ctp_tag_dictionary.xml'
     else:
         # Running in normal Python
         dict_path = Path(__file__).parent.parent / 'resources' / 'dictionary.xml'
