@@ -12,6 +12,10 @@ const mockDialog = {
   showMessageBox: jest.fn().mockResolvedValue({ response: 0 })
 };
 
+const mockIpcMain = {
+  handle: jest.fn()
+};
+
 let mockWindowInstance;
 const mockBrowserWindow = jest.fn().mockImplementation(() => {
   mockWindowInstance = {
@@ -44,7 +48,8 @@ const mockInitializeApp = jest.fn().mockResolvedValue(undefined);
 jest.mock('electron', () => ({
   app: mockApp,
   BrowserWindow: mockBrowserWindow,
-  dialog: mockDialog
+  dialog: mockDialog,
+  ipcMain: mockIpcMain
 }));
 
 jest.mock('child_process', () => ({

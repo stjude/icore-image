@@ -364,6 +364,47 @@ describe('initializeApp', () => {
       spawnFn: mockSpawn
     })).rejects.toThrow();
   });
+
+  it('migrates old location files before initializing new location', async () => {
+    const oldLocationDir = path.join(tempDir, '.icore');
+    const baseDir = path.join(tempDir, 'iCore');
+    const configDir = path.join(baseDir, 'config');
+    const dbPath = path.join(configDir, 'db.sqlite3');
+    const settingsPath = path.join(configDir, 'settings.json');
+    const defaultSettingsPath = path.join(tempDir, 'default-settings.json');
+    const managePath = path.join(tempDir, 'manage');
+    
+    fs.mkdirSync(oldLocationDir, { recursive: true });
+    fs.writeFileSync(path.join(oldLocationDir, 'db.sqlite3'), 'old db');
+    fs.writeFileSync(path.join(oldLocationDir, 'settings.json'), JSON.stringify({ migrated: true }));
+    fs.writeFileSync(defaultSettingsPath, JSON.stringify({ migrated: false, newKey: 'value' }));
+    
+    const mockSpawn = jest.fn(() => ({
+      on: jest.fn((event, callback) => {
+        if (event === 'close') {
+          callback(0);
+        }
+      })
+    }));
+
+    await initializeApp({
+      baseDir,
+      dbPath,
+      settingsPath,
+      defaultSettingsPath,
+      managePath,
+      spawnFn: mockSpawn,
+      oldLocationDir
+    });
+
+    expect(fs.existsSync(dbPath)).toBe(true);
+    expect(fs.readFileSync(dbPath, 'utf8')).toBe('old db');
+    expect(fs.existsSync(settingsPath)).toBe(true);
+    
+    const mergedSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(mergedSettings.migrated).toBe(true);
+    expect(mergedSettings.newKey).toBe('value');
+  });
 });
 
 describe('binary path resolution', () => {
@@ -380,6 +421,147 @@ describe('binary path resolution', () => {
     );
     
     expect(computedIcoreCliPath).toBe(expectedIcoreCliPath);
+  });
+});
+
+describe('migrateFromOldLocation', () => {
+  let tempDir;
+  let oldLocationDir;
+  let newLocationDir;
+  const { migrateFromOldLocation } = require('./setup');
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'icore-test-'));
+    oldLocationDir = path.join(tempDir, '.icore');
+    newLocationDir = path.join(tempDir, 'Documents', 'iCore', 'config');
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('migrates both db.sqlite3 and settings.json when old location has both files and new location is empty', () => {
+    const oldDb = path.join(oldLocationDir, 'db.sqlite3');
+    const oldSettings = path.join(oldLocationDir, 'settings.json');
+    const newDb = path.join(newLocationDir, 'db.sqlite3');
+    const newSettings = path.join(newLocationDir, 'settings.json');
+
+    fs.mkdirSync(oldLocationDir, { recursive: true });
+    fs.writeFileSync(oldDb, 'old db content');
+    fs.writeFileSync(oldSettings, JSON.stringify({ oldKey: 'oldValue' }));
+
+    migrateFromOldLocation(oldLocationDir, newLocationDir);
+
+    expect(fs.existsSync(newDb)).toBe(true);
+    expect(fs.existsSync(newSettings)).toBe(true);
+    expect(fs.readFileSync(newDb, 'utf8')).toBe('old db content');
+    expect(JSON.parse(fs.readFileSync(newSettings, 'utf8'))).toEqual({ oldKey: 'oldValue' });
+    
+    expect(fs.existsSync(oldDb)).toBe(true);
+    expect(fs.existsSync(oldSettings)).toBe(true);
+  });
+
+  it('does not migrate when new location already has db.sqlite3', () => {
+    const oldDb = path.join(oldLocationDir, 'db.sqlite3');
+    const oldSettings = path.join(oldLocationDir, 'settings.json');
+    const newDb = path.join(newLocationDir, 'db.sqlite3');
+    const newSettings = path.join(newLocationDir, 'settings.json');
+
+    fs.mkdirSync(oldLocationDir, { recursive: true });
+    fs.mkdirSync(newLocationDir, { recursive: true });
+    fs.writeFileSync(oldDb, 'old db content');
+    fs.writeFileSync(oldSettings, JSON.stringify({ oldKey: 'oldValue' }));
+    fs.writeFileSync(newDb, 'new db content');
+
+    migrateFromOldLocation(oldLocationDir, newLocationDir);
+
+    expect(fs.readFileSync(newDb, 'utf8')).toBe('new db content');
+    expect(fs.existsSync(newSettings)).toBe(false);
+  });
+
+  it('does not migrate when new location already has settings.json', () => {
+    const oldDb = path.join(oldLocationDir, 'db.sqlite3');
+    const oldSettings = path.join(oldLocationDir, 'settings.json');
+    const newDb = path.join(newLocationDir, 'db.sqlite3');
+    const newSettings = path.join(newLocationDir, 'settings.json');
+
+    fs.mkdirSync(oldLocationDir, { recursive: true });
+    fs.mkdirSync(newLocationDir, { recursive: true });
+    fs.writeFileSync(oldDb, 'old db content');
+    fs.writeFileSync(oldSettings, JSON.stringify({ oldKey: 'oldValue' }));
+    fs.writeFileSync(newSettings, JSON.stringify({ newKey: 'newValue' }));
+
+    migrateFromOldLocation(oldLocationDir, newLocationDir);
+
+    expect(fs.existsSync(newDb)).toBe(false);
+    expect(JSON.parse(fs.readFileSync(newSettings, 'utf8'))).toEqual({ newKey: 'newValue' });
+  });
+
+  it('does nothing when old location does not exist', () => {
+    const newDb = path.join(newLocationDir, 'db.sqlite3');
+    const newSettings = path.join(newLocationDir, 'settings.json');
+
+    migrateFromOldLocation(oldLocationDir, newLocationDir);
+
+    expect(fs.existsSync(newDb)).toBe(false);
+    expect(fs.existsSync(newSettings)).toBe(false);
+  });
+
+  it('migrates only settings.json when only settings.json exists in old location', () => {
+    const oldSettings = path.join(oldLocationDir, 'settings.json');
+    const newDb = path.join(newLocationDir, 'db.sqlite3');
+    const newSettings = path.join(newLocationDir, 'settings.json');
+
+    fs.mkdirSync(oldLocationDir, { recursive: true });
+    fs.writeFileSync(oldSettings, JSON.stringify({ oldKey: 'oldValue' }));
+
+    migrateFromOldLocation(oldLocationDir, newLocationDir);
+
+    expect(fs.existsSync(newDb)).toBe(false);
+    expect(fs.existsSync(newSettings)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(newSettings, 'utf8'))).toEqual({ oldKey: 'oldValue' });
+  });
+
+  it('migrates only db.sqlite3 when only db.sqlite3 exists in old location', () => {
+    const oldDb = path.join(oldLocationDir, 'db.sqlite3');
+    const newDb = path.join(newLocationDir, 'db.sqlite3');
+    const newSettings = path.join(newLocationDir, 'settings.json');
+
+    fs.mkdirSync(oldLocationDir, { recursive: true });
+    fs.writeFileSync(oldDb, 'old db content');
+
+    migrateFromOldLocation(oldLocationDir, newLocationDir);
+
+    expect(fs.existsSync(newDb)).toBe(true);
+    expect(fs.existsSync(newSettings)).toBe(false);
+    expect(fs.readFileSync(newDb, 'utf8')).toBe('old db content');
+  });
+
+  it('creates new location directory if it does not exist during migration', () => {
+    const oldDb = path.join(oldLocationDir, 'db.sqlite3');
+    const oldSettings = path.join(oldLocationDir, 'settings.json');
+    const newDb = path.join(newLocationDir, 'db.sqlite3');
+    const newSettings = path.join(newLocationDir, 'settings.json');
+
+    fs.mkdirSync(oldLocationDir, { recursive: true });
+    fs.writeFileSync(oldDb, 'old db content');
+    fs.writeFileSync(oldSettings, JSON.stringify({ oldKey: 'oldValue' }));
+
+    expect(fs.existsSync(newLocationDir)).toBe(false);
+
+    migrateFromOldLocation(oldLocationDir, newLocationDir);
+
+    expect(fs.existsSync(newLocationDir)).toBe(true);
+    expect(fs.existsSync(newDb)).toBe(true);
+    expect(fs.existsSync(newSettings)).toBe(true);
+  });
+
+  it('does not throw when old location directory exists but is empty', () => {
+    fs.mkdirSync(oldLocationDir, { recursive: true });
+
+    expect(() => migrateFromOldLocation(oldLocationDir, newLocationDir)).not.toThrow();
   });
 });
 

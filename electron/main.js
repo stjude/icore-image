@@ -15,6 +15,7 @@ const logsDir = path.join(baseDir, 'logs', 'system');
 const logFilePath = path.join(logsDir, 'log.txt');
 const dbPath = path.join(configDir, 'db.sqlite3');
 const settingsPath = path.join(configDir, 'settings.json');
+const oldLocationDir = path.join(os.homedir(), '.icore');
 
 let logStream;
 
@@ -91,7 +92,8 @@ app.on('ready', async () => {
       defaultSettingsPath,
       managePath,
       spawnFn: spawn,
-      isDev
+      isDev,
+      oldLocationDir
     });
 
     fs.mkdirSync(logsDir, { recursive: true });

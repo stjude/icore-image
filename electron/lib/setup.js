@@ -55,6 +55,36 @@ function mergeSettings(userSettingsPath, defaultSettingsPath) {
   fs.writeFileSync(userSettingsPath, JSON.stringify(mergedSettings, null, 2));
 }
 
+function migrateFromOldLocation(oldLocationDir, newLocationDir) {
+  if (!fs.existsSync(oldLocationDir)) {
+    return;
+  }
+
+  const oldDbPath = path.join(oldLocationDir, 'db.sqlite3');
+  const oldSettingsPath = path.join(oldLocationDir, 'settings.json');
+  const newDbPath = path.join(newLocationDir, 'db.sqlite3');
+  const newSettingsPath = path.join(newLocationDir, 'settings.json');
+
+  if (fs.existsSync(newDbPath) || fs.existsSync(newSettingsPath)) {
+    return;
+  }
+
+  const shouldMigrateDb = fs.existsSync(oldDbPath);
+  const shouldMigrateSettings = fs.existsSync(oldSettingsPath);
+
+  if (shouldMigrateDb || shouldMigrateSettings) {
+    fs.mkdirSync(newLocationDir, { recursive: true });
+  }
+
+  if (shouldMigrateDb) {
+    fs.copyFileSync(oldDbPath, newDbPath);
+  }
+
+  if (shouldMigrateSettings) {
+    fs.copyFileSync(oldSettingsPath, newSettingsPath);
+  }
+}
+
 function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false) {
   return new Promise((resolve, reject) => {
     let stdout = '';
@@ -92,9 +122,15 @@ function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false) {
 }
 
 async function initializeApp(config) {
-  const { baseDir, dbPath, settingsPath, defaultSettingsPath, managePath, spawnFn, isDev } = config;
+  const { baseDir, dbPath, settingsPath, defaultSettingsPath, managePath, spawnFn, isDev, oldLocationDir } = config;
   
   ensureDirectories(baseDir);
+  
+  if (oldLocationDir) {
+    const configDir = path.dirname(dbPath);
+    migrateFromOldLocation(oldLocationDir, configDir);
+  }
+  
   ensureDatabase(dbPath);
   mergeSettings(settingsPath, defaultSettingsPath);
   await runMigration(managePath, dbPath, spawnFn, isDev);
@@ -104,6 +140,7 @@ module.exports = {
   ensureDirectories,
   ensureDatabase,
   mergeSettings,
+  migrateFromOldLocation,
   runMigration,
   initializeApp
 };
