@@ -6,7 +6,8 @@
 
 test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
-	pytest -v
+	pytest
+	cd electron && npm test
 
 deps: deps-python deps-deid deps-electron
 
