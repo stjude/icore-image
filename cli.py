@@ -3,8 +3,6 @@ import sys
 
 import yaml
 
-from utils import PacsConfiguration, Spreadsheet
-
 
 def determine_module(config, input_dir):
     module = config.get("module")
@@ -23,6 +21,8 @@ def determine_module(config, input_dir):
 
 
 def build_imageqr_params(config, input_dir, output_dir):
+    from utils import PacsConfiguration, Spreadsheet
+    
     pacs_list = [
         PacsConfiguration(
             host=pacs["ip"],
@@ -51,6 +51,8 @@ def build_imageqr_params(config, input_dir, output_dir):
 
 
 def build_imagedeid_pacs_params(config, input_dir, output_dir):
+    from utils import PacsConfiguration, Spreadsheet
+    
     pacs_list = [
         PacsConfiguration(
             host=pacs["ip"],
