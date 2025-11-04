@@ -33,6 +33,17 @@ AUTHENTICATION_LOG_PATH = os.path.join(ICORE_BASE_DIR, 'logs', 'system', 'authen
 SECURE_DIR = os.path.join(os.path.expanduser('~'), '.secure', '.config', '.sysdata')
 LOGS_DIR = os.path.join(ICORE_BASE_DIR, 'logs')
 
+
+def validate_pacs_configuration(pacs_configs):
+    if not pacs_configs or len(pacs_configs) == 0:
+        return False
+    
+    for pacs in pacs_configs:
+        if not pacs.get('ip') or not pacs.get('port') or not pacs.get('ae'):
+            return False
+    
+    return True
+
 os.makedirs(os.path.dirname(AUTHENTICATION_LOG_PATH), exist_ok=True)
 
 AUTH_LOGGER = logging.getLogger('authentication')
@@ -262,6 +273,13 @@ def run_header_query(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
+        
+        if not validate_pacs_configuration(data.get('pacs_configs', [])):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No PACS configured. Please configure PACS settings before running a query.'
+            }, status=400)
+        
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         project = Project.objects.create(
             name=data['study_name'],
@@ -325,6 +343,13 @@ def run_deid(request):
         try:
             if request.method == 'POST':
                 data = json.loads(request.body)
+            
+            if data.get('image_source') == 'PACS':
+                if not validate_pacs_configuration(data.get('pacs_configs', [])):
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': 'No PACS configured. Please configure PACS settings before running a query.'
+                    }, status=400)
             
             scheduled_time = None
             if 'scheduled_time' in data:
@@ -392,6 +417,13 @@ def run_query(request):
     try:
         if request.method == 'POST':
             data = json.loads(request.body)
+        
+        if not validate_pacs_configuration(data.get('pacs_configs', [])):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No PACS configured. Please configure PACS settings before running a query.'
+            }, status=400)
+        
         scheduled_time = None
         if 'scheduled_time' in data:
             settings = json.load(open(os.path.join(SETTINGS_DIR, 'settings.json')))

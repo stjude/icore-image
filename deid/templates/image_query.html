@@ -8,7 +8,7 @@
 </div>
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
     <div class="text-sm text-black-5">Project Name</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" onkeypress="return event.charCode !== 32"/>
     <div class="text-sm text-gray-500 mt-4">Input File</div>
     <div class="flex items-center">
         <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" />
@@ -207,9 +207,11 @@
                 window.location.href = `/task_progress?project_id=${result.project_id}`;
             } else {
                 console.error('Error starting query:', result);
+                alert(result.message || 'Error starting query');
             }
         } catch (error) {
             console.error('Error:', error);
+            alert('Error starting query: ' + error.message);
         }
     }
 

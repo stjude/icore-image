@@ -371,9 +371,11 @@
                 }
             } else {
                 console.error('Error starting de-identification:', result);
+                alert(result.message || 'Error starting de-identification');
             }
         } catch (error) {
             console.error('Error:', error);
+            alert('Error starting de-identification: ' + error.message);
         }
     }
 
