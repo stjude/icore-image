@@ -777,7 +777,7 @@
   <element tag="(0018,1005)" name="Generator ID" vr="LO" vm="1" key="GeneratorID"/>
   <element tag="(0018,1006)" name="Grid ID" vr="LO" vm="1" key="GridID"/>
   <element tag="(0018,1007)" name="Cassette ID" vr="LO" vm="1" key="CassetteID"/>
-  <element tag="(0018,1008)" name="Gantry ID" vr="LO" vm="1" key="GantyID"/>
+  <element tag="(0018,1008)" name="Gantry ID" vr="LO" vm="1" key="GantryID"/>
   <element tag="(0018,1009)" name="Unique Device Identifier" vr="UT" vm="1" key="UniqueDeviceIdentifier"/>
   <element tag="(0018,100A)" name="UDI Sequence" vr="SQ" vm="1" key="UDISeq"/>
   <element tag="(0018,100B)" name="Manufacturer's Device Class UID" vr="UI" vm="1-n" key="ManufacturerDeviceClassUID"/>
