@@ -56,7 +56,7 @@ def test_build_imageqr_params_builds_pacs_configuration_list(tmp_path):
     (tmp_path / "input.xlsx").touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.Spreadsheet.from_file'):
+    with patch('utils.Spreadsheet.from_file'):
         params = build_imageqr_params(config, input_dir, output_dir)
     
     assert "pacs_list" in params
@@ -81,7 +81,7 @@ def test_build_imageqr_params_builds_spreadsheet_with_acc_col(tmp_path):
     input_file.touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.Spreadsheet.from_file') as mock_from_file:
+    with patch('utils.Spreadsheet.from_file') as mock_from_file:
         mock_spreadsheet = MagicMock()
         mock_from_file.return_value = mock_spreadsheet
         
@@ -109,7 +109,7 @@ def test_build_imageqr_params_builds_spreadsheet_with_mrn_and_date_cols(tmp_path
     input_file.touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.Spreadsheet.from_file') as mock_from_file:
+    with patch('utils.Spreadsheet.from_file') as mock_from_file:
         mock_spreadsheet = MagicMock()
         mock_from_file.return_value = mock_spreadsheet
         
@@ -136,7 +136,7 @@ def test_build_imageqr_params_maps_config_keys_correctly(tmp_path):
     (tmp_path / "input.xlsx").touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.Spreadsheet.from_file'):
+    with patch('utils.Spreadsheet.from_file'):
         params = build_imageqr_params(config, input_dir, output_dir)
     
     assert params["application_aet"] == "ICORE"
@@ -155,7 +155,7 @@ def test_build_imageqr_params_date_window_defaults_to_zero(tmp_path):
     (tmp_path / "input.xlsx").touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.Spreadsheet.from_file'):
+    with patch('utils.Spreadsheet.from_file'):
         params = build_imageqr_params(config, input_dir, output_dir)
     
     assert params["date_window_days"] == 0
@@ -173,7 +173,7 @@ def test_build_imagedeid_pacs_params_builds_pacs_configuration_list(tmp_path):
     (tmp_path / "input.xlsx").touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.Spreadsheet.from_file'):
+    with patch('utils.Spreadsheet.from_file'):
         params = build_imagedeid_pacs_params(config, input_dir, output_dir)
     
     assert "pacs_list" in params
@@ -195,7 +195,7 @@ def test_build_imagedeid_pacs_params_maps_config_keys_correctly(tmp_path):
     (tmp_path / "input.xlsx").touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.Spreadsheet.from_file'):
+    with patch('utils.Spreadsheet.from_file'):
         params = build_imagedeid_pacs_params(config, input_dir, output_dir)
     
     assert params["application_aet"] == "ICORE"
@@ -246,8 +246,8 @@ def test_run_calls_imageqr_with_correct_params(tmp_path):
     (tmp_path / "input" / "input.xlsx").touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.imageqr') as mock_imageqr:
-        with patch('cli.Spreadsheet.from_file'):
+    with patch('module_imageqr.imageqr') as mock_imageqr:
+        with patch('utils.Spreadsheet.from_file'):
             mock_imageqr.return_value = {"num_studies_found": 5}
             
             result = run(str(config_path), input_dir, output_dir)
@@ -267,8 +267,8 @@ def test_run_calls_imagedeid_pacs_with_correct_params(tmp_path):
     (tmp_path / "input" / "input.xlsx").touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.imagedeid_pacs') as mock_imagedeid_pacs:
-        with patch('cli.Spreadsheet.from_file'):
+    with patch('module_imagedeid_pacs.imagedeid_pacs') as mock_imagedeid_pacs:
+        with patch('utils.Spreadsheet.from_file'):
             mock_imagedeid_pacs.return_value = {"num_images_saved": 100}
             
             result = run(str(config_path), input_dir, output_dir)
@@ -287,7 +287,7 @@ def test_run_calls_imagedeid_local_with_correct_params(tmp_path):
     os.makedirs(input_dir)
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.imagedeid_local') as mock_imagedeid_local:
+    with patch('module_imagedeid_local.imagedeid_local') as mock_imagedeid_local:
         mock_imagedeid_local.return_value = {"num_images_saved": 50}
         
         result = run(str(config_path), input_dir, output_dir)
@@ -341,7 +341,7 @@ def test_run_calls_textdeid_with_correct_params(tmp_path):
     (tmp_path / "input" / "input.xlsx").touch()
     output_dir = str(tmp_path / "output")
     
-    with patch('cli.textdeid') as mock_textdeid:
+    with patch('module_textdeid.textdeid') as mock_textdeid:
         mock_textdeid.return_value = {"num_rows_processed": 10}
         
         result = run(str(config_path), input_dir, output_dir)
