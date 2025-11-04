@@ -57,7 +57,7 @@ def test_build_imageqr_params_builds_pacs_configuration_list(tmp_path):
     output_dir = str(tmp_path / "output")
     
     with patch('utils.Spreadsheet.from_file'):
-        params = build_imageqr_params(config, input_dir, output_dir)
+        params = build_imageqr_params(config, input_dir, output_dir, {})
     
     assert "pacs_list" in params
     assert len(params["pacs_list"]) == 2
@@ -85,7 +85,7 @@ def test_build_imageqr_params_builds_spreadsheet_with_acc_col(tmp_path):
         mock_spreadsheet = MagicMock()
         mock_from_file.return_value = mock_spreadsheet
         
-        params = build_imageqr_params(config, input_dir, output_dir)
+        params = build_imageqr_params(config, input_dir, output_dir, {})
         
         mock_from_file.assert_called_once_with(
             str(input_file),
@@ -113,7 +113,7 @@ def test_build_imageqr_params_builds_spreadsheet_with_mrn_and_date_cols(tmp_path
         mock_spreadsheet = MagicMock()
         mock_from_file.return_value = mock_spreadsheet
         
-        params = build_imageqr_params(config, input_dir, output_dir)
+        params = build_imageqr_params(config, input_dir, output_dir, {})
         
         mock_from_file.assert_called_once_with(
             str(input_file),
@@ -137,7 +137,7 @@ def test_build_imageqr_params_maps_config_keys_correctly(tmp_path):
     output_dir = str(tmp_path / "output")
     
     with patch('utils.Spreadsheet.from_file'):
-        params = build_imageqr_params(config, input_dir, output_dir)
+        params = build_imageqr_params(config, input_dir, output_dir, {})
     
     assert params["application_aet"] == "ICORE"
     assert params["output_dir"] == output_dir
@@ -156,7 +156,7 @@ def test_build_imageqr_params_date_window_defaults_to_zero(tmp_path):
     output_dir = str(tmp_path / "output")
     
     with patch('utils.Spreadsheet.from_file'):
-        params = build_imageqr_params(config, input_dir, output_dir)
+        params = build_imageqr_params(config, input_dir, output_dir, {})
     
     assert params["date_window_days"] == 0
 
@@ -174,7 +174,7 @@ def test_build_imagedeid_pacs_params_builds_pacs_configuration_list(tmp_path):
     output_dir = str(tmp_path / "output")
     
     with patch('utils.Spreadsheet.from_file'):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir)
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
     
     assert "pacs_list" in params
     assert len(params["pacs_list"]) == 1
@@ -196,7 +196,7 @@ def test_build_imagedeid_pacs_params_maps_config_keys_correctly(tmp_path):
     output_dir = str(tmp_path / "output")
     
     with patch('utils.Spreadsheet.from_file'):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir)
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
     
     assert params["application_aet"] == "ICORE"
     assert params["output_dir"] == output_dir
@@ -215,7 +215,7 @@ def test_build_imagedeid_local_params_maps_config_keys_correctly(tmp_path):
     input_dir = str(tmp_path)
     output_dir = str(tmp_path / "output")
     
-    params = build_imagedeid_local_params(config, input_dir, output_dir)
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
     
     assert params["input_dir"] == input_dir
     assert params["output_dir"] == output_dir
@@ -229,7 +229,7 @@ def test_build_imagedeid_local_params_handles_missing_optional_params(tmp_path):
     input_dir = str(tmp_path)
     output_dir = str(tmp_path / "output")
     
-    params = build_imagedeid_local_params(config, input_dir, output_dir)
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
     
     assert params["input_dir"] == input_dir
     assert params["output_dir"] == output_dir
@@ -310,7 +310,7 @@ def test_build_textdeid_params_maps_config_keys_correctly(tmp_path):
     input_file.touch()
     output_dir = str(tmp_path / "output")
     
-    params = build_textdeid_params(config, input_dir, output_dir)
+    params = build_textdeid_params(config, input_dir, output_dir, {})
     
     assert params["input_file"] == str(input_file)
     assert params["output_dir"] == output_dir
@@ -325,7 +325,7 @@ def test_build_textdeid_params_handles_missing_optional_params(tmp_path):
     input_file.touch()
     output_dir = str(tmp_path / "output")
     
-    params = build_textdeid_params(config, input_dir, output_dir)
+    params = build_textdeid_params(config, input_dir, output_dir, {})
     
     assert params["input_file"] == str(input_file)
     assert params["output_dir"] == output_dir
