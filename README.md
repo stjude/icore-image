@@ -3,6 +3,24 @@
 ## Usage Guide
 For a detailed usage guide, please refer to the [User Guide](https://innolitics.notion.site/iCore-v0-0-7-User-Manual-160bd5b7a754804287bed990845636cd).
 
+## Develop macOS App
+
+```
+make dev
+```
+
+Note: if running for the first time, run `make deps` first.
+
+## Running Test Suite
+
+```
+make test
+```
+
+Note: you need docker installed and running (some tests set up an Orthanc server)
+
+If you want to run the full test suite in CI, trigger `Full Test` workflow from Actions.
+
 ## Build macOS App
 
 ```

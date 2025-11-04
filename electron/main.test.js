@@ -144,6 +144,8 @@ describe('main.js', () => {
   it('shows error dialog and quits when initialization fails', async () => {
     mockInitializeApp.mockRejectedValueOnce(new Error('Test error'));
     
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    
     let readyHandler;
     
     jest.isolateModules(() => {
@@ -164,6 +166,8 @@ describe('main.js', () => {
         title: 'Initialization Failed'
       })
     );
+    
+    consoleErrorSpy.mockRestore();
   });
 
   it('creates log stream in correct directory', async () => {
