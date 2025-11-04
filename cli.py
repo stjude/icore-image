@@ -3,10 +3,6 @@ import sys
 
 import yaml
 
-from module_imageqr import imageqr
-from module_imagedeid_local import imagedeid_local
-from module_imagedeid_pacs import imagedeid_pacs
-from module_textdeid import textdeid
 from utils import PacsConfiguration, Spreadsheet
 
 
@@ -111,15 +107,19 @@ def run(config_path, input_dir, output_dir):
     module = determine_module(config, input_dir)
     
     if module == "imageqr":
+        from module_imageqr import imageqr
         params = build_imageqr_params(config, input_dir, output_dir)
         return imageqr(**params)
     elif module == "imagedeid_pacs":
+        from module_imagedeid_pacs import imagedeid_pacs
         params = build_imagedeid_pacs_params(config, input_dir, output_dir)
         return imagedeid_pacs(**params)
     elif module == "imagedeid_local":
+        from module_imagedeid_local import imagedeid_local
         params = build_imagedeid_local_params(config, input_dir, output_dir)
         return imagedeid_local(**params)
     elif module == "textdeid":
+        from module_textdeid import textdeid
         params = build_textdeid_params(config, input_dir, output_dir)
         return textdeid(**params)
     else:
