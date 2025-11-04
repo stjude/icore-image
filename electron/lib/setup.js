@@ -55,12 +55,18 @@ function mergeSettings(userSettingsPath, defaultSettingsPath) {
   fs.writeFileSync(userSettingsPath, JSON.stringify(mergedSettings, null, 2));
 }
 
-function runMigration(managePath, dbPath, spawnFn = spawn) {
+function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false) {
   return new Promise((resolve, reject) => {
     let stdout = '';
     let stderr = '';
     
-    const migrateProcess = spawnFn(managePath, ['migrate']);
+    let migrateProcess;
+    if (isDev) {
+      const env = { ...process.env, ICORE_DEV: '1' };
+      migrateProcess = spawnFn('python', [managePath, 'migrate'], { env });
+    } else {
+      migrateProcess = spawnFn(managePath, ['migrate']);
+    }
     
     if (migrateProcess.stdout) {
       migrateProcess.stdout.on('data', (data) => {
@@ -86,12 +92,12 @@ function runMigration(managePath, dbPath, spawnFn = spawn) {
 }
 
 async function initializeApp(config) {
-  const { baseDir, dbPath, settingsPath, defaultSettingsPath, managePath, spawnFn } = config;
+  const { baseDir, dbPath, settingsPath, defaultSettingsPath, managePath, spawnFn, isDev } = config;
   
   ensureDirectories(baseDir);
   ensureDatabase(dbPath);
   mergeSettings(settingsPath, defaultSettingsPath);
-  await runMigration(managePath, dbPath, spawnFn);
+  await runMigration(managePath, dbPath, spawnFn, isDev);
 }
 
 module.exports = {

@@ -34,9 +34,18 @@ MODULES_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'modules'))
 APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'app_data'))
 TMP_INPUT_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'temp_input'))
 
-ICORE_PROCESSOR_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(sys.executable), '..', 'icorecli', 'icorecli')
-)
+IS_DEV = os.environ.get('ICORE_DEV') == '1'
+
+if IS_DEV:
+    ICORE_PROCESSOR_PATH = 'python'
+    ICORE_CLI_SCRIPT = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'cli.py')
+    )
+else:
+    ICORE_PROCESSOR_PATH = os.path.abspath(
+        os.path.join(os.path.dirname(sys.executable), '..', 'icorecli', 'icorecli')
+    )
+    ICORE_CLI_SCRIPT = None
 
 def process_image_deid(task):
     output_folder = task.output_folder
@@ -52,7 +61,10 @@ def process_image_deid(task):
     else:
         input_folder = task.input_folder
     
-    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path
@@ -137,7 +149,10 @@ def process_image_query(task):
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}"))
 
-    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path
@@ -197,7 +212,10 @@ def process_header_query(task):
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}"))
     
-    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path
@@ -252,7 +270,10 @@ def process_header_extract(task):
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
     
-    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path
@@ -290,7 +311,10 @@ def process_text_deid(task):
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
     output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
 
-    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path
@@ -337,7 +361,10 @@ def process_image_export(task):
     output_full_path = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'temp_output'))
     os.makedirs(output_full_path, exist_ok=True)
 
-    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path
@@ -387,7 +414,10 @@ def process_general_module(task):
 
     print(output_full_path)
     
-    cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(task.input_folder), os.path.abspath(output_full_path)]
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(task.input_folder), os.path.abspath(output_full_path)]
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(task.input_folder), os.path.abspath(output_full_path)]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path

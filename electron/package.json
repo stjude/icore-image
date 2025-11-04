@@ -3,7 +3,7 @@
   "version": "0.0.13",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "ICORE_DEV=1 electron .",
     "build": "electron-builder --mac dmg",
     "build_signed": "CSC_IDENTITY_AUTO_DISCOVERY=true electron-builder --mac dmg",
     "test": "jest",

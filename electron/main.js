@@ -40,14 +40,21 @@ app.on('ready', async () => {
 
   mainWindow.loadFile(path.join(__dirname, 'loading.html'));
 
+  const isDev = process.env.ICORE_DEV === '1';
+
   try {
     const defaultSettingsPath = app.isPackaged
       ? path.join(process.resourcesPath, 'app', 'assets', 'settings.json')
       : path.join(__dirname, 'assets', 'settings.json');
 
-    const managePath = app.isPackaged
-      ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
-      : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+    let managePath;
+    if (isDev) {
+      managePath = path.join(__dirname, '..', 'deid', 'manage.py');
+    } else {
+      managePath = app.isPackaged
+        ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
+        : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+    }
 
     if (!fs.existsSync(defaultSettingsPath)) {
       throw new Error(`Default settings not found at: ${defaultSettingsPath}`);
@@ -63,7 +70,8 @@ app.on('ready', async () => {
       settingsPath,
       defaultSettingsPath,
       managePath,
-      spawnFn: spawn
+      spawnFn: spawn,
+      isDev
     });
 
     fs.mkdirSync(logsDir, { recursive: true });
@@ -92,20 +100,21 @@ app.on('ready', async () => {
     });
     return;
   }
-
-  serverProcess = spawn(
-    app.isPackaged
-      ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
-      : path.join(__dirname, 'assets', 'dist', 'manage', 'manage'),
-    ['runserver', '--noreload']
-  );
   
-  workerProcess = spawn(
-    app.isPackaged
+  if (isDev) {
+    const managePyPath = path.join(__dirname, '..', 'deid', 'manage.py');
+    const env = { ...process.env, ICORE_DEV: '1' };
+    
+    serverProcess = spawn('python', [managePyPath, 'runserver', '--noreload'], { env });
+    workerProcess = spawn('python', [managePyPath, 'worker'], { env });
+  } else {
+    const manageBinaryPath = app.isPackaged
       ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
-      : path.join(__dirname, 'assets', 'dist', 'manage', 'manage'),
-    ['worker']
-  );
+      : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+    
+    serverProcess = spawn(manageBinaryPath, ['runserver', '--noreload']);
+    workerProcess = spawn(manageBinaryPath, ['worker']);
+  }
 
   serverProcess.stdout.on('data', (data) => {
     logWithTimestamp('server', data.toString().trim());

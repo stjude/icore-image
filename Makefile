@@ -1,4 +1,4 @@
-.PHONY: all signed clean deps deps-python deps-deid deps-electron test
+.PHONY: all signed clean deps deps-python deps-deid deps-electron test dev
 .PHONY: external-deps jre8 dcmtk build-binaries build-icorecli build-django-app
 .PHONY: prepare-assets build-dmg build-dmg-signed
 
@@ -8,6 +8,12 @@ test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
 	pytest
 	cd electron && npm test
+
+dev: external-deps
+	@echo "Starting iCore in development mode..."
+	@export JAVA_HOME=$$(pwd)/jre8/Contents/Home && \
+	export DCMTK_HOME=$$(pwd)/dcmtk && \
+	cd electron && npm start
 
 deps: deps-python deps-deid deps-electron
 
