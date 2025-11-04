@@ -10,6 +10,9 @@ from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 from utils import setup_run_directories, configure_run_logging
 
+logging.getLogger("presidio-analyzer").setLevel(logging.ERROR)
+logging.getLogger("presidio-anonymizer").setLevel(logging.ERROR)
+
 
 def create_analyzer_engine():
     if getattr(sys, 'frozen', False):
@@ -184,7 +187,9 @@ def scrub(data, whitelist, blacklist):
     }
     
     results = []
+    total_rows = len(data)
     for i, text_item in enumerate(data):
+        logging.info(f"Processing row {i+1}/{total_rows}")
         text = str(text_item) if text_item is not None else "Empty"
         text = ''.join(c for c in text if c in string.printable)
         
@@ -246,16 +251,24 @@ def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None, deb
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
     logging.info("Running textdeid")
+    logging.info(f"Input file: {input_file}")
+    logging.info(f"Output directory: {output_dir}")
+    logging.info(f"Debug mode: {debug}")
     
     if to_keep_list is None:
         to_keep_list = []
     if to_remove_list is None:
         to_remove_list = []
     
+    logging.info(f"Whitelist items to keep: {len(to_keep_list)}")
+    logging.info(f"Blacklist items to remove: {len(to_remove_list)}")
+    
     df = pd.read_excel(input_file, header=None)
     original_data = df.iloc[:, 0].tolist()
+    logging.info(f"Total rows to process: {len(original_data)}")
     deid_data = scrub(original_data, to_keep_list, to_remove_list)
     
+    os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, "output.xlsx")
     pd.DataFrame(deid_data).to_excel(output_file, index=False, header=False)
     
