@@ -59,8 +59,8 @@ def build_tag_dict():
     Parse the DICOM dictionary XML files and build mappings of tag names to their hex codes.
     Returns a dictionary where keys are tag names and values are tag hex codes.
     """
-    dict_path = Path(__file__).parent / 'dictionary.xml'
-    mapping_path = Path(__file__).parent.parent / 'pydicom_ctp_tag_dictionary.xml'
+    dict_path = Path(__file__).parent / 'resources' / 'dictionary.xml'
+    mapping_path = Path(__file__).parent.parent / 'resources' / 'pydicom_ctp_tag_dictionary.xml'
     
     tree = ET.parse(dict_path)
     root = tree.getroot()
