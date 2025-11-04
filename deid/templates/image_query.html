@@ -100,7 +100,9 @@
                 document.querySelector('[name="accession_column"]').value = settings.default_accession_header;
             }
             if (settings.default_mrn_header) {
-                document.querySelector('[name="mrn_column"]').value = settings.default_mrn_header;
+                document.querySelectorAll('[name="mrn_column"]').forEach(input => {
+                    input.value = settings.default_mrn_header;
+                });
             }
             if (settings.default_date_header) {
                 document.querySelector('[name="date_column"]').value = settings.default_date_header;

@@ -731,6 +731,8 @@ class CTPPipeline:
         self.server = None
     
     def _find_available_port(self):
+        return 50000 # TODO: remove
+
         start_port = 50000
         max_attempts = 10
         port_increment = 10

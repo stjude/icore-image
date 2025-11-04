@@ -69,6 +69,8 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         
         _save_metadata_files(pipeline, appdata_dir)
         
+        logging.info("Moves and processing complete")
+        
         return {
             "num_studies_found": len(study_pacs_map),
             "num_images_saved": pipeline.metrics.files_saved if pipeline.metrics else 0,
