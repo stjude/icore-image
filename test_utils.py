@@ -148,6 +148,7 @@ class OrthancServer:
         subprocess.run([
             "docker", "run", "-d",
             "--name", container_name,
+            "--add-host", "host.docker.internal:host-gateway",
             "-p", f"{self.http_port}:8042",
             "-p", f"{self.dicom_port}:4242",
             "-v", f"{config_dir}:/etc/orthanc:ro",
