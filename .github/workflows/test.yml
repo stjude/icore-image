@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     
     steps:
       - name: Checkout code
@@ -22,6 +22,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+      
+      - name: Set up Docker
+        run: |
+          brew install docker docker-compose colima
+          colima start --cpu 2 --memory 4
+          docker --version
       
       - name: Install dependencies and test
         run: make deps external-deps test
