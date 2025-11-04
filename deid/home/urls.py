@@ -19,6 +19,7 @@ urlpatterns = [
     path('run_general_module/', views.run_general_module, name='run_general_module'),
     path('task_progress/', views.TaskProgressView.as_view(), name='task_progress'),
     path('get_log_content/', views.get_log_content, name='get_log_content'),
+    path('api/task_status/<int:project_id>/', views.task_status, name='task_status'),
     path('settings/general/', views.GeneralSettingsView.as_view(), name='general_settings'),
     path('test_pacs_connection/', views.test_pacs_connection, name='test_pacs_connection'),
     path('settings/dicom_header_qr/', views.DicomHeaderQRSettingsView.as_view(), name='dicom_header_qr_settings'),

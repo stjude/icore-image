@@ -103,10 +103,11 @@ app.on('ready', async () => {
   
   if (isDev) {
     const managePyPath = path.join(__dirname, '..', 'deid', 'manage.py');
+    const deidDir = path.join(__dirname, '..', 'deid');
     const env = { ...process.env, ICORE_DEV: '1' };
     
-    serverProcess = spawn('python', [managePyPath, 'runserver'], { env });
-    workerProcess = spawn('python', [managePyPath, 'worker'], { env });
+    serverProcess = spawn('python', [managePyPath, 'runserver'], { env, cwd: deidDir });
+    workerProcess = spawn('python', [managePyPath, 'worker'], { env, cwd: deidDir });
   } else {
     const manageBinaryPath = app.isPackaged
       ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')

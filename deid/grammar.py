@@ -1,3 +1,5 @@
+import os
+import sys
 import pandas as pd
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -59,8 +61,15 @@ def build_tag_dict():
     Parse the DICOM dictionary XML files and build mappings of tag names to their hex codes.
     Returns a dictionary where keys are tag names and values are tag hex codes.
     """
-    dict_path = Path(__file__).parent / 'resources' / 'dictionary.xml'
-    mapping_path = Path(__file__).parent.parent / 'resources' / 'pydicom_ctp_tag_dictionary.xml'
+    if getattr(sys, 'frozen', False):
+        # Running in a PyInstaller bundle
+        bundle_dir = sys._MEIPASS
+        dict_path = os.path.join(bundle_dir, 'resources', 'dictionary.xml')
+        mapping_path = os.path.join(bundle_dir, 'resources', 'pydicom_ctp_tag_dictionary.xml')
+    else:
+        # Running in normal Python
+        dict_path = Path(__file__).parent.parent / 'resources' / 'dictionary.xml'
+        mapping_path = Path(__file__).parent.parent / 'resources' / 'pydicom_ctp_tag_dictionary.xml'
     
     tree = ET.parse(dict_path)
     root = tree.getroot()

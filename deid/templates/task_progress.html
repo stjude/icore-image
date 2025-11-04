@@ -25,8 +25,9 @@
 </div>
 
 <script>
-    const logPath = new URLSearchParams(window.location.search).get('log_path');
-    const taskId = new URLSearchParams(window.location.search).get('task_id');
+    const urlParams = new URLSearchParams(window.location.search);
+    const projectId = urlParams.get('project_id');
+    let logPath = null;
     let previousContent = '';
     let sameContentCount = 0;
     let pollInterval;
@@ -54,16 +55,23 @@
         if (hasError) return;
 
         try {
-            const response = await fetch(`/api/task_status/${timestamp}`);
+            const response = await fetch(`/api/task_status/${projectId}`);
             const data = await response.json();
             
-            if (data.status === 'error' || data.status === 'failed') {
+            // Update logPath if it's available from the API and different from current
+            if (data.log_path && data.log_path !== '' && data.log_path !== logPath) {
+                logPath = data.log_path;
+                console.log('Log path updated to:', logPath);
+            }
+            
+            if (data.status === 'FAILED') {
                 hasError = true;
-                document.getElementById('errorMessage').textContent = data.error_message || "Task has failed. Please check the logs for details.";
+                document.getElementById('errorMessage').textContent = "Task has failed. Please check the logs for details.";
                 document.getElementById('errorPopup').classList.remove('hidden');
                 clearInterval(pollInterval);
+                clearInterval(statusInterval);
                 setTimeout(() => {
-                    window.location.href = '/tasks';
+                    window.location.href = '/task_list';
                 }, 3000);
                 return;
             }
@@ -74,6 +82,11 @@
     
     async function fetchLogContent() {
         if (hasError) return;
+        
+        if (!logPath || logPath === '') {
+            document.getElementById('logContent').innerHTML = 'Loading. Please wait...';
+            return;
+        }
         
         try {
             const response = await fetch(`/get_log_content?log_path=${encodeURIComponent(logPath)}`);
@@ -109,10 +122,10 @@
     fetchLogContent();
     checkTaskStatus();
 
-    // Poll every second
+    // Poll every second for log content
     pollInterval = setInterval(fetchLogContent, 1000);
     
-    // Check task status every 5 
+    // Check task status every 5 seconds
     const statusInterval = setInterval(checkTaskStatus, 5000);
 </script>
 {% endblock %}

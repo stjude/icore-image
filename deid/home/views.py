@@ -45,18 +45,6 @@ auth_handler.setFormatter(auth_formatter)
 
 AUTH_LOGGER.addHandler(auth_handler)
 
-def get_latest_log_path():
-    os.makedirs(LOGS_DIR, exist_ok=True)
-    try:
-        timestamp_folders = [d for d in os.listdir(LOGS_DIR) if os.path.isdir(os.path.join(LOGS_DIR, d))]
-        if not timestamp_folders:
-            return None
-        latest_folder = max(timestamp_folders)
-        log_path = os.path.join(LOGS_DIR, latest_folder, 'run.txt')
-        return log_path
-    except Exception:
-        return None
-
 class CommonContextMixin:
     def get_common_context(self):
         return {
@@ -203,6 +191,21 @@ def get_log_content(request):
     except Exception as e:
         return HttpResponse(str(e), status=500)
 
+def task_status(request, project_id):
+    try:
+        task = Project.objects.get(id=project_id)
+        
+        return JsonResponse({
+            'status': task.status,
+            'log_path': task.log_path,
+            'name': task.name,
+            'task_type': task.task_type,
+        })
+    except Project.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 @csrf_exempt
 def run_header_query(request):
     print('Running header query')
@@ -213,7 +216,7 @@ def run_header_query(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=get_latest_log_path(),
+            log_path="",
             task_type=Project.TaskType.HEADER_QUERY,
             output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
@@ -246,7 +249,7 @@ def run_header_extract(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=get_latest_log_path(),
+            log_path="",
             task_type=Project.TaskType.HEADER_EXTRACT,
             input_folder=data['input_folder'],
             output_folder=data['output_folder'],
@@ -285,7 +288,7 @@ def run_deid(request):
             project = Project.objects.create(
                 name=data['study_name'],
                 timestamp=timestamp,
-                log_path=get_latest_log_path(),
+                log_path="",
                 task_type=Project.TaskType.IMAGE_DEID,
                 image_source=data['image_source'],
                 input_folder=data['input_folder'],
@@ -351,7 +354,7 @@ def run_query(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=get_latest_log_path(),
+            log_path="",
             task_type=Project.TaskType.IMAGE_QUERY,
             output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
@@ -394,7 +397,7 @@ def run_text_deid(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=get_latest_log_path(),
+            log_path="",
             task_type=Project.TaskType.TEXT_DEID,
             output_folder=data['output_folder'],
             status=Project.TaskStatus.PENDING,
@@ -425,7 +428,7 @@ def run_export(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=get_latest_log_path(),
+            log_path="",
             task_type=Project.TaskType.IMAGE_EXPORT,
             input_folder=data['input_folder'],
             status=Project.TaskStatus.PENDING,
@@ -453,7 +456,7 @@ def run_general_module(request):
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
-            log_path=get_latest_log_path(),
+            log_path="",
             task_type=Project.TaskType.GENERAL_MODULE,
             input_folder=data['input_folder'],
             output_folder=data['output_folder'],

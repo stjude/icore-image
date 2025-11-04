@@ -239,8 +239,10 @@ def scrub(data, whitelist, blacklist):
     return results
 
 
-def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None, debug=False):
-    run_dirs = setup_run_directories()
+def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None, debug=False, run_dirs=None):
+    if run_dirs is None:
+        run_dirs = setup_run_directories()
+    
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
     logging.info("Running textdeid")

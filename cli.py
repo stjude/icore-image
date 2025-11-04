@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -20,7 +21,7 @@ def determine_module(config, input_dir):
     return module
 
 
-def build_imageqr_params(config, input_dir, output_dir):
+def build_imageqr_params(config, input_dir, output_dir, run_dirs):
     from utils import PacsConfiguration, Spreadsheet
     
     pacs_list = [
@@ -46,11 +47,12 @@ def build_imageqr_params(config, input_dir, output_dir):
         "application_aet": config.get("application_aet"),
         "output_dir": output_dir,
         "filter_script": config.get("ctp_filters"),
-        "date_window_days": config.get("date_window", 0)
+        "date_window_days": config.get("date_window", 0),
+        "run_dirs": run_dirs
     }
 
 
-def build_imagedeid_pacs_params(config, input_dir, output_dir):
+def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
     from utils import PacsConfiguration, Spreadsheet
     
     pacs_list = [
@@ -78,31 +80,39 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir):
         "filter_script": config.get("ctp_filters"),
         "anonymizer_script": config.get("ctp_anonymizer"),
         "lookup_table": config.get("ctp_lookup_table"),
-        "date_window_days": config.get("date_window", 0)
+        "date_window_days": config.get("date_window", 0),
+        "run_dirs": run_dirs
     }
 
 
-def build_imagedeid_local_params(config, input_dir, output_dir):
+def build_imagedeid_local_params(config, input_dir, output_dir, run_dirs):
     return {
         "input_dir": input_dir,
         "output_dir": output_dir,
         "filter_script": config.get("ctp_filters"),
         "anonymizer_script": config.get("ctp_anonymizer"),
-        "lookup_table": config.get("ctp_lookup_table")
+        "lookup_table": config.get("ctp_lookup_table"),
+        "run_dirs": run_dirs
     }
 
 
-def build_textdeid_params(config, input_dir, output_dir):
+def build_textdeid_params(config, input_dir, output_dir, run_dirs):
     input_file = os.path.join(input_dir, "input.xlsx")
     return {
         "input_file": input_file,
         "output_dir": output_dir,
         "to_keep_list": config.get("to_keep_list"),
-        "to_remove_list": config.get("to_remove_list")
+        "to_remove_list": config.get("to_remove_list"),
+        "run_dirs": run_dirs
     }
 
 
 def run(config_path, input_dir, output_dir):
+    from utils import setup_run_directories
+    
+    run_dirs = setup_run_directories()
+    print(json.dumps({"log_path": run_dirs["run_log_path"]}), flush=True)
+    
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     
@@ -110,19 +120,19 @@ def run(config_path, input_dir, output_dir):
     
     if module == "imageqr":
         from module_imageqr import imageqr
-        params = build_imageqr_params(config, input_dir, output_dir)
+        params = build_imageqr_params(config, input_dir, output_dir, run_dirs)
         return imageqr(**params)
     elif module == "imagedeid_pacs":
         from module_imagedeid_pacs import imagedeid_pacs
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir)
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs)
         return imagedeid_pacs(**params)
     elif module == "imagedeid_local":
         from module_imagedeid_local import imagedeid_local
-        params = build_imagedeid_local_params(config, input_dir, output_dir)
+        params = build_imagedeid_local_params(config, input_dir, output_dir, run_dirs)
         return imagedeid_local(**params)
     elif module == "textdeid":
         from module_textdeid import textdeid
-        params = build_textdeid_params(config, input_dir, output_dir)
+        params = build_textdeid_params(config, input_dir, output_dir, run_dirs)
         return textdeid(**params)
     else:
         raise ValueError(f"Unknown module: {module}")

@@ -203,8 +203,8 @@
             });
             const result = await response.json();
             if (result.status === 'success') {
-                // Redirect to progress page with output folder path as parameter
-                window.location.href = `/task_progress?log_path=${encodeURIComponent(result.log_path)}`;
+                // Redirect to progress page with project_id
+                window.location.href = `/task_progress?project_id=${result.project_id}`;
             } else {
                 console.error('Error starting query:', result);
             }

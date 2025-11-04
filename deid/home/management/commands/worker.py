@@ -20,6 +20,66 @@ from grammar import (
 from home.models import Project
 from ruamel.yaml import YAML, scalarstring
 
+
+def run_subprocess_and_capture_log_path(cmd, env, task):
+    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
+    print("Copy and run this command to test:")
+    print(shell_cmd)
+    
+    process = subprocess.Popen(
+        cmd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1
+    )
+    
+    log_path_captured = False
+    stdout_lines = []
+    stderr_lines = []
+    
+    try:
+        first_line = process.stdout.readline()
+        if first_line:
+            stdout_lines.append(first_line)
+            try:
+                log_data = json.loads(first_line.strip())
+                if 'log_path' in log_data:
+                    task.log_path = log_data['log_path']
+                    task.save()
+                    log_path_captured = True
+                    print(f"Captured log path: {task.log_path}")
+            except json.JSONDecodeError:
+                pass
+        
+        for line in process.stdout:
+            stdout_lines.append(line)
+            print(line, end='')
+        
+        for line in process.stderr:
+            stderr_lines.append(line)
+            print(line, end='', file=sys.stderr)
+        
+        process.wait()
+        
+        stdout_output = ''.join(stdout_lines)
+        stderr_output = ''.join(stderr_lines)
+        
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(
+                process.returncode,
+                cmd,
+                stdout_output,
+                stderr_output
+            )
+        
+        return stdout_output
+    
+    except Exception as e:
+        process.kill()
+        raise
+
 PACS_IP = 'host.docker.internal'
 PACS_PORT = 4242
 PACS_AET = 'ORTHANC'
@@ -70,13 +130,9 @@ def process_image_deid(task):
     env['ICORE_APPDATA_DIR'] = app_data_full_path
     env['ICORE_MODULES_DIR'] = MODULES_PATH
     
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
-    print("Copy and run this command to test:")
-    print(shell_cmd)
-    
     try:
-        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
-        print("Output:", result.stdout)
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
@@ -158,13 +214,9 @@ def process_image_query(task):
     env['ICORE_APPDATA_DIR'] = app_data_full_path
     env['ICORE_MODULES_DIR'] = MODULES_PATH
     
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
-    print("Copy and run this command to test:")
-    print(shell_cmd)
-    
     try:
-        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
-        print("Output:", result.stdout)
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
@@ -221,13 +273,9 @@ def process_header_query(task):
     env['ICORE_APPDATA_DIR'] = app_data_full_path
     env['ICORE_MODULES_DIR'] = MODULES_PATH
     
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
-    print("Copy and run this command to test:")
-    print(shell_cmd)
-    
     try:
-        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
-        print("Output:", result.stdout)
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
@@ -279,12 +327,9 @@ def process_header_extract(task):
     env['ICORE_APPDATA_DIR'] = app_data_full_path
     env['ICORE_MODULES_DIR'] = MODULES_PATH
     
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
-    print("Copy and run this command to test:")
-    print(shell_cmd)
     try:
-        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
-        print("Output:", result.stdout)
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
@@ -320,13 +365,9 @@ def process_text_deid(task):
     env['ICORE_APPDATA_DIR'] = app_data_full_path
     env['ICORE_MODULES_DIR'] = MODULES_PATH
 
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
-    print("Copy and run this command to test:")
-    print(shell_cmd)
-
     try:
-        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
-        print("Output:", result.stdout)
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
@@ -370,12 +411,9 @@ def process_image_export(task):
     env['ICORE_APPDATA_DIR'] = app_data_full_path
     env['ICORE_MODULES_DIR'] = MODULES_PATH
     
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
-    print("Copy and run this command to test:")
-    print(shell_cmd)
     try:
-        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
-        print("Output:", result.stdout)
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
@@ -423,12 +461,9 @@ def process_general_module(task):
     env['ICORE_APPDATA_DIR'] = app_data_full_path
     env['ICORE_MODULES_DIR'] = MODULES_PATH
     
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
-    print("Copy and run this command to test:")
-    print(shell_cmd)
     try:
-        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
-        print("Output:", result.stdout)
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
     except subprocess.CalledProcessError as e:
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")

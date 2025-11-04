@@ -12,13 +12,15 @@ project_path = os.getcwd()
 django_datas = collect_data_files('django')
 
 # Add project-specific data files (static files, templates, database, etc.)
+resources_path = os.path.dirname(project_path)  # Go up one level to repo root
 project_datas = [
     (os.path.join(project_path, 'config'), 'config'),  # Project configuration directory
     (os.path.join(project_path, 'home'), 'home'),  # Application directory
     (os.path.join(project_path, 'templates'), 'templates'),  # Templates
     (os.path.join(project_path, 'static'), 'static'),  # Static files
     # (os.path.join(project_path, 'db.sqlite3'), '.'),  # SQLite database
-    (os.path.join(project_path, 'dictionary.xml'), '.'),  # Other data files
+    (os.path.join(resources_path, 'resources', 'dictionary.xml'), 'resources'),  # Dictionary files
+    (os.path.join(resources_path, 'resources', 'pydicom_ctp_tag_dictionary.xml'), 'resources'),  # CTP tag mapping
 ]
 
 # Include GDAL libraries explicitly

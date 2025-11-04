@@ -25,8 +25,10 @@ def _save_metadata_files(pipeline, appdata_dir):
 
 def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None, 
                    anonymizer_script=None, deid_pixels=False, lookup_table=None, 
-                   debug=False):
-    run_dirs = setup_run_directories()
+                   debug=False, run_dirs=None):
+    if run_dirs is None:
+        run_dirs = setup_run_directories()
+    
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
     logging.info("Running imagedeid_local")
