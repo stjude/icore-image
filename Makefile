@@ -58,7 +58,6 @@ build-icorecli:
 build-django-app:
 	cd deid && \
 		pyinstaller --clean -y manage.spec && \
-		pyinstaller --clean -y processor.spec && \
 		pyinstaller --clean -y initialize_admin_password.spec
 
 build-binaries: build-icorecli build-django-app

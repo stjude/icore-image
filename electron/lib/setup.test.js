@@ -381,19 +381,5 @@ describe('binary path resolution', () => {
     
     expect(computedIcoreCliPath).toBe(expectedIcoreCliPath);
   });
-
-  it('validates processor path can be resolved relative to manage binary', () => {
-    const assetsDir = '/test/assets/dist';
-    const manageBinaryPath = path.join(assetsDir, 'manage', 'manage');
-    const expectedProcessorPath = path.join(assetsDir, 'processor');
-    
-    const computedProcessorPath = path.resolve(
-      path.dirname(manageBinaryPath),
-      '..',
-      'processor'
-    );
-    
-    expect(computedProcessorPath).toBe(expectedProcessorPath);
-  });
 });
 
