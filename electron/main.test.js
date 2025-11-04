@@ -108,6 +108,31 @@ describe('main.js', () => {
     jest.restoreAllMocks();
   });
 
+  it('loads Image Query page as default', async () => {
+    let readyHandler;
+    
+    jest.isolateModules(() => {
+      mockApp.on.mockImplementation((event, handler) => {
+        if (event === 'ready') {
+          readyHandler = handler;
+        }
+      });
+      
+      require('./main');
+    });
+    
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      cb();
+      return null;
+    });
+    
+    await readyHandler();
+    
+    expect(mockWindowInstance.loadURL).toHaveBeenCalledWith('http://127.0.0.1:8000/imagequery');
+    
+    jest.restoreAllMocks();
+  });
+
   it('spawns server and worker processes after initialization', async () => {
     let readyHandler;
     

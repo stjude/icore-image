@@ -45,6 +45,15 @@ auth_handler.setFormatter(auth_formatter)
 
 AUTH_LOGGER.addHandler(auth_handler)
 
+settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+with open(settings_path, 'r') as f:
+    settings = json.load(f)
+
+if not settings.get('default_output_folder', '').strip():
+    settings['default_output_folder'] = os.path.join(os.path.expanduser('~'), 'Downloads')
+    with open(settings_path, 'w') as f:
+        json.dump(settings, f, indent=4)
+
 class CommonContextMixin:
     def get_common_context(self):
         return {

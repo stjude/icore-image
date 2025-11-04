@@ -6,13 +6,7 @@
     "default_date_shift_days": "-21",
     "id_generation_method": "UNIQUE",
     "deid_filters": {
-        "general_filters": [
-            {
-                "tag": "BurnedInAnnotation",
-                "action": "not_equalsIgnoreCase",
-                "value": "YES"
-            }
-        ],
+        "general_filters": [],
         "modality_filters": {
             "MR": [
                 {
