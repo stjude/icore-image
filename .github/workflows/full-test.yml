@@ -27,7 +27,7 @@ jobs:
       
       - name: Start Colima with Docker
         run: |
-          colima start --cpu 4 --memory 8
+          colima start --cpu 4 --memory 8 --network-address
           
       - name: Verify Docker is working
         run: |
@@ -35,7 +35,7 @@ jobs:
           docker info
           
       - name: Wait for Docker to be fully ready
-        run: sleep 10
+        run: sleep 15
       
       - name: Install dependencies
         run: make deps external-deps
