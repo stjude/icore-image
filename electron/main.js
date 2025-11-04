@@ -105,7 +105,7 @@ app.on('ready', async () => {
     const managePyPath = path.join(__dirname, '..', 'deid', 'manage.py');
     const env = { ...process.env, ICORE_DEV: '1' };
     
-    serverProcess = spawn('python', [managePyPath, 'runserver', '--noreload'], { env });
+    serverProcess = spawn('python', [managePyPath, 'runserver'], { env });
     workerProcess = spawn('python', [managePyPath, 'worker'], { env });
   } else {
     const manageBinaryPath = app.isPackaged
