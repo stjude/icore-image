@@ -20,8 +20,8 @@
             </div>
         </div>
     </div>
-    <div class="mt-4 bg-black text-white p-4 font-mono text-sm h-[calc(100vh-10rem)] overflow-y-auto" id="logContent">
-    </div>
+    <pre class="mt-4 bg-black text-white p-4 font-mono text-sm h-[calc(100vh-10rem-45px)] overflow-y-auto whitespace-pre-wrap" id="logContent">
+    </pre>
 </div>
 
 <script>
@@ -84,7 +84,7 @@
         if (hasError) return;
         
         if (!logPath || logPath === '') {
-            document.getElementById('logContent').innerHTML = 'Loading. Please wait...';
+            document.getElementById('logContent').textContent = 'Loading. Please wait...';
             return;
         }
         
@@ -98,14 +98,13 @@
                 if (sameContentCount >= 200) {
                     clearInterval(pollInterval);
                     clearInterval(statusInterval);
-                    return;
                 }
-            } else {
-                sameContentCount = 0;
-                previousContent = data;
+                return;
             }
             
-            logContent.innerHTML = data.replace(/\n/g, '<br>');
+            sameContentCount = 0;
+            previousContent = data;
+            logContent.textContent = data;
             logContent.scrollTop = logContent.scrollHeight;
         } catch (error) {
             console.error('Error fetching log:', error);
