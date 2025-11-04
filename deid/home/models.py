@@ -12,11 +12,11 @@ class Project(models.Model):
     application_aet = models.CharField(max_length=255, blank=True, null=True)
     ctp_dicom_filter = models.TextField(blank=True)
     class TaskType(models.TextChoices):
-        IMAGE_DEID = 'IMAGE_DEID', 'Image De-identification'
+        IMAGE_DEID = 'IMAGE_DEID', 'Image Deidentification'
         IMAGE_QUERY = 'IMAGE_QUERY', 'Image Query'
         HEADER_QUERY = 'HEADER_QUERY', 'Header Query'
         HEADER_EXTRACT = 'HEADER_EXTRACT', 'Header Extract'
-        TEXT_DEID = 'TEXT_DEID', 'Text De-identification'
+        TEXT_DEID = 'TEXT_DEID', 'Text Deidentification'
         IMAGE_EXPORT = 'IMAGE_EXPORT', 'Image Export'
         GENERAL_MODULE = 'GENERAL_MODULE', 'General Module'
     task_type = models.CharField(max_length=20, choices=TaskType.choices)

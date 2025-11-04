@@ -171,6 +171,24 @@ class AdminSettingsView(CommonContextMixin, TemplateView):
 
 class TaskProgressView(TemplateView):
     template_name = 'task_progress.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        project_id = self.request.GET.get('project_id')
+        
+        if project_id:
+            try:
+                project = Project.objects.get(id=project_id)
+                context['project_name'] = project.name
+                context['module_name'] = project.get_task_type_display()
+            except Project.DoesNotExist:
+                context['project_name'] = 'Unknown'
+                context['module_name'] = 'Task'
+        else:
+            context['project_name'] = 'Unknown'
+            context['module_name'] = 'Task'
+        
+        return context
 
 def get_log_content(request):
     try:

@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 
-{% block title %}Text De-identification{% endblock %}
+{% block title %}Text Deidentification{% endblock %}
 
 {% block content %}
 <div class="px-4">
-    <h1 class="text-xl flex-1">Text De-identification</h1>
+    <h1 class="text-xl flex-1">Text Deidentification</h1>
 </div>
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
     <!-- Project Name Section -->
@@ -15,10 +15,10 @@
     <div class="text-sm text-black-5 mt-4">Input File</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" />
 
-    <!-- De-identification Options Section -->
+    <!-- Deidentification Options Section -->
     <div class="flex items-center mt-4">
         <button class="text-black" onclick="toggleDeidOptions()" id="deidOptionsButton">▼</button>
-        <div class="text-sm text-black ml-4">De-identification Options</div>
+        <div class="text-sm text-black ml-4">Deidentification Options</div>
     </div>
     <div id="deid_options" class="mt-4 hidden ml-4">
         <div class="text-sm text-gray-500 mt-4">Output Folder</div>

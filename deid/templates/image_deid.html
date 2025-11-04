@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Image De-identification{% endblock %}
+{% block title %}Image Deidentification{% endblock %}
 
 {% block content %}
 {{ protocols|json_script:"protocols-data" }}
@@ -8,7 +8,7 @@
     const protocols = JSON.parse(document.getElementById('protocols-data').textContent);
 </script>
 <div class="px-4">
-    <h1 class="text-xl flex-1">Image De-identification</h1>
+    <h1 class="text-xl flex-1">Image Deidentification</h1>
 </div>
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
     <div class="text-sm text-black-5">Project Name</div>
@@ -63,7 +63,7 @@
     </div>
     <div class="flex items-center mt-4">
         <button class="text-black" onclick="toggleDeidOptions()" id="deidOptionsButton">▼</button>
-        <div class="text-sm text-black ml-4">De-identification Options</div>
+        <div class="text-sm text-black ml-4">Deidentification Options</div>
     </div>
     <div id="deid_options" class="mt-4 hidden ml-4">
         <div class="text-sm text-gray-500 mt-4">Output Folder</div>
@@ -110,9 +110,9 @@
         
         </div>
         
-        <!-- Advanced De-identification Options Section -->
+        <!-- Advanced Deidentification Options Section -->
         <div class="mt-6">
-            <div class="text-md mb-2">Advanced De-identification Options</div>
+            <div class="text-md mb-2">Advanced Deidentification Options</div>
             <div class="flex space-x-4">
                 <div class="flex-1">
                     <div class="text-sm text-gray-500">To keep</div>
