@@ -5,6 +5,13 @@
 {% block content %}
 <div class="px-4">
     <h1 class="text-xl flex-1">{{ module_name }} ({{ project_name }})</h1>
+    <div id="folderLinks" class="mt-4 bg-white p-3 rounded-t text-xs hidden flex justify-between">
+        <button id="openOutputFolder" class="px-2 py-1 bg-white shadow text-xs hover:bg-gray-100">Open output folder</button>
+        <div>
+            <button id="openAppdataFolder" class="px-2 py-1 bg-white shadow text-xs hover:bg-gray-100 mr-2">Open appdata folder</button>
+            <button id="openLogsFolder" class="px-2 py-1 bg-white shadow text-xs hover:bg-gray-100">Open logs folder</button>
+        </div>
+    </div>
     <div id="errorPopup" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div class="mt-3 text-center">
@@ -20,7 +27,7 @@
             </div>
         </div>
     </div>
-    <pre class="mt-4 bg-black text-white p-4 font-mono text-sm h-[calc(100vh-10rem-45px)] overflow-y-auto whitespace-pre-wrap" id="logContent">
+    <pre class="bg-black text-white p-4 font-mono text-xs h-[calc(100vh-13rem-45px)] overflow-y-auto whitespace-pre-wrap" id="logContent">
     </pre>
 </div>
 
@@ -28,6 +35,9 @@
     const urlParams = new URLSearchParams(window.location.search);
     const projectId = urlParams.get('project_id');
     let logPath = null;
+    let logsFolder = null;
+    let outputFolder = null;
+    let appdataFolder = null;
     let previousContent = '';
     let sameContentCount = 0;
     let pollInterval;
@@ -58,11 +68,22 @@
             const response = await fetch(`/api/task_status/${projectId}`);
             const data = await response.json();
             
-            // Update logPath if it's available from the API and different from current
             if (data.log_path && data.log_path !== '' && data.log_path !== logPath) {
                 logPath = data.log_path;
                 console.log('Log path updated to:', logPath);
             }
+            
+            if (data.logs_folder) {
+                logsFolder = data.logs_folder;
+            }
+            if (data.output_folder) {
+                outputFolder = data.output_folder;
+            }
+            if (data.appdata_folder) {
+                appdataFolder = data.appdata_folder;
+            }
+            
+            updateFolderLinks();
             
             if (data.status === 'FAILED') {
                 hasError = true;
@@ -77,6 +98,56 @@
             }
         } catch (error) {
             console.error('Error checking task status:', error);
+        }
+    }
+    
+    function updateFolderLinks() {
+        const folderLinksDiv = document.getElementById('folderLinks');
+        const openLogsBtn = document.getElementById('openLogsFolder');
+        const openOutputBtn = document.getElementById('openOutputFolder');
+        const openAppdataBtn = document.getElementById('openAppdataFolder');
+        
+        if (logsFolder || outputFolder || appdataFolder) {
+            folderLinksDiv.classList.remove('hidden');
+        }
+        
+        if (logsFolder) {
+            openLogsBtn.onclick = async () => {
+                if (window.electronAPI && window.electronAPI.openFolder) {
+                    await window.electronAPI.openFolder(logsFolder);
+                }
+            };
+            openLogsBtn.disabled = false;
+            openLogsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            openLogsBtn.disabled = true;
+            openLogsBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        
+        if (outputFolder) {
+            openOutputBtn.onclick = async () => {
+                if (window.electronAPI && window.electronAPI.openFolder) {
+                    await window.electronAPI.openFolder(outputFolder);
+                }
+            };
+            openOutputBtn.disabled = false;
+            openOutputBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            openOutputBtn.disabled = true;
+            openOutputBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        
+        if (appdataFolder) {
+            openAppdataBtn.onclick = async () => {
+                if (window.electronAPI && window.electronAPI.openFolder) {
+                    await window.electronAPI.openFolder(appdataFolder);
+                }
+            };
+            openAppdataBtn.disabled = false;
+            openAppdataBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            openAppdataBtn.disabled = true;
+            openAppdataBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
     }
     

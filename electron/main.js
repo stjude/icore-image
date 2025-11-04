@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -26,6 +26,26 @@ function logWithTimestamp(source, message) {
     logStream.write(logMessage);
   }
 }
+
+ipcMain.handle('open-folder', async (event, folderPath) => {
+  try {
+    if (!folderPath) {
+      return { success: false, error: 'No folder path provided' };
+    }
+    
+    const expandedPath = folderPath.replace(/^~/, os.homedir());
+    
+    if (!fs.existsSync(expandedPath)) {
+      return { success: false, error: 'Folder does not exist' };
+    }
+    
+    spawn('open', [expandedPath]);
+    return { success: true };
+  } catch (error) {
+    logWithTimestamp('main', `Error opening folder: ${error}`);
+    return { success: false, error: error.message };
+  }
+});
 
 app.on('ready', async () => {
   mainWindow = new BrowserWindow({

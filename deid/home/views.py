@@ -222,11 +222,34 @@ def task_status(request, project_id):
     try:
         task = Project.objects.get(id=project_id)
         
+        logs_folder = ''
+        appdata_folder = ''
+        actual_output_folder = ''
+        
+        if task.log_path:
+            logs_folder = os.path.dirname(task.log_path)
+            
+            timestamp = os.path.basename(logs_folder)
+            appdata_folder = os.path.join(ICORE_BASE_DIR, 'appdata', timestamp)
+        
+        if task.output_folder and task.name and task.timestamp:
+            if task.task_type in ['IMAGE_DEID', 'TEXT_DEID']:
+                prefix = 'DeID'
+            else:
+                prefix = 'PHI'
+            actual_output_folder = os.path.join(
+                task.output_folder, 
+                f"{prefix}_{task.name}_{task.timestamp}"
+            )
+        
         return JsonResponse({
             'status': task.status,
             'log_path': task.log_path,
             'name': task.name,
             'task_type': task.task_type,
+            'logs_folder': logs_folder,
+            'output_folder': actual_output_folder,
+            'appdata_folder': appdata_folder,
         })
     except Project.DoesNotExist:
         return JsonResponse({'error': 'Task not found'}, status=404)
