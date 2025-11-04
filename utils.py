@@ -184,3 +184,16 @@ def configure_run_logging(log_file_path, log_level=logging.INFO):
         force=True
     )
 
+
+def format_number_with_commas(num):
+    return f"{num:,}"
+
+
+def count_dicom_files(directory):
+    count = 0
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.lower().endswith('.dcm'):
+                count += 1
+    return count
+
