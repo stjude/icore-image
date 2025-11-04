@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 import traceback
 from datetime import datetime
@@ -24,13 +25,18 @@ PACS_PORT = 4242
 PACS_AET = 'ORTHANC'
 
 HOME_DIR = os.path.expanduser('~')
-CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'config.yml'))
-SETTINGS_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'settings.json'))
-RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'rclone.conf'))
-MODULES_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'modules'))
-APP_DATA_PATH = os.path.abspath(os.path.join(HOME_DIR, 'iCore', 'app_data'))
-TMP_INPUT_PATH = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'temp_input'))
-ICORE_PROCESSOR_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'bin', 'icorecli', 'icorecli')
+ICORE_BASE_DIR = os.path.join(HOME_DIR, 'Documents', 'iCore')
+CONFIG_DIR = os.path.join(ICORE_BASE_DIR, 'config')
+CONFIG_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'config.yml'))
+SETTINGS_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'settings.json'))
+RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'rclone.conf'))
+MODULES_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'modules'))
+APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'app_data'))
+TMP_INPUT_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'temp_input'))
+
+ICORE_PROCESSOR_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(sys.executable), '..', 'icorecli', 'icorecli')
+)
 
 def process_image_deid(task):
     output_folder = task.output_folder
@@ -328,7 +334,7 @@ def process_image_export(task):
     build_image_export_config(task)
 
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(HOME_DIR, '.icore', 'temp_output'))
+    output_full_path = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'temp_output'))
     os.makedirs(output_full_path, exist_ok=True)
 
     cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]

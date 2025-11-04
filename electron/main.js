@@ -1,305 +1,216 @@
 const { app, BrowserWindow, dialog } = require('electron');
-const { spawn, exec } = require('child_process');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { initializeApp } = require('./lib/setup');
+
 let mainWindow;
 let serverProcess;
 let workerProcess;
 
-// Create ICORE logs directory in user's home folder if it doesn't exist
-const logsDir = path.join(os.homedir(), '.icore');
-fs.mkdirSync(logsDir, { recursive: true });
+const baseDir = path.join(os.homedir(), 'Documents', 'iCore');
+const configDir = path.join(baseDir, 'config');
+const logsDir = path.join(baseDir, 'logs', 'system');
+const logFilePath = path.join(logsDir, 'log.txt');
+const dbPath = path.join(configDir, 'db.sqlite3');
+const settingsPath = path.join(configDir, 'settings.json');
 
-// Create log write streams
-const serverLogStream = fs.createWriteStream(path.join(logsDir, 'server.log'), { flags: 'a' });
-const workerLogStream = fs.createWriteStream(path.join(logsDir, 'worker.log'), { flags: 'a' });
-const mainLogStream = fs.createWriteStream(path.join(logsDir, 'main.log'), { flags: 'a' });
+let logStream;
 
-function logWithTimestamp(stream, message) {
-    const timestamp = new Date().toISOString();
-    stream.write(`[${timestamp}] ${message}\n`);
-}
-
-
-function checkAdminPassword() {
-    return true; // TODO: remove this (hardcoding for now)
-    const adminPasswordPath = path.join(os.homedir(), '.secure', '.config', '.sysdata', 'icapf.txt');
-    return fs.existsSync(adminPasswordPath);
-}
-
-
-
-function installProcessor() {
-    if (app.isPackaged) {
-        const userProcessorDir = path.join(os.homedir(), 'iCore', 'bin', 'icorecli');
-        const resourceProcessorPath = path.join(process.resourcesPath, 'app', 'assets', 'dist', 'icorecli');
-        
-        if (fs.existsSync(userProcessorDir)) {
-            fs.rmSync(userProcessorDir, { recursive: true, force: true });
-        }
-        
-        fs.mkdirSync(path.dirname(userProcessorDir), { recursive: true });
-        fs.cpSync(resourceProcessorPath, userProcessorDir, { recursive: true });
-        
-        const binaryPath = path.join(userProcessorDir, 'icorecli');
-        if (fs.existsSync(binaryPath)) {
-            fs.chmodSync(binaryPath, '755');
-        }
-    }
-}
-
-async function initializeFirstRun() {
-    const settingsPath = path.join(logsDir, 'settings.json');
-    if (!fs.existsSync(settingsPath)) {
-        const managePath = app.isPackaged 
-            ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
-            : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
-
-        // Ensure db.sqlite3 exists before migration
-        const dbPath = path.join(logsDir, 'db.sqlite3');
-        if (!fs.existsSync(dbPath)) {
-            fs.writeFileSync(dbPath, '');
-            logWithTimestamp(mainLogStream, 'Created empty db.sqlite3 file');
-        }
-
-        // Run migrate command
-        await new Promise((resolve, reject) => {
-            const migrateProcess = spawn(managePath, ['migrate']);
-            migrateProcess.on('close', (code) => {
-                if (code === 0) resolve();
-                else reject(new Error(`Migration failed with code ${code}`));
-            });
-        });
-
-        // Copy default settings.json
-        const defaultSettingsPath = app.isPackaged
-            ? path.join(process.resourcesPath, 'app', 'assets', 'settings.json')
-            : path.join(__dirname, 'assets', 'settings.json');
-            
-        fs.copyFileSync(defaultSettingsPath, settingsPath);
-    }
-
-    installProcessor();
-}
-
-async function updatePacsSettings() {
-    const settingsPath = path.join(logsDir, 'settings.json');
-    const defaultSettingsPath = app.isPackaged
-        ? path.join(process.resourcesPath, 'app', 'assets', 'settings.json')
-        : path.join(__dirname, 'assets', 'settings.json');
-
-    try {
-        const defaultSettings = JSON.parse(fs.readFileSync(defaultSettingsPath, 'utf8'));
-        if (defaultSettings.pacs_configs) {
-            const currentSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-            currentSettings.pacs_configs = defaultSettings.pacs_configs;
-            fs.writeFileSync(settingsPath, JSON.stringify(currentSettings, null, 2));
-            logWithTimestamp(mainLogStream, 'PACS settings updated successfully');
-        }
-    } catch (error) {
-        logWithTimestamp(mainLogStream, `Failed to update PACS settings: ${error}`);
-    }
-}
-
-async function updateRcloneConfig() {
-    const rcloneDestPath = path.join(logsDir, 'rclone.conf');
-    const rcloneSourcePath = app.isPackaged
-        ? path.join(process.resourcesPath, 'app', 'assets', 'rclone.conf')
-        : path.join(__dirname, 'assets', 'rclone.conf');
-
-    try {
-        if (fs.existsSync(rcloneSourcePath)) {
-            fs.copyFileSync(rcloneSourcePath, rcloneDestPath);
-            logWithTimestamp(mainLogStream, 'Rclone config copied successfully');
-        } else {
-            // Create empty rclone.conf if source doesn't exist
-            fs.writeFileSync(rcloneDestPath, '');
-            logWithTimestamp(mainLogStream, 'Empty rclone config created');
-        }
-    } catch (error) {
-        logWithTimestamp(mainLogStream, `Failed to update rclone config: ${error}`);
-    }
+function logWithTimestamp(source, message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] [${source}] ${message}\n`;
+  
+  if (logStream) {
+    logStream.write(logMessage);
+  }
 }
 
 app.on('ready', async () => {
-    mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 720,
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
-            webSecurity: false,
-        },
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 720,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      webSecurity: false,
+    },
+  });
+
+  mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+
+  try {
+    const defaultSettingsPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'app', 'assets', 'settings.json')
+      : path.join(__dirname, 'assets', 'settings.json');
+
+    const managePath = app.isPackaged
+      ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
+      : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+
+    if (!fs.existsSync(defaultSettingsPath)) {
+      throw new Error(`Default settings not found at: ${defaultSettingsPath}`);
+    }
+
+    if (!fs.existsSync(managePath)) {
+      throw new Error(`Manage binary not found at: ${managePath}`);
+    }
+
+    await initializeApp({
+      baseDir,
+      dbPath,
+      settingsPath,
+      defaultSettingsPath,
+      managePath,
+      spawnFn: spawn
     });
 
-    mainWindow.loadFile(path.join(__dirname, 'loading.html'));
-
-
-    // Initialize first run if needed
+    fs.mkdirSync(logsDir, { recursive: true });
+    logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+    
+    logWithTimestamp('main', 'Application initialized successfully');
+  } catch (error) {
+    console.error('Initialization failed:', error);
+    console.error('Error stack:', error.stack);
+    
     try {
-        await initializeFirstRun();
-        await updatePacsSettings();
-        await updateRcloneConfig();
-    } catch (error) {
-        logWithTimestamp(mainLogStream, `First run initialization failed: ${error}`);
-        dialog.showMessageBox({
-            type: 'error',
-            title: 'Initialization Failed',
-            message: 'Failed to initialize application. Please try again.',
-            buttons: ['OK']
-        }).then(() => {
-            app.quit();
-        });
-        return;
+      fs.mkdirSync(logsDir, { recursive: true });
+      logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+      logWithTimestamp('main', `Initialization failed: ${error}\nStack: ${error.stack}`);
+    } catch (logError) {
+      console.error('Failed to write to log file:', logError);
     }
+    
+    dialog.showMessageBox({
+      type: 'error',
+      title: 'Initialization Failed',
+      message: `Failed to initialize application: ${error.message}\n\nCheck console for details.`,
+      buttons: ['OK']
+    }).then(() => {
+      app.quit();
+    });
+    return;
+  }
 
-    const adminPasswordExists = checkAdminPassword();
-    if (!adminPasswordExists) {
-        const message = 'The application is not properly set up. Admin password file is missing.';
-        logWithTimestamp(mainLogStream, `Error: ${message}`);
-        dialog.showMessageBox({
-            type: 'error',
-            title: 'Setup Error',
-            message: message,
-            buttons: ['OK']
-        }).then(() => {
-            app.quit();
-        });
-        return;
-    }
+  serverProcess = spawn(
+    app.isPackaged
+      ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
+      : path.join(__dirname, 'assets', 'dist', 'manage', 'manage'),
+    ['runserver', '--noreload']
+  );
+  
+  workerProcess = spawn(
+    app.isPackaged
+      ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
+      : path.join(__dirname, 'assets', 'dist', 'manage', 'manage'),
+    ['worker']
+  );
 
+  serverProcess.stdout.on('data', (data) => {
+    logWithTimestamp('server', data.toString().trim());
+  });
+  
+  serverProcess.stderr.on('data', (data) => {
+    logWithTimestamp('server', data.toString().trim());
+  });
+  
+  serverProcess.on('error', (err) => {
+    logWithTimestamp('server', `Process error: ${err}`);
+  });
 
-    // Delete existing database and re-migrate
-    const dbPath = path.join(os.homedir(), '.icore', 'db.sqlite3');
-    if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath);
-    }
+  workerProcess.stdout.on('data', (data) => {
+    logWithTimestamp('worker', data.toString().trim());
+  });
+  
+  workerProcess.stderr.on('data', (data) => {
+    logWithTimestamp('worker', data.toString().trim());
+  });
+  
+  workerProcess.on('error', (err) => {
+    logWithTimestamp('worker', `Process error: ${err}`);
+  });
 
-    const managePath = app.isPackaged 
-        ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
-        : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+  mainWindow.webContents.on('console-message', (event, level, message) => {
+    logWithTimestamp('renderer', `Console [${level}]: ${message}`);
+  });
 
-    // Ensure db.sqlite3 exists before migration
-    if (!fs.existsSync(dbPath)) {
-        fs.writeFileSync(dbPath, '');
-        logWithTimestamp(mainLogStream, 'Created empty db.sqlite3 file');
-    }
+  mainWindow.webContents.on('crashed', () => {
+    logWithTimestamp('main', 'Renderer process crashed');
+  });
 
-    // Run migrate command
-    try {
-        await new Promise((resolve, reject) => {
-            const migrateProcess = spawn(managePath, ['migrate']);
-            migrateProcess.on('close', (code) => {
-                if (code === 0) resolve();
-                else reject(new Error(`Migration failed with code ${code}`));
-            });
-        });
-    } catch (error) {
-        logWithTimestamp(mainLogStream, `Database migration failed: ${error}`);
-        dialog.showMessageBox({
-            type: 'error',
-            title: 'Database Migration Failed',
-            message: 'Failed to initialize database. Please try again.',
-            buttons: ['OK']
-        }).then(() => {
-            app.quit();
-        });
-        return;
-    }
+  mainWindow.on('unresponsive', () => {
+    logWithTimestamp('main', 'Window became unresponsive');
+  });
+
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  mainWindow.loadURL('http://127.0.0.1:8000/imagedeid');
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (mainWindow.webContents.navigationHistory.canGoBack) {
+      mainWindow.setBackgroundColor('#FFFFFF');
+      mainWindow.webContents.executeJavaScript(`
+        const menuBar = document.createElement('div');
+        menuBar.style.position = 'fixed';
+        menuBar.style.top = '0';
+        menuBar.style.left = '0';
+        menuBar.style.width = '100%';
+        menuBar.style.height = '40px';
+        menuBar.style.backgroundColor = '#f8f9fa';
+        menuBar.style.borderBottom = '1px solid #dee2e6';
+        menuBar.style.zIndex = '9999';
+        menuBar.style.display = 'flex';
+        menuBar.style.alignItems = 'center';
+        menuBar.style.padding = '0 10px';
+
+        const backButton = document.createElement('button');
+        backButton.innerHTML = '←';
+        backButton.style.padding = '5px 10px';
+        backButton.style.marginRight = '10px';
+        backButton.style.border = 'none';
+        backButton.style.backgroundColor = 'transparent';
+        backButton.style.cursor = 'pointer';
+        backButton.onclick = () => window.history.back();
         
-    serverProcess = spawn(managePath, ['runserver', '--noreload']);
-    workerProcess = spawn(managePath, ['worker']);
-    
-    // Pipe process outputs to log files
-    serverProcess.stdout.pipe(serverLogStream);
-    serverProcess.stderr.pipe(serverLogStream);
-    serverProcess.on('error', (err) => logWithTimestamp(serverLogStream, `Process error: ${err}`));
-    
-    workerProcess.stdout.pipe(workerLogStream);
-    workerProcess.stderr.pipe(workerLogStream);
-    workerProcess.on('error', (err) => logWithTimestamp(workerLogStream, `Process error: ${err}`));
-    
-    // Log main window events
-    mainWindow.webContents.on('console-message', (event, level, message) => {
-        logWithTimestamp(mainLogStream, `Console [${level}]: ${message}`);
-    });
-    
-    mainWindow.webContents.on('crashed', () => {
-        logWithTimestamp(mainLogStream, 'Renderer process crashed');
-    });
-    
-    mainWindow.on('unresponsive', () => {
-        logWithTimestamp(mainLogStream, 'Window became unresponsive');
-    });
-    
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    mainWindow.loadURL('http://127.0.0.1:8000/imagedeid');
+        menuBar.appendChild(backButton);
+        document.body.appendChild(menuBar);
+        
+        document.body.style.paddingTop = '40px';
+      `);
+    }
+  });
 
-    // Open DevTools
-    // mainWindow.webContents.openDevTools();
+  mainWindow.on('close', async (e) => {
+    if (!mainWindow.isClosing) {
+      e.preventDefault();
+      const choice = await dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        buttons: ['Yes', 'No'],
+        title: 'Confirm Close',
+        message: 'Are you sure you want to close the application?',
+        detail: 'Any currently running tasks will be canceled and may become corrupted.'
+      });
 
-    // Enable back/forward navigation
-    mainWindow.webContents.on('did-finish-load', () => {
-        if (mainWindow.webContents.navigationHistory.canGoBack) {
-            mainWindow.setBackgroundColor('#FFFFFF');
-            mainWindow.webContents.executeJavaScript(`
-                const menuBar = document.createElement('div');
-                menuBar.style.position = 'fixed';
-                menuBar.style.top = '0';
-                menuBar.style.left = '0';
-                menuBar.style.width = '100%';
-                menuBar.style.height = '40px';
-                menuBar.style.backgroundColor = '#f8f9fa';
-                menuBar.style.borderBottom = '1px solid #dee2e6';
-                menuBar.style.zIndex = '9999';
-                menuBar.style.display = 'flex';
-                menuBar.style.alignItems = 'center';
-                menuBar.style.padding = '0 10px';
-
-                const backButton = document.createElement('button');
-                backButton.innerHTML = '←';
-                backButton.style.padding = '5px 10px';
-                backButton.style.marginRight = '10px';
-                backButton.style.border = 'none';
-                backButton.style.backgroundColor = 'transparent';
-                backButton.style.cursor = 'pointer';
-                backButton.onclick = () => window.history.back();
-                
-                menuBar.appendChild(backButton);
-                document.body.appendChild(menuBar);
-                
-                // Add padding to body to prevent content from going under menubar
-                document.body.style.paddingTop = '40px';
-            `);
+      if (choice.response === 0) {
+        mainWindow.isClosing = true;
+        logWithTimestamp('main', 'Main window closed');
+        
+        if (serverProcess) {
+          serverProcess.kill();
+          serverProcess = null;
         }
-    });
-    
-    mainWindow.on('close', async (e) => {
-        // Only show dialog if it hasn't been confirmed yet
-        if (!mainWindow.isClosing) {
-            e.preventDefault();
-            const choice = await dialog.showMessageBox(mainWindow, {
-                type: 'question',
-                buttons: ['Yes', 'No'],
-                title: 'Confirm Close',
-                message: 'Are you sure you want to close the application?',
-                detail: 'Any currently running tasks will be canceled and may become corrupted.'
-            });
-
-            if (choice.response === 0) {
-                mainWindow.isClosing = true;
-                logWithTimestamp(mainLogStream, 'Main window closed');
-                if (serverProcess) {
-                    serverProcess.kill();
-                    serverProcess = null;
-                }
-                if (workerProcess) {
-                    workerProcess.kill();
-                    workerProcess = null;
-                }
-                mainWindow.close();
-            }
+        
+        if (workerProcess) {
+          workerProcess.kill();
+          workerProcess = null;
         }
-    });
+        
+        if (logStream) {
+          logStream.end();
+        }
+        
+        mainWindow.close();
+      }
+    }
+  });
 });

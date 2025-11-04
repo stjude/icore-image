@@ -1,0 +1,322 @@
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+const mockApp = {
+  on: jest.fn(),
+  isPackaged: false,
+  quit: jest.fn()
+};
+
+const mockDialog = {
+  showMessageBox: jest.fn().mockResolvedValue({ response: 0 })
+};
+
+let mockWindowInstance;
+const mockBrowserWindow = jest.fn().mockImplementation(() => {
+  mockWindowInstance = {
+    loadFile: jest.fn(),
+    loadURL: jest.fn(),
+    setBackgroundColor: jest.fn(),
+    on: jest.fn(),
+    close: jest.fn(),
+    webContents: {
+      on: jest.fn(),
+      executeJavaScript: jest.fn(),
+      navigationHistory: {
+        canGoBack: false
+      }
+    },
+    isClosing: false
+  };
+  return mockWindowInstance;
+});
+
+const mockSpawn = jest.fn().mockImplementation(() => ({
+  stdout: { on: jest.fn() },
+  stderr: { on: jest.fn() },
+  on: jest.fn(),
+  kill: jest.fn()
+}));
+
+const mockInitializeApp = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('electron', () => ({
+  app: mockApp,
+  BrowserWindow: mockBrowserWindow,
+  dialog: mockDialog
+}));
+
+jest.mock('child_process', () => ({
+  spawn: mockSpawn
+}));
+
+jest.mock('./lib/setup', () => ({
+  initializeApp: mockInitializeApp
+}));
+
+describe('main.js', () => {
+  let tempDir;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'icore-test-'));
+    jest.clearAllMocks();
+    mockInitializeApp.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('registers ready event handler on app', () => {
+    jest.isolateModules(() => {
+      require('./main');
+      expect(mockApp.on).toHaveBeenCalledWith('ready', expect.any(Function));
+    });
+  });
+
+  it('calls initializeApp with correct paths during ready event', async () => {
+    let readyHandler;
+    
+    jest.isolateModules(() => {
+      mockApp.on.mockImplementation((event, handler) => {
+        if (event === 'ready') {
+          readyHandler = handler;
+        }
+      });
+      
+      require('./main');
+    });
+    
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      cb();
+      return null;
+    });
+    
+    await readyHandler();
+    
+    expect(mockInitializeApp).toHaveBeenCalled();
+    const callArgs = mockInitializeApp.mock.calls[0][0];
+    expect(callArgs.baseDir).toContain('Documents/iCore');
+    expect(callArgs.dbPath).toContain('config/db.sqlite3');
+    expect(callArgs.settingsPath).toContain('config/settings.json');
+    expect(callArgs.defaultSettingsPath).toContain('assets/settings.json');
+    expect(callArgs.managePath).toContain('manage');
+    
+    jest.restoreAllMocks();
+  });
+
+  it('spawns server and worker processes after initialization', async () => {
+    let readyHandler;
+    
+    jest.isolateModules(() => {
+      mockApp.on.mockImplementation((event, handler) => {
+        if (event === 'ready') {
+          readyHandler = handler;
+        }
+      });
+      
+      require('./main');
+    });
+    
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      cb();
+      return null;
+    });
+    
+    await readyHandler();
+    
+    expect(mockSpawn).toHaveBeenCalledWith(
+      expect.stringContaining('manage'),
+      ['runserver', '--noreload']
+    );
+    
+    expect(mockSpawn).toHaveBeenCalledWith(
+      expect.stringContaining('manage'),
+      ['worker']
+    );
+    
+    jest.restoreAllMocks();
+  });
+
+  it('shows error dialog and quits when initialization fails', async () => {
+    mockInitializeApp.mockRejectedValueOnce(new Error('Test error'));
+    
+    let readyHandler;
+    
+    jest.isolateModules(() => {
+      mockApp.on.mockImplementation((event, handler) => {
+        if (event === 'ready') {
+          readyHandler = handler;
+        }
+      });
+      
+      require('./main');
+    });
+    
+    await readyHandler();
+    
+    expect(mockDialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        title: 'Initialization Failed'
+      })
+    );
+  });
+
+  it('creates log stream in correct directory', async () => {
+    const logDir = path.join(os.homedir(), 'Documents', 'iCore', 'logs', 'system');
+    
+    if (fs.existsSync(logDir)) {
+      fs.rmSync(logDir, { recursive: true, force: true });
+    }
+    
+    let readyHandler;
+    
+    jest.isolateModules(() => {
+      mockApp.on.mockImplementation((event, handler) => {
+        if (event === 'ready') {
+          readyHandler = handler;
+        }
+      });
+      
+      require('./main');
+    });
+    
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      cb();
+      return null;
+    });
+    
+    await readyHandler();
+    
+    expect(fs.existsSync(logDir)).toBe(true);
+    
+    jest.restoreAllMocks();
+  });
+});
+
+describe('logging functionality', () => {
+  let tempDir;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'icore-test-'));
+    jest.clearAllMocks();
+    mockInitializeApp.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('sets up logging directory structure', async () => {
+    const logDir = path.join(os.homedir(), 'Documents', 'iCore', 'logs', 'system');
+    
+    if (fs.existsSync(logDir)) {
+      fs.rmSync(logDir, { recursive: true, force: true });
+    }
+    
+    let readyHandler;
+    
+    jest.isolateModules(() => {
+      mockApp.on.mockImplementation((event, handler) => {
+        if (event === 'ready') {
+          readyHandler = handler;
+        }
+      });
+      
+      require('./main');
+    });
+    
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      cb();
+      return null;
+    });
+    
+    await readyHandler();
+    
+    expect(fs.existsSync(logDir)).toBe(true);
+    
+    jest.restoreAllMocks();
+  });
+});
+
+describe('process cleanup', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockInitializeApp.mockResolvedValue(undefined);
+  });
+
+  it('kills server and worker processes on window close', async () => {
+    const mockServerProcess = {
+      stdout: { on: jest.fn() },
+      stderr: { on: jest.fn() },
+      on: jest.fn(),
+      kill: jest.fn()
+    };
+    
+    const mockWorkerProcess = {
+      stdout: { on: jest.fn() },
+      stderr: { on: jest.fn() },
+      on: jest.fn(),
+      kill: jest.fn()
+    };
+    
+    mockSpawn.mockImplementationOnce(() => mockServerProcess)
+            .mockImplementationOnce(() => mockWorkerProcess);
+    
+    let readyHandler;
+    let closeHandler;
+    
+    jest.isolateModules(() => {
+      mockApp.on.mockImplementation((event, handler) => {
+        if (event === 'ready') {
+          readyHandler = handler;
+        }
+      });
+      
+      mockBrowserWindow.mockImplementation(() => {
+        mockWindowInstance = {
+          loadFile: jest.fn(),
+          loadURL: jest.fn(),
+          setBackgroundColor: jest.fn(),
+          close: jest.fn(),
+          on: jest.fn((event, handler) => {
+            if (event === 'close') {
+              closeHandler = handler;
+            }
+          }),
+          webContents: {
+            on: jest.fn(),
+            executeJavaScript: jest.fn(),
+            navigationHistory: {
+              canGoBack: false
+            }
+          },
+          isClosing: false
+        };
+        return mockWindowInstance;
+      });
+      
+      require('./main');
+    });
+    
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      cb();
+      return null;
+    });
+    
+    await readyHandler();
+    
+    await closeHandler({ preventDefault: jest.fn() });
+    
+    expect(mockServerProcess.kill).toHaveBeenCalled();
+    expect(mockWorkerProcess.kill).toHaveBeenCalled();
+    
+    jest.restoreAllMocks();
+  });
+});

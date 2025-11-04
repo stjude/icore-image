@@ -5,11 +5,15 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --mac dmg",
-    "build_signed": "CSC_IDENTITY_AUTO_DISCOVERY=true electron-builder --mac dmg"
+    "build_signed": "CSC_IDENTITY_AUTO_DISCOVERY=true electron-builder --mac dmg",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "devDependencies": {
     "electron": "^33.2.1",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "jest": "^29.7.0"
   },
   "build": {
     "appId": "com.icore.app",
@@ -19,6 +23,7 @@
       "main.js",
       "preload.js",
       "loading.html",
+      "lib/**/*",
       "assets/icon.icns",
       "assets/settings.json"
     ],

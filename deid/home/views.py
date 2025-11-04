@@ -26,11 +26,14 @@ from django.views.generic.edit import CreateView
 
 from .models import Project, Module
 
-SETTINGS_DIR = os.path.join(os.path.expanduser('~'), '.icore')
-APP_DATA_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'app_data')
-AUTHENTICATION_LOG_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'authentication.log')
+ICORE_BASE_DIR = os.path.join(os.path.expanduser('~'), 'Documents', 'iCore')
+SETTINGS_DIR = os.path.join(ICORE_BASE_DIR, 'config')
+APP_DATA_PATH = os.path.join(ICORE_BASE_DIR, 'app_data')
+AUTHENTICATION_LOG_PATH = os.path.join(ICORE_BASE_DIR, 'logs', 'system', 'authentication.log')
 SECURE_DIR = os.path.join(os.path.expanduser('~'), '.secure', '.config', '.sysdata')
-LOGS_DIR = os.path.join(os.path.expanduser('~'), 'Documents', 'iCore', 'logs')
+LOGS_DIR = os.path.join(ICORE_BASE_DIR, 'logs')
+
+os.makedirs(os.path.dirname(AUTHENTICATION_LOG_PATH), exist_ok=True)
 
 AUTH_LOGGER = logging.getLogger('authentication')
 AUTH_LOGGER.setLevel(logging.INFO)
@@ -730,7 +733,7 @@ def save_admin_settings(request):
 
 def get_protocol_settings(request, protocol_id):
     try:
-        settings_dir = os.path.join(os.path.expanduser('~'), '.icore')
+        settings_dir = os.path.join(os.path.expanduser('~'), 'Documents', 'iCore', 'config')
         protocol_path = os.path.join(settings_dir, 'protocol.xlsx')
         
         if not os.path.exists(protocol_path):
@@ -910,7 +913,7 @@ def upload_module(request):
     module_file = request.FILES['module_file']
 
     try:
-        # Create .icore directory in user's home if it doesn't exist
+        # Create iCore config directory in user's home if it doesn't exist
         icore_dir =  f"{SETTINGS_DIR}/modules"
         os.makedirs(icore_dir, exist_ok=True)
 

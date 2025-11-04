@@ -17,7 +17,7 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-HOME_DIR = os.path.expanduser('~/.icore')
+HOME_DIR = os.path.join(os.path.expanduser('~'), 'Documents', 'iCore', 'config')
 
 if not os.path.exists(HOME_DIR):
     os.makedirs(HOME_DIR)

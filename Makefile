@@ -90,6 +90,8 @@ build-dmg-signed:
 
 clean:
 	rm -rf dist deid/dist electron/assets/dist build deid/build
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -name "*.pyc" -delete 2>/dev/null || true
 
 all: deps external-deps build-binaries prepare-assets build-dmg
 

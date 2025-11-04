@@ -1,9 +1,12 @@
 import argparse
 import os
+import sys
 import yaml
 import subprocess
 
-ICORE_PROCESSOR_PATH = os.path.join(os.path.expanduser('~'), 'iCore', 'bin', 'icorecli', 'icorecli')
+ICORE_PROCESSOR_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(sys.executable), '..', 'icorecli', 'icorecli')
+)
 
 
 def create_parser():
