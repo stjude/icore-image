@@ -1,7 +1,12 @@
-# iCore Image
+<p align="center"><img src="deid/static/logo.png" width="48px"/></p>
 
-## Usage Guide
-For a detailed usage guide, please refer to the [User Guide](https://innolitics.notion.site/iCore-v0-0-7-User-Manual-160bd5b7a754804287bed990845636cd).
+<p align="center"><b>iCore Image</b></p>
+
+<p align="center"><a href="https://innolitics.notion.site/iCore-v0-0-7-User-Manual-160bd5b7a754804287bed990845636cd">Complete iCore User Guide</a></p>
+
+<p align="center">Medical Image and Text De-identification Tool by St. Jude</p>
+
+<p align="center"><img src="deid/static/screenshot.png" width="600px"/></p>
 
 ## Develop macOS App
 
