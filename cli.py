@@ -48,6 +48,7 @@ def build_imageqr_params(config, input_dir, output_dir, run_dirs):
         "output_dir": output_dir,
         "filter_script": config.get("ctp_filters"),
         "date_window_days": config.get("date_window", 0),
+        "debug": config.get("debug", False),
         "run_dirs": run_dirs
     }
 
@@ -82,6 +83,7 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
         "lookup_table": config.get("ctp_lookup_table"),
         "date_window_days": config.get("date_window", 0),
         "deid_pixels": config.get("deid_pixels", False),
+        "debug": config.get("debug", False),
         "run_dirs": run_dirs
     }
 
@@ -94,6 +96,7 @@ def build_imagedeid_local_params(config, input_dir, output_dir, run_dirs):
         "anonymizer_script": config.get("ctp_anonymizer"),
         "lookup_table": config.get("ctp_lookup_table"),
         "deid_pixels": config.get("deid_pixels", False),
+        "debug": config.get("debug", False),
         "run_dirs": run_dirs
     }
 
@@ -107,6 +110,7 @@ def build_textdeid_params(config, input_dir, output_dir, run_dirs):
         "to_remove_list": config.get("to_remove_list"),
         "columns_to_drop": config.get("columns_to_drop"),
         "columns_to_deid": config.get("columns_to_deid"),
+        "debug": config.get("debug", False),
         "run_dirs": run_dirs
     }
 
