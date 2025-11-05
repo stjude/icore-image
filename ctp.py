@@ -255,7 +255,7 @@ class CTPServer:
     def _force_kill_by_port(self):
         for proc in psutil.process_iter(['pid', 'name', 'connections']):
             try:
-                for conn in proc.connections():
+                for conn in proc.net_connections():
                     if conn.laddr.port == self.port:
                         proc.kill()
                         proc.wait(timeout=5)
@@ -763,7 +763,7 @@ class CTPPipeline:
     def _force_kill_by_port(self, port):
         for proc in psutil.process_iter(['pid', 'name']):
             try:
-                for conn in proc.connections():
+                for conn in proc.net_connections():
                     if conn.laddr.port == port:
                         proc.kill()
                         proc.wait(timeout=5)
