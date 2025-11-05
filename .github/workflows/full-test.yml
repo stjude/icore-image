@@ -29,10 +29,17 @@ jobs:
         run: |
           colima start --cpu 4 --memory 8 --network-address
           
+      - name: Configure Docker to use Colima
+        run: |
+          docker context use colima
+          docker context ls
+          echo "DOCKER_HOST=unix://$HOME/.colima/default/docker.sock" >> $GITHUB_ENV
+          
       - name: Verify Docker is working
         run: |
           docker version
           docker info
+          docker ps
           
       - name: Wait for Docker to be fully ready
         run: sleep 15
