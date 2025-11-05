@@ -305,6 +305,10 @@ class CTPServer:
             self._monitor_exception = e
 
 
+class DicomPortInUseError(Exception):
+    pass
+
+
 PIPELINE_TEMPLATES = {
     "imagecopy_local": """
     <Configuration>
@@ -708,7 +712,7 @@ class CTPPipeline:
     def __init__(self, pipeline_type, output_dir, input_dir=None,
                  filter_script=None, anonymizer_script=None, lookup_table=None,
                  application_aet=None, source_ctp_dir=None, stall_timeout=300, log_path=None, log_level=None,
-                 quarantine_dir=None):
+                 quarantine_dir=None, dicom_port=None, force_kill_dicom_pipeline=False):
         if pipeline_type not in PIPELINE_TEMPLATES:
             raise ValueError(f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}")
         
@@ -724,29 +728,58 @@ class CTPPipeline:
         self.log_path = log_path
         self.log_level = log_level
         self.quarantine_dir = quarantine_dir
+        self.force_kill_dicom_pipeline = force_kill_dicom_pipeline
         
-        self.port = self._find_available_port()
+        if dicom_port is not None:
+            self._dicom_port = dicom_port
+        elif self._pipeline_needs_dicom_port():
+            self._dicom_port = 50001
+        else:
+            self._dicom_port = None
+        
+        self.port = self._find_available_port(self._dicom_port)
         self._tempdir = tempfile.mkdtemp(prefix='ctp_')
-        self._dicom_port = self.port + 1
         self.server = None
     
-    def _find_available_port(self):
-        return 50000 # TODO: remove
-
+    def _pipeline_needs_dicom_port(self):
+        return self.pipeline_type in ['imagedeid_pacs', 'imagedeid_pacs_pixel', 'imageqr']
+    
+    def _find_available_port(self, dicom_port_to_avoid=None):
         start_port = 50000
         max_attempts = 10
         port_increment = 10
         
         for attempt in range(max_attempts):
             port = start_port + (attempt * port_increment)
-            dicom_port = port + 1
             
-            if is_port_available(port) and is_port_available(dicom_port):
+            if port == dicom_port_to_avoid:
+                continue
+            
+            if is_port_available(port):
                 return port
         
         raise RuntimeError(f"Could not find available port after {max_attempts} attempts (tried ports {start_port} to {start_port + (max_attempts - 1) * port_increment})")
     
+    def _force_kill_by_port(self, port):
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                for conn in proc.connections():
+                    if conn.laddr.port == port:
+                        proc.kill()
+                        proc.wait(timeout=5)
+                        return
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+    
     def __enter__(self):
+        if self._pipeline_needs_dicom_port() and self._dicom_port:
+            if not is_port_available(self._dicom_port):
+                if self.force_kill_dicom_pipeline:
+                    self._force_kill_by_port(self._dicom_port)
+                    time.sleep(2)
+                else:
+                    raise DicomPortInUseError(f"DICOM port {self._dicom_port} is already in use. Use force_kill_dicom_pipeline=True to kill existing pipeline.")
+        
         os.makedirs(os.path.join(self._tempdir, "roots"), exist_ok=True)
         os.makedirs(os.path.join(self._tempdir, "quarantine"), exist_ok=True)
         

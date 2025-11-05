@@ -56,7 +56,7 @@ def create_test_dicoms(input_dir, num_files=10):
         ds.save_as(str(filepath), write_like_original=False)
 
 
-def test_ctp_pipeline_port_selection(tmp_path):
+def test_ctp_port_selection_local_pipeline(tmp_path):
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
     
@@ -77,19 +77,12 @@ def test_ctp_pipeline_port_selection(tmp_path):
     try:
         for attempt in range(3):
             port = 50000 + (attempt * 10)
-            dicom_port = port + 1
             
-            sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock1.bind(('localhost', port))
-            sock1.listen(1)
-            blocked_sockets.append(sock1)
-            
-            sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock2.bind(('localhost', dicom_port))
-            sock2.listen(1)
-            blocked_sockets.append(sock2)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(('localhost', port))
+            sock.listen(1)
+            blocked_sockets.append(sock)
         
         pipeline = CTPPipeline(
             source_ctp_dir=str(source_ctp),
@@ -107,19 +100,12 @@ def test_ctp_pipeline_port_selection(tmp_path):
     try:
         for attempt in range(10):
             port = 50000 + (attempt * 10)
-            dicom_port = port + 1
             
-            sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock1.bind(('localhost', port))
-            sock1.listen(1)
-            blocked_sockets.append(sock1)
-            
-            sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock2.bind(('localhost', dicom_port))
-            sock2.listen(1)
-            blocked_sockets.append(sock2)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(('localhost', port))
+            sock.listen(1)
+            blocked_sockets.append(sock)
         
         with pytest.raises(RuntimeError, match="Could not find available port after 10 attempts"):
             CTPPipeline(
@@ -132,6 +118,188 @@ def test_ctp_pipeline_port_selection(tmp_path):
     finally:
         for sock in blocked_sockets:
             sock.close()
+
+
+def test_ctp_port_avoids_dicom_port(tmp_path):
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    pipeline = CTPPipeline(
+        pipeline_type="imagedeid_pacs",
+        output_dir=str(output_dir),
+        application_aet="TEST",
+        dicom_port=50005,
+        source_ctp_dir=str(source_ctp)
+    )
+    assert pipeline._dicom_port == 50005, "DICOM port should be set to 50005"
+    assert pipeline.port != 50005, "CTP port should not conflict with DICOM port"
+    assert pipeline.port in [50000, 50010, 50020, 50030, 50040, 50050, 50060, 50070, 50080, 50090], \
+        f"CTP port should be one of the standard ports, got {pipeline.port}"
+
+
+def test_parallel_local_pipelines(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir1 = tmp_path / "input1"
+    input_dir2 = tmp_path / "input2"
+    input_dir3 = tmp_path / "input3"
+    output_dir1 = tmp_path / "output1"
+    output_dir2 = tmp_path / "output2"
+    output_dir3 = tmp_path / "output3"
+    
+    for d in [input_dir1, input_dir2, input_dir3, output_dir1, output_dir2, output_dir3]:
+        d.mkdir()
+    
+    create_test_dicoms(input_dir1, num_files=3)
+    create_test_dicoms(input_dir2, num_files=3)
+    create_test_dicoms(input_dir3, num_files=3)
+    
+    time.sleep(2)
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    with CTPPipeline(
+        pipeline_type="imagecopy_local",
+        output_dir=str(output_dir1),
+        input_dir=str(input_dir1),
+        source_ctp_dir=str(source_ctp)
+    ) as pipeline1:
+        with CTPPipeline(
+            pipeline_type="imagecopy_local",
+            output_dir=str(output_dir2),
+            input_dir=str(input_dir2),
+            source_ctp_dir=str(source_ctp)
+        ) as pipeline2:
+            with CTPPipeline(
+                pipeline_type="imagecopy_local",
+                output_dir=str(output_dir3),
+                input_dir=str(input_dir3),
+                source_ctp_dir=str(source_ctp)
+            ) as pipeline3:
+                ports = [pipeline1.port, pipeline2.port, pipeline3.port]
+                assert len(set(ports)) == 3, f"All pipelines should have different ports, got {ports}"
+                
+                start_time = time.time()
+                timeout = 60
+                
+                while not (pipeline1.is_complete() and pipeline2.is_complete() and pipeline3.is_complete()):
+                    if time.time() - start_time > timeout:
+                        raise TimeoutError("Pipelines did not complete")
+                    time.sleep(1)
+                
+                assert pipeline1.metrics.files_saved == 3
+                assert pipeline2.metrics.files_saved == 3
+                assert pipeline3.metrics.files_saved == 3
+
+
+def test_pacs_pipeline_with_custom_dicom_port(tmp_path):
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    pipeline = CTPPipeline(
+        pipeline_type="imagedeid_pacs",
+        output_dir=str(output_dir),
+        application_aet="TEST",
+        dicom_port=11112,
+        source_ctp_dir=str(source_ctp)
+    )
+    
+    assert pipeline._dicom_port == 11112, "DICOM port should be set to 11112"
+    assert pipeline.port != 11112, "CTP port should not equal DICOM port"
+    assert pipeline.port >= 50000, "CTP port should be in expected range"
+
+
+def test_pacs_pipeline_dicom_port_conflict(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir1 = tmp_path / "output1"
+    output_dir2 = tmp_path / "output2"
+    
+    input_dir.mkdir()
+    output_dir1.mkdir()
+    output_dir2.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    from ctp import DicomPortInUseError
+    
+    with CTPPipeline(
+        pipeline_type="imagedeid_pacs",
+        output_dir=str(output_dir1),
+        application_aet="TEST",
+        dicom_port=11112,
+        source_ctp_dir=str(source_ctp)
+    ) as pipeline1:
+        time.sleep(3)
+        
+        with pytest.raises(DicomPortInUseError, match="DICOM port 11112"):
+            with CTPPipeline(
+                pipeline_type="imagedeid_pacs",
+                output_dir=str(output_dir2),
+                application_aet="TEST",
+                dicom_port=11112,
+                source_ctp_dir=str(source_ctp)
+            ) as pipeline2:
+                pass
+
+
+def test_pacs_pipeline_force_kill(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir1 = tmp_path / "output1"
+    output_dir2 = tmp_path / "output2"
+    
+    input_dir.mkdir()
+    output_dir1.mkdir()
+    output_dir2.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    pipeline1 = CTPPipeline(
+        pipeline_type="imagedeid_pacs",
+        output_dir=str(output_dir1),
+        application_aet="TEST",
+        dicom_port=11112,
+        source_ctp_dir=str(source_ctp)
+    )
+    pipeline1.__enter__()
+    
+    try:
+        time.sleep(3)
+        assert pipeline1.server.process.poll() is None, "First pipeline should be running"
+        
+        pipeline2 = CTPPipeline(
+            pipeline_type="imagedeid_pacs",
+            output_dir=str(output_dir2),
+            application_aet="TEST",
+            dicom_port=11112,
+            force_kill_dicom_pipeline=True,
+            source_ctp_dir=str(source_ctp)
+        )
+        pipeline2.__enter__()
+        
+        try:
+            time.sleep(3)
+            
+            assert pipeline1.server.process.poll() is not None, "First pipeline should be killed"
+            assert pipeline2.server.process.poll() is None, "Second pipeline should be running"
+        finally:
+            pipeline2.__exit__(None, None, None)
+    finally:
+        if pipeline1.server.process and pipeline1.server.process.poll() is None:
+            pipeline1.__exit__(None, None, None)
 
 
 def test_archive_import_to_directory_storage(tmp_path):
