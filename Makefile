@@ -19,6 +19,7 @@ deps: deps-python deps-deid deps-electron
 
 deps-python:
 	pip install -r requirements.txt
+	python -m spacy download en_core_web_sm
 
 deps-deid:
 	cd deid && npm install
