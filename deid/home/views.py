@@ -385,6 +385,7 @@ def run_deid(request):
                     'date_shift_days': data['date_shift_days'],
                     'lookup_file': data['lookup_file'],
                     'use_lookup_table': data['use_lookup'],
+                    'deid_pixels': data.get('deid_pixels', False),
                     'site_id': data['site_id'],
                 }
             )

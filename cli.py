@@ -81,6 +81,7 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
         "anonymizer_script": config.get("ctp_anonymizer"),
         "lookup_table": config.get("ctp_lookup_table"),
         "date_window_days": config.get("date_window", 0),
+        "deid_pixels": config.get("deid_pixels", False),
         "run_dirs": run_dirs
     }
 
@@ -92,6 +93,7 @@ def build_imagedeid_local_params(config, input_dir, output_dir, run_dirs):
         "filter_script": config.get("ctp_filters"),
         "anonymizer_script": config.get("ctp_anonymizer"),
         "lookup_table": config.get("ctp_lookup_table"),
+        "deid_pixels": config.get("deid_pixels", False),
         "run_dirs": run_dirs
     }
 

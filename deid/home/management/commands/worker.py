@@ -186,6 +186,10 @@ def build_image_deid_config(task):
         anonymizer_lookup_contents
     )
     config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
+    
+    deid_pixels = task.parameters.get('deid_pixels', False)
+    config['deid_pixels'] = deid_pixels
+    
     print(config)
     # Write config to file
     with open(CONFIG_PATH, 'w') as f:

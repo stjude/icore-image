@@ -238,6 +238,62 @@ def test_build_imagedeid_local_params_handles_missing_optional_params(tmp_path):
     assert params["lookup_table"] is None
 
 
+def test_build_imagedeid_pacs_params_includes_deid_pixels_when_specified(tmp_path):
+    config = {
+        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber",
+        "deid_pixels": True
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
+    
+    assert params["deid_pixels"] is True
+
+
+def test_build_imagedeid_pacs_params_defaults_deid_pixels_to_false(tmp_path):
+    config = {
+        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber"
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
+    
+    assert params["deid_pixels"] is False
+
+
+def test_build_imagedeid_local_params_includes_deid_pixels_when_specified(tmp_path):
+    config = {
+        "ctp_filters": "Modality.contains(\"CT\")",
+        "deid_pixels": True
+    }
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
+    
+    assert params["deid_pixels"] is True
+
+
+def test_build_imagedeid_local_params_defaults_deid_pixels_to_false(tmp_path):
+    config = {}
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
+    
+    assert params["deid_pixels"] is False
+
+
 def test_run_calls_imageqr_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text("module: imageqr\napplication_aet: ICORE\npacs:\n  - ip: localhost\n    port: 104\n    ae: PACS1\nacc_col: AccessionNumber")
