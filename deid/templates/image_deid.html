@@ -155,7 +155,7 @@
     </div>
 
     <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()" id="deid_button">
-        Run De-id
+        Deidentify
     </button>
 </div>
 
@@ -241,6 +241,7 @@
             pacsOptions.classList.add('hidden');
             inputFolderContainer.classList.remove('hidden');
         }
+        updateButtonText();
     }
     
     function toggleQueryTypeInputs() {
@@ -303,7 +304,19 @@
         const isScheduled = document.getElementById('schedule_job').checked;
         
         schedulingOptions.classList.toggle('hidden', !isScheduled);
-        deidButton.textContent = isScheduled ? 'Schedule De-id' : 'Run De-id';
+        updateButtonText();
+    }
+
+    function updateButtonText() {
+        const deidButton = document.getElementById('deid_button');
+        const isScheduled = document.getElementById('schedule_job').checked;
+        const isPacs = document.getElementById('image_source_pacs').checked;
+        
+        if (isScheduled) {
+            deidButton.textContent = isPacs ? 'Schedule Pull Images and Deidentify' : 'Schedule Deidentify';
+        } else {
+            deidButton.textContent = isPacs ? 'Pull Images and Deidentify' : 'Deidentify';
+        }
     }
 
     async function runDeid() {
