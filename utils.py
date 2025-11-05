@@ -93,11 +93,15 @@ def validate_date_window_days(date_window_days):
 def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
     study_pacs_map = {}
     failed_query_indices = []
+    total_queries = len(query_params_list)
     
     for pacs in pacs_list:
         logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
         
         for i, query_params in enumerate(query_params_list):
+            logging.info(f"Queried {i} / {total_queries} rows")
+            logging.debug(f"Processing Excel row {i + 1}")
+            
             try:
                 results = find_studies(
                     host=pacs.host,
@@ -112,14 +116,16 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
                     study_uid = result.get("StudyInstanceUID")
                     if study_uid and study_uid not in study_pacs_map:
                         study_pacs_map[study_uid] = (pacs, i)
-                        logging.info(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
+                        logging.debug(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
                 
                 if not results:
                     logging.warning(f"No studies found for query {i}: {query_params}")
             except Exception as e:
-                logging.error(f"Query {i} failed: {e}")
+                logging.error(f"Excel row {i + 1} failed after 4 retries. Moving on.")
                 if i not in failed_query_indices:
                     failed_query_indices.append(i)
+        
+        logging.info(f"Queried {total_queries} / {total_queries} rows")
     
     logging.info(f"Found {len(study_pacs_map)} unique studies total")
     
@@ -129,8 +135,13 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
 def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
     successful_moves = 0
     failed_query_indices = []
+    total_studies = len(study_pacs_map)
+    processed = 0
     
     for study_uid, (pacs, query_index) in study_pacs_map.items():
+        logging.info(f"Moved {processed} / {total_studies} studies")
+        logging.debug(f"Processing study from Excel row {query_index + 1}")
+        
         result = move_study(
             host=pacs.host,
             port=pacs.port,
@@ -140,13 +151,17 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
             study_uid=study_uid
         )
         
+        processed += 1
+        
         if result["success"]:
             successful_moves += 1
-            logging.info(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
+            logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
         else:
-            logging.warning(f"Failed to move study {study_uid} from {pacs.host}:{pacs.port}")
+            logging.error(f"Excel row {query_index + 1} failed after 4 retries. Moving on.")
             if query_index not in failed_query_indices:
                 failed_query_indices.append(query_index)
+    
+    logging.info(f"Moved {processed} / {total_studies} studies")
     
     return successful_moves, failed_query_indices
 

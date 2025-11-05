@@ -6,7 +6,20 @@ from ctp import CTPPipeline
 from module_imagedeid_local import _save_metadata_files
 from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
                    combine_filters, validate_date_window_days, find_studies_from_pacs_list,
-                   move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging)
+                   move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
+                   format_number_with_commas)
+
+
+def _log_progress(pipeline):
+    if pipeline.metrics:
+        files_received = pipeline.metrics.files_received
+        files_quarantined = pipeline.metrics.files_quarantined
+        
+        progress_msg = f"Processed {format_number_with_commas(files_received)} files"
+        if files_quarantined > 0:
+            progress_msg += f" ({format_number_with_commas(files_quarantined)} quarantined)"
+        
+        logging.info(progress_msg)
 
 
 def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
@@ -63,13 +76,20 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
             current_time = time.time()
             if current_time - last_save_time >= save_interval:
                 _save_metadata_files(pipeline, appdata_dir)
+                _log_progress(pipeline)
                 last_save_time = current_time
             
             time.sleep(1)
         
         _save_metadata_files(pipeline, appdata_dir)
         
-        logging.info("Moves and processing complete")
+        num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
+        num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0
+        
+        logging.info("Deidentification complete")
+        logging.info(f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}")
+        logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
+        logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
         
         return {
             "num_studies_found": len(study_pacs_map),

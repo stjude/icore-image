@@ -7,7 +7,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
-from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result, RetryCallState
+from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result, RetryCallState, before_sleep_log
 
 
 class DCMTKError(Exception):
@@ -96,10 +96,15 @@ def _parse_move_output(stderr, returncode):
     return result
 
 
+def _log_find_retry(retry_state: RetryCallState):
+    logging.info("Query failed. Retrying")
+
+
 @retry(
     stop=stop_after_attempt(4),
     wait=wait_chain(wait_fixed(4), wait_fixed(16), wait_fixed(32)),
     retry=(retry_if_exception_type(DCMTKCommandError) | retry_if_exception_type(DCMTKParseError)),
+    before_sleep=_log_find_retry,
     reraise=True
 )
 def find_studies(host, port, calling_aet, called_aet, query_params, query_level="STUDY", return_tags=None):
@@ -150,7 +155,7 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
         
         cmd.extend([host, str(port)])
         
-        logging.info(f"Running findscu: {' '.join(cmd)}")
+        logging.debug(f"Running findscu: {' '.join(cmd)}")
         
         env = _build_dcmtk_env()
         result = subprocess.run(cmd, capture_output=True, text=True, env=env)
@@ -178,10 +183,15 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
 def _return_last_result(retry_state: RetryCallState):
     return retry_state.outcome.result()
 
+def _log_move_retry(retry_state: RetryCallState):
+    logging.info("Move failed. Retrying")
+
+
 @retry(
     stop=stop_after_attempt(4),
     wait=wait_chain(wait_fixed(4), wait_fixed(16), wait_fixed(32)),
     retry=retry_if_result(lambda result: not result["success"]),
+    before_sleep=_log_move_retry,
     retry_error_callback=_return_last_result
 )
 def move_study(host, port, calling_aet, called_aet, move_destination, study_uid, query_level="STUDY"):
@@ -216,7 +226,7 @@ def move_study(host, port, calling_aet, called_aet, move_destination, study_uid,
         str(port)
     ]
     
-    logging.info(f"Running movescu: {' '.join(cmd)}")
+    logging.debug(f"Running movescu: {' '.join(cmd)}")
     
     env = _build_dcmtk_env()
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
