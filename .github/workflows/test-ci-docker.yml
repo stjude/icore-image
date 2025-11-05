@@ -1,0 +1,72 @@
+name: CI Docker Diagnostics
+
+on:
+  push:
+    branches:
+      - test-ci
+
+jobs:
+  diagnose-docker:
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Colima and Docker
+        run: |
+          brew install docker colima
+      
+      - name: Start Colima with Docker
+        run: |
+          colima start --cpu 4 --memory 8 --network-address
+          
+      - name: Verify Docker is working
+        run: |
+          docker version
+          docker info
+          
+      - name: Wait for Docker to be fully ready
+        run: sleep 15
+      
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Install external dependencies (JRE and DCMTK)
+        run: make external-deps
+      
+      - name: Run diagnostic tests
+        run: |
+          pytest test_ci_docker.py -v -s --tb=short
+        continue-on-error: true
+      
+      - name: Show Docker containers (if any remain)
+        if: always()
+        run: |
+          echo "=== Docker containers ==="
+          docker ps -a
+      
+      - name: Show Docker networks
+        if: always()
+        run: |
+          echo "=== Docker networks ==="
+          docker network ls
+          echo "=== Bridge network details ==="
+          docker network inspect bridge || true
+      
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-logs
+          path: |
+            *.log
+            test-results/
+          if-no-files-found: ignore
+
