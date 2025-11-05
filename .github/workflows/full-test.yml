@@ -5,7 +5,7 @@ on:
 
 jobs:
   full-test:
-    runs-on: macos-15-intel
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
@@ -21,35 +21,30 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Colima and Docker
+      - name: Install JRE8 for Linux
         run: |
-          brew install docker colima
+          curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=linux&architecture=x64&image_type=jre&jvm_impl=hotspot" \
+          | jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
+          | head -n1 \
+          | xargs curl -L \
+          | tar -xz
+          mv jdk8*-jre jre8
       
-      - name: Start Colima with Docker
+      - name: Install DCMTK for Linux
         run: |
-          colima start --cpu 4 --memory 8 --network-address
-          
-      - name: Configure Docker to use Colima
-        run: |
-          docker context use colima
-          docker context ls
-          echo "DOCKER_HOST=unix://$HOME/.colima/default/docker.sock" >> $GITHUB_ENV
-          
+          curl -L https://dcmtk.org/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-linux-debian-11-x86_64-static.tar.bz2 | tar -xj
+          mv dcmtk-3.6.9-linux-debian-11-x86_64-static dcmtk
+          cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' -delete
+      
       - name: Verify Docker is working
         run: |
           docker version
           docker info
           docker ps
-          
-      - name: Wait for Docker to be fully ready
-        run: sleep 15
       
       - name: Install dependencies
-        run: make deps external-deps
+        run: make deps
       
       - name: Run tests
         run: make test
-      
-      - name: Build application
-        run: make all
 
