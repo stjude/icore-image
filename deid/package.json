@@ -37,7 +37,6 @@
     "fill-range": "^7.1.1",
     "foreground-child": "^3.3.0",
     "fraction.js": "^4.3.7",
-    "fsevents": "^2.3.3",
     "function-bind": "^1.1.2",
     "glob": "^10.4.5",
     "glob-parent": "^6.0.2",
@@ -109,6 +108,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "npx tailwindcss -i ./styles.css -o ./static/tailwind.min.css --minify"
+  },
+  "optionalDependencies": {
+    "fsevents": "^2.3.3"
   },
   "keywords": [],
   "author": "",
