@@ -18,14 +18,28 @@
     </div>
 
     <div class="mt-6">
+        <div class="text-md mb-2">Default Column Options</div>
+        <div class="flex space-x-4">
+            <div class="flex-1">
+                <div class="text-sm text-gray-500">Columns to deid</div>
+                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_columns_to_deid"></textarea>
+            </div>
+            <div class="flex-1">
+                <div class="text-sm text-gray-500">Columns to drop</div>
+                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_columns_to_drop"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-6">
         <div class="text-md mb-2">Default Deidentification Lists</div>
         <div class="flex space-x-4">
             <div class="flex-1">
-                <div class="text-sm text-gray-500">To keep</div>
+                <div class="text-sm text-gray-500">Phrases to keep</div>
                 <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_text_to_keep"></textarea>
             </div>
             <div class="flex-1">
-                <div class="text-sm text-gray-500">To remove</div>
+                <div class="text-sm text-gray-500">Phrases to remove</div>
                 <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_text_to_remove"></textarea>
             </div>
         </div>
@@ -46,6 +60,12 @@
             if (settings.default_output_folder) {
                 document.querySelector('[name="default_output_folder"]').value = settings.default_output_folder;
             }
+            if (settings.default_columns_to_deid) {
+                document.querySelector('[name="default_columns_to_deid"]').value = settings.default_columns_to_deid;
+            }
+            if (settings.default_columns_to_drop) {
+                document.querySelector('[name="default_columns_to_drop"]').value = settings.default_columns_to_drop;
+            }
             if (settings.default_text_to_keep) {
                 document.querySelector('[name="default_text_to_keep"]').value = settings.default_text_to_keep;
             }
@@ -60,6 +80,8 @@
     async function saveSettings() {
         const data = {
             default_output_folder: document.querySelector('[name="default_output_folder"]').value,
+            default_columns_to_deid: document.querySelector('[name="default_columns_to_deid"]').value,
+            default_columns_to_drop: document.querySelector('[name="default_columns_to_drop"]').value,
             default_text_to_keep: document.querySelector('[name="default_text_to_keep"]').value,
             default_text_to_remove: document.querySelector('[name="default_text_to_remove"]').value,
         };

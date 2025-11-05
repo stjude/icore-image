@@ -486,8 +486,10 @@ def run_text_deid(request):
             scheduled_time=scheduled_time,
             parameters={
                 'input_file': data['input_file'],
-                'text_to_keep': data['text_to_keep'],
-                'text_to_remove': data['text_to_remove'],
+                'text_to_keep': data.get('text_to_keep', ''),
+                'text_to_remove': data.get('text_to_remove', ''),
+                'columns_to_deid': data.get('columns_to_deid', ''),
+                'columns_to_drop': data.get('columns_to_drop', ''),
                 'date_shift_days': data['date_shift_days'],
             }
         )

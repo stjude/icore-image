@@ -244,7 +244,7 @@ def scrub(data, whitelist, blacklist):
     return results
 
 
-def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None, debug=False, run_dirs=None):
+def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None, columns_to_drop=None, columns_to_deid=None, debug=False, run_dirs=None):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -263,14 +263,32 @@ def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None, deb
     logging.info(f"Whitelist items to keep: {len(to_keep_list)}")
     logging.info(f"Blacklist items to remove: {len(to_remove_list)}")
     
-    df = pd.read_excel(input_file, header=None)
-    original_data = df.iloc[:, 0].tolist()
-    logging.info(f"Total rows to process: {len(original_data)}")
-    deid_data = scrub(original_data, to_keep_list, to_remove_list)
+    df = pd.read_excel(input_file, header=0)
+    logging.info(f"Read Excel file with {len(df)} rows and columns: {list(df.columns)}")
+    
+    if columns_to_drop is not None and len(columns_to_drop) > 0:
+        logging.info(f"Dropping columns: {columns_to_drop}")
+        df = df.drop(columns=columns_to_drop, errors='ignore')
+    
+    if columns_to_deid is None:
+        columns_to_process = list(df.columns)
+        logging.info(f"No specific columns specified for de-identification, processing all columns: {columns_to_process}")
+    else:
+        columns_to_process = [col for col in columns_to_deid if col in df.columns]
+        logging.info(f"De-identifying specific columns: {columns_to_process}")
+    
+    result_df = df.copy()
+    
+    for column in columns_to_process:
+        logging.info(f"Processing column: {column}")
+        column_data = df[column].tolist()
+        deid_data = scrub(column_data, to_keep_list, to_remove_list)
+        result_df[column] = deid_data
     
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, "output.xlsx")
-    pd.DataFrame(deid_data).to_excel(output_file, index=False, header=False)
+    result_df.to_excel(output_file, index=False, header=True)
     
-    return {"num_rows_processed": len(deid_data)}
+    logging.info("Text deidentification complete")
+    return {"num_rows_processed": len(result_df)}
 

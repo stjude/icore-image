@@ -103,6 +103,8 @@ def build_textdeid_params(config, input_dir, output_dir, run_dirs):
         "output_dir": output_dir,
         "to_keep_list": config.get("to_keep_list"),
         "to_remove_list": config.get("to_remove_list"),
+        "columns_to_drop": config.get("columns_to_drop"),
+        "columns_to_deid": config.get("columns_to_deid"),
         "run_dirs": run_dirs
     }
 

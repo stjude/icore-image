@@ -80,5 +80,9 @@
             ]
         }
     },
-    "default_output_folder": ""
+    "default_output_folder": "",
+    "default_text_to_keep": "",
+    "default_text_to_remove": "",
+    "default_columns_to_deid": "",
+    "default_columns_to_drop": ""
 }

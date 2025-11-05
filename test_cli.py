@@ -303,7 +303,9 @@ def test_run_calls_imagedeid_local_with_correct_params(tmp_path):
 def test_build_textdeid_params_maps_config_keys_correctly(tmp_path):
     config = {
         "to_keep_list": ["medical", "term"],
-        "to_remove_list": ["secret", "data"]
+        "to_remove_list": ["secret", "data"],
+        "columns_to_drop": ["DropColumn1", "DropColumn2"],
+        "columns_to_deid": ["PatientName", "SSN"]
     }
     input_dir = str(tmp_path)
     input_file = tmp_path / "input.xlsx"
@@ -316,6 +318,8 @@ def test_build_textdeid_params_maps_config_keys_correctly(tmp_path):
     assert params["output_dir"] == output_dir
     assert params["to_keep_list"] == ["medical", "term"]
     assert params["to_remove_list"] == ["secret", "data"]
+    assert params["columns_to_drop"] == ["DropColumn1", "DropColumn2"]
+    assert params["columns_to_deid"] == ["PatientName", "SSN"]
 
 
 def test_build_textdeid_params_handles_missing_optional_params(tmp_path):
@@ -331,11 +335,13 @@ def test_build_textdeid_params_handles_missing_optional_params(tmp_path):
     assert params["output_dir"] == output_dir
     assert params["to_keep_list"] is None
     assert params["to_remove_list"] is None
+    assert params["columns_to_drop"] is None
+    assert params["columns_to_deid"] is None
 
 
 def test_run_calls_textdeid_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
-    config_path.write_text("module: textdeid\nto_keep_list:\n  - medical\nto_remove_list:\n  - secret")
+    config_path.write_text("module: textdeid\nto_keep_list:\n  - medical\nto_remove_list:\n  - secret\ncolumns_to_drop:\n  - DropColumn\ncolumns_to_deid:\n  - PatientName")
     input_dir = str(tmp_path / "input")
     os.makedirs(input_dir)
     (tmp_path / "input" / "input.xlsx").touch()

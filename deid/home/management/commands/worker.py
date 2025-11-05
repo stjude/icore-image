@@ -378,14 +378,27 @@ def process_text_deid(task):
 def build_text_deid_config(task):
     """Build the configuration for text deidentification"""
     config = {'module': 'textdeid'}
-    to_keep_list = task.parameters['text_to_keep'].split('\n')
-    to_remove_list = task.parameters['text_to_remove'].split('\n')
+    to_keep_list = task.parameters['text_to_keep'].split('\n') if task.parameters.get('text_to_keep') else []
+    to_remove_list = task.parameters['text_to_remove'].split('\n') if task.parameters.get('text_to_remove') else []
     date_shift_by = int(task.parameters['date_shift_days'])
+    
+    columns_to_deid = task.parameters.get('columns_to_deid', '')
+    columns_to_drop = task.parameters.get('columns_to_drop', '')
+    
+    columns_to_deid_list = [col.strip() for col in columns_to_deid.split('\n') if col.strip()] if columns_to_deid else None
+    columns_to_drop_list = [col.strip() for col in columns_to_drop.split('\n') if col.strip()] if columns_to_drop else None
+    
     config.update({
         'to_keep_list': to_keep_list,
         'to_remove_list': to_remove_list,
         'date_shift_by': date_shift_by
     })
+    
+    if columns_to_deid_list:
+        config['columns_to_deid'] = columns_to_deid_list
+    if columns_to_drop_list:
+        config['columns_to_drop'] = columns_to_drop_list
+    
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
