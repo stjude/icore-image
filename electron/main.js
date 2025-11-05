@@ -1,9 +1,12 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const util = require('util');
 const { initializeApp } = require('./lib/setup');
+
+const execPromise = util.promisify(exec);
 
 let mainWindow;
 let serverProcess;
@@ -25,6 +28,28 @@ function logWithTimestamp(source, message) {
   
   if (logStream) {
     logStream.write(logMessage);
+  }
+}
+
+async function killProcessesOnCtpPorts() {
+  const ctpPorts = [50000, 50001, 50010, 50020, 50030, 50040, 50050, 50060, 50070, 50080, 50090];
+  
+  for (const port of ctpPorts) {
+    try {
+      const platform = process.platform;
+      let cmd;
+      
+      if (platform === 'darwin' || platform === 'linux') {
+        cmd = `lsof -ti:${port} | xargs kill -9 2>/dev/null || true`;
+      } else if (platform === 'win32') {
+        cmd = `FOR /F "tokens=5" %a IN ('netstat -aon ^| findstr :${port}') DO taskkill /F /PID %a`;
+      }
+      
+      if (cmd) {
+        await execPromise(cmd);
+      }
+    } catch (error) {
+    }
   }
 }
 
@@ -122,6 +147,8 @@ app.on('ready', async () => {
     });
     return;
   }
+  
+  await killProcessesOnCtpPorts();
   
   if (isDev) {
     const managePyPath = path.join(__dirname, '..', 'deid', 'manage.py');
@@ -236,6 +263,8 @@ app.on('ready', async () => {
           workerProcess.kill();
           workerProcess = null;
         }
+        
+        await killProcessesOnCtpPorts();
         
         if (logStream) {
           logStream.end();

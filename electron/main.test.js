@@ -43,6 +43,10 @@ const mockSpawn = jest.fn().mockImplementation(() => ({
   kill: jest.fn()
 }));
 
+const mockExec = jest.fn((cmd, callback) => {
+  if (callback) callback(null, '', '');
+});
+
 const mockInitializeApp = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('electron', () => ({
@@ -53,7 +57,8 @@ jest.mock('electron', () => ({
 }));
 
 jest.mock('child_process', () => ({
-  spawn: mockSpawn
+  spawn: mockSpawn,
+  exec: mockExec
 }));
 
 jest.mock('./lib/setup', () => ({
@@ -346,10 +351,66 @@ describe('process cleanup', () => {
     
     await readyHandler();
     
+    const execCallsBeforeClose = mockExec.mock.calls.length;
+    
     await closeHandler({ preventDefault: jest.fn() });
     
     expect(mockServerProcess.kill).toHaveBeenCalled();
     expect(mockWorkerProcess.kill).toHaveBeenCalled();
+    
+    const execCallsAfterClose = mockExec.mock.calls.length;
+    expect(execCallsAfterClose).toBeGreaterThan(execCallsBeforeClose);
+    
+    const closeExecCalls = mockExec.mock.calls.slice(execCallsBeforeClose);
+    const ctpPorts = [50000, 50001, 50010, 50020, 50030, 50040, 50050, 50060, 50070, 50080, 50090];
+    const portsCheckedOnClose = closeExecCalls.filter(call => {
+      const cmd = call[0];
+      return ctpPorts.some(port => cmd.includes(`:${port}`));
+    });
+    
+    expect(portsCheckedOnClose.length).toBeGreaterThan(0);
+    
+    jest.restoreAllMocks();
+  });
+});
+
+describe('CTP process cleanup on startup', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockInitializeApp.mockResolvedValue(undefined);
+  });
+
+  it('kills processes using CTP ports before starting workers', async () => {
+    let readyHandler;
+    
+    jest.isolateModules(() => {
+      mockApp.on.mockImplementation((event, handler) => {
+        if (event === 'ready') {
+          readyHandler = handler;
+        }
+      });
+      
+      require('./main');
+    });
+    
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+      cb();
+      return null;
+    });
+    
+    await readyHandler();
+    
+    const ctpPorts = [50000, 50001, 50010, 50020, 50030, 50040, 50050, 50060, 50070, 50080, 50090];
+    
+    expect(mockExec).toHaveBeenCalled();
+    const execCalls = mockExec.mock.calls;
+    
+    const portsChecked = execCalls.filter(call => {
+      const cmd = call[0];
+      return ctpPorts.some(port => cmd.includes(`:${port}`));
+    });
+    
+    expect(portsChecked.length).toBeGreaterThan(0);
     
     jest.restoreAllMocks();
   });
