@@ -30,12 +30,21 @@ deps-electron:
 jre8:
 	@if [ ! -d "jre8" ]; then \
 		echo "Downloading JRE8..."; \
-		curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=x64&image_type=jre&jvm_impl=hotspot" \
-		| jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
-		| head -n1 \
-		| xargs curl -L \
-		| tar -xj; \
-		mv jdk8*-jre jre8; \
+		if [ "$$(uname -s)" = "Linux" ]; then \
+			curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=linux&architecture=x64&image_type=jre&jvm_impl=hotspot" \
+			| jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
+			| head -n1 \
+			| xargs curl -L \
+			| tar -xz; \
+			mv jdk8*-jre jre8; \
+		else \
+			curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=x64&image_type=jre&jvm_impl=hotspot" \
+			| jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
+			| head -n1 \
+			| xargs curl -L \
+			| tar -xj; \
+			mv jdk8*-jre jre8; \
+		fi; \
 	else \
 		echo "JRE8 already exists"; \
 	fi
@@ -43,9 +52,16 @@ jre8:
 dcmtk:
 	@if [ ! -d "dcmtk" ]; then \
 		echo "Downloading DCMTK..."; \
-		curl -L https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 | tar -xj; \
-		mv dcmtk-3.6.9-macosx-x86_64 dcmtk; \
-		cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' -delete; \
+		if [ "$$(uname -s)" = "Linux" ]; then \
+			sudo apt-get update && sudo apt-get install -y dcmtk; \
+			mkdir -p dcmtk/bin; \
+			cp /usr/bin/findscu dcmtk/bin/; \
+			cp /usr/bin/movescu dcmtk/bin/; \
+		else \
+			curl -L https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 | tar -xj; \
+			mv dcmtk-3.6.9-macosx-x86_64 dcmtk; \
+			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' -delete; \
+		fi; \
 	else \
 		echo "DCMTK already exists"; \
 	fi
