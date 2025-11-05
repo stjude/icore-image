@@ -47,6 +47,11 @@ jobs:
       - name: Install dependencies
         run: make deps
       
+      - name: Set environment variables for tests
+        run: |
+          echo "JAVA_HOME=$GITHUB_WORKSPACE/jre8" >> $GITHUB_ENV
+          echo "DCMTK_HOME=$GITHUB_WORKSPACE/dcmtk" >> $GITHUB_ENV
+      
       - name: Run tests
         run: make test
 

@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 import shutil
 import signal
@@ -26,9 +27,16 @@ def _get_default_ctp_source_dir():
 def _get_default_java_home():
     if getattr(sys, 'frozen', False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
-        java_home = os.path.join(bundle_dir, '_internal', 'jre8', 'Contents', 'Home')
+        if platform.system() == 'Darwin':
+            java_home = os.path.join(bundle_dir, '_internal', 'jre8', 'Contents', 'Home')
+        else:
+            java_home = os.path.join(bundle_dir, '_internal', 'jre8')
     else:
-        java_home = os.path.join(os.path.dirname(__file__), 'jre8', 'Contents', 'Home')
+        base_jre_path = os.path.join(os.path.dirname(__file__), 'jre8')
+        if platform.system() == 'Darwin':
+            java_home = os.path.join(base_jre_path, 'Contents', 'Home')
+        else:
+            java_home = base_jre_path
     return java_home
 
 
