@@ -32,9 +32,11 @@ jobs:
       
       - name: Install DCMTK for Linux
         run: |
-          curl -L https://dcmtk.org/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-linux-debian-11-x86_64-static.tar.bz2 | tar -xj
-          mv dcmtk-3.6.9-linux-debian-11-x86_64-static dcmtk
-          cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' -delete
+          sudo apt-get update
+          sudo apt-get install -y dcmtk
+          mkdir -p dcmtk/bin
+          cp /usr/bin/findscu dcmtk/bin/
+          cp /usr/bin/movescu dcmtk/bin/
       
       - name: Verify Docker is working
         run: |
