@@ -105,30 +105,39 @@ class CTPMetrics:
         self.files_received = 0
         self.files_saved = 0
         self.files_quarantined = 0
+        self.queue_size = 0
         self.stable_count = 0
         self.last_change_time = time.time()
+        self.archive_traversal_complete = False
         self._lock = Lock()
     
     def is_stable(self):
         with self._lock:
-            return self.files_received == (self.files_saved + self.files_quarantined)
+            return (self.archive_traversal_complete and 
+                    self.queue_size == 0 and
+                    self.files_received == (self.files_saved + self.files_quarantined))
     
-    def update(self, received, saved, quarantined):
+    def update(self, received, saved, quarantined, queue_size, archive_traversal_complete):
         with self._lock:
-            metrics_changed = (
+            file_metrics_changed = (
                 received != self.files_received or
                 saved != self.files_saved or
-                quarantined != self.files_quarantined
+                quarantined != self.files_quarantined or
+                queue_size != self.queue_size
             )
             
-            if metrics_changed:
+            if file_metrics_changed:
                 self.last_change_time = time.time()
             
             self.files_received = received
             self.files_saved = saved
             self.files_quarantined = quarantined
+            self.queue_size = queue_size
+            self.archive_traversal_complete = archive_traversal_complete
             
-            is_stable = self.files_received == (self.files_saved + self.files_quarantined)
+            is_stable = (self.archive_traversal_complete and 
+                        self.queue_size == 0 and
+                        self.files_received == (self.files_saved + self.files_quarantined))
             
             if is_stable:
                 self.stable_count += 1
@@ -291,6 +300,15 @@ class CTPServer:
         elif dicom_received_match:
             received = int(dicom_received_match.group(1))
         
+        queue_match = re.search(r"Queue size:\s*</td><td>(\d+)", html)
+        queue_size = int(queue_match.group(1)) if queue_match else 0
+        
+        traversal_match = re.search(r"Archive traversal:\s*</td><td>(\w+)", html)
+        if traversal_match:
+            archive_traversal_complete = (traversal_match.group(1) == "complete")
+        else:
+            archive_traversal_complete = True
+        
         quarantined = 0
         exclude_files = {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"}
         
@@ -299,7 +317,7 @@ class CTPServer:
                 for root, _, files in os.walk(quarantine_dir):
                     quarantined += len([f for f in files if not f.startswith('.') and f not in exclude_files])
         
-        self.metrics.update(received, saved, quarantined)
+        self.metrics.update(received, saved, quarantined, queue_size, archive_traversal_complete)
     
     def _monitor_loop(self):
         try:
