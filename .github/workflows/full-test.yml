@@ -21,36 +21,8 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install JRE8 for Linux
-        run: |
-          curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=linux&architecture=x64&image_type=jre&jvm_impl=hotspot" \
-          | jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
-          | head -n1 \
-          | xargs curl -L \
-          | tar -xz
-          mv jdk8*-jre jre8
-      
-      - name: Install DCMTK for Linux
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y dcmtk
-          mkdir -p dcmtk/bin
-          cp /usr/bin/findscu dcmtk/bin/
-          cp /usr/bin/movescu dcmtk/bin/
-      
-      - name: Verify Docker is working
-        run: |
-          docker version
-          docker info
-          docker ps
-      
       - name: Install dependencies
-        run: make deps
-      
-      - name: Set environment variables for tests
-        run: |
-          echo "JAVA_HOME=$GITHUB_WORKSPACE/jre8" >> $GITHUB_ENV
-          echo "DCMTK_HOME=$GITHUB_WORKSPACE/dcmtk" >> $GITHUB_ENV
+        run: make deps external-deps
       
       - name: Run tests
         run: make test

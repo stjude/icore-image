@@ -6,12 +6,16 @@
 
 test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
-	pytest
-	cd electron && npm test
+	pytest -v
+	cd electron && npm test -- --verbose
 
 dev: external-deps
 	@echo "Starting iCore in development mode..."
-	@export JAVA_HOME=$$(pwd)/jre8/Contents/Home && \
+	@if [ "$$(uname -s)" = "Linux" ]; then \
+		export JAVA_HOME=$$(pwd)/jre8; \
+	else \
+		export JAVA_HOME=$$(pwd)/jre8/Contents/Home; \
+	fi && \
 	export DCMTK_HOME=$$(pwd)/dcmtk && \
 	cd electron && npm start
 
@@ -53,10 +57,9 @@ dcmtk:
 	@if [ ! -d "dcmtk" ]; then \
 		echo "Downloading DCMTK..."; \
 		if [ "$$(uname -s)" = "Linux" ]; then \
-			sudo apt-get update && sudo apt-get install -y dcmtk; \
-			mkdir -p dcmtk/bin; \
-			cp /usr/bin/findscu dcmtk/bin/; \
-			cp /usr/bin/movescu dcmtk/bin/; \
+			curl -L https://dicom.offis.de/download/dcmtk/release/bin/dcmtk-3.6.9-linux-x86_64.tar.bz2 | tar -xj; \
+			mv dcmtk-3.6.9-linux-x86_64 dcmtk; \
+			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' -delete; \
 		else \
 			curl -L https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 | tar -xj; \
 			mv dcmtk-3.6.9-macosx-x86_64 dcmtk; \
