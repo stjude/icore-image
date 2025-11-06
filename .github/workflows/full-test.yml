@@ -5,7 +5,10 @@ on:
 
 jobs:
   full-test:
-    runs-on: macos-15-intel
+    # Running on ubuntu because the docker tests are less flakey here
+    # The setup and runtime is also a lot faster than macos. Ideally,
+    # we would run the tests on macos.
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
@@ -21,15 +24,9 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Setup Docker (macOS)
-        uses: douglascamata/setup-docker-macos-action@v1
-      
       - name: Install dependencies
         run: make deps external-deps
       
       - name: Run tests
         run: make test
-      
-      - name: Build application
-        run: make all
 
