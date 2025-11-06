@@ -113,6 +113,10 @@
     <div class="mt-8">
         <div class="text-md mb-4">Export Project List</div>
         <a href="#" class="text-blue-600 hover:text-blue-800 text-sm">Download excel file</a>
+        <div class="flex items-center mt-4">
+            <input type="checkbox" id="debug_logging" name="debug_logging" class="mr-2">
+            <label for="debug_logging" class="text-sm">Enable debug logging</label>
+        </div>
     </div>
 
     <div id="pacs-connection-result" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
@@ -231,6 +235,9 @@
             if (settings.timezone) {
                 document.querySelector('[name="timezone"]').value = settings.timezone;
             }
+            if (settings.debug_logging) {
+                document.querySelector('[name="debug_logging"]').checked = settings.debug_logging;
+            }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -254,7 +261,8 @@
             default_date_header: document.querySelector('[name="default_date_header"]').value,
             default_output_folder: document.querySelector('[name="default_output_folder"]').value,
             zip_images: document.querySelector('[name="zip_images"]').checked,
-            timezone: document.querySelector('[name="timezone"]').value
+            timezone: document.querySelector('[name="timezone"]').value,
+            debug_logging: document.querySelector('[name="debug_logging"]').checked
         };
 
         try {
