@@ -49,6 +49,9 @@ const mockExec = jest.fn((cmd, callback) => {
 
 const mockInitializeApp = jest.fn().mockResolvedValue(undefined);
 
+const originalFs = jest.requireActual('fs');
+const mockFsExistsSync = jest.fn().mockReturnValue(true);
+
 jest.mock('electron', () => ({
   app: mockApp,
   BrowserWindow: mockBrowserWindow,
@@ -63,6 +66,11 @@ jest.mock('child_process', () => ({
 
 jest.mock('./lib/setup', () => ({
   initializeApp: mockInitializeApp
+}));
+
+jest.mock('fs', () => ({
+  ...jest.requireActual('fs'),
+  existsSync: jest.fn().mockReturnValue(true)
 }));
 
 describe('main.js', () => {
