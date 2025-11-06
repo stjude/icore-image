@@ -14,8 +14,7 @@ from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import generate_uid
 
 
-@pytest.fixture(scope="function", autouse=True)
-def cleanup_docker_containers():
+def _cleanup_test_containers():
     result = subprocess.run(
         ["docker", "ps", "-a", "--filter", "name=orthanc_test_", "--format", "{{.Names}}"],
         capture_output=True,
@@ -28,8 +27,13 @@ def cleanup_docker_containers():
     for container_name in container_names:
         subprocess.run(["docker", "stop", container_name], capture_output=True)
         subprocess.run(["docker", "rm", container_name], capture_output=True)
-    
+
+
+@pytest.fixture(scope="function", autouse=True)
+def cleanup_docker_containers():
+    _cleanup_test_containers()
     yield
+    _cleanup_test_containers()
 
 
 def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
