@@ -35,6 +35,7 @@ def _build_dcmtk_env():
     env = os.environ.copy()
     dcmtk_home = _get_default_dcmtk_home()
     env['DCMDICTPATH'] = os.path.join(dcmtk_home, 'share', 'dcmtk-3.6.9', 'dicom.dic')
+    env['DCMICONVPATH'] = os.path.join(dcmtk_home, 'share', 'dcmtk-3.6.9')
     return env
 
 
