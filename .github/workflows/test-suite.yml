@@ -1,4 +1,4 @@
-name: Full Test
+name: Test Suite
 
 on:
   workflow_dispatch:
