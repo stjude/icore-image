@@ -8,13 +8,17 @@
 
 <p align="center"><img src="deid/static/screenshot.png" width="600px"/></p>
 
-## Develop macOS App
+## Install Dependencies
+
+```
+make deps external-deps
+```
+
+## Run Development Build
 
 ```
 make dev
 ```
-
-Note: if running for the first time, run `make deps` first.
 
 ## Running Test Suite
 
