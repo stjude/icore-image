@@ -5,7 +5,7 @@ on:
 
 jobs:
   full-test:
-    runs-on: ubuntu-latest
+    runs-on: macos-15-intel
     
     steps:
       - name: Checkout code
@@ -21,9 +21,15 @@ jobs:
         with:
           node-version: '20'
       
+      - name: Setup Docker (macOS)
+        uses: douglascamata/setup-docker-macos-action@v1
+      
       - name: Install dependencies
         run: make deps external-deps
       
       - name: Run tests
         run: make test
+      
+      - name: Build application
+        run: make all
 
