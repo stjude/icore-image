@@ -12,119 +12,124 @@
 </script>
 
 <meta name="csrf_token" content="{{ csrf_token }}">
-<div class="flex-1 bg-white mb-4">
-    <!-- Protocol Selection Section -->
-    <div class="text-sm mt-6 text-black">
-        <div class="flex items-center space-x-4">
-            <label for="protocol_select">Select Protocol:</label>
-            <select id="protocol_select" 
-                    class="bg-white border-2 border-gray-400 p-1 w-64"
-                    onchange="handleProtocolChange()">
-                <option value="">Select a protocol...</option>
-                {% for protocol in protocols %}
-                    <option value="{{ protocol }}">{{ protocol }}</option>
-                {% endfor %}
-            </select>
-            <span id="restricted-label" class="text-red-500 font-medium hidden">Restricted Protocol</span>
+
+<!-- Protocol Selection Section -->
+<div class="mt-6">
+    <div class="text-md mb-4">Protocol Selection</div>
+    <div class="flex items-center space-x-4">
+        <label for="protocol_select">Select Protocol:</label>
+        <select id="protocol_select" 
+                class="bg-white border-2 border-gray-400 p-1 w-64"
+                onchange="handleProtocolChange()">
+            <option value="">Select a protocol...</option>
+            {% for protocol in protocols %}
+                <option value="{{ protocol }}">{{ protocol }}</option>
+            {% endfor %}
+        </select>
+        <span id="restricted-label" class="text-red-500 font-medium hidden">Restricted Protocol</span>
+    </div>
+</div>
+
+<!-- Default Image Source Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">Default Image Source</div>
+    <div class="flex items-center space-x-4">
+        <input type="radio" id="default_image_source_local" name="default_image_source" value="LOCAL" checked>
+        <label for="default_image_source_local">Local folder</label>
+        <input class="ml-4" type="radio" id="default_image_source_pacs" name="default_image_source" value="PACS">
+        <label for="default_image_source_pacs">PACS</label>
+    </div>
+</div>
+
+<!-- Default De-id Lists Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">Default Deidentification Lists</div>
+    <div class="flex space-x-4">
+        <div class="flex-1">
+            <div class="text-sm text-gray-500">To keep</div>
+            <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_keep"></textarea>
+        </div>
+        <div class="flex-1">
+            <div class="text-sm text-gray-500">To date shift</div>
+            <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_dateshift"></textarea>
+        </div>
+        <div class="flex-1">
+            <div class="text-sm text-gray-500">To randomize</div>
+            <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_randomize"></textarea>
         </div>
     </div>
+</div>
 
-    <!-- Default Image Source Section -->
-    <div class="text-sm mt-6 text-black flex items-center space-x-4">
-        Default Image Source: 
-        <input class="ml-4" type="radio" id="default_image_source_local" name="default_image_source" value="LOCAL" checked><span>Local folder</span>
-        <input class="ml-4" type="radio" id="default_image_source_pacs" name="default_image_source" value="PACS"> <span>PACS</span>
-    </div>
-
-    <!-- Default De-id Lists Section -->
-    <div class="mt-6">
-        <div class="text-md mb-2">Default Deidentification Lists</div>
-        <div class="flex space-x-4">
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">To keep</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_keep"></textarea>
-            </div>
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">To date shift</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_dateshift"></textarea>
-            </div>
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">To randomize</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_randomize"></textarea>
-            </div>
-        </div>
-    </div>
-    <div class="mt-4">
-        <div class="text-md mb-2">Lookup Table Configuration</div>
-        <div class="grid grid-cols-1 gap-4">
-            <div>
-                <div class="text-sm text-gray-500 mb-2">Current Lookup Table File</div>
-                <div class="flex items-center space-x-4">
-                    <input type="text" 
-                        class="flex-1 border-2 border-gray-400 p-1" 
-                        id="lookup_display"
-                        readonly>
-                    <input type="file" 
-                        id="lookup_file" 
-                        class="hidden" 
-                        accept=".xlsx,.xls">
-                    <button onclick="document.getElementById('lookup_file').click()" 
-                            class="px-4 py-1 bg-white shadow text-sm hover:bg-blue-100">
-                        Upload New
-                    </button>
-                    <input type="checkbox" id="use_lookup" name="use_lookup">
-                    <label for="use_lookup" class="ml-1">Use Lookup Table</label>
-                </div>
-                <div class="text-xs text-gray-400 mt-1">Excel file containing lookup table for PHI replacement</div>
-            </div>
-        </div>
-    </div>
-
-        <!-- Clinical Trial ID Generation Method -->
+<div class="mt-8">
+    <div class="text-md mb-4">Lookup Table Configuration</div>
+    <div class="grid grid-cols-1 gap-4">
         <div>
-            <div class="text-md mb-2 mt-4">Clinical trial ID generation method</div>
-            <div class="flex flex-col space-y-2">
-                <div class="flex items-center">
-                    <input type="radio" id="unique_identifier" name="id_generation_method" value="UNIQUE" checked>
-                    <label for="unique_identifier" class="ml-2">Generate unique identifier (eg: 170351937...)</label>
-                </div>
-                <div class="flex items-center">
-                    <input type="radio" id="incrementing_integer" name="id_generation_method" value="INCREMENT">
-                    <label for="incrementing_integer" class="ml-2">Incrementing integer (eg: Job-Site-0001)</label>
-                </div>
+            <div class="text-sm text-gray-500 mb-2">Current Lookup Table File</div>
+            <div class="flex items-center space-x-4">
+                <input type="text" 
+                    class="flex-1 border-2 border-gray-400 p-1" 
+                    id="lookup_display"
+                    readonly>
+                <input type="file" 
+                    id="lookup_file" 
+                    class="hidden" 
+                    accept=".xlsx,.xls">
+                <button onclick="document.getElementById('lookup_file').click()" 
+                        class="px-4 py-1 bg-white shadow text-sm hover:bg-blue-100">
+                    Upload New
+                </button>
+                <input type="checkbox" id="use_lookup" name="use_lookup">
+                <label for="use_lookup" class="ml-1">Use Lookup Table</label>
             </div>
+            <div class="text-xs text-gray-400 mt-1">Excel file containing lookup table for PHI replacement</div>
         </div>
     </div>
+</div>
 
-    <!-- Default De-id Filters Section -->
-    <div class="mt-6">
-        <div class="text-md mb-2">Default Deidentification Filters</div>
-        
-        <!-- General Filters Section -->
-        <div class="mb-4">
-            <div class="text-sm text-gray-600 mb-2">General Filters</div>
-            <div class="text-sm text-gray-400 mb-2">Only include images where</div>
-            {% include 'components/add_filters.html' %}
+<!-- Clinical Trial ID Generation Method -->
+<div class="mt-8">
+    <div class="text-md mb-4">Clinical trial ID generation method</div>
+    <div class="flex flex-col space-y-2">
+        <div class="flex items-center">
+            <input type="radio" id="unique_identifier" name="id_generation_method" value="UNIQUE" checked>
+            <label for="unique_identifier" class="ml-2">Generate unique identifier (eg: 170351937...)</label>
         </div>
+        <div class="flex items-center">
+            <input type="radio" id="incrementing_integer" name="id_generation_method" value="INCREMENT">
+            <label for="incrementing_integer" class="ml-2">Incrementing integer (eg: Job-Site-0001)</label>
+        </div>
+    </div>
+</div>
 
-        <!-- Modality Filters Section -->
-        <div class="mt-4">
-            <div class="text-md mb-2">Default Modality Filters</div>
-            <div class="grid grid-cols-1 gap-4">
-                {% for modality in modalities %}
-                <div>
-                    <div class="text-sm text-gray-600">{{ modality }} Filters</div>
-                    <div id="filters-{{ modality }}" class="ml-4 mt-2">
-                        <div id="filter-container-{{ modality }}" class="space-y-2">
-                            <!-- Filters will be added here -->
-                        </div>
-                        <button class="mt-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="addFilterToModality('{{ modality }}')">+ Add Filter</button>
+<!-- Default De-id Filters Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">Default Deidentification Filters</div>
+    
+    <!-- General Filters Section -->
+    <div class="mb-4">
+        <div class="text-sm text-gray-600 mb-2">General Filters</div>
+        <div class="text-sm text-gray-400 mb-2">Only include images where</div>
+        {% include 'components/add_filters.html' %}
+    </div>
+
+    <!-- Modality Filters Section -->
+    <div class="mt-4">
+        <div class="text-md mb-2">Default Modality Filters</div>
+        <div class="grid grid-cols-1 gap-4">
+            {% for modality in modalities %}
+            <div>
+                <div class="text-sm text-gray-600">{{ modality }} Filters</div>
+                <div id="filters-{{ modality }}" class="ml-4 mt-2">
+                    <div id="filter-container-{{ modality }}" class="space-y-2">
+                        <!-- Filters will be added here -->
                     </div>
+                    <button class="mt-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="addFilterToModality('{{ modality }}')">+ Add Filter</button>
                 </div>
-                {% endfor %}
             </div>
+            {% endfor %}
         </div>
     </div>
+</div>
 
 {% endblock %}
 

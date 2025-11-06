@@ -10,17 +10,16 @@
 </script>
 
 <meta name="csrf_token" content="{{ csrf_token }}">
-<div class="flex-1 bg-white p-4 ml-4">
 
-    <!-- Default De-id Lists Section -->
-    <div class="mt-6">
-        <div class="text-md mb-2">Default Headers to extract</div>
-        <div class="flex-1">
-            <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_extract"></textarea>
-        </div>
+<!-- Default De-id Lists Section -->
+<div class="mt-6">
+    <div class="text-md mb-4">Default Headers to extract</div>
+    <div class="flex-1">
+        <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_tags_to_extract"></textarea>
     </div>
+</div>
 
-    {% include 'components/filters_section.html' with section_title="Default Extraction Filters" %}
+{% include 'components/filters_section.html' with section_title="Default Extraction Filters" %}
 {% endblock %}
 
 {% block settings_scripts %}

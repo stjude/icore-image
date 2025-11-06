@@ -10,38 +10,37 @@
 </script>
 
 <meta name="csrf_token" content="{{ csrf_token }}">
-<div class="flex-1 bg-white p-4 ml-4">
-    <!-- Default Output Folder -->
-    <div class="text-sm mt-6 text-black">
-        <div class="text-sm text-gray-500">Default Output Folder</div>
-        <input type="text" class="mt-2 w-full border-2 border-gray-400 p-2" name="default_output_folder" />
-    </div>
 
-    <div class="mt-6">
-        <div class="text-md mb-2">Default Column Options</div>
-        <div class="flex space-x-4">
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">Columns to deid</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_columns_to_deid"></textarea>
-            </div>
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">Columns to drop</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_columns_to_drop"></textarea>
-            </div>
+<!-- Default Output Folder -->
+<div class="mt-6">
+    <div class="text-md mb-4">Default Output Folder</div>
+    <input type="text" class="w-full border-2 border-gray-400 p-1" name="default_output_folder" />
+</div>
+
+<div class="mt-8">
+    <div class="text-md mb-4">Default Column Options</div>
+    <div class="flex space-x-4">
+        <div class="flex-1">
+            <div class="text-sm text-gray-500">Columns to deid</div>
+            <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_columns_to_deid"></textarea>
+        </div>
+        <div class="flex-1">
+            <div class="text-sm text-gray-500">Columns to drop</div>
+            <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_columns_to_drop"></textarea>
         </div>
     </div>
+</div>
 
-    <div class="mt-6">
-        <div class="text-md mb-2">Default Deidentification Lists</div>
-        <div class="flex space-x-4">
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">Phrases to keep</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_text_to_keep"></textarea>
-            </div>
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">Phrases to remove</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_text_to_remove"></textarea>
-            </div>
+<div class="mt-8">
+    <div class="text-md mb-4">Default Deidentification Lists</div>
+    <div class="flex space-x-4">
+        <div class="flex-1">
+            <div class="text-sm text-gray-500">Phrases to keep</div>
+            <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_text_to_keep"></textarea>
+        </div>
+        <div class="flex-1">
+            <div class="text-sm text-gray-500">Phrases to remove</div>
+            <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="default_text_to_remove"></textarea>
         </div>
     </div>
 </div>

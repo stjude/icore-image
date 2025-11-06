@@ -11,8 +11,7 @@
 
 <meta name="csrf_token" content="{{ csrf_token }}">
 
-<div class="bg-white p-4 ml-4">
-    {% include 'components/filters_section.html' with section_title="Default Query Filters" modalities=modalities %}
+{% include 'components/filters_section.html' with section_title="Default Query Filters" modalities=modalities %}
 {% endblock %}
 
 {% block settings_scripts %}
