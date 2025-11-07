@@ -187,7 +187,11 @@ def build_image_deid_config(task):
         tags_to_randomize,
         date_shift_days,
         task.parameters['site_id'],
-        anonymizer_lookup_contents
+        anonymizer_lookup_contents,
+        remove_unspecified=task.parameters.get('remove_unspecified', True),
+        remove_overlays=task.parameters.get('remove_overlays', True),
+        remove_curves=task.parameters.get('remove_curves', True),
+        remove_private=task.parameters.get('remove_private', True)
     )
     config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
     

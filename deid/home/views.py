@@ -386,6 +386,10 @@ def run_deid(request):
                     'lookup_file': data['lookup_file'],
                     'use_lookup_table': data['use_lookup'],
                     'deid_pixels': data.get('deid_pixels', False),
+                    'remove_unspecified': data.get('remove_unspecified', False),
+                    'remove_overlays': data.get('remove_overlays', False),
+                    'remove_curves': data.get('remove_curves', False),
+                    'remove_private': data.get('remove_private', False),
                     'site_id': data['site_id'],
                 }
             )

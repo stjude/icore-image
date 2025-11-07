@@ -129,6 +129,39 @@
             </div>
         </div>
         <div class="mt-8">
+            <div class="text-md mb-4">Global Deidentification Settings</div>
+            <div class="space-y-4">
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="remove_unspecified" name="remove_unspecified" class="mr-2">
+                        <label for="remove_unspecified">Remove unspecified tags</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">If checked, any tag not specified in the lists above will be removed. If unchecked, unspecified tags will be preserved</div>
+                </div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="remove_overlays" name="remove_overlays" class="mr-2">
+                        <label for="remove_overlays">Remove overlays</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Remove all elements in 60xx groups. These are overlays and are sometimes removed when fully de-identifying an object because they can contain PHI.</div>
+                </div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="remove_curves" name="remove_curves" class="mr-2">
+                        <label for="remove_curves">Remove curve data</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Remove all elements in 50xx groups. These are groups which contain curve data.</div>
+                </div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="remove_private" name="remove_private" class="mr-2">
+                        <label for="remove_private">Remove all private tags</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Remove all elements in odd-numbered groups. These are private groups whose contents are not specified by the DICOM standard</div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-8">
             <div class="text-md mb-4">Pixel Deidentification</div>
             <div class="flex items-center mb-4">
                 <input type="checkbox" id="deid_pixels" name="deid_pixels" class="mr-2">
@@ -218,6 +251,18 @@
             }
             if (settings.default_deid_pixels) {
                 document.getElementById('deid_pixels').checked = settings.default_deid_pixels;
+            }
+            if (settings.default_remove_unspecified !== undefined) {
+                document.getElementById('remove_unspecified').checked = settings.default_remove_unspecified;
+            }
+            if (settings.default_remove_overlays !== undefined) {
+                document.getElementById('remove_overlays').checked = settings.default_remove_overlays;
+            }
+            if (settings.default_remove_curves !== undefined) {
+                document.getElementById('remove_curves').checked = settings.default_remove_curves;
+            }
+            if (settings.default_remove_private !== undefined) {
+                document.getElementById('remove_private').checked = settings.default_remove_private;
             }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
@@ -344,6 +389,10 @@
             lookup_file: document.querySelector('[name="lookup_file"]').value || settings.lookup_file || '',
             use_lookup: document.getElementById('use_lookup').checked,
             deid_pixels: document.getElementById('deid_pixels').checked,
+            remove_unspecified: document.getElementById('remove_unspecified').checked,
+            remove_overlays: document.getElementById('remove_overlays').checked,
+            remove_curves: document.getElementById('remove_curves').checked,
+            remove_private: document.getElementById('remove_private').checked,
             date_shift_days: settings.date_shift_range || 0,
             site_id: settings.site_id || '',
             pacs_configs: settings.pacs_configs || [],

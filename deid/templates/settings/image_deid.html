@@ -87,6 +87,40 @@
 </div>
 
 <div class="mt-8">
+    <div class="text-md mb-4">Global Deidentification Settings</div>
+    <div class="space-y-4">
+        <div>
+            <div class="flex items-center">
+                <input type="checkbox" id="default_remove_unspecified" name="default_remove_unspecified" class="mr-2">
+                <label for="default_remove_unspecified">Remove unspecified tags</label>
+            </div>
+            <div class="text-sm text-gray-500 ml-6">If checked, any tag not specified in the lists above will be removed. If unchecked, unspecified tags will be preserved</div>
+        </div>
+        <div>
+            <div class="flex items-center">
+                <input type="checkbox" id="default_remove_overlays" name="default_remove_overlays" class="mr-2">
+                <label for="default_remove_overlays">Remove overlays</label>
+            </div>
+            <div class="text-sm text-gray-500 ml-6">Remove all elements in 60xx groups. These are overlays and are sometimes removed when fully de-identifying an object because they can contain PHI.</div>
+        </div>
+        <div>
+            <div class="flex items-center">
+                <input type="checkbox" id="default_remove_curves" name="default_remove_curves" class="mr-2">
+                <label for="default_remove_curves">Remove curve data</label>
+            </div>
+            <div class="text-sm text-gray-500 ml-6">Remove all elements in 50xx groups. These are groups which contain curve data.</div>
+        </div>
+        <div>
+            <div class="flex items-center">
+                <input type="checkbox" id="default_remove_private" name="default_remove_private" class="mr-2">
+                <label for="default_remove_private">Remove all private tags</label>
+            </div>
+            <div class="text-sm text-gray-500 ml-6">Remove all elements in odd-numbered groups. These are private groups whose contents are not specified by the DICOM standard</div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-8">
     <div class="text-md mb-4">Pixel Deidentification</div>
     <div class="flex items-center">
         <input type="checkbox" id="default_deid_pixels" name="default_deid_pixels">
@@ -165,6 +199,18 @@
             if (settings.default_deid_pixels) {
                 document.getElementById('default_deid_pixels').checked = settings.default_deid_pixels;
             }
+            if (settings.default_remove_unspecified !== undefined) {
+                document.getElementById('default_remove_unspecified').checked = settings.default_remove_unspecified;
+            }
+            if (settings.default_remove_overlays !== undefined) {
+                document.getElementById('default_remove_overlays').checked = settings.default_remove_overlays;
+            }
+            if (settings.default_remove_curves !== undefined) {
+                document.getElementById('default_remove_curves').checked = settings.default_remove_curves;
+            }
+            if (settings.default_remove_private !== undefined) {
+                document.getElementById('default_remove_private').checked = settings.default_remove_private;
+            }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
             }
@@ -184,6 +230,10 @@
             lookup_file: document.getElementById('lookup_display').value,
             use_lookup: document.getElementById('use_lookup').checked,
             default_deid_pixels: document.getElementById('default_deid_pixels').checked,
+            default_remove_unspecified: document.getElementById('default_remove_unspecified').checked,
+            default_remove_overlays: document.getElementById('default_remove_overlays').checked,
+            default_remove_curves: document.getElementById('default_remove_curves').checked,
+            default_remove_private: document.getElementById('default_remove_private').checked,
             selected_protocol: document.getElementById('protocol_select').value,
             deid_filters: filterData
         };

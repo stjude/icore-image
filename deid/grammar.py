@@ -127,7 +127,7 @@ def generate_filters_string(general_filters, modality_filters):
         return modalities_str
 
 
-def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days, site_id, lookup_lines=None):
+def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomize, date_shift_days, site_id, lookup_lines=None, remove_unspecified=True, remove_overlays=True, remove_curves=True, remove_private=True):
     tags_to_keep = [tag.strip() for tag in tags_to_keep.split('\n') if tag.strip()]
     tags_to_dateshift = [tag.strip() for tag in tags_to_dateshift.split('\n') if tag.strip()]
     tags_to_randomize = [tag.strip() for tag in tags_to_randomize.split('\n') if tag.strip()]
@@ -166,10 +166,10 @@ def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomiz
         script.extend(lookup_lines)
     script.extend([
         f'   <e en="T" t="00120030" n="ClinicalTrialSiteID">@always(){site_id}</e>',
-        '   <r en="T" t="curves">Remove curves</r>',
-        '   <r en="T" t="overlays">Remove overlays</r>',
-        '   <r en="T" t="privategroups">Remove private groups</r>',
-        '   <r en="T" t="unspecifiedelements">Remove unchecked elements</r>',
+        f'   <r en="{"T" if remove_curves else "F"}" t="curves">Remove curves</r>',
+        f'   <r en="{"T" if remove_overlays else "F"}" t="overlays">Remove overlays</r>',
+        f'   <r en="{"T" if remove_private else "F"}" t="privategroups">Remove private groups</r>',
+        f'   <r en="{"T" if remove_unspecified else "F"}" t="unspecifiedelements">Remove unchecked elements</r>',
         '</script>'
     ])
     
