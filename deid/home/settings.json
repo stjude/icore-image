@@ -38,6 +38,7 @@
     "default_accession_header": "AccessionNumber",
     "default_mrn_header": "PatientID",
     "default_date_header": "StudyDate",
+    "default_date_window_days": 0,
     "default_tags_to_query": "",
     "header_query_filters": {
         "general_filters": [

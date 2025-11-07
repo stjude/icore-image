@@ -295,6 +295,7 @@ def run_header_query(request):
                 'acc_col': data['acc_col'],
                 'mrn_col': data['mrn_col'],
                 'date_col': data['date_col'],
+                'date_window': data.get('date_window', 0),
                 'general_filters': data['general_filters'],
                 'modality_filters': data['modality_filters'],
             }
@@ -377,6 +378,7 @@ def run_deid(request):
                     'acc_col': data['acc_col'],
                     'mrn_col': data['mrn_col'],
                     'date_col': data['date_col'],
+                    'date_window': data.get('date_window', 0),
                     'general_filters': data['general_filters'],
                     'modality_filters': data['modality_filters'],
                     'tags_to_keep': data['tags_to_keep'],
@@ -452,6 +454,7 @@ def run_query(request):
                 'acc_col': data['acc_col'],
                 'mrn_col': data['mrn_col'],
                 'date_col': data['date_col'],
+                'date_window': data.get('date_window', 0),
                 'general_filters': data['general_filters'],
                 'modality_filters': data['modality_filters'],
             }

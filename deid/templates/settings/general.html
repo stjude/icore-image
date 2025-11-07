@@ -110,6 +110,15 @@
                    name="default_date_header" >
         </div>
     </div>
+    
+    <div class="mt-4">
+        <div class="text-sm text-gray-500 mb-2">Default Date Window (Days)</div>
+        <input type="number" 
+               class="w-64 border-2 border-gray-400 p-1" 
+               name="default_date_window_days" 
+               min="0"
+               value="0">
+    </div>
 </div>
 
     <!-- Default Output Folder Section -->
@@ -239,6 +248,9 @@
             if (settings.default_date_header) {
                 document.querySelector('[name="default_date_header"]').value = settings.default_date_header;
             }
+            if (settings.default_date_window_days !== undefined) {
+                document.querySelector('[name="default_date_window_days"]').value = settings.default_date_window_days;
+            }
             if (settings.default_output_folder) {
                 document.querySelector('[name="default_output_folder"]').value = settings.default_output_folder;
             }
@@ -269,6 +281,7 @@
             default_accession_header: document.querySelector('[name="default_accession_header"]').value,
             default_mrn_header: document.querySelector('[name="default_mrn_header"]').value,
             default_date_header: document.querySelector('[name="default_date_header"]').value,
+            default_date_window_days: parseInt(document.querySelector('[name="default_date_window_days"]').value) || 0,
             default_output_folder: document.querySelector('[name="default_output_folder"]').value,
             timezone: document.querySelector('[name="timezone"]').value,
             debug_logging: document.querySelector('[name="debug_logging"]').checked
