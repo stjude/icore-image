@@ -198,6 +198,9 @@ def build_image_deid_config(task):
     deid_pixels = task.parameters.get('deid_pixels', False)
     config['deid_pixels'] = deid_pixels
     
+    apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
+    config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
+    
     print(config)
     # Write config to file
     with open(CONFIG_PATH, 'w') as f:

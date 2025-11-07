@@ -382,6 +382,90 @@ def test_build_imagedeid_local_params_includes_debug_when_specified(tmp_path):
     assert params["debug"] is True
 
 
+def test_build_imagedeid_pacs_params_defaults_apply_default_filter_script_to_true(tmp_path):
+    config = {
+        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber"
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
+    
+    assert params["apply_default_filter_script"] is True
+
+
+def test_build_imagedeid_pacs_params_includes_apply_default_filter_script_when_false(tmp_path):
+    config = {
+        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber",
+        "apply_default_ctp_filter_script": False
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
+    
+    assert params["apply_default_filter_script"] is False
+
+
+def test_build_imagedeid_pacs_params_includes_apply_default_filter_script_when_true(tmp_path):
+    config = {
+        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber",
+        "apply_default_ctp_filter_script": True
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
+    
+    assert params["apply_default_filter_script"] is True
+
+
+def test_build_imagedeid_local_params_defaults_apply_default_filter_script_to_true(tmp_path):
+    config = {}
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
+    
+    assert params["apply_default_filter_script"] is True
+
+
+def test_build_imagedeid_local_params_includes_apply_default_filter_script_when_false(tmp_path):
+    config = {
+        "apply_default_ctp_filter_script": False
+    }
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
+    
+    assert params["apply_default_filter_script"] is False
+
+
+def test_build_imagedeid_local_params_includes_apply_default_filter_script_when_true(tmp_path):
+    config = {
+        "apply_default_ctp_filter_script": True
+    }
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
+    
+    assert params["apply_default_filter_script"] is True
+
+
 def test_run_calls_imageqr_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text("module: imageqr\napplication_aet: ICORE\npacs:\n  - ip: localhost\n    port: 104\n    ae: PACS1\nacc_col: AccessionNumber")

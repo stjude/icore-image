@@ -83,7 +83,8 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             filter_script=filter_script,
-            anonymizer_script=anonymizer_script
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False
         )
         
         output_files = list(output_dir.rglob("*.dcm"))
@@ -228,7 +229,8 @@ def test_continuous_audit_log_saving(tmp_path):
             application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False
         )
         
         stop_monitoring.set()
@@ -279,7 +281,8 @@ def test_imagedeid_failures_reported(tmp_path):
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
     )
     
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
@@ -322,7 +325,8 @@ def test_imagedeid_filter_script_generation(tmp_path):
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
             output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir)
+            appdata_dir=str(appdata_dir),
+            apply_default_filter_script=False
         )
         
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -352,7 +356,8 @@ def test_imagedeid_filter_script_generation(tmp_path):
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
             output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir)
+            appdata_dir=str(appdata_dir),
+            apply_default_filter_script=False
         )
         
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -371,7 +376,8 @@ def test_imagedeid_filter_script_generation(tmp_path):
             application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            filter_script=user_filter
+            filter_script=user_filter,
+            apply_default_filter_script=False
         )
         
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -426,7 +432,8 @@ def test_imagedeid_multiple_pacs(tmp_path):
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
             output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir)
+            appdata_dir=str(appdata_dir),
+            apply_default_filter_script=False
         )
         
         assert result["num_studies_found"] == 4, f"Should find 4 studies (2 from each PACS), found {result['num_studies_found']}"
@@ -496,7 +503,8 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path):
             query_spreadsheet=query_spreadsheet_valid,
             application_aet="TEST_AET",
             output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir)
+            appdata_dir=str(appdata_dir),
+            apply_default_filter_script=False
         )
         
         assert result["num_studies_found"] == 3, f"Should find 3 studies, found {result['num_studies_found']}"
@@ -655,7 +663,8 @@ def test_imagedeid_pacs_date_window(tmp_path):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
-            date_window_days=2
+            date_window_days=2,
+            apply_default_filter_script=False
         )
         
         output_files = list(output_dir.rglob("*.dcm"))
@@ -713,7 +722,8 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path):
             application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            deid_pixels=True
+            deid_pixels=True,
+            apply_default_filter_script=False
         )
         
         assert result["num_studies_found"] == 1, f"Should find 1 study, found {result['num_studies_found']}"
@@ -727,6 +737,123 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path):
         
         deid_metadata_path = appdata_dir / "deid_metadata.xlsx"
         assert deid_metadata_path.exists(), "deid_metadata.xlsx should exist"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_apply_default_filter_script(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds1 = Fixtures.create_minimal_dicom(
+            patient_id="MRN001",
+            patient_name="Patient1",
+            accession="ACC001",
+            study_date="20250101",
+            modality="SR"
+        )
+        ds1.SOPClassUID = "1.2.840.10008.5.1.4.1.1.88.11"
+        _upload_dicom_to_orthanc(ds1, orthanc)
+        
+        ds2 = Fixtures.create_minimal_dicom(
+            patient_id="MRN002",
+            patient_name="Patient2",
+            accession="ACC002",
+            study_date="20250101",
+            modality="CT"
+        )
+        ds2.Manufacturer = "GE MEDICAL SYSTEMS"
+        ds2.ManufacturerModelName = "REVOLUTION CT"
+        ds2.SoftwareVersions = "REVO_CT_22BC.50"
+        ds2.Rows = 512
+        ds2.Columns = 512
+        ds2.SamplesPerPixel = 1
+        ds2.PhotometricInterpretation = "MONOCHROME2"
+        ds2.BitsAllocated = 16
+        ds2.BitsStored = 16
+        ds2.HighBit = 15
+        ds2.PixelRepresentation = 0
+        ds2.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
+        _upload_dicom_to_orthanc(ds2, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+        
+        result_without_filter = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False
+        )
+        
+        assert result_without_filter["num_images_saved"] == 2, "Without default filter, both images should be saved"
+        assert result_without_filter["num_images_quarantined"] == 0, "Without default filter, no images should be quarantined"
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 2, "Both DICOM files should be in output"
+        
+        for file in output_dir.rglob("*.dcm"):
+            file.unlink()
+        quarantine_dir = appdata_dir / "quarantine"
+        if quarantine_dir.exists():
+            for file in quarantine_dir.rglob("*.dcm"):
+                file.unlink()
+        
+        result_with_filter = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=True
+        )
+        
+        assert result_with_filter["num_images_saved"] == 1, "With default filter, only CT should be saved (SR should be quarantined)"
+        assert result_with_filter["num_images_quarantined"] == 1, "With default filter, SR should be quarantined"
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 1, "Only one DICOM file should be in output"
+        
+        output_ds = pydicom.dcmread(output_files[0])
+        assert output_ds.Modality == "CT", "Output file should be CT"
+        
+        quarantine_files = list(quarantine_dir.rglob("*.dcm"))
+        assert len(quarantine_files) == 1, "One DICOM file should be quarantined"
+        
+        quarantine_ds = pydicom.dcmread(quarantine_files[0])
+        assert quarantine_ds.Modality == "SR", "Quarantined file should be SR"
     
     finally:
         orthanc.stop()

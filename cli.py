@@ -84,6 +84,7 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
         "date_window_days": config.get("date_window", 0),
         "deid_pixels": config.get("deid_pixels", False),
         "debug": config.get("debug", False),
+        "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
         "run_dirs": run_dirs
     }
 
@@ -97,6 +98,7 @@ def build_imagedeid_local_params(config, input_dir, output_dir, run_dirs):
         "lookup_table": config.get("ctp_lookup_table"),
         "deid_pixels": config.get("deid_pixels", False),
         "debug": config.get("debug", False),
+        "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
         "run_dirs": run_dirs
     }
 

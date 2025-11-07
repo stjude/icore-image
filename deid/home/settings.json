@@ -5,6 +5,7 @@
     "default_tags_to_randomize": "AccessionNumber\nPatientID\nPatientName\nClinicalTrialSubjectID\nInstanceCreatorUID\nSOPInstanceUID\nFailedSOPInstanceUIDList\nContextGroupExtensionCreatorUID\nRefSOPInstanceUID\nTransactionUID\nIrradiationEventUID\nCreatorVersionUID\nStudyInstanceUID\nSeriesInstanceUID\nFrameOfReferenceUID\nSynchronizationFrameOfReferenceUID\nConcatenationUID\nDimensionOrganizationUID\nPaletteColorLUTUID\nLargePaletteColorLUTUID\nRefGPSPSTransactionUID\nUID\nTemplateExtensionOrganizationUID\nTemplateExtensionCreatorUID\nFiducialUID\nStorageMediaFileSetUID\nRefFrameOfReferenceUID\nRelatedFrameOfReferenceUID\nDoseReferenceUID",
     "default_date_shift_days": "-21",
     "default_deid_pixels": false,
+    "default_apply_default_ctp_filter_script": true,
     "deid_filters": {
         "general_filters": [],
         "modality_filters": {

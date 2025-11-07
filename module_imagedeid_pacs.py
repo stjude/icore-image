@@ -3,7 +3,7 @@ import os
 import time
 
 from ctp import CTPPipeline
-from module_imagedeid_local import _save_metadata_files
+from module_imagedeid_local import _save_metadata_files, _apply_default_filter_script
 from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
                    combine_filters, validate_date_window_days, find_studies_from_pacs_list,
                    move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
@@ -25,7 +25,7 @@ def _log_progress(pipeline):
 def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
                    output_dir, appdata_dir=None, filter_script=None, 
                    date_window_days=0, anonymizer_script=None, deid_pixels=False,
-                   lookup_table=None, debug=False, run_dirs=None):
+                   lookup_table=None, debug=False, run_dirs=None, apply_default_filter_script=True):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -46,6 +46,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     
     query_params_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
     combined_filter = combine_filters(filter_script, generated_filter)
+    combined_filter = _apply_default_filter_script(combined_filter, apply_default_filter_script)
     
     study_pacs_map, failed_find_indices = find_studies_from_pacs_list(pacs_list, query_params_list, application_aet)
     

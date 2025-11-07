@@ -3,7 +3,7 @@ import os
 import time
 
 from ctp import CTPPipeline
-from utils import setup_run_directories, configure_run_logging, format_number_with_commas, count_dicom_files, csv_string_to_xlsx
+from utils import setup_run_directories, configure_run_logging, format_number_with_commas, count_dicom_files, csv_string_to_xlsx, combine_filters
 
 
 def _save_metadata_files(pipeline, appdata_dir):
@@ -32,9 +32,23 @@ def _log_progress(total_files, pipeline):
         logging.info(progress_msg)
 
 
+def _apply_default_filter_script(filter_script, apply_default_filter_script):
+    if not apply_default_filter_script:
+        return filter_script
+    
+    stanford_filter_path = os.path.join(os.path.dirname(__file__), "ctp", "scripts", "stanford-filter.script")
+    if os.path.exists(stanford_filter_path):
+        with open(stanford_filter_path, 'r') as f:
+            stanford_filter_content = f.read()
+        return combine_filters(filter_script, stanford_filter_content)
+    else:
+        logging.warning(f"Stanford filter script not found at {stanford_filter_path}")
+        return filter_script
+
+
 def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None, 
                    anonymizer_script=None, deid_pixels=False, lookup_table=None, 
-                   debug=False, run_dirs=None):
+                   debug=False, run_dirs=None, apply_default_filter_script=True):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -65,6 +79,8 @@ def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
     quarantine_dir = os.path.join(appdata_dir, "quarantine")
     os.makedirs(quarantine_dir, exist_ok=True)
     
+    final_filter_script = _apply_default_filter_script(filter_script, apply_default_filter_script)
+    
     pipeline_type = "imagedeid_local_pixel" if deid_pixels else "imagedeid_local"
     ctp_log_level = "DEBUG" if debug else None
     
@@ -72,7 +88,7 @@ def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
         pipeline_type=pipeline_type,
         output_dir=output_dir,
         input_dir=input_dir,
-        filter_script=filter_script,
+        filter_script=final_filter_script,
         anonymizer_script=anonymizer_script,
         lookup_table=lookup_table,
         log_path=run_dirs["ctp_log_path"],

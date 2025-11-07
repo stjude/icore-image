@@ -169,6 +169,13 @@
                     </div>
                     <div class="text-sm text-gray-500 ml-6">Remove all elements in odd-numbered groups. These are private groups whose contents are not specified by the DICOM standard</div>
                 </div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="apply_default_ctp_filter_script" name="apply_default_ctp_filter_script" class="mr-2" checked>
+                        <label for="apply_default_ctp_filter_script">Apply default filters from known devices</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Remove DICOM files during the deidentification process from known devices that are known to contain PHI. These files will be stored in the quarantine.</div>
+                </div>
             </div>
         </div>
         <div class="mt-8">
@@ -176,9 +183,9 @@
             <div class="mb-4">
                 <div class="flex items-center">
                     <input type="checkbox" id="deid_pixels" name="deid_pixels" class="mr-2">
-                    <label for="deid_pixels">Deidentify pixel data from known scanners</label>
+                    <label for="deid_pixels">Deidentify pixel data from devices scanners</label>
                 </div>
-                <div class="text-sm text-gray-500 ml-6">Blanks regions of pixels in a DICOM image from known scanners.</div>
+                <div class="text-sm text-gray-500 ml-6">Blanks regions of pixels in a DICOM image from known devices.</div>
             </div>
             <div class="text-md mb-4 mt-8">Lookup Table Configuration</div>
             <div>
@@ -324,6 +331,9 @@
             }
             if (settings.default_remove_private !== undefined) {
                 document.getElementById('remove_private').checked = settings.default_remove_private;
+            }
+            if (settings.default_apply_default_ctp_filter_script !== undefined) {
+                document.getElementById('apply_default_ctp_filter_script').checked = settings.default_apply_default_ctp_filter_script;
             }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
@@ -600,6 +610,7 @@
             remove_overlays: document.getElementById('remove_overlays').checked,
             remove_curves: document.getElementById('remove_curves').checked,
             remove_private: document.getElementById('remove_private').checked,
+            apply_default_ctp_filter_script: document.getElementById('apply_default_ctp_filter_script').checked,
             date_shift_days: settings.date_shift_range || 0,
             site_id: settings.site_id || '',
             pacs_configs: settings.pacs_configs || [],

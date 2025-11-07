@@ -117,6 +117,13 @@
             </div>
             <div class="text-sm text-gray-500 ml-6">Remove all elements in odd-numbered groups. These are private groups whose contents are not specified by the DICOM standard</div>
         </div>
+        <div>
+            <div class="flex items-center">
+                <input type="checkbox" id="default_apply_default_ctp_filter_script" name="default_apply_default_ctp_filter_script" class="mr-2" checked>
+                <label for="default_apply_default_ctp_filter_script">Apply default filters from known devices</label>
+            </div>
+            <div class="text-sm text-gray-500 ml-6">Remove DICOM files during the deidentification process from known devices that are known to contain PHI. These files will be stored in the quarantine.</div>
+        </div>
     </div>
 </div>
 
@@ -125,9 +132,9 @@
     <div>
         <div class="flex items-center">
             <input type="checkbox" id="default_deid_pixels" name="default_deid_pixels">
-            <label for="default_deid_pixels" class="ml-2">Deidentify pixel data from known scanners by default</label>
+            <label for="default_deid_pixels" class="ml-2">Deidentify pixel data from known devices by default</label>
         </div>
-        <div class="text-sm text-gray-500 ml-6">Blanks regions of pixels in a DICOM image from known scanners.</div>
+        <div class="text-sm text-gray-500 ml-6">Blanks regions of pixels in a DICOM image from known devices.</div>
     </div>
 </div>
 
@@ -214,6 +221,9 @@
             if (settings.default_remove_private !== undefined) {
                 document.getElementById('default_remove_private').checked = settings.default_remove_private;
             }
+            if (settings.default_apply_default_ctp_filter_script !== undefined) {
+                document.getElementById('default_apply_default_ctp_filter_script').checked = settings.default_apply_default_ctp_filter_script;
+            }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
             }
@@ -237,6 +247,7 @@
             default_remove_overlays: document.getElementById('default_remove_overlays').checked,
             default_remove_curves: document.getElementById('default_remove_curves').checked,
             default_remove_private: document.getElementById('default_remove_private').checked,
+            default_apply_default_ctp_filter_script: document.getElementById('default_apply_default_ctp_filter_script').checked,
             selected_protocol: document.getElementById('protocol_select').value,
             deid_filters: filterData
         };

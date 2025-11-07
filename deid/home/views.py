@@ -392,6 +392,7 @@ def run_deid(request):
                     'remove_overlays': data.get('remove_overlays', False),
                     'remove_curves': data.get('remove_curves', False),
                     'remove_private': data.get('remove_private', False),
+                    'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
                     'site_id': data['site_id'],
                 }
             )
