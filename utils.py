@@ -3,6 +3,7 @@ import io
 import logging
 import os
 import sys
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -307,4 +308,59 @@ def _write_excel_with_text_format(df, output_path):
                 cell.number_format = '@'
     
     wb.save(output_path)
+
+
+def validate_dicom_tags(tag_names):
+    dictionary_path = os.path.join(os.path.dirname(__file__), "resources", "dictionary.xml")
+    
+    if not os.path.exists(dictionary_path):
+        raise ValueError(f"DICOM dictionary not found at {dictionary_path}")
+    
+    tree = ET.parse(dictionary_path)
+    root = tree.getroot()
+    
+    valid_keywords = set()
+    for element in root.findall(".//element[@key]"):
+        keyword = element.get("key")
+        if keyword:
+            valid_keywords.add(keyword)
+    
+    invalid_tags = []
+    for tag_name in tag_names:
+        if tag_name not in valid_keywords:
+            invalid_tags.append(tag_name)
+    
+    if invalid_tags:
+        raise ValueError(f"Invalid DICOM tag names: {', '.join(invalid_tags)}")
+
+
+def detect_and_validate_dates(df, tag_name):
+    if tag_name not in df.columns:
+        return False
+    
+    sample_values = df[tag_name].dropna().head(5)
+    if len(sample_values) == 0:
+        return False
+    
+    is_date_column = False
+    for value in sample_values:
+        if isinstance(value, (pd.Timestamp, datetime)):
+            is_date_column = True
+            break
+    
+    if is_date_column:
+        for idx, value in df[tag_name].items():
+            if pd.notna(value) and not isinstance(value, (pd.Timestamp, datetime)):
+                raise ValueError(f"Column {tag_name} has inconsistent date types at row {idx}: expected datetime, got {type(value).__name__}")
+    
+    return is_date_column
+
+
+def format_dicom_date(date_value):
+    if isinstance(date_value, pd.Timestamp):
+        return date_value.strftime("%Y%m%d")
+    elif isinstance(date_value, datetime):
+        return date_value.strftime("%Y%m%d")
+    else:
+        raise ValueError(f"Cannot format non-date value: {date_value} (type: {type(date_value).__name__})")
 

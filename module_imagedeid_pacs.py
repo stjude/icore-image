@@ -3,7 +3,7 @@ import os
 import time
 
 from ctp import CTPPipeline
-from module_imagedeid_local import _save_metadata_files, _apply_default_filter_script
+from module_imagedeid_local import _save_metadata_files, _apply_default_filter_script, _process_mapping_file
 from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
                    combine_filters, validate_date_window_days, find_studies_from_pacs_list,
                    move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
@@ -25,7 +25,8 @@ def _log_progress(pipeline):
 def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
                    output_dir, appdata_dir=None, filter_script=None, 
                    date_window_days=0, anonymizer_script=None, deid_pixels=False,
-                   lookup_table=None, debug=False, run_dirs=None, apply_default_filter_script=True):
+                   lookup_table=None, debug=False, run_dirs=None, apply_default_filter_script=True,
+                   mapping_file_path=None):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -43,6 +44,23 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     os.makedirs(quarantine_dir, exist_ok=True)
     
     validate_date_window_days(date_window_days)
+    
+    if anonymizer_script is None and mapping_file_path:
+        default_script_path = os.path.join(os.path.dirname(__file__), "ctp", "scripts", "DicomAnonymizer.script")
+        if os.path.exists(default_script_path):
+            with open(default_script_path, 'r') as f:
+                anonymizer_script = f.read()
+        else:
+            raise ValueError(f"Default anonymizer script not found at {default_script_path}")
+    
+    processed_lookup_table, processed_anonymizer_script = _process_mapping_file(
+        mapping_file_path, anonymizer_script, lookup_table
+    )
+    
+    if processed_lookup_table is not None:
+        lookup_table = processed_lookup_table
+    if processed_anonymizer_script is not None:
+        anonymizer_script = processed_anonymizer_script
     
     query_params_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
     combined_filter = combine_filters(filter_script, generated_filter)
