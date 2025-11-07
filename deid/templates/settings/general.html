@@ -8,61 +8,78 @@
 <!-- PACS Configuration Section -->
 <div class="mt-6">
     <div class="text-md mb-4">PACS Configuration</div>
-    <div id="pacs-configurations">
-        <div class="pacs-config mb-4">
-            <div class="grid grid-cols-3 gap-8">
-                <div>
-                    <div class="text-sm text-gray-500 mb-2">IP Address</div>
-                    <input type="text" 
-                        class="w-full border-2 border-gray-400 p-1" 
-                        name="pacs_ip" >
+    
+    <!-- iCore Instance Subsection -->
+    <div class="mb-6">
+        <div class="text-sm text-gray-600 mb-3">iCore Instance</div>
+        <div>
+            <div class="text-sm text-gray-500 mb-2">Application AET</div>
+            <input type="text" 
+                class="w-full border-2 border-gray-400 p-1" 
+                name="application_aet" >
+        </div>
+    </div>
+    
+    <!-- Connected PACS Subsection -->
+    <div>
+        <div class="text-sm text-gray-600 mb-3">Connected PACS</div>
+        <div id="pacs-configurations">
+            <div class="pacs-config mb-3">
+                <div class="grid grid-cols-3 gap-8">
+                    <div>
+                        <div class="text-sm text-gray-500 mb-2">IP Address</div>
+                        <input type="text" 
+                            class="w-full border-2 border-gray-400 p-1" 
+                            name="pacs_ip" >
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-500 mb-2">Port</div>
+                        <input type="text" 
+                            class="w-full border-2 border-gray-400 p-1" 
+                            name="pacs_port" >
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-500 mb-2">AET</div>
+                        <input type="text" 
+                            class="w-full border-2 border-gray-400 p-1" 
+                            name="pacs_aet" >
+                    </div>
                 </div>
-                <div>
-                    <div class="text-sm text-gray-500 mb-2">Port</div>
-                    <input type="text" 
-                        class="w-full border-2 border-gray-400 p-1" 
-                        name="pacs_port" >
-                </div>
-                <div>
-                    <div class="text-sm text-gray-500 mb-2">AET</div>
-                    <input type="text" 
-                        class="w-full border-2 border-gray-400 p-1" 
-                        name="pacs_aet" >
-                </div>
-                <div class="col-span-3 flex justify-end mt-4">
+                <div class="flex gap-2 mt-2">
                     <button onclick="testPacsConnection(this)" 
-                            class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100 mr-2">
-                        Test PACS Connection
+                            class="px-2 py-1 bg-white shadow text-sm rounded hover:bg-blue-100">
+                        Test
                     </button>
                     <button type="button" onclick="removePacsConfig(this)"
-                            class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100 mr-2">
+                            class="px-2 py-1 bg-white shadow text-sm rounded hover:bg-blue-100">
                         Remove
                     </button>
                 </div>
             </div>
         </div>
-    </div>
-    <div>
-        <div class="text-sm text-gray-500 mb-2">Application AET</div>
-        <input type="text" 
-            class="w-64 border-2 border-gray-400 p-1" 
-            name="application_aet" >
-    </div>
-    <div class="flex justify-end mt-4">
-        <button onclick="addPacsConfig()" 
-                class="px-4 py-2 bg-white shadow text-sm rounded hover:bg-blue-100 mr-2">
-                Add PACS Configuration
+        
+        <div class="mt-4">
+            <button onclick="addPacsConfig()" 
+                    class="px-2 py-1 bg-white shadow text-sm rounded hover:bg-blue-100">
+                + Add PACS Configuration
             </button>
+        </div>
     </div>
-    <div class="text-md mb-4"> Timezone </div>
-        <select class="w-64 border-2 border-gray-400 p-1" name="timezone">
-            {% for tz in timezones %}
-                <option value="{{ tz }}">{{ tz }}</option>
-            {% endfor %}
-        </select>
-    </div>
+</div>
+
+<!-- General Settings Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">General Settings</div>
+    <div class="text-sm text-gray-500 mb-2">Timezone</div>
+    <select class="w-64 border-2 border-gray-400 p-1" name="timezone">
+        {% for tz in timezones %}
+            <option value="{{ tz }}">{{ tz }}</option>
+        {% endfor %}
+    </select>
+</div>
 
 <!-- Input Excel File Defaults Section -->
+<div class="mt-8">
     <div class="text-md mb-4">Input Excel File Defaults</div>
     
     <div class="mb-4">
@@ -93,7 +110,7 @@
                    name="default_date_header" >
         </div>
     </div>
-
+</div>
 
     <!-- Default Output Folder Section -->
     <div class="mt-8">

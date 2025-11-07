@@ -170,16 +170,14 @@
                 </div>
                 <div class="text-sm text-gray-500 ml-6">Blanks regions of pixels in a DICOM image from known scanners.</div>
             </div>
-            <div class="text-md mb-4">Lookup Table Configuration</div>
-            <div class="grid grid-cols-1 gap-4">
-                <div>
-                    <div class="flex items-center">
-                        <input type="checkbox" class="ml-2" name="use_lookup" id="use_lookup">
-                        <label for="use_lookup" class="ml-1">Use Lookup Table</label>
-                    </div>
-                    <div class="flex items-center">
-                        <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="lookup_file" />
-                    </div>
+            <div class="text-md mb-4 mt-8">Lookup Table Configuration</div>
+            <div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="use_lookup" name="use_lookup" class="mr-2" onchange="toggleLookupInput()">
+                    <label for="use_lookup">Use Lookup Table</label>
+                </div>
+                <div id="lookup_input_container" class="mt-2 hidden">
+                    <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="lookup_file" />
                 </div>
             </div>
         </div>    
@@ -251,6 +249,7 @@
             }
             if (settings.use_lookup) {
                 document.getElementById('use_lookup').checked = settings.use_lookup;
+                toggleLookupInput();
             }
             if (settings.default_deid_pixels) {
                 document.getElementById('deid_pixels').checked = settings.default_deid_pixels;
@@ -361,6 +360,12 @@
         
         schedulingOptions.classList.toggle('hidden', !isScheduled);
         updateButtonText();
+    }
+
+    function toggleLookupInput() {
+        const lookupInputContainer = document.getElementById('lookup_input_container');
+        const isChecked = document.getElementById('use_lookup').checked;
+        lookupInputContainer.classList.toggle('hidden', !isChecked);
     }
 
     function updateButtonText() {
