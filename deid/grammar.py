@@ -21,7 +21,6 @@ HASH_METHODS = {
     "InstanceCreatorUID": "@hashuid(@UIDROOT,this)",
     "SOPInstanceUID": "@hashuid(@UIDROOT,this)",
     "FailedSOPInstanceUIDList": "@hashuid(@UIDROOT,this)",
-    "CodeSetExtensionCreatorUID": "@hashuid(@UIDROOT,this)",
     "RefSOPInstanceUID": "@hashuid(@UIDROOT,this)",
     "TransactionUID": "@hashuid(@UIDROOT,this)",
     "IrradiationEventUID": "@hashuid(@UIDROOT,this)",
@@ -33,7 +32,7 @@ HASH_METHODS = {
     "ConcatenationUID": "@hashuid(@UIDROOT,this)",
     "DimensionOrganizationUID": "@hashuid(@UIDROOT,this)",
     "PaletteColorLUTUID": "@hashuid(@UIDROOT,this)",
-    "LargePaletteColorLUTUid": "@hashuid(@UIDROOT,this)",
+    "LargePaletteColorLUTUID": "@hashuid(@UIDROOT,this)",
     "RefGenPurposeSchedProcStepTransUID": "@hashuid(@UIDROOT,this)",
     "UID": "@hashuid(@UIDROOT,this)",
     "TemplateExtensionOrganizationUID": "@hashuid(@UIDROOT,this)",
@@ -144,8 +143,12 @@ def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomiz
         '   <p t="SITEID">1</p>',
         '   <p t="TRIALNAME">Trial</p>',
         '   <p t="SUBJECT">Subject</p>',
-        '   <p t="UIDROOT">1.2.840.113654.2.70.1</p>'
-        '   <e en="T" t="00200011" n="SeriesNumber">@always()@integer(SeriesInstanceUID,seriesnum,5)</e>'
+        '   <p t="UIDROOT">1.2.840.113654.2.70.1</p>',
+        '   <e en="T" t="00200011" n="SeriesNumber">@always()@integer(SeriesInstanceUID,seriesnum,5)</e>',
+        '   <e en="T" t="00120062" n="PatientIdentityRemoved">@always()YES</e>',
+        '   <e en="T" t="00120063" n="DeIdentificationMethod">@always()CTP Default: based on DICOM PS3.15 AnnexE. Details in 0012,0064</e>',
+        '   <e en="T" t="00120064" n="DeIdentificationMethodCodeSeq">113100/113105/113107/113108/113109</e>',
+        '   <e en="T" t="00280303" n="LongitudinalTemporalInformationModified">@always()MODIFIED</e>'
     ])
 
     for tag_name in sorted(set(tags_to_keep + tags_to_dateshift + tags_to_randomize)):
