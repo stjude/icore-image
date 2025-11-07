@@ -129,6 +129,7 @@
             </div>
         </div>
         <div class="mt-8">
+            <div class="text-md mb-4">Pixel Deidentification</div>
             <div class="flex items-center mb-4">
                 <input type="checkbox" id="deid_pixels" name="deid_pixels" class="mr-2">
                 <label for="deid_pixels">Deidentify pixel data from known scanners</label>
@@ -214,6 +215,9 @@
             }
             if (settings.use_lookup) {
                 document.getElementById('use_lookup').checked = settings.use_lookup;
+            }
+            if (settings.default_deid_pixels) {
+                document.getElementById('deid_pixels').checked = settings.default_deid_pixels;
             }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);

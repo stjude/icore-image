@@ -86,6 +86,14 @@
     </div>
 </div>
 
+<div class="mt-8">
+    <div class="text-md mb-4">Pixel Deidentification</div>
+    <div class="flex items-center">
+        <input type="checkbox" id="default_deid_pixels" name="default_deid_pixels">
+        <label for="default_deid_pixels" class="ml-2">Deidentify pixel data from known scanners by default</label>
+    </div>
+</div>
+
 <!-- Clinical Trial ID Generation Method -->
 <div class="mt-8">
     <div class="text-md mb-4">Clinical trial ID generation method</div>
@@ -169,6 +177,9 @@
             if (settings.use_lookup) {
                 document.getElementById('use_lookup').checked = settings.use_lookup;
             }
+            if (settings.default_deid_pixels) {
+                document.getElementById('default_deid_pixels').checked = settings.default_deid_pixels;
+            }
             if (settings.id_generation_method) {
                 document.querySelector(`input[name="id_generation_method"][value="${settings.id_generation_method}"]`).checked = true;
             }
@@ -190,6 +201,7 @@
             default_tags_to_randomize: document.querySelector('[name="default_tags_to_randomize"]').value,
             lookup_file: document.getElementById('lookup_display').value,
             use_lookup: document.getElementById('use_lookup').checked,
+            default_deid_pixels: document.getElementById('default_deid_pixels').checked,
             id_generation_method: document.querySelector('input[name="id_generation_method"]:checked').value,
             selected_protocol: document.getElementById('protocol_select').value,
             deid_filters: filterData
