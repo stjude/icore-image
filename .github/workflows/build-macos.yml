@@ -1,5 +1,9 @@
 name: Build macOS
 
+# This workflow is for testing and manual builds.
+# For official releases, use the release.yml workflow by pushing a git tag.
+# Trigger this manually from the Actions tab when you need to test builds.
+
 on:
   workflow_dispatch:
     inputs:
