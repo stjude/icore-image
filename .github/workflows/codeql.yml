@@ -1,0 +1,4 @@
+- uses: github/codeql-action/init@v3
+  with:
+    languages: javascript, python
+    config-file: ./.github/codeql/codeql-config.yml

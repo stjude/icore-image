@@ -1,0 +1,20 @@
+name: CodeQL config
+paths-ignore:
+  - '**/tests/**'
+  - '**/*.[Tt]est.*'      # e.g., foo.test.js, foo.Test.cs, main.test.js
+  - '**/*.[Ss]pec.*'      # e.g., foo.spec.ts
+  - '**/test/**'
+  - '**/spec/**'
+  - '**/fixtures/**'
+  - '**/mocks/**'
+  - '**/*_test.go'        # Go
+  - '**/test_*.py'        # Python (e.g., test_cli.py, test_ctp.py, test_dcmtk.py)
+  - '**/pytest.ini'       # Python test configuration
+  - '**/jest.config.*'    # JavaScript test configuration
+  - '**/__pycache__/**'   # Python test cache
+  - '**/conftest.py'      # Pytest configuration files
+  - '**/.pytest_cache/**' # Pytest cache directory
+  - '**/coverage/**'      # Test coverage reports
+  - '**/*.coverage'       # Coverage data files
+  - '**/.nyc_output/**'   # NYC (Istanbul) coverage output
+
