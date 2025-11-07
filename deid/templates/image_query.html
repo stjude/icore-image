@@ -86,7 +86,7 @@
     </div>
 </div>
 <div class="m-4">
-    <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runQuery()">Pull Images</button>
+    <button id="pull_images_button" class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runQuery()" disabled>Pull Images</button>
 </div>
 
 <!-- Column Name Modal -->
@@ -144,12 +144,31 @@
                 loadFiltersFromSettings(settings.query_filters);
             }
 
+            // Add validation listeners
+            document.querySelector('[name="study_name"]').addEventListener('input', validateImageQueryForm);
+            document.querySelector('[name="input_file"]').addEventListener('input', validateImageQueryForm);
+            validateImageQueryForm();
+
         } catch (error) {
             console.error('Error loading settings:', error);
         }
     });
     
     let currentEditColumn = '';
+
+    function validateImageQueryForm() {
+        const studyName = document.querySelector('[name="study_name"]').value.trim();
+        const inputFile = document.querySelector('[name="input_file"]').value.trim();
+        const button = document.getElementById('pull_images_button');
+        
+        if (studyName && inputFile) {
+            button.disabled = false;
+            button.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            button.disabled = true;
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
 
     function toggleQueryTypeInputs() {
         const accessionDisplay = document.getElementById('accession_display');

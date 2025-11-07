@@ -201,7 +201,7 @@
         <input type="datetime-local" id="scheduled_time" class="border-2 border-gray-400 p-2">
     </div>
 
-    <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()" id="deid_button">
+    <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runDeid()" id="deid_button" disabled>
         Deidentify
     </button>
 </div>
@@ -311,10 +311,44 @@
                 body: JSON.stringify({ timezone: timezone })
             });
 
+            // Add validation listeners
+            document.querySelector('[name="study_name"]').addEventListener('input', validateImageDeidForm);
+            document.querySelector('[name="input_folder"]').addEventListener('input', validateImageDeidForm);
+            document.querySelector('[name="input_file"]').addEventListener('input', validateImageDeidForm);
+            document.getElementById('image_source_local').addEventListener('change', validateImageDeidForm);
+            document.getElementById('image_source_pacs').addEventListener('change', validateImageDeidForm);
+            validateImageDeidForm();
+
         } catch (error) {
             console.error('Error loading settings:', error);
         }
     });
+
+    function validateImageDeidForm() {
+        const studyName = document.querySelector('[name="study_name"]').value.trim();
+        const isLocal = document.getElementById('image_source_local').checked;
+        const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
+        const inputFile = document.querySelector('[name="input_file"]').value.trim();
+        const button = document.getElementById('deid_button');
+        
+        let isValid = false;
+        
+        if (!studyName) {
+            isValid = false;
+        } else if (isLocal && inputFolder) {
+            isValid = true;
+        } else if (!isLocal && inputFile) {
+            isValid = true;
+        }
+        
+        if (isValid) {
+            button.disabled = false;
+            button.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            button.disabled = true;
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
 
     function toggleSourceOptions() {
         const pacsOptions = document.getElementById('pacs_options');
@@ -327,6 +361,7 @@
             pacsOptions.classList.add('hidden');
             inputFolderContainer.classList.remove('hidden');
         }
+        validateImageDeidForm();
         updateButtonText();
     }
     
