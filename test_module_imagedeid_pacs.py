@@ -100,11 +100,11 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path):
             assert ds.ManufacturerModelName == "TestModel", "ManufacturerModelName should be kept"
             assert ds.Modality == "CT", "Modality should be kept"
         
-        deid_metadata_path = appdata_dir / "deid_metadata.csv"
-        assert deid_metadata_path.exists(), "deid_metadata.csv should exist"
+        deid_metadata_path = appdata_dir / "deid_metadata.xlsx"
+        assert deid_metadata_path.exists(), "deid_metadata.xlsx should exist"
         
-        deid_df = pd.read_csv(deid_metadata_path)
-        assert len(deid_df) == 3, "deid_metadata.csv should have 3 rows"
+        deid_df = pd.read_excel(deid_metadata_path)
+        assert len(deid_df) == 3, "deid_metadata.xlsx should have 3 rows"
         
         if "PatientName" in deid_df.columns:
             patient_names = deid_df["PatientName"].astype(str)
@@ -119,14 +119,11 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path):
                 assert "Smith" not in value, f"PHI (Smith) found in column {col}"
                 assert "John" not in value, f"PHI (John) found in column {col}"
         
-        linker_path = appdata_dir / "linker.csv"
-        assert linker_path.exists(), "linker.csv should exist"
+        linker_path = appdata_dir / "linker.xlsx"
+        assert linker_path.exists(), "linker.xlsx should exist"
         
-        with open(linker_path, 'r') as f:
-            linker_content = f.read()
-            assert len(linker_content.strip()) > 0, "linker.csv should have content"
-        
-        linker_df = pd.read_csv(linker_path)
+        linker_df = pd.read_excel(linker_path)
+        assert len(linker_df) > 0, "linker.xlsx should have content"
         assert "Original AccessionNumber" in linker_df.columns, "Linker should have Original AccessionNumber column"
         assert "Trial AccessionNumber" in linker_df.columns, "Linker should have Trial AccessionNumber column"
         
@@ -211,7 +208,7 @@ def test_continuous_audit_log_saving(tmp_path):
         
         def monitor_files():
             while not stop_monitoring.is_set():
-                for filename in ["metadata.csv", "deid_metadata.csv", "linker.csv"]:
+                for filename in ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]:
                     filepath = appdata_dir / filename
                     if filepath.exists():
                         mtime = os.path.getmtime(filepath)
@@ -238,13 +235,13 @@ def test_continuous_audit_log_saving(tmp_path):
         monitor_thread.join(timeout=2)
         
         with lock:
-            for filename in ["metadata.csv", "deid_metadata.csv", "linker.csv"]:
+            for filename in ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]:
                 write_count = len(file_write_times.get(filename, []))
                 assert write_count >= 2, f"{filename} should have been written multiple times (found {write_count} writes), indicating continuous saving"
         
-        assert (appdata_dir / "metadata.csv").exists()
-        assert (appdata_dir / "deid_metadata.csv").exists()
-        assert (appdata_dir / "linker.csv").exists()
+        assert (appdata_dir / "metadata.xlsx").exists()
+        assert (appdata_dir / "deid_metadata.xlsx").exists()
+        assert (appdata_dir / "linker.xlsx").exists()
     
     finally:
         orthanc.stop()
@@ -725,11 +722,11 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path):
         output_files = list(output_dir.rglob("*.dcm"))
         assert len(output_files) == 1, f"Expected 1 .dcm file, found {len(output_files)}"
         
-        linker_path = appdata_dir / "linker.csv"
-        assert linker_path.exists(), "linker.csv should exist"
+        linker_path = appdata_dir / "linker.xlsx"
+        assert linker_path.exists(), "linker.xlsx should exist"
         
-        deid_metadata_path = appdata_dir / "deid_metadata.csv"
-        assert deid_metadata_path.exists(), "deid_metadata.csv should exist"
+        deid_metadata_path = appdata_dir / "deid_metadata.xlsx"
+        assert deid_metadata_path.exists(), "deid_metadata.xlsx should exist"
     
     finally:
         orthanc.stop()

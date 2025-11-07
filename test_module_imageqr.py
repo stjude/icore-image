@@ -83,11 +83,11 @@ def test_imageqr_pacs_with_accession_filter(tmp_path):
             assert ds.Modality == "CT", "Modality should be CT"
             assert float(ds.SliceThickness) > 1 and float(ds.SliceThickness) < 5, "SliceThickness should be between 1 and 5"
         
-        metadata_path = appdata_dir / "metadata.csv"
-        assert metadata_path.exists(), "metadata.csv should exist"
+        metadata_path = appdata_dir / "metadata.xlsx"
+        assert metadata_path.exists(), "metadata.xlsx should exist"
         
-        metadata_df = pd.read_csv(metadata_path)
-        assert len(metadata_df) >= 3, "metadata.csv should have at least 3 rows"
+        metadata_df = pd.read_excel(metadata_path)
+        assert len(metadata_df) >= 3, "metadata.xlsx should have at least 3 rows"
         
         assert result["num_studies_found"] >= 3
         assert result["num_images_saved"] == 3
@@ -147,14 +147,14 @@ def test_continuous_audit_log_saving(tmp_path):
         
         def monitor_files():
             while not stop_monitoring.is_set():
-                filepath = appdata_dir / "metadata.csv"
+                filepath = appdata_dir / "metadata.xlsx"
                 if filepath.exists():
                     mtime = os.path.getmtime(filepath)
                     with lock:
-                        if "metadata.csv" not in file_write_times:
-                            file_write_times["metadata.csv"] = []
-                        if not file_write_times["metadata.csv"] or mtime != file_write_times["metadata.csv"][-1]:
-                            file_write_times["metadata.csv"].append(mtime)
+                        if "metadata.xlsx" not in file_write_times:
+                            file_write_times["metadata.xlsx"] = []
+                        if not file_write_times["metadata.xlsx"] or mtime != file_write_times["metadata.xlsx"][-1]:
+                            file_write_times["metadata.xlsx"].append(mtime)
                 time.sleep(1)
         
         monitor_thread = threading.Thread(target=monitor_files, daemon=True)
@@ -172,10 +172,10 @@ def test_continuous_audit_log_saving(tmp_path):
         monitor_thread.join(timeout=2)
         
         with lock:
-            write_count = len(file_write_times.get("metadata.csv", []))
-            assert write_count >= 2, f"metadata.csv should have been written multiple times (found {write_count} writes), indicating continuous saving"
+            write_count = len(file_write_times.get("metadata.xlsx", []))
+            assert write_count >= 2, f"metadata.xlsx should have been written multiple times (found {write_count} writes), indicating continuous saving"
         
-        assert (appdata_dir / "metadata.csv").exists()
+        assert (appdata_dir / "metadata.xlsx").exists()
     
     finally:
         orthanc.stop()
