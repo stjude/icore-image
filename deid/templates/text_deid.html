@@ -87,7 +87,9 @@
 
             // Add validation listeners
             document.querySelector('[name="study_name"]').addEventListener('input', validateTextDeidForm);
+            document.querySelector('[name="study_name"]').addEventListener('change', validateTextDeidForm);
             document.querySelector('[name="input_file"]').addEventListener('input', validateTextDeidForm);
+            document.querySelector('[name="input_file"]').addEventListener('change', validateTextDeidForm);
             validateTextDeidForm();
         } catch (error) {
             console.error('Error loading settings:', error);

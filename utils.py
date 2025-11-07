@@ -1,3 +1,5 @@
+import csv
+import io
 import logging
 import os
 import sys
@@ -5,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import pandas as pd
+from openpyxl import Workbook
 
 from dcmtk import find_studies, move_study
 
@@ -211,4 +214,97 @@ def count_dicom_files(directory):
             if file.lower().endswith('.dcm'):
                 count += 1
     return count
+
+
+def csv_string_to_xlsx(csv_string, output_path):
+    if not csv_string or csv_string.strip() == "":
+        pd.DataFrame().to_excel(output_path, index=False, engine='openpyxl')
+        return
+    
+    cleaned_csv = _clean_ctp_csv_format(csv_string)
+    headers, data_rows = _parse_csv_to_rows(cleaned_csv)
+    
+    if not data_rows:
+        pd.DataFrame(columns=headers).to_excel(output_path, index=False, engine='openpyxl')
+        return
+    
+    df = _create_dataframe_with_dates(headers, data_rows)
+    _write_excel_with_text_format(df, output_path)
+
+
+def _clean_ctp_csv_format(csv_string):
+    csv_string = csv_string.replace('=\"', '"').replace('\"', '"')
+    csv_string = csv_string.replace('=("', '"').replace('")', '"')
+    return csv_string
+
+
+def _parse_csv_to_rows(csv_string):
+    reader = csv.reader(io.StringIO(csv_string))
+    rows = list(reader)
+    
+    if not rows:
+        return [], []
+    
+    headers = rows[0]
+    data_rows = rows[1:]
+    
+    normalized_rows = []
+    for row in data_rows:
+        normalized_row = [row[i].strip() if i < len(row) else '' for i in range(len(headers))]
+        normalized_rows.append(normalized_row)
+    
+    return headers, normalized_rows
+
+
+def _create_dataframe_with_dates(headers, data_rows):
+    df = pd.DataFrame(data_rows, columns=headers, dtype=str)
+    
+    for col in df.columns:
+        if _is_date_column(col):
+            df[col] = df[col].apply(_parse_date_value)
+    
+    return df
+
+
+def _is_date_column(column_name):
+    return 'date' in column_name.lower()
+
+
+def _parse_date_value(value):
+    if pd.isna(value) or value == '' or value == 'nan':
+        return value
+    
+    value_str = str(value).strip()
+    date_formats = [
+        ('%Y%m%d', 8),
+        ('%Y-%m-%d', 10),
+        ('%m/%d/%Y', 10)
+    ]
+    
+    for date_format, expected_length in date_formats:
+        if len(value_str) == expected_length:
+            try:
+                parsed_date = datetime.strptime(value_str, date_format)
+                return pd.Timestamp(parsed_date)
+            except ValueError:
+                continue
+    
+    return value_str
+
+
+def _write_excel_with_text_format(df, output_path):
+    wb = Workbook()
+    ws = wb.active
+    
+    ws.append(list(df.columns))
+    
+    for row_idx, row_data in df.iterrows():
+        for col_idx, col_name in enumerate(df.columns, start=1):
+            cell = ws.cell(row=row_idx + 2, column=col_idx)
+            cell.value = row_data[col_name]
+            
+            if not _is_date_column(col_name):
+                cell.number_format = '@'
+    
+    wb.save(output_path)
 

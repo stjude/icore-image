@@ -3,24 +3,21 @@ import os
 import time
 
 from ctp import CTPPipeline
-from utils import setup_run_directories, configure_run_logging, format_number_with_commas, count_dicom_files
+from utils import setup_run_directories, configure_run_logging, format_number_with_commas, count_dicom_files, csv_string_to_xlsx
 
 
 def _save_metadata_files(pipeline, appdata_dir):
     audit_log_csv = pipeline.get_audit_log_csv("AuditLog")
     if audit_log_csv:
-        with open(os.path.join(appdata_dir, "metadata.csv"), "w") as f:
-            f.write(audit_log_csv)
+        csv_string_to_xlsx(audit_log_csv, os.path.join(appdata_dir, "metadata.xlsx"))
     
     deid_audit_log_csv = pipeline.get_audit_log_csv("DeidAuditLog")
     if deid_audit_log_csv:
-        with open(os.path.join(appdata_dir, "deid_metadata.csv"), "w") as f:
-            f.write(deid_audit_log_csv)
+        csv_string_to_xlsx(deid_audit_log_csv, os.path.join(appdata_dir, "deid_metadata.xlsx"))
     
     linker_csv = pipeline.get_idmap_csv()
     if linker_csv:
-        with open(os.path.join(appdata_dir, "linker.csv"), "w") as f:
-            f.write(linker_csv)
+        csv_string_to_xlsx(linker_csv, os.path.join(appdata_dir, "linker.xlsx"))
 
 
 def _log_progress(total_files, pipeline):

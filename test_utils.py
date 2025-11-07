@@ -7,11 +7,14 @@ import time
 import uuid
 
 import numpy as np
+import pandas as pd
 import pytest
 import pydicom
 import requests
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import generate_uid
+
+from utils import csv_string_to_xlsx
 
 
 def _cleanup_test_containers():
@@ -67,6 +70,195 @@ def _upload_dicom_to_orthanc(ds, orthanc):
     ds.save_as(temp_file)
     orthanc.upload_dicom(temp_file)
     os.remove(temp_file)
+
+
+def test_csv_string_to_xlsx_basic(tmp_path):
+    csv_string = """Name,Age,City
+John,30,NYC
+Jane,25,LA
+Bob,35,Chicago"""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    assert output_file.exists()
+    
+    df = pd.read_excel(output_file)
+    assert len(df) == 3
+    assert list(df.columns) == ["Name", "Age", "City"]
+    assert df.loc[0, "Name"] == "John"
+    assert df.loc[1, "Name"] == "Jane"
+    assert df.loc[2, "Name"] == "Bob"
+    assert str(df.loc[0, "Age"]) == "30"
+    assert str(df.loc[1, "Age"]) == "25"
+
+
+def test_csv_string_to_xlsx_ctp_format_with_parens(tmp_path):
+    csv_string = """AccessionNumber,PatientID,Status
+=("ACC123"),=("MRN456"),=("Complete")
+=("ACC124"),=("MRN457"),=("Pending")"""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    df = pd.read_excel(output_file)
+    assert len(df) == 2
+    assert df.loc[0, "AccessionNumber"] == "ACC123"
+    assert df.loc[0, "PatientID"] == "MRN456"
+    assert df.loc[0, "Status"] == "Complete"
+    assert df.loc[1, "AccessionNumber"] == "ACC124"
+
+
+def test_csv_string_to_xlsx_ctp_format_with_quotes(tmp_path):
+    csv_string = """AccessionNumber,PatientID
+="ACC123",="MRN456"
+="ACC124",="MRN457" """
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    df = pd.read_excel(output_file)
+    assert len(df) == 2
+    assert df.loc[0, "AccessionNumber"] == "ACC123"
+    assert df.loc[0, "PatientID"] == "MRN456"
+    assert df.loc[1, "AccessionNumber"] == "ACC124"
+    assert df.loc[1, "PatientID"] == "MRN457"
+
+
+def test_csv_string_to_xlsx_date_yyyymmdd(tmp_path):
+    csv_string = """Name,StudyDate,Value
+John,20250101,100
+Jane,20250102,200"""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    df = pd.read_excel(output_file)
+    assert len(df) == 2
+    assert isinstance(df.loc[0, "StudyDate"], pd.Timestamp)
+    assert df.loc[0, "StudyDate"].year == 2025
+    assert df.loc[0, "StudyDate"].month == 1
+    assert df.loc[0, "StudyDate"].day == 1
+
+
+def test_csv_string_to_xlsx_date_yyyy_mm_dd(tmp_path):
+    csv_string = """Name,StudyDate,Value
+John,2025-01-01,100
+Jane,2025-01-02,200"""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    df = pd.read_excel(output_file)
+    assert isinstance(df.loc[0, "StudyDate"], pd.Timestamp)
+    assert df.loc[0, "StudyDate"].year == 2025
+
+
+def test_csv_string_to_xlsx_date_mm_dd_yyyy(tmp_path):
+    csv_string = """Name,BirthDate,Value
+John,01/15/2025,100
+Jane,02/20/2025,200"""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    df = pd.read_excel(output_file)
+    assert isinstance(df.loc[0, "BirthDate"], pd.Timestamp)
+    assert df.loc[0, "BirthDate"].year == 2025
+    assert df.loc[0, "BirthDate"].month == 1
+    assert df.loc[0, "BirthDate"].day == 15
+
+
+def test_csv_string_to_xlsx_date_case_insensitive(tmp_path):
+    csv_string = """Name,STUDYDATE,SeriesDate,Value
+John,20250101,20250102,100"""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    df = pd.read_excel(output_file)
+    assert isinstance(df.loc[0, "STUDYDATE"], pd.Timestamp)
+    assert isinstance(df.loc[0, "SeriesDate"], pd.Timestamp)
+
+
+def test_csv_string_to_xlsx_mixed_formats(tmp_path):
+    from openpyxl import load_workbook
+    
+    csv_string = """AccessionNumber,PatientID,StudyDate,Value
+=("ACC123"),="MRN456",20250101,="100"
+=("ACC124"),="MRN457",20250102,="200" """
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    df = pd.read_excel(output_file)
+    assert df.loc[0, "AccessionNumber"] == "ACC123"
+    assert df.loc[0, "PatientID"] == "MRN456"
+    assert isinstance(df.loc[0, "StudyDate"], pd.Timestamp)
+    
+    wb = load_workbook(output_file)
+    ws = wb.active
+    assert ws.cell(row=2, column=1).number_format == '@', "AccessionNumber should be text format"
+    assert ws.cell(row=2, column=2).number_format == '@', "PatientID should be text format"
+    assert ws.cell(row=2, column=4).number_format == '@', "Value should be text format"
+    assert ws.cell(row=2, column=1).value == "ACC123"
+    assert ws.cell(row=2, column=4).value == "100"
+
+
+def test_csv_string_to_xlsx_empty_string(tmp_path):
+    csv_string = ""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    assert output_file.exists()
+    df = pd.read_excel(output_file)
+    assert len(df) == 0
+
+
+def test_csv_string_to_xlsx_only_header(tmp_path):
+    csv_string = "Name,Age,City"
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    assert output_file.exists()
+    df = pd.read_excel(output_file)
+    assert len(df) == 0
+    assert list(df.columns) == ["Name", "Age", "City"]
+
+
+def test_csv_string_to_xlsx_all_cells_as_strings(tmp_path):
+    from openpyxl import load_workbook
+    
+    csv_string = """Name,Age,Value
+John,30,123
+Jane,25,456"""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    wb = load_workbook(output_file)
+    ws = wb.active
+    assert ws.cell(row=2, column=1).number_format == '@', "Name should be text format"
+    assert ws.cell(row=2, column=2).number_format == '@', "Age should be text format"
+    assert ws.cell(row=2, column=3).number_format == '@', "Value should be text format"
+
+
+def test_csv_string_to_xlsx_invalid_date_stays_string(tmp_path):
+    from datetime import datetime
+    
+    csv_string = """Name,StudyDate,Value
+John,NotADate,100
+Jane,20250102,200"""
+    
+    output_file = tmp_path / "output.xlsx"
+    csv_string_to_xlsx(csv_string, str(output_file))
+    
+    df = pd.read_excel(output_file)
+    assert isinstance(df.loc[0, "StudyDate"], str)
+    assert df.loc[0, "StudyDate"] == "NotADate"
+    assert isinstance(df.loc[1, "StudyDate"], (pd.Timestamp, datetime))
 
 
 class Fixtures:
@@ -215,4 +407,3 @@ class OrthancServer:
         if self.container:
             subprocess.run(["docker", "stop", self.container], capture_output=True)
             subprocess.run(["docker", "rm", self.container], capture_output=True)
-

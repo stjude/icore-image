@@ -56,6 +56,10 @@
                         if (file) {
                             const fullPath = await window.electronAPI.getPathForFile(file);
                             inputBox.value = fullPath; // Set the full path in the dropped input box
+                            
+                            // Trigger validation after setting value
+                            inputBox.dispatchEvent(new Event('input', { bubbles: true }));
+                            inputBox.dispatchEvent(new Event('change', { bubbles: true }));
                         }
                     });
                 });

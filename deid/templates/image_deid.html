@@ -313,8 +313,11 @@
 
             // Add validation listeners
             document.querySelector('[name="study_name"]').addEventListener('input', validateImageDeidForm);
+            document.querySelector('[name="study_name"]').addEventListener('change', validateImageDeidForm);
             document.querySelector('[name="input_folder"]').addEventListener('input', validateImageDeidForm);
+            document.querySelector('[name="input_folder"]').addEventListener('change', validateImageDeidForm);
             document.querySelector('[name="input_file"]').addEventListener('input', validateImageDeidForm);
+            document.querySelector('[name="input_file"]').addEventListener('change', validateImageDeidForm);
             document.getElementById('image_source_local').addEventListener('change', validateImageDeidForm);
             document.getElementById('image_source_pacs').addEventListener('change', validateImageDeidForm);
             validateImageDeidForm();

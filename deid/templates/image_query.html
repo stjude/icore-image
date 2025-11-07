@@ -146,7 +146,9 @@
 
             // Add validation listeners
             document.querySelector('[name="study_name"]').addEventListener('input', validateImageQueryForm);
+            document.querySelector('[name="study_name"]').addEventListener('change', validateImageQueryForm);
             document.querySelector('[name="input_file"]').addEventListener('input', validateImageQueryForm);
+            document.querySelector('[name="input_file"]').addEventListener('change', validateImageQueryForm);
             validateImageQueryForm();
 
         } catch (error) {
