@@ -40,16 +40,25 @@
             <input class="ml-4" type="radio" id="query_accession" name="query_type" value="accession" checked onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">Accession</span>
             <input class="ml-4" type="radio" id="query_mrn_date" name="query_type" value="mrn_date" onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">MRN + Date</span>
         </div>
-        <div class="flex items-center">
-            <div id="accession_input" class="flex items-center mt-4">
-                <div class="text-sm text-gray-600">Accession column header</div>
-                <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="accession_column" />
+        
+        <!-- Hidden inputs to store actual values -->
+        <input type="hidden" name="accession_column" id="accession_column_value" />
+        <input type="hidden" name="mrn_column" id="mrn_column_value" />
+        <input type="hidden" name="date_column" id="date_column_value" />
+        
+        <div id="accession_display" class="mt-2">
+            <div class="text-sm text-gray-500">
+                Accession column: <span id="accession_column_display">AccessionNumber</span> 
+                <a href="#" onclick="openColumnModal('accession'); return false;" class="text-blue-600 hover:text-blue-800 ml-2">(Change)</a>
             </div>
-            <div id="mrn_date_input" class="hidden flex items-center mt-4">
-                <div class="text-sm text-gray-600">MRN column header</div>
-                <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="mrn_column" />
-                <div class="text-sm text-gray-600 ml-4">Date column header</div>
-                <input type="text" class="w-40 h-full ml-4 border-2 border-gray-400 p-2" name="date_column" />
+        </div>
+        
+        <div id="mrn_date_display" class="hidden mt-2">
+            <div class="text-sm text-gray-500">
+                MRN column: <span id="mrn_column_display">PatientID</span> 
+                <a href="#" onclick="openColumnModal('mrn'); return false;" class="text-blue-600 hover:text-blue-800 ml-2">(Change)</a>
+                <span class="ml-6">Date column: <span id="date_column_display">StudyDate</span></span>
+                <a href="#" onclick="openColumnModal('date'); return false;" class="text-blue-600 hover:text-blue-800 ml-2">(Change)</a>
             </div>
         </div>
     </div>
@@ -196,6 +205,24 @@
     </button>
 </div>
 
+<!-- Column Name Modal -->
+<div id="column-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+        <h3 class="text-lg font-medium mb-4" id="modal-title">Edit Column Name</h3>
+        <div class="mb-4">
+            <label class="text-sm text-gray-600 mb-2 block" id="modal-label">Column Name:</label>
+            <input type="text" id="modal-input" class="w-full border-2 border-gray-400 p-2" />
+        </div>
+        <div class="flex justify-end gap-2">
+            <button onclick="closeColumnModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                Cancel
+            </button>
+            <button onclick="saveColumnValue()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
 
 <script>
     let settings = {};
@@ -214,16 +241,21 @@
             } else {
                 document.getElementById('query_mrn_date').checked = true;
             }
+            toggleQueryTypeInputs(); // Update display based on selected query method
             if (settings.default_accession_header) {
-                document.querySelector('[name="accession_column"]').value = settings.default_accession_header;
+                setColumnValue('accession', settings.default_accession_header);
+            } else {
+                setColumnValue('accession', 'AccessionNumber');
             }
             if (settings.default_mrn_header) {
-                document.querySelectorAll('[name="mrn_column"]').forEach(input => {
-                    input.value = settings.default_mrn_header;
-                });
+                setColumnValue('mrn', settings.default_mrn_header);
+            } else {
+                setColumnValue('mrn', 'PatientID');
             }
             if (settings.default_date_header) {
-                document.querySelector('[name="date_column"]').value = settings.default_date_header;
+                setColumnValue('date', settings.default_date_header);
+            } else {
+                setColumnValue('date', 'StudyDate');
             }
             if (settings.default_output_folder) {
                 document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
@@ -297,17 +329,83 @@
         updateButtonText();
     }
     
+    let currentEditColumn = '';
+
     function toggleQueryTypeInputs() {
-        const accessionInput = document.getElementById('accession_input');
-        const mrnDateInput = document.getElementById('mrn_date_input');
+        const accessionDisplay = document.getElementById('accession_display');
+        const mrnDateDisplay = document.getElementById('mrn_date_display');
         const queryAccession = document.getElementById('query_accession');
         
         if (queryAccession.checked) {
-            accessionInput.classList.remove('hidden');
-            mrnDateInput.classList.add('hidden');
+            accessionDisplay.classList.remove('hidden');
+            mrnDateDisplay.classList.add('hidden');
         } else {
-            accessionInput.classList.add('hidden');
-            mrnDateInput.classList.remove('hidden');
+            accessionDisplay.classList.add('hidden');
+            mrnDateDisplay.classList.remove('hidden');
+        }
+    }
+
+    function openColumnModal(columnType) {
+        currentEditColumn = columnType;
+        const modal = document.getElementById('column-modal');
+        const modalInput = document.getElementById('modal-input');
+        const modalTitle = document.getElementById('modal-title');
+        const modalLabel = document.getElementById('modal-label');
+        
+        let currentValue = '';
+        if (columnType === 'accession') {
+            modalTitle.textContent = 'Edit Accession Column Name';
+            modalLabel.textContent = 'Accession Column Name:';
+            currentValue = document.getElementById('accession_column_display').textContent;
+        } else if (columnType === 'mrn') {
+            modalTitle.textContent = 'Edit MRN Column Name';
+            modalLabel.textContent = 'MRN Column Name:';
+            currentValue = document.getElementById('mrn_column_display').textContent;
+        } else if (columnType === 'date') {
+            modalTitle.textContent = 'Edit Date Column Name';
+            modalLabel.textContent = 'Date Column Name:';
+            currentValue = document.getElementById('date_column_display').textContent;
+        }
+        
+        modalInput.value = currentValue;
+        modal.classList.remove('hidden');
+        modalInput.focus();
+        
+        // Add keyboard support
+        modalInput.onkeydown = function(e) {
+            if (e.key === 'Enter') {
+                saveColumnValue();
+            } else if (e.key === 'Escape') {
+                closeColumnModal();
+            }
+        };
+    }
+
+    function closeColumnModal() {
+        document.getElementById('column-modal').classList.add('hidden');
+    }
+
+    function saveColumnValue() {
+        const modalInput = document.getElementById('modal-input');
+        const value = modalInput.value.trim();
+        
+        if (value) {
+            setColumnValue(currentEditColumn, value);
+        }
+        
+        closeColumnModal();
+    }
+
+    function setColumnValue(columnType, value) {
+        if (columnType === 'accession') {
+            document.getElementById('accession_column_display').textContent = value;
+            document.getElementById('accession_column_value').value = value;
+        } else if (columnType === 'mrn') {
+            document.getElementById('mrn_column_display').textContent = value;
+            document.getElementById('mrn_column_value').value = value;
+        } else if (columnType === 'date') {
+            document.getElementById('date_column_display').textContent = value;
+            document.getElementById('date_column_value').value = value;
         }
     }
 
