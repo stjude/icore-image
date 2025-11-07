@@ -145,6 +145,7 @@ def generate_anonymizer_script(tags_to_keep, tags_to_dateshift, tags_to_randomiz
         '   <p t="TRIALNAME">Trial</p>',
         '   <p t="SUBJECT">Subject</p>',
         '   <p t="UIDROOT">1.2.840.113654.2.70.1</p>'
+        '   <e en="T" t="00200011" n="SeriesNumber">@always()@integer(SeriesInstanceUID,seriesnum,5)</e>'
     ])
 
     for tag_name in sorted(set(tags_to_keep + tags_to_dateshift + tags_to_randomize)):
