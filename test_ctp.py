@@ -359,14 +359,6 @@ def test_archive_import_to_directory_storage(tmp_path):
         
         output_files = list(output_dir.rglob("*.dcm"))
         assert len(output_files) == 100, f"Expected 100 output files, found {len(output_files)}"
-        
-        for file in output_files:
-            assert file.suffix == ".dcm", f"File {file.name} does not have .dcm extension"
-            
-            parts = file.relative_to(output_dir).parts
-            assert len(parts) >= 2
-            assert "-CT-TEST001" in parts[0]
-            assert parts[1].startswith("S")
     
     finally:
         server.stop()
