@@ -176,10 +176,9 @@ def build_image_deid_config(task):
     tags_to_randomize = task.parameters['tags_to_randomize']
     date_shift_days = task.parameters['date_shift_days']
 
-    lookup_file = task.parameters['lookup_file'] if task.parameters['use_lookup_table'] else None
-    lookup_contents, anonymizer_lookup_contents = generate_lookup_contents(lookup_file)
-    lookup_table = generate_lookup_table(lookup_contents)
-    config['ctp_lookup_table'] = scalarstring.LiteralScalarString(lookup_table)
+    mapping_file_path = task.parameters.get('mapping_file_path', '') if task.parameters.get('use_mapping_file', False) else None
+    if mapping_file_path:
+        config['mapping_file_path'] = mapping_file_path
 
     anonymizer_script = generate_anonymizer_script(
         tags_to_keep,
@@ -187,7 +186,7 @@ def build_image_deid_config(task):
         tags_to_randomize,
         date_shift_days,
         task.parameters['site_id'],
-        anonymizer_lookup_contents,
+        None,
         remove_unspecified=task.parameters.get('remove_unspecified', True),
         remove_overlays=task.parameters.get('remove_overlays', True),
         remove_curves=task.parameters.get('remove_curves', True),

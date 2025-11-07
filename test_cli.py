@@ -237,6 +237,7 @@ def test_build_imagedeid_pacs_params_maps_config_keys_correctly(tmp_path):
     assert params["anonymizer_script"] == "<script></script>"
     assert params["lookup_table"] == "key=value"
     assert params["date_window_days"] == 7
+    assert params["mapping_file_path"] is None
 
 
 def test_build_imagedeid_local_params_maps_config_keys_correctly(tmp_path):
@@ -255,6 +256,7 @@ def test_build_imagedeid_local_params_maps_config_keys_correctly(tmp_path):
     assert params["filter_script"] == "Modality.contains(\"CT\")"
     assert params["anonymizer_script"] == "<script></script>"
     assert params["lookup_table"] == "key=value"
+    assert params["mapping_file_path"] is None
 
 
 def test_build_imagedeid_local_params_handles_missing_optional_params(tmp_path):
@@ -269,6 +271,7 @@ def test_build_imagedeid_local_params_handles_missing_optional_params(tmp_path):
     assert params["filter_script"] is None
     assert params["anonymizer_script"] is None
     assert params["lookup_table"] is None
+    assert params["mapping_file_path"] is None
 
 
 def test_build_imagedeid_pacs_params_includes_deid_pixels_when_specified(tmp_path):
@@ -464,6 +467,94 @@ def test_build_imagedeid_local_params_includes_apply_default_filter_script_when_
     params = build_imagedeid_local_params(config, input_dir, output_dir, {})
     
     assert params["apply_default_filter_script"] is True
+
+
+def test_build_imagedeid_pacs_params_includes_mapping_file_path_when_specified(tmp_path):
+    config = {
+        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber",
+        "mapping_file_path": "/path/to/mapping.xlsx"
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
+    
+    assert params["mapping_file_path"] == "/path/to/mapping.xlsx"
+
+
+def test_build_imagedeid_pacs_params_mapping_file_path_defaults_to_none(tmp_path):
+    config = {
+        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber"
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
+    
+    assert params["mapping_file_path"] is None
+
+
+def test_build_imagedeid_local_params_includes_mapping_file_path_when_specified(tmp_path):
+    config = {
+        "mapping_file_path": "/path/to/mapping.xlsx"
+    }
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
+    
+    assert params["mapping_file_path"] == "/path/to/mapping.xlsx"
+
+
+def test_build_imagedeid_local_params_mapping_file_path_defaults_to_none(tmp_path):
+    config = {}
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
+    
+    assert params["mapping_file_path"] is None
+
+
+def test_build_imagedeid_pacs_params_includes_both_lookup_table_and_mapping_file_path(tmp_path):
+    config = {
+        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber",
+        "ctp_lookup_table": "AccessionNumber/ACC001 = MAPPED001",
+        "mapping_file_path": "/path/to/mapping.xlsx"
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
+    
+    assert params["lookup_table"] == "AccessionNumber/ACC001 = MAPPED001"
+    assert params["mapping_file_path"] == "/path/to/mapping.xlsx"
+
+
+def test_build_imagedeid_local_params_includes_both_lookup_table_and_mapping_file_path(tmp_path):
+    config = {
+        "ctp_lookup_table": "AccessionNumber/ACC001 = MAPPED001",
+        "mapping_file_path": "/path/to/mapping.xlsx"
+    }
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
+    
+    assert params["lookup_table"] == "AccessionNumber/ACC001 = MAPPED001"
+    assert params["mapping_file_path"] == "/path/to/mapping.xlsx"
 
 
 def test_run_calls_imageqr_with_correct_params(tmp_path):

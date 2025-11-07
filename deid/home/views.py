@@ -385,8 +385,8 @@ def run_deid(request):
                     'tags_to_dateshift': data['tags_to_dateshift'],
                     'tags_to_randomize': data['tags_to_randomize'],
                     'date_shift_days': data['date_shift_days'],
-                    'lookup_file': data['lookup_file'],
-                    'use_lookup_table': data['use_lookup'],
+                    'mapping_file_path': data.get('mapping_file_path', ''),
+                    'use_mapping_file': data.get('use_mapping_file', False),
                     'deid_pixels': data.get('deid_pixels', False),
                     'remove_unspecified': data.get('remove_unspecified', False),
                     'remove_overlays': data.get('remove_overlays', False),
@@ -572,16 +572,7 @@ def run_general_module(request):
 @require_http_methods(["POST"])
 def save_settings(request):
     try:
-        if request.FILES:
-            new_settings = json.loads(request.POST.get('data'))
-            lookup_file = request.FILES['lookup_file']
-            file_path = os.path.join(SETTINGS_DIR, 'lookup_table.xlsx')
-            with open(file_path, 'wb+') as destination:
-                for chunk in lookup_file.chunks():
-                    destination.write(chunk)
-            new_settings['lookup_file'] = file_path
-        else:
-            new_settings = json.loads(request.body.decode('utf-8'))
+        new_settings = json.loads(request.body.decode('utf-8'))
             
         settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         
@@ -609,8 +600,6 @@ def load_settings(request):
         settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
         with open(settings_path, 'r') as f:
             settings = json.load(f)
-        if settings.get('lookup_file'):
-            settings['lookup_file'] = os.path.abspath(settings['lookup_file'])
         return JsonResponse(settings)
     except FileNotFoundError:
         return JsonResponse({})

@@ -187,15 +187,15 @@
                 </div>
                 <div class="text-sm text-gray-500 ml-6">Blanks regions of pixels in a DICOM image from known devices.</div>
             </div>
-            <div class="text-md mb-4 mt-8">Lookup Table Configuration</div>
+            <div class="text-md mb-4 mt-8">Mapping File Configuration</div>
             <div>
                 <div class="flex items-center">
-                    <input type="checkbox" id="use_lookup" name="use_lookup" class="mr-2" onchange="toggleLookupInput()">
-                    <label for="use_lookup">Use Lookup Table</label>
+                    <input type="checkbox" id="use_mapping_file" name="use_mapping_file" class="mr-2" onchange="toggleMappingFileInput()">
+                    <label for="use_mapping_file">Use Mapping File</label>
                 </div>
-                <div id="lookup_input_container" class="mt-2 hidden">
-                    <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="lookup_file" />
-                    <div class="text-sm text-gray-500 mt-1">Excel file containing lookup table for PHI replacement</div>
+                <div id="mapping_file_input_container" class="mt-2 hidden">
+                    <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="mapping_file_path" />
+                    <div class="text-sm text-gray-500 mt-1">Excel file with columns: TagName, New-TagName (e.g., AccessionNumber, New-AccessionNumber)</div>
                 </div>
             </div>
         </div>    
@@ -310,12 +310,12 @@
             if (settings.default_tags_to_randomize) {
                 document.querySelector('[name="tags_to_randomize"]').value = settings.default_tags_to_randomize;
             }
-            if (settings.lookup_file) {
-                document.querySelector('[name="lookup_file"]').value = settings.lookup_file;
+            if (settings.mapping_file_path) {
+                document.querySelector('[name="mapping_file_path"]').value = settings.mapping_file_path;
             }
-            if (settings.use_lookup) {
-                document.getElementById('use_lookup').checked = settings.use_lookup;
-                toggleLookupInput();
+            if (settings.use_mapping_file) {
+                document.getElementById('use_mapping_file').checked = settings.use_mapping_file;
+                toggleMappingFileInput();
             }
             if (settings.default_deid_pixels) {
                 document.getElementById('deid_pixels').checked = settings.default_deid_pixels;
@@ -571,10 +571,10 @@
         updateButtonText();
     }
 
-    function toggleLookupInput() {
-        const lookupInputContainer = document.getElementById('lookup_input_container');
-        const isChecked = document.getElementById('use_lookup').checked;
-        lookupInputContainer.classList.toggle('hidden', !isChecked);
+    function toggleMappingFileInput() {
+        const mappingFileInputContainer = document.getElementById('mapping_file_input_container');
+        const isChecked = document.getElementById('use_mapping_file').checked;
+        mappingFileInputContainer.classList.toggle('hidden', !isChecked);
     }
 
     function updateButtonText() {
@@ -603,8 +603,8 @@
             tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
             tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
             tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,
-            lookup_file: document.querySelector('[name="lookup_file"]').value || settings.lookup_file || '',
-            use_lookup: document.getElementById('use_lookup').checked,
+            mapping_file_path: document.querySelector('[name="mapping_file_path"]').value || settings.mapping_file_path || '',
+            use_mapping_file: document.getElementById('use_mapping_file').checked,
             deid_pixels: document.getElementById('deid_pixels').checked,
             remove_unspecified: document.getElementById('remove_unspecified').checked,
             remove_overlays: document.getElementById('remove_overlays').checked,
