@@ -38,7 +38,6 @@
     "default_accession_header": "AccessionNumber",
     "default_mrn_header": "PatientID",
     "default_date_header": "StudyDate",
-    "zip_images": false,
     "default_tags_to_query": "",
     "header_query_filters": {
         "general_filters": [
