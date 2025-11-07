@@ -94,21 +94,6 @@
     </div>
 </div>
 
-<!-- Clinical Trial ID Generation Method -->
-<div class="mt-8">
-    <div class="text-md mb-4">Clinical trial ID generation method</div>
-    <div class="flex flex-col space-y-2">
-        <div class="flex items-center">
-            <input type="radio" id="unique_identifier" name="id_generation_method" value="UNIQUE" checked>
-            <label for="unique_identifier" class="ml-2">Generate unique identifier (eg: 170351937...)</label>
-        </div>
-        <div class="flex items-center">
-            <input type="radio" id="incrementing_integer" name="id_generation_method" value="INCREMENT">
-            <label for="incrementing_integer" class="ml-2">Incrementing integer (eg: Job-Site-0001)</label>
-        </div>
-    </div>
-</div>
-
 <!-- Default De-id Filters Section -->
 <div class="mt-8">
     <div class="text-md mb-4">Default Deidentification Filters</div>
@@ -180,9 +165,6 @@
             if (settings.default_deid_pixels) {
                 document.getElementById('default_deid_pixels').checked = settings.default_deid_pixels;
             }
-            if (settings.id_generation_method) {
-                document.querySelector(`input[name="id_generation_method"][value="${settings.id_generation_method}"]`).checked = true;
-            }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
             }
@@ -202,7 +184,6 @@
             lookup_file: document.getElementById('lookup_display').value,
             use_lookup: document.getElementById('use_lookup').checked,
             default_deid_pixels: document.getElementById('default_deid_pixels').checked,
-            id_generation_method: document.querySelector('input[name="id_generation_method"]:checked').value,
             selected_protocol: document.getElementById('protocol_select').value,
             deid_filters: filterData
         };
@@ -300,11 +281,6 @@
         // Load date shift days
         if (settings.date_shift_days) {
             document.querySelector('[name="default_date_shift_days"]').value = settings.date_shift_days;
-        }
-        
-        // Load ID generation method
-        if (settings.id_generation_method) {
-            document.querySelector(`input[name="id_generation_method"][value="${settings.id_generation_method}"]`).checked = true;
         }
 
         // Handle restricted status

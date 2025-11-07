@@ -136,11 +136,6 @@ function loadProtocolSettings(settings) {
     if (settings.date_shift_days) {
         document.querySelector('[name="default_date_shift_days"]').value = settings.date_shift_days;
     }
-    
-    // Load ID generation method
-    if (settings.id_generation_method) {
-        document.querySelector(`input[name="id_generation_method"][value="${settings.id_generation_method}"]`).checked = true;
-    }
 
     // Handle restricted status
     const isRestricted = settings.is_restricted;
