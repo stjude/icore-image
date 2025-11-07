@@ -122,9 +122,12 @@
 
 <div class="mt-8">
     <div class="text-md mb-4">Pixel Deidentification</div>
-    <div class="flex items-center">
-        <input type="checkbox" id="default_deid_pixels" name="default_deid_pixels">
-        <label for="default_deid_pixels" class="ml-2">Deidentify pixel data from known scanners by default</label>
+    <div>
+        <div class="flex items-center">
+            <input type="checkbox" id="default_deid_pixels" name="default_deid_pixels">
+            <label for="default_deid_pixels" class="ml-2">Deidentify pixel data from known scanners by default</label>
+        </div>
+        <div class="text-sm text-gray-500 ml-6">Blanks regions of pixels in a DICOM image from known scanners.</div>
     </div>
 </div>
 
