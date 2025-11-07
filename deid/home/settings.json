@@ -84,5 +84,14 @@
     "default_text_to_keep": "",
     "default_text_to_remove": "",
     "default_columns_to_deid": "",
-    "default_columns_to_drop": ""
+    "default_columns_to_drop": "",
+    "timezone": "US/Central",
+    "debug_logging": false,
+    "application_aet": "ICORE",
+    "default_remove_unspecified": true,
+    "default_remove_overlays": true,
+    "default_remove_curves": true,
+    "default_remove_private": true,
+    "date_shift_range": -730,
+    "site_id": "SITE1"
 }
