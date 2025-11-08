@@ -39,7 +39,8 @@ urlpatterns = [
     path('delete_task/<int:task_id>/', views.delete_task, name='delete_task'),
     path('upload_module/', views.upload_module, name='upload_module'),
     path('get_modules/', views.get_modules, name='get_modules'),
-    path('<str:module_name>/', views.GeneralModuleView.as_view(), name='general_module'),
+    path('reset_deid_settings/', views.reset_deid_settings, name='reset_deid_settings'),
     path('delete_module/<int:module_id>/', views.delete_module, name='delete_module'),
     path('toggle_module_status/<int:module_id>/', views.toggle_module_status, name='toggle_module_status'),
+    path('<str:module_name>/', views.GeneralModuleView.as_view(), name='general_module'),
 ]

@@ -2,6 +2,7 @@ import logging
 import json
 import os
 import shutil
+import sys
 import time
 import socket
 from datetime import datetime
@@ -1058,3 +1059,76 @@ def toggle_module_status(request, module_id):
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def reset_deid_settings(request):
+    try:
+        data = json.loads(request.body)
+        settings_type = data.get('settings_type')
+        
+        IS_DEV = os.environ.get('ICORE_DEV') == '1'
+        
+        if IS_DEV:
+            default_settings_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), '..', '..', 'electron', 'assets', 'settings.json')
+            )
+        else:
+            default_settings_path = os.path.abspath(
+                os.path.join(os.path.dirname(sys.executable), '..', '..', 'settings.json')
+            )
+        
+        if not os.path.exists(default_settings_path):
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Default settings file not found at {default_settings_path}'
+            }, status=404)
+        
+        with open(default_settings_path, 'r') as f:
+            default_settings = json.load(f)
+        
+        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+        
+        with open(settings_path, 'r') as f:
+            current_settings = json.load(f)
+        
+        if settings_type == 'image_deid':
+            keys_to_reset = [
+                'default_image_source',
+                'default_tags_to_keep',
+                'default_tags_to_dateshift',
+                'default_tags_to_randomize',
+                'default_deid_pixels',
+                'default_apply_default_ctp_filter_script',
+                'deid_filters',
+                'default_remove_unspecified',
+                'default_remove_overlays',
+                'default_remove_curves',
+                'default_remove_private'
+            ]
+        elif settings_type == 'text_deid':
+            keys_to_reset = [
+                'default_columns_to_deid',
+                'default_columns_to_drop',
+                'default_text_to_keep',
+                'default_text_to_remove'
+            ]
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Invalid settings type'
+            }, status=400)
+        
+        for key in keys_to_reset:
+            if key in default_settings:
+                current_settings[key] = default_settings[key]
+        
+        with open(settings_path, 'w') as f:
+            json.dump(current_settings, f, indent=4)
+        
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=400)

@@ -168,6 +168,12 @@
     </div>
 </div>
 
+<!-- Reset Settings Section -->
+<div class="mt-12 pt-4 border-t border-gray-300">
+    <div class="text-md mb-2">Reset Deidentification Settings</div>
+    <a href="#" id="resetImageDeidBtn" class="text-sm text-blue-600 hover:underline">Reset to iCore defaults.</a>
+</div>
+
 {% endblock %}
 
 {% block settings_scripts %}
@@ -368,5 +374,46 @@
             });
         }
     }
+
+    document.getElementById('resetImageDeidBtn').addEventListener('click', async function(e) {
+        e.preventDefault();
+        
+        const confirmed = confirm('Are you sure you want to reset all Image Deidentification settings to iCore defaults? This action cannot be undone.');
+        
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/reset_deid_settings/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    settings_type: 'image_deid'
+                })
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                alert('Server error (status ' + response.status + '): ' + text.substring(0, 200));
+                return;
+            }
+
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                window.scrollTo(0, 0);
+                window.location.reload();
+            } else {
+                alert('Error resetting settings: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Error resetting settings:', error);
+            alert('Error resetting settings: ' + error.message + '. Please try again.');
+        }
+    });
 </script>
 {% endblock %}
