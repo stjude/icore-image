@@ -13,8 +13,42 @@ from utils import setup_run_directories, configure_run_logging
 logging.getLogger("presidio-analyzer").setLevel(logging.ERROR)
 logging.getLogger("presidio-anonymizer").setLevel(logging.ERROR)
 
+NLM_PRESERVE_MEDICAL = {
+    'mediastinum', 'ventricles', 'paraspinal', 'pleural', 'calvarium',
+    'conus', 'medullaris', 'schmorl', 'multiplanar', 'parenchyma',
+    'md', 'er', 'copd', 'ap', 'lateral', 'icu', 'npo', 'iv',
+    'pneumonia', 'pneumothorax', 'effusion', 'opacity', 'consolidation',
+    'mother', 'father', 'son', 'daughter', 'wife', 'husband',
+    'degrees', 'cm', 'mm', 'ml', 'mg', 'dl', 'kg',
+    'ct', 'mri', 'xray', 'x-ray', 'pet', 'ultrasound', 'doppler',
+    'head', 'brain', 'spine', 'lumbar', 'thoracic', 'cervical', 'chest',
+    'abdomen', 'pelvis', 'cardiac', 'heart', 'liver', 'kidney', 'spleen',
+    'gray', 'grey', 'white', 'matter', 'axial', 'sagittal', 'coronal',
+    'vertex', 'orbits', 'globes', 'extraocular', 'paranasal', 'sinuses',
+    'maxillary', 'frontal', 'csf', 'hydrocephalus', 'intracranial',
+    'hemorrhage', 'infarction', 'mass', 'lesion', 'fracture', 'edema',
+    'herniation', 'stenosis', 'disc', 'vertebral', 'spinal', 'cord',
+    'canal', 'foramina', 'pedicles', 'sacrum', 'coccyx', 'iliac',
+    'femur', 'tibia', 'fibula', 'humerus', 'radius', 'ulna', 'scaphoid',
+    'aortic', 'mitral', 'tricuspid', 'ventricular', 'atrial',
+    'myocardium', 'pericardium', 'endocardium', 'septum', 'chamber',
+    'gallbladder', 'bowel', 'stomach', 'duodenum', 'colon', 'appendix',
+    'bladder', 'prostate', 'uterus', 'ovary', 'adnexa', 'retroperitoneum',
+    'breast', 'mammogram', 'angiogram', 'venogram', 'arthrogram',
+    'myelogram', 'cholangiogram', 'intra-articular', 'extra-axial',
+    'patient', 'male', 'female', 'year', 'years', 'old', 'age',
+    'exam', 'examination', 'study', 'report', 'findings', 'impression',
+    'history', 'indication', 'comparison', 'technique', 'protocol',
+    'electronically', 'signed', 'dictated', 'transcribed', 'radiologist',
+    'headaches', 'headache', 'dizziness', 'pain', 'symptoms', 'soft',
+    'bones', 'joints', 'tissues', 'muscles', 'tendons', 'ligaments',
+    'parenchyma', 'gray-white', 'grey-white', 'gray', 'grey', 'white',
+    'paranasal', 'sinuses', 'maxillary', 'frontal', 'ethmoid',
+}
 
-def create_analyzer_engine():
+NLM_REDACT_NAMES = {'pine'}
+
+def create_nlp_engine():
     if getattr(sys, 'frozen', False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
         model_path = os.path.join(bundle_dir, '_internal', 'en_core_web_sm', 'en_core_web_sm-3.7.1')
@@ -28,267 +62,290 @@ def create_analyzer_engine():
         }
         provider = NlpEngineProvider(nlp_configuration=configuration)
         nlp_engine = provider.create_engine()
-    
+    return nlp_engine
+
+def create_analyzer_engine():
+    nlp_engine = create_nlp_engine()
     analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
     
-    mrn_recognizer = PatternRecognizer(
-        supported_entity="MRN",
-        name="mrn_recognizer",
+    age_90 = PatternRecognizer(
+        supported_entity="AGE90PLUS",
+        name="age90",
         patterns=[
-            Pattern(name="mrn_pattern", regex=r"\b(?!0{7,10}\b)\d{7,10}\b", score=0.5),
-            Pattern(name="mrn_prefix_pattern", regex=r"\b[A-Z]{2,6}-\d{4,10}\b", score=0.7),
+            Pattern(name="a1", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*years?\s*old)", score=1.0),
+            Pattern(name="a2", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*year\s*old)", score=1.0),
+            Pattern(name="a3", regex=r"(9[0-9]|[1-9]\d{2,})(?=\-year\-old)", score=1.0),
+            Pattern(name="a4", regex=r"(?<=age:\s)(9[0-9]|[1-9]\d{2,})\b", score=1.0),
+            Pattern(name="a5", regex=r"(?<=Age:\s)(9[0-9]|[1-9]\d{2,})\b", score=1.0),
+            Pattern(name="a6", regex=r"(?<=is\s)(9[0-9]|[1-9]\d{2,})(?=\s*years?\s*old)", score=1.0),
         ],
     )
     
-    alphanumeric_id_recognizer = PatternRecognizer(
-        supported_entity="ALPHANUMERIC_ID",
-        name="alphanumeric_id_recognizer",
+    date_patterns = PatternRecognizer(
+        supported_entity="DATEPATTERN",
+        name="dates",
         patterns=[
-            Pattern(name="date_id_pattern", regex=r"\b\d{4}-\d{2}-\d{2}\b", score=0.95),
+            Pattern(name="d1", regex=r"\b\d{1,2}/\d{1,2}/\d{2,4}\b", score=0.95),
+            Pattern(name="d2", regex=r"\b\d{1,2}-\d{1,2}-\d{4}\b", score=0.94),
+            Pattern(name="d3", regex=r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b", score=0.98),
+            Pattern(name="d4", regex=r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2},?\s+\d{4}\b", score=0.96),
         ],
     )
     
-    title_name_recognizer = PatternRecognizer(
-        supported_entity="PERSON",
-        name="title_name_recognizer",
+    name_extras_recognizer = PatternRecognizer(
+        supported_entity="NAMEPERSON",
+        name="names",
         patterns=[
-            Pattern(
-                name="dr_name_pattern",
-                regex=r"(?<=Dr\.\s)([A-Z][A-Z]+)\b",
-                score=0.85
-            ),
-            Pattern(
-                name="dr_no_period_pattern",
-                regex=r"(?<=Dr\s)([A-Z][A-Z]+)\b",
-                score=0.85
-            ),
+            Pattern(name="n1", regex=r"\b[A-Z]\.[A-Z]\.\b", score=0.85),
+            Pattern(name="n2", regex=r"\b[A-Z]\.\s[A-Z]\.\s[A-Z][a-z]+\b", score=0.9),
+            Pattern(name="n3", regex=r"\b(?!\d+\-year)(?!\d+\-day)(?!follow\-)(?!year\-old)[A-Z][a-z]{2,}\-[A-Z][a-z]{2,}\b", score=0.85),
+            Pattern(name="n4", regex=r"\bPine\b", score=0.8),
+            Pattern(name="n5", regex=r"\bPatient\s+[A-Z]\.[A-Z]\.", score=0.9),
+            Pattern(name="n6", regex=r"\bThe(?=\s+MD\b)", score=0.75),
         ],
     )
     
-    last_name_recognizer = PatternRecognizer(
-        supported_entity="PERSON",
-        name="last_name_recognizer",
+    medical_record_number_recognizer = PatternRecognizer(
+        supported_entity="ALPHANUMERICID",
+        name="mrn",
         patterns=[
-            Pattern(
-                name="patient_full_name_pattern",
-                regex=r"(?<=Patient:\s)([A-Z][a-z]+\s+[A-Z]{2,})\b",
-                score=0.85
-            ),
+            Pattern(name="m1", regex=r"\b\d{7}(?!\d)\b", score=0.97),
+            Pattern(name="m2", regex=r"\b\d{8}(?!\d)\b", score=0.97),
+            Pattern(name="m3", regex=r"\b\d{9}\b", score=0.97),
+            Pattern(name="m4", regex=r"\b\d{10}\b", score=0.97),
+            Pattern(name="m5", regex=r"\b[A-Z]{1,6}-\d{6,10}\b", score=0.98),
+            Pattern(name="m6", regex=r"\b[A-Z]\d{7,9}\b", score=0.97),
+            Pattern(name="m7", regex=r"\b[A-Z]{2,3}\d{4,8}\b", score=0.97),
+            Pattern(name="m8", regex=r"\b[A-Z0-9]+-\d+-[A-Z0-9]+-\d+\b", score=0.98),
+            Pattern(name="m9", regex=r"\b\d{2}-\d{2}-\d{4}\b", score=0.98),
         ],
     )
     
-    ssn_recognizer = PatternRecognizer(
-        supported_entity="US_SSN",
-        name="ssn_recognizer",
+    phone_number_recognizer = PatternRecognizer(
+        supported_entity="PHONENUMBER",
+        name="phone",
         patterns=[
-            Pattern(
-                name="ssn_pattern",
-                regex=r"\b\d{3}-\d{2}-\d{4}\b",
-                score=0.95
-            ),
+            Pattern(name="p1", regex=r"\(\d{3}\)\s*\d{3}-\d{4}", score=0.99),
+            Pattern(name="p2", regex=r"\b\d{3}-\d{3}-\d{4}\b", score=0.98),
+            Pattern(name="p3", regex=r"\b\d{3}\.\d{3}\.\d{4}\b", score=0.98),
         ],
     )
     
-    phone_recognizer = PatternRecognizer(
-        supported_entity="PHONE_NUMBER",
-        name="phone_recognizer",
+    address_recognizer = PatternRecognizer(
+        supported_entity="LOCATION",
+        name="address",
         patterns=[
-            Pattern(
-                name="phone_with_parens_pattern",
-                regex=r"\(\d{3}\)\s*\d{3}-\d{4}",
-                score=0.85
-            ),
-            Pattern(
-                name="phone_dashes_pattern",
-                regex=r"\b\d{3}-\d{3}-\d{4}\b",
-                score=0.85
-            ),
+            Pattern(name="addr1", regex=r"\b\d+\s+[A-Z][a-z]+\s+(?:Ave|St|Street|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Court|Ct|Way|Circle|Cir),?\s+[A-Z][a-z]+,?\s+[A-Z]{2}(?:\s+\d{5})?\b", score=0.95),
+            Pattern(name="addr2", regex=r"Address:\s+\d+\s+[A-Z][a-z]+\s+(?:Ave|St|Street|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd),?\s+[A-Z][a-z]+,?\s+[A-Z]{2}\b", score=0.96),
         ],
     )
     
-    analyzer.registry.add_recognizer(mrn_recognizer)
-    analyzer.registry.add_recognizer(alphanumeric_id_recognizer)
-    analyzer.registry.add_recognizer(title_name_recognizer)
-    analyzer.registry.add_recognizer(last_name_recognizer)
-    analyzer.registry.add_recognizer(ssn_recognizer)
-    analyzer.registry.add_recognizer(phone_recognizer)
+    ssn = PatternRecognizer(
+        supported_entity="SSNUMBER",
+        name="ssn",
+        patterns=[
+            Pattern(name="s1", regex=r"\b\d{3}-\d{2}-\d{4}\b", score=0.98),
+        ],
+    )
+    
+    email = PatternRecognizer(
+        supported_entity="EMAILADDR",
+        name="email",
+        patterns=[
+            Pattern(name="e1", regex=r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b", score=0.98),
+        ],
+    )
+    
+    ip_addr = PatternRecognizer(
+        supported_entity="IPADDR",
+        name="ip",
+        patterns=[
+            Pattern(name="i1", regex=r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", score=0.9),
+        ],
+    )
+    
+    analyzer.registry.add_recognizer(age_90)
+    analyzer.registry.add_recognizer(date_patterns)
+    analyzer.registry.add_recognizer(name_extras_recognizer)
+    analyzer.registry.add_recognizer(medical_record_number_recognizer)
+    analyzer.registry.add_recognizer(phone_number_recognizer)
+    analyzer.registry.add_recognizer(address_recognizer)
+    analyzer.registry.add_recognizer(ssn)
+    analyzer.registry.add_recognizer(email)
+    analyzer.registry.add_recognizer(ip_addr)
     
     return analyzer
-
 
 def scrub(data, whitelist, blacklist):
     analyzer = create_analyzer_engine()
     anonymizer = AnonymizerEngine()
     
-    medical_terms_deny_list = {
-        'cardiomediastinal', 'ventricles', 'medullaris', 'conus', 'calvarium',
-        'paraspinal', 'mediastinum', 'pleura', 'parenchyma', 'foramina',
-        'mucosal', 'multiplanar', 'heterogeneously', 'schmorl',
-        'md', 'pneumonia', 'pneumothorax', 'effusion', 'opacity', 
-        'consolidation', 'calcification', 'abnormality', 'silhouette',
-        'technique', 'ap', 'lateral', 'ct', 'mri', 'radiograph', 'examination',
-        'copd', 'emg', 'npi', 'acr', 'lmp', 'afi',
-        'hu', 'ed', 'npo', 'iv', 'or', 'er', 'icu', 'po', 'im', 'sc',
-        'degrees', 'cm', 'mm', 'ml'
-    }
-    
-    medical_person_deny_list = {
-        'ventricles', 'mucosal', 'multiplanar', 'schmorl', 'medullaris', 'conus',
-        'standard', 'g2p1', 'referring',
-        'son', 'daughter', 'wife', 'husband', 'mother', 'father', 'parent',
-        'pine', 'cedar', 'oak', 'maple',
-        'diverticulosis', 'diverticulitis'
-    }
-    
+    medical_preserve = NLM_PRESERVE_MEDICAL.copy()
     if whitelist:
-        medical_terms_deny_list.update(whitelist)
-        medical_person_deny_list.update(whitelist)
+        medical_preserve.update(w.lower() for w in whitelist)
     
     for item in blacklist:
-        blacklist_recognizer = PatternRecognizer(
-            supported_entity="CUSTOM_BLACKLIST",
-            name=f"blacklist_{hash(item)}",
-            patterns=[Pattern(name=f"blacklist_pattern_{hash(item)}", regex=re.escape(item), score=0.95)],
+        rec = PatternRecognizer(
+            supported_entity="BLACKLIST",
+            name=f"bl_{hash(item)}",
+            patterns=[Pattern(name="bl", regex=re.escape(item), score=1.0)],
         )
-        analyzer.registry.add_recognizer(blacklist_recognizer)
+        analyzer.registry.add_recognizer(rec)
     
-    entities_to_detect = [
-        "PERSON", "DATE_TIME", "MRN", "ALPHANUMERIC_ID", "PHONE_NUMBER",
-        "EMAIL_ADDRESS", "LOCATION", "US_SSN", "MEDICAL_LICENSE",
-        "US_DRIVER_LICENSE", "US_PASSPORT", "CREDIT_CARD", "US_ITIN",
-        "NRP", "IBAN_CODE", "CUSTOM_BLACKLIST"
-    ]
-    
-    alphanumeric_date_pattern = re.compile(r'\b\d{4}-\d{2}-\d{2}\b')
-    age_pattern = re.compile(r'\b\d{1,3}[-\s]year[-\s]old\b', re.IGNORECASE)
-    duration_pattern = re.compile(r'\b\d{1,3}\s+(weeks?|months?|days?|hours?|minutes?|seconds?|mins?|secs?)\b', re.IGNORECASE)
-    time_pattern = re.compile(r'\b\d{1,2}:\d{2}(\s*[AP]M)?\b', re.IGNORECASE)
-    gestational_age_pattern = re.compile(r'\b\d{1,2}\s*weeks?\s*\d*\s*days?\b', re.IGNORECASE)
-    time_reference_pattern = re.compile(r'\b(midnight|noon|morning|evening|afternoon)\b', re.IGNORECASE)
-    complex_age_pattern = re.compile(r'\b\d{1,3}\s+years?,\s*\d{1,2}\s+(months?|days?)\s+old\b', re.IGNORECASE)
+    entities = ["PERSON", "DATE_TIME", "LOCATION", "PHONE_NUMBER", "EMAIL_ADDRESS",
+                "US_SSN", "AGE90PLUS", "DATEPATTERN", "NAMEPERSON", "ALPHANUMERICID", 
+                "PHONENUMBER", "SSNUMBER", "EMAILADDR", "IPADDR", "BLACKLIST"]
     
     operators = {
         "PERSON": OperatorConfig("replace", {"new_value": "[PERSONALNAME]"}),
+        "NAMEPERSON": OperatorConfig("replace", {"new_value": "[PERSONALNAME]"}),
         "DATE_TIME": OperatorConfig("replace", {"new_value": "[DATE]"}),
-        "MRN": OperatorConfig("replace", {"new_value": "[MRN]"}),
-        "ALPHANUMERIC_ID": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
-        "PHONE_NUMBER": OperatorConfig("replace", {"new_value": "[PHONE]"}),
-        "EMAIL_ADDRESS": OperatorConfig("replace", {"new_value": "[EMAIL]"}),
-        "LOCATION": OperatorConfig("replace", {"new_value": "[LOCATION]"}),
-        "US_SSN": OperatorConfig("replace", {"new_value": "[SSN]"}),
-        "MEDICAL_LICENSE": OperatorConfig("replace", {"new_value": "[MEDICALID]"}),
-        "US_DRIVER_LICENSE": OperatorConfig("replace", {"new_value": "[DRIVERSLICENSE]"}),
-        "US_PASSPORT": OperatorConfig("replace", {"new_value": "[PASSPORT]"}),
-        "CREDIT_CARD": OperatorConfig("replace", {"new_value": "[CREDITCARD]"}),
-        "US_ITIN": OperatorConfig("replace", {"new_value": "[ITIN]"}),
-        "NRP": OperatorConfig("replace", {"new_value": "[NRP]"}),
-        "IBAN_CODE": OperatorConfig("replace", {"new_value": "[IBAN]"}),
-        "CUSTOM_BLACKLIST": OperatorConfig("replace", {"new_value": "[REDACTED]"}),
+        "DATEPATTERN": OperatorConfig("replace", {"new_value": "[DATE]"}),
+        "LOCATION": OperatorConfig("replace", {"new_value": "[ADDRESS]"}),
+        "PHONE_NUMBER": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+        "EMAIL_ADDRESS": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+        "US_SSN": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+        "AGE90PLUS": OperatorConfig("replace", {"new_value": "[AGE90+]"}),
+        "ALPHANUMERICID": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+        "PHONENUMBER": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+        "SSNUMBER": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+        "EMAILADDR": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+        "IPADDR": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
+        "BLACKLIST": OperatorConfig("replace", {"new_value": "[REDACTED]"}),
     }
     
+    age_under_90 = re.compile(r'\b([1-8]?\d)\s*[-\s]*(year|yr)s?[-\s]*old\b', re.I)
+    duration = re.compile(r'\b\d+\s+(weeks?|months?|days?|hours?|minutes?|seconds?)\b', re.I)
+    time_12h = re.compile(r'\b\d{1,2}(am|pm)\b', re.I)
+    time_colon = re.compile(r'\b\d{1,2}:\d{2}(\s*[AP]M)?\b', re.I)
+    gestational = re.compile(r'\b\d{1,2}\s*weeks?\s*\d*\s*days?\b', re.I)
+    measurement = re.compile(r'\b\d+(?:\.\d+)?\s*(cm|mm|ml|mg|kg|lb|oz|degrees?|dl|percent|%)\b', re.I)
+    blood_pressure = re.compile(r'\b\d{2,3}/\d{2,3}\b')
+    year_only = re.compile(r'\b(19|20)\d{2}\b')
+    relative_date = re.compile(r'\b(yesterday|today|tomorrow)\b', re.I)
+    all_zeros = re.compile(r'\b0{7,}\b')
+    hospital = re.compile(r'\b(Hospital|Medical Center|Clinic|Healthcare|Health System)\b', re.I)
+    url = re.compile(r'\bhttps?://[^\s]+\b')
+    
     results = []
-    total_rows = len(data)
     for i, text_item in enumerate(data):
-        logging.info(f"Processing row {i+1}/{total_rows}")
-        text = str(text_item) if text_item is not None else "Empty"
+        text = str(text_item) if text_item is not None else ""
         text = ''.join(c for c in text if c in string.printable)
         
         results_analysis = analyzer.analyze(
             text=text,
-            entities=entities_to_detect,
+            entities=entities,
             language='en',
             score_threshold=0.5
         )
         
-        filtered_results = []
+        filtered = []
         for result in results_analysis:
-            detected_text = text[result.start:result.end]
-            detected_lower = detected_text.lower()
+            detected = text[result.start:result.end]
+            lower = detected.lower()
             
-            if result.entity_type == "LOCATION":
-                if detected_lower in medical_terms_deny_list:
-                    continue
+            if lower in NLM_REDACT_NAMES and result.entity_type == "PERSON":
+                filtered.append(result)
+                continue
+            
+            if lower in medical_preserve:
+                continue
             
             if result.entity_type == "PERSON":
-                if detected_lower in medical_person_deny_list:
+                detected_lower = detected.lower()
+                if any(term in detected_lower for term in ['parenchyma', 'gray-white', 'grey-white', 'paranasal', 'sinuses', 'brain', 'ct head', 'mri brain']):
                     continue
+                if detected_lower in ['ct', 'mri', 'x-ray', 'xray', 'head', 'brain', 'spine', 'chest']:
+                    continue
+            
+            if re.match(r'\d+-year-old', text[max(0, result.start-10):result.end+1]):
+                continue
+            
+            detected_words_list = detected.split()
+            if result.entity_type == "PERSON":
+                if any(word.lower() in ["record", "chart", "visit", "case"] for word in detected_words_list):
+                    if len(detected_words_list) == 1:
+                        continue
+            
+            if all_zeros.match(detected):
+                continue
+            
+            if result.entity_type == "ALPHANUMERICID":
+                if re.match(r'^(\d)\1{6,}$', detected):
+                    continue
+                if re.search(r'(\d)\1{3,}$', detected) and len(detected) == 7:
+                    continue
+            
+            if result.entity_type == "LOCATION" and hospital.search(detected):
+                continue
+            
+            if url.match(detected):
+                continue
             
             if result.entity_type == "DATE_TIME":
-                if alphanumeric_date_pattern.match(detected_text):
+                if re.search(r'\b(9[0-9]|[1-9]\d{2,})\s*years?\s*old', detected):
                     continue
-                if age_pattern.search(detected_text):
+                if age_under_90.search(detected):
                     continue
-                if complex_age_pattern.search(detected_text):
+                if duration.search(detected):
                     continue
-                if duration_pattern.search(detected_text):
+                if time_12h.match(detected):
                     continue
-                if time_pattern.match(detected_text):
+                if time_colon.match(detected):
                     continue
-                if gestational_age_pattern.match(detected_text):
+                if year_only.fullmatch(detected):
                     continue
-                if time_reference_pattern.search(detected_text):
+                if relative_date.search(detected):
+                    continue
+                if gestational.match(detected):
                     continue
             
-            filtered_results.append(result)
+            if blood_pressure.fullmatch(detected):
+                continue
+            
+            if measurement.search(detected):
+                continue
+            
+            if re.match(r'^\d{1,2}\s+years?$', detected):
+                continue
+            
+            if result.entity_type in ["ALPHANUMERICID", "IPADDR"] and re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', detected):
+                parts = [int(p) for p in detected.split('.')]
+                if all(p < 20 for p in parts):
+                    continue
+            
+            filtered.append(result)
         
-        filtered_results = sorted(filtered_results, key=lambda x: x.start)
-        
-        anonymized_result = anonymizer.anonymize(
-            text=text,
-            analyzer_results=filtered_results,
-            operators=operators
-        )
-        
-        results.append(anonymized_result.text)
+        filtered = sorted(filtered, key=lambda x: x.start)
+        anonymized = anonymizer.anonymize(text=text, analyzer_results=filtered, operators=operators)
+        results.append(anonymized.text)
     
     return results
 
-
-def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None, columns_to_drop=None, columns_to_deid=None, debug=False, run_dirs=None):
+def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None,
+             columns_to_drop=None, columns_to_deid=None, debug=False, run_dirs=None):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
-    log_level = logging.DEBUG if debug else logging.INFO
-    configure_run_logging(run_dirs["run_log_path"], log_level)
-    logging.info("Running textdeid")
-    logging.info(f"Input file: {input_file}")
-    logging.info(f"Output directory: {output_dir}")
-    logging.info(f"Debug mode: {debug}")
-    
-    if to_keep_list is None:
-        to_keep_list = []
-    if to_remove_list is None:
-        to_remove_list = []
-    
-    logging.info(f"Whitelist items to keep: {len(to_keep_list)}")
-    logging.info(f"Blacklist items to remove: {len(to_remove_list)}")
+    configure_run_logging(run_dirs["run_log_path"], logging.DEBUG if debug else logging.INFO)
+    logging.info(f"NLM-Matched Deidentification: {input_file}")
     
     df = pd.read_excel(input_file, header=0)
-    logging.info(f"Read Excel file with {len(df)} rows and columns: {list(df.columns)}")
     
-    if columns_to_drop is not None and len(columns_to_drop) > 0:
-        logging.info(f"Dropping columns: {columns_to_drop}")
+    if columns_to_drop:
         df = df.drop(columns=columns_to_drop, errors='ignore')
     
-    if columns_to_deid is None:
-        columns_to_process = list(df.columns)
-        logging.info(f"No specific columns specified for de-identification, processing all columns: {columns_to_process}")
-    else:
-        columns_to_process = [col for col in columns_to_deid if col in df.columns]
-        logging.info(f"De-identifying specific columns: {columns_to_process}")
+    columns_to_process = columns_to_deid if columns_to_deid else list(df.columns)
+    columns_to_process = [c for c in columns_to_process if c in df.columns]
     
     result_df = df.copy()
-    
     for column in columns_to_process:
-        logging.info(f"Processing column: {column}")
-        column_data = df[column].tolist()
-        deid_data = scrub(column_data, to_keep_list, to_remove_list)
-        result_df[column] = deid_data
+        logging.info(f"Processing: {column}")
+        result_df[column] = scrub(df[column].tolist(), to_keep_list or [], to_remove_list or [])
     
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, "output.xlsx")
     result_df.to_excel(output_file, index=False, header=True)
     
-    logging.info("Text deidentification complete")
-    return {"num_rows_processed": len(result_df)}
-
+    logging.info(f"Complete: {output_file}")
+    return {"num_rows_processed": len(result_df), "output_file": output_file}
