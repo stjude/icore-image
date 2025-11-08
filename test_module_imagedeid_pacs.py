@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 import pydicom
 
+from module_imagedeid_local import _generate_lookup_table_content
 from module_imagedeid_pacs import imagedeid_pacs
 from test_utils import cleanup_docker_containers, _create_test_dicom, _upload_dicom_to_orthanc, Fixtures, OrthancServer
 from utils import PacsConfiguration, Spreadsheet
@@ -854,6 +855,545 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path):
         
         quarantine_ds = pydicom.dcmread(quarantine_files[0])
         assert quarantine_ds.Modality == "SR", "Quarantined file should be SR"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_with_mapping_file_basic(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    mapping_file = tmp_path / "mapping.xlsx"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    df_mapping = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002"],
+        "New-AccessionNumber": ["MAPPED001", "MAPPED002"]
+    })
+    df_mapping.to_excel(mapping_file, index=False)
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        for i, acc in enumerate(["ACC001", "ACC002", "ACC003"]):
+            ds = _create_test_dicom(acc, f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002", "ACC003"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+<e en="T" t="00080050" n="AccessionNumber">@keep()</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False
+        )
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
+        
+        accession_numbers = []
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            accession_numbers.append(ds.AccessionNumber)
+        
+        assert "MAPPED001" in accession_numbers, "ACC001 should be mapped to MAPPED001"
+        assert "MAPPED002" in accession_numbers, "ACC002 should be mapped to MAPPED002"
+        assert "ACC003" in accession_numbers, "ACC003 should be kept (fallback to @keep())"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    mapping_file = tmp_path / "mapping.xlsx"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    df_mapping = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002"],
+        "New-AccessionNumber": ["NEWACC001", "NEWACC002"],
+        "PatientID": ["MRN0000", "MRN0001"],
+        "New-PatientID": ["NEWMRN0000", "NEWMRN0001"],
+        "StudyDate": [pd.Timestamp("2023-01-15"), pd.Timestamp("2023-02-20")],
+        "New-StudyDate": [pd.Timestamp("2024-06-15"), pd.Timestamp("2024-07-20")]
+    })
+    df_mapping.to_excel(mapping_file, index=False)
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        for i, (acc, mrn, study_date) in enumerate([
+            ("ACC001", "MRN0000", "20230115"),
+            ("ACC002", "MRN0001", "20230220"),
+            ("ACC999", "MRN0999", "20231231")
+        ]):
+            ds = _create_test_dicom(acc, mrn, f"Patient{i}", "CT", "3.0")
+            ds.StudyDate = study_date
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002", "ACC999"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@keep()</e>
+<e en="T" t="00080050" n="AccessionNumber">@empty()</e>
+<e en="T" t="00080020" n="StudyDate">@keep()</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False
+        )
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
+        
+        mapped_files = []
+        unmapped_file = None
+        
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            if ds.AccessionNumber in ["NEWACC001", "NEWACC002"]:
+                mapped_files.append(ds)
+            else:
+                unmapped_file = ds
+        
+        assert len(mapped_files) == 2, "Should have 2 mapped files"
+        assert unmapped_file is not None, "Should have 1 unmapped file"
+        
+        for ds in mapped_files:
+            if ds.AccessionNumber == "NEWACC001":
+                assert ds.PatientID == "NEWMRN0000", "ACC001 PatientID should be mapped"
+                assert ds.StudyDate == "20240615", "ACC001 StudyDate should be mapped"
+            elif ds.AccessionNumber == "NEWACC002":
+                assert ds.PatientID == "NEWMRN0001", "ACC002 PatientID should be mapped"
+                assert ds.StudyDate == "20240720", "ACC002 StudyDate should be mapped"
+        
+        assert unmapped_file.AccessionNumber == "", "ACC999 should be empty (fallback to @empty())"
+        assert unmapped_file.PatientID == "MRN0999", "MRN0999 should be kept (fallback to @keep())"
+        assert unmapped_file.StudyDate == "20231231", "Unmapped study date should be kept (fallback to @keep())"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    mapping_file = tmp_path / "mapping.xlsx"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    df_mapping = pd.DataFrame({
+        "StudyDate": [pd.Timestamp("2023-01-15"), pd.Timestamp("2023-12-31")],
+        "New-StudyDate": [pd.Timestamp("2024-03-20"), pd.Timestamp("2024-11-05")]
+    })
+    df_mapping.to_excel(mapping_file, index=False)
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        for i, study_date in enumerate(["20230115", "20231231"]):
+            ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
+            ds.StudyDate = study_date
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC000", "ACC001"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00080020" n="StudyDate">@keep()</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False
+        )
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 2, f"Expected 2 output files, got {len(output_files)}"
+        
+        study_dates = set()
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            study_dates.add(ds.StudyDate)
+        
+        assert "20240320" in study_dates, "20230115 should be mapped to 20240320"
+        assert "20241105" in study_dates, "20231231 should be mapped to 20241105"
+        assert "20230115" not in study_dates, "Original date 20230115 should not appear"
+        assert "20231231" not in study_dates, "Original date 20231231 should not appear"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_fallback_to_simple_action(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    mapping_file = tmp_path / "mapping.xlsx"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    df_mapping = pd.DataFrame({
+        "AccessionNumber": ["ACC001"],
+        "New-AccessionNumber": ["MAPPED001"],
+        "PatientID": ["MRN0000"],
+        "New-PatientID": ["NEWMRN0000"]
+    })
+    df_mapping.to_excel(mapping_file, index=False)
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        for i, (acc, mrn) in enumerate([("ACC001", "MRN0000"), ("ACC002", "MRN0001"), ("ACC003", "MRN0002")]):
+            ds = _create_test_dicom(acc, mrn, f"Patient{i}", "CT", "3.0")
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002", "ACC003"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@keep()</e>
+<e en="T" t="00080050" n="AccessionNumber">@empty()</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False
+        )
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
+        
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            
+            if ds.AccessionNumber == "MAPPED001":
+                assert ds.PatientID == "NEWMRN0000", "Mapped file should have mapped PatientID"
+            else:
+                assert ds.AccessionNumber == "", "Unmapped accession should be empty (fallback to @empty())"
+                assert ds.PatientID in ["MRN0001", "MRN0002"], "Unmapped PatientID should be kept (fallback to @keep())"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_complex_function_quarantines(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    mapping_file = tmp_path / "mapping.xlsx"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    df_mapping = pd.DataFrame({
+        "AccessionNumber": ["ACC001"],
+        "New-AccessionNumber": ["MAPPED001"]
+    })
+    df_mapping.to_excel(mapping_file, index=False)
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        for i, acc in enumerate(["ACC001", "ACC002"]):
+            ds = _create_test_dicom(acc, f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False
+        )
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 1, f"Expected 1 output file (mapped), got {len(output_files)}"
+        
+        ds = pydicom.dcmread(output_files[0])
+        assert ds.AccessionNumber == "MAPPED001", "Only mapped file should be in output"
+        
+        quarantine_dir = appdata_dir / "quarantine"
+        quarantined_files = list(quarantine_dir.rglob("*.dcm"))
+        assert len(quarantined_files) == 1, "Unmapped file with complex function should be quarantined"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_tag_not_in_script(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    mapping_file = tmp_path / "mapping.xlsx"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    df_mapping = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002"],
+        "New-AccessionNumber": ["NEWACC001", "NEWACC002"]
+    })
+    df_mapping.to_excel(mapping_file, index=False)
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        for i, acc in enumerate(["ACC001", "ACC002", "ACC003"]):
+            ds = _create_test_dicom(acc, f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002", "ACC003"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False
+        )
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
+        
+        accession_numbers = set()
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            accession_numbers.add(ds.AccessionNumber)
+        
+        assert "NEWACC001" in accession_numbers, "ACC001 should be mapped"
+        assert "NEWACC002" in accession_numbers, "ACC002 should be mapped"
+        assert "ACC003" in accession_numbers, "ACC003 should be kept (not in mapping, fallback to @keep() for new tags)"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    mapping_file = tmp_path / "mapping.xlsx"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    df_mapping = pd.DataFrame({
+        "AccessionNumber": ["ACC001"],
+        "New-AccessionNumber": ["FROM_MAPPING"]
+    })
+    df_mapping.to_excel(mapping_file, index=False)
+    
+    explicit_lookup_table = """AccessionNumber/ACC001 = FROM_EXPLICIT"""
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds = _create_test_dicom("ACC001", "MRN0000", "Patient", "CT", "3.0")
+        ds.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00080050" n="AccessionNumber">@lookup(this,AccessionNumber,keep)</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            lookup_table=explicit_lookup_table,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False
+        )
+        
+        output_files = list(output_dir.rglob("*.dcm"))
+        assert len(output_files) == 1, f"Expected 1 output file, got {len(output_files)}"
+        
+        ds = pydicom.dcmread(output_files[0])
+        assert ds.AccessionNumber == "FROM_EXPLICIT", "Explicit lookup_table should override mapping_file_path"
+        assert ds.AccessionNumber != "FROM_MAPPING", "Mapping file should be ignored when explicit lookup_table is provided"
     
     finally:
         orthanc.stop()
