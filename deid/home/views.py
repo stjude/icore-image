@@ -324,7 +324,9 @@ def run_header_extract(request):
             input_folder=data['input_folder'],
             output_folder=data['output_folder'],
             status=Project.TaskStatus.PENDING,
-            parameters={}
+            parameters={
+                'extract_all_headers': data.get('extract_all_headers', False)
+            }
         )
         return JsonResponse({
             'status': 'success',
