@@ -195,6 +195,7 @@ def test_headerextraction_handles_varying_headers(tmp_path):
     ds1.StudyInstanceUID = study_uid
     ds1.SeriesInstanceUID = generate_uid()
     ds1.InstanceNumber = 1
+    del ds1.SeriesNumber
     filepath1 = input_dir / "f001.dcm"
     ds1.save_as(str(filepath1), write_like_original=False)
     
@@ -238,7 +239,7 @@ def test_headerextraction_handles_varying_headers(tmp_path):
     assert df.loc[0, "PatientID"] == "MRN001"
     assert str(df.loc[0, "InstanceNumber"]) == "1", "Should have InstanceNumber from file 1"
     assert str(df.loc[0, "SeriesNumber"]) == "2", "Should have SeriesNumber from file 2"
-    assert df.loc[0, "AcquisitionDate"] == "20250110", "Should have AcquisitionDate from file 3"
+    assert str(df.loc[0, "AcquisitionDate"]) == "20250110", "Should have AcquisitionDate from file 3"
     
     assert result["num_files_processed"] == 3
     assert result["num_studies"] == 1
