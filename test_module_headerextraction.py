@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from pathlib import Path
@@ -218,20 +219,15 @@ def test_headerextraction_concatenates_multiple_values(tmp_path):
     series_instance_uids = str(df.loc[0, "SeriesInstanceUID"])
     series_descriptions = str(df.loc[0, "SeriesDescription"])
     
-    assert series_uid_1 in series_instance_uids, "Should contain first series UID"
-    assert series_uid_2 in series_instance_uids, "Should contain second series UID"
-    assert "xyz" in series_descriptions, "Should contain first series description"
-    assert "abc" in series_descriptions, "Should contain second series description"
+    series_uids_list = json.loads(series_instance_uids)
+    series_desc_list = json.loads(series_descriptions)
     
-    series_uids_list = series_instance_uids.split("\n")
-    series_desc_list = series_descriptions.split("\n")
-    
-    assert len(series_uids_list) == 2, "Should have 2 series UIDs concatenated"
-    assert len(series_desc_list) == 2, "Should have 2 series descriptions concatenated"
-    assert series_uids_list[0].strip() == series_uid_1 or series_uids_list[1].strip() == series_uid_1
-    assert series_uids_list[0].strip() == series_uid_2 or series_uids_list[1].strip() == series_uid_2
-    assert "xyz" in series_desc_list[0] or "xyz" in series_desc_list[1]
-    assert "abc" in series_desc_list[0] or "abc" in series_desc_list[1]
+    assert len(series_uids_list) == 2, "Should have 2 series UIDs in JSON array"
+    assert len(series_desc_list) == 2, "Should have 2 series descriptions in JSON array"
+    assert series_uid_1 in series_uids_list, "Should contain first series UID"
+    assert series_uid_2 in series_uids_list, "Should contain second series UID"
+    assert "xyz" in series_desc_list, "Should contain first series description"
+    assert "abc" in series_desc_list, "Should contain second series description"
     
     assert result["num_files_processed"] == 2
     assert result["num_studies"] == 1
