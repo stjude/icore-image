@@ -3,9 +3,10 @@ import os
 from pathlib import Path
 
 import pandas as pd
-import pytest
+from pydicom.uid import generate_uid
 
 from test_utils import _create_test_dicom
+from module_headerextraction import headerextraction
 
 
 logging.basicConfig(level=logging.INFO)
@@ -25,8 +26,6 @@ def test_headerextraction_basic(tmp_path):
     ds.StudyDescription = "Test Study"
     filepath = input_dir / "f001.dcm"
     ds.save_as(str(filepath), write_like_original=False)
-    
-    from module_headerextraction import headerextraction
     
     result = headerextraction(
         input_dir=str(input_dir),
@@ -84,8 +83,6 @@ def test_headerextraction_extract_all_headers(tmp_path):
     ds.InstanceNumber = 1
     filepath = input_dir / "f001.dcm"
     ds.save_as(str(filepath), write_like_original=False)
-    
-    from module_headerextraction import headerextraction
     
     result = headerextraction(
         input_dir=str(input_dir),
@@ -151,8 +148,6 @@ def test_headerextraction_study_level_aggregation(tmp_path):
     filepath3 = input_dir / "f003.dcm"
     ds3.save_as(str(filepath3), write_like_original=False)
     
-    from module_headerextraction import headerextraction
-    
     result = headerextraction(
         input_dir=str(input_dir),
         output_dir=str(output_dir)
@@ -178,7 +173,8 @@ def test_headerextraction_study_level_aggregation(tmp_path):
     assert result["num_studies"] == 2
 
 
-def test_headerextraction_handles_varying_headers(tmp_path):
+
+def test_headerextraction_concatenates_multiple_values(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -187,60 +183,56 @@ def test_headerextraction_handles_varying_headers(tmp_path):
     input_dir.mkdir()
     output_dir.mkdir()
     
-    from pydicom.uid import generate_uid
-    
     study_uid = generate_uid()
+    series_uid_1 = generate_uid()
+    series_uid_2 = generate_uid()
     
     ds1 = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     ds1.StudyInstanceUID = study_uid
-    ds1.SeriesInstanceUID = generate_uid()
-    ds1.InstanceNumber = 1
-    del ds1.SeriesNumber
+    ds1.SeriesInstanceUID = series_uid_1
+    ds1.SeriesDescription = "xyz"
+    ds1.SeriesNumber = 1
     filepath1 = input_dir / "f001.dcm"
     ds1.save_as(str(filepath1), write_like_original=False)
     
     ds2 = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     ds2.StudyInstanceUID = study_uid
-    ds2.SeriesInstanceUID = generate_uid()
+    ds2.SeriesInstanceUID = series_uid_2
+    ds2.SeriesDescription = "abc"
     ds2.SeriesNumber = 2
-    del ds2.InstanceNumber
     filepath2 = input_dir / "f002.dcm"
     ds2.save_as(str(filepath2), write_like_original=False)
-    
-    ds3 = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
-    ds3.StudyInstanceUID = study_uid
-    ds3.SeriesInstanceUID = generate_uid()
-    ds3.AcquisitionDate = "20250110"
-    del ds3.InstanceNumber
-    filepath3 = input_dir / "f003.dcm"
-    ds3.save_as(str(filepath3), write_like_original=False)
-    
-    from module_headerextraction import headerextraction
+
     
     result = headerextraction(
         input_dir=str(input_dir),
-        output_dir=str(output_dir),
-        extract_all_headers=True
+        output_dir=str(output_dir)
     )
     
     metadata_path = output_dir / "metadata.xlsx"
     assert metadata_path.exists(), "metadata.xlsx should exist"
     
     df = pd.read_excel(metadata_path)
-    assert len(df) == 1, "Should have 1 study (all files same study)"
+    assert len(df) == 1, "Should have 1 study (aggregated from 2 series)"
     
-    assert "AccessionNumber" in df.columns
-    assert "PatientID" in df.columns
-    assert "InstanceNumber" in df.columns, "InstanceNumber from file 1 should be in columns"
-    assert "SeriesNumber" in df.columns, "SeriesNumber from file 2 should be in columns"
-    assert "AcquisitionDate" in df.columns, "AcquisitionDate from file 3 should be in columns"
+    series_instance_uids = str(df.loc[0, "SeriesInstanceUID"])
+    series_descriptions = str(df.loc[0, "SeriesDescription"])
     
-    assert df.loc[0, "AccessionNumber"] == "ACC001"
-    assert df.loc[0, "PatientID"] == "MRN001"
-    assert str(df.loc[0, "InstanceNumber"]) == "1", "Should have InstanceNumber from file 1"
-    assert str(df.loc[0, "SeriesNumber"]) == "2", "Should have SeriesNumber from file 2"
-    assert str(df.loc[0, "AcquisitionDate"]) == "20250110", "Should have AcquisitionDate from file 3"
+    assert series_uid_1 in series_instance_uids, "Should contain first series UID"
+    assert series_uid_2 in series_instance_uids, "Should contain second series UID"
+    assert "xyz" in series_descriptions, "Should contain first series description"
+    assert "abc" in series_descriptions, "Should contain second series description"
     
-    assert result["num_files_processed"] == 3
+    series_uids_list = series_instance_uids.split("\n")
+    series_desc_list = series_descriptions.split("\n")
+    
+    assert len(series_uids_list) == 2, "Should have 2 series UIDs concatenated"
+    assert len(series_desc_list) == 2, "Should have 2 series descriptions concatenated"
+    assert series_uids_list[0].strip() == series_uid_1 or series_uids_list[1].strip() == series_uid_1
+    assert series_uids_list[0].strip() == series_uid_2 or series_uids_list[1].strip() == series_uid_2
+    assert "xyz" in series_desc_list[0] or "xyz" in series_desc_list[1]
+    assert "abc" in series_desc_list[0] or "abc" in series_desc_list[1]
+    
+    assert result["num_files_processed"] == 2
     assert result["num_studies"] == 1
 

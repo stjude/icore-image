@@ -1,11 +1,12 @@
 import logging
 import os
-from pathlib import Path
 
 import pandas as pd
 import pydicom
+from openpyxl import load_workbook
+from openpyxl.styles import Alignment
 
-from utils import setup_run_directories, configure_run_logging, format_number_with_commas
+from utils import configure_run_logging, format_number_with_commas, setup_run_directories
 
 
 DEFAULT_HEADERS = [
@@ -80,7 +81,7 @@ def _aggregate_by_study(all_headers):
         for col in group.columns:
             values = group[col].dropna().unique()
             if len(values) > 0:
-                study_data[col] = values[0]
+                study_data[col] = "\n".join(str(v) for v in values)
             else:
                 study_data[col] = ""
         aggregated_data.append(study_data)
@@ -147,7 +148,17 @@ def headerextraction(input_dir, output_dir, extract_all_headers=False,
     df = _aggregate_by_study(all_headers)
     
     metadata_path = os.path.join(output_dir, "metadata.xlsx")
-    df.to_excel(metadata_path, index=False)
+    df.to_excel(metadata_path, index=False, engine='openpyxl')
+    
+    wb = load_workbook(metadata_path)
+    ws = wb.active
+    
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+        for cell in row:
+            if cell.value and isinstance(cell.value, str) and '\n' in cell.value:
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+    
+    wb.save(metadata_path)
     logging.info(f"Saved metadata to {metadata_path}")
     
     logging.info("Header extraction complete")
