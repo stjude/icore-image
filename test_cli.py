@@ -10,6 +10,7 @@ from cli import (
     build_imagedeid_pacs_params,
     build_imagedeid_local_params,
     build_textdeid_params,
+    build_headerextraction_params,
     run
 )
 from utils import PacsConfiguration, Spreadsheet
@@ -41,6 +42,15 @@ def test_determine_module_imagedeid_without_input_xlsx_routes_to_local(tmp_path)
     result = determine_module(config, input_dir)
     
     assert result == "imagedeid_local"
+
+
+def test_determine_module_headerextraction(tmp_path):
+    config = {"module": "headerextraction"}
+    input_dir = str(tmp_path)
+    
+    result = determine_module(config, input_dir)
+    
+    assert result == "headerextraction"
 
 
 def test_build_imageqr_params_builds_pacs_configuration_list(tmp_path):
@@ -684,6 +694,79 @@ def test_build_textdeid_params_includes_debug_when_specified(tmp_path):
     assert params["debug"] is True
 
 
+def test_build_headerextraction_params_maps_config_keys_correctly(tmp_path):
+    config = {
+        "extract_all_headers": True,
+        "debug": True
+    }
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    
+    assert params["input_dir"] == input_dir
+    assert params["output_dir"] == output_dir
+    assert params["extract_all_headers"] is True
+    assert params["debug"] is True
+
+
+def test_build_headerextraction_params_handles_missing_optional_params(tmp_path):
+    config = {}
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    
+    assert params["input_dir"] == input_dir
+    assert params["output_dir"] == output_dir
+    assert params["extract_all_headers"] is False
+    assert params["debug"] is False
+
+
+def test_build_headerextraction_params_extract_all_headers_defaults_to_false(tmp_path):
+    config = {}
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    
+    assert params["extract_all_headers"] is False
+
+
+def test_build_headerextraction_params_includes_extract_all_headers_when_true(tmp_path):
+    config = {
+        "extract_all_headers": True
+    }
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    
+    assert params["extract_all_headers"] is True
+
+
+def test_build_headerextraction_params_debug_defaults_to_false(tmp_path):
+    config = {}
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    
+    assert params["debug"] is False
+
+
+def test_build_headerextraction_params_includes_debug_when_specified(tmp_path):
+    config = {
+        "debug": True
+    }
+    input_dir = str(tmp_path)
+    output_dir = str(tmp_path / "output")
+    
+    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    
+    assert params["debug"] is True
+
+
 def test_run_calls_textdeid_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text("module: textdeid\nto_keep_list:\n  - medical\nto_remove_list:\n  - secret\ncolumns_to_drop:\n  - DropColumn\ncolumns_to_deid:\n  - PatientName")
@@ -705,3 +788,23 @@ def test_run_calls_textdeid_with_correct_params(tmp_path):
         assert call_kwargs["to_remove_list"] == ["secret"]
         assert result == {"num_rows_processed": 10}
 
+
+def test_run_calls_headerextraction_with_correct_params(tmp_path):
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("module: headerextraction\nextract_all_headers: true\ndebug: false")
+    input_dir = str(tmp_path / "input")
+    os.makedirs(input_dir)
+    output_dir = str(tmp_path / "output")
+    
+    with patch('module_headerextraction.headerextraction') as mock_headerextraction:
+        mock_headerextraction.return_value = {"num_files_processed": 10, "num_studies": 5}
+        
+        result = run(str(config_path), input_dir, output_dir)
+        
+        mock_headerextraction.assert_called_once()
+        call_kwargs = mock_headerextraction.call_args.kwargs
+        assert call_kwargs["input_dir"] == input_dir
+        assert call_kwargs["output_dir"] == output_dir
+        assert call_kwargs["extract_all_headers"] is True
+        assert call_kwargs["debug"] is False
+        assert result == {"num_files_processed": 10, "num_studies": 5}

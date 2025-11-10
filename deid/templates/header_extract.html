@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Secure Data Transfer{% endblock %}
+{% block title %}DICOM Header Extraction{% endblock %}
 
 {% block content %}
 {{ storage_locations|json_script:"storage-locations-data" }}
@@ -19,13 +19,21 @@
     <div class="text-sm text-black-5 mt-4">Input Folder</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
 
+    <div class="text-sm text-black-5 mt-4">Output Folder</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
+
     <div class="flex items-center mt-4">
         <button class="text-black" onclick="toggleHeaderExtractOptions()" id="headerExtractOptionsButton">▼</button>
         <div class="text-sm text-black ml-4">Header Extraction Options</div>
     </div>
     <div id="header_extract_options" class="mt-4 hidden ml-4">
-        <div class="text-sm text-gray-500 mt-4">Output Folder</div>
-        <input type="text" class="mt-2 mb-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
+        <div class="flex items-center mt-2">
+            <input type="checkbox" id="extract_all_headers" name="extract_all_headers" class="mr-2" />
+            <label for="extract_all_headers" class="text-sm text-gray-700">Extract All Headers</label>
+        </div>
+        <div class="text-xs text-gray-500 mt-2 ml-6">
+            If checked, extracts all DICOM headers found in the images. Otherwise, extracts only the default headers.
+        </div>
     </div>
 </div>
 
@@ -58,11 +66,29 @@
     }
 
     async function runHeaderExtract() {
-        const data = {
-            study_name: document.querySelector('[name="study_name"]').value,
-            input_folder: document.querySelector('[name="input_folder"]').value,
-            output_folder: document.querySelector('[name="output_folder"]').value,
+        const studyName = document.querySelector('[name="study_name"]').value.trim();
+        const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
+        const outputFolder = document.querySelector('[name="output_folder"]').value.trim();
+        const extractAllHeaders = document.getElementById('extract_all_headers').checked;
 
+        if (!studyName) {
+            alert('Project name is required');
+            return;
+        }
+        if (!inputFolder) {
+            alert('Input folder is required');
+            return;
+        }
+        if (!outputFolder) {
+            alert('Output folder is required');
+            return;
+        }
+
+        const data = {
+            study_name: studyName,
+            input_folder: inputFolder,
+            output_folder: outputFolder,
+            extract_all_headers: extractAllHeaders
         };
         console.log(data);
 
@@ -79,9 +105,11 @@
                 window.location.href = `/task_progress?project_id=${result.project_id}`;
             } else {
                 console.error('Error starting header extract:', result);
+                alert(result.message || 'Error starting header extraction');
             }
         } catch (error) {
             console.error('Error:', error);
+            alert('Error starting header extraction: ' + error.message);
         }
     }
 </script>
