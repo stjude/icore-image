@@ -28,8 +28,6 @@ make test
 
 Note: you need docker installed and running (some tests set up an Orthanc server)
 
-If you want to run the test suite in CI, trigger `Test Suite` workflow from Actions.
-
 ## Build macOS App
 
 ```
