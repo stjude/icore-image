@@ -132,10 +132,6 @@ class ImageExportView(CommonContextMixin, CreateView):
     template_name = 'image_export.html'
     success_url = reverse_lazy('task_list')
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['storage_locations'] = load_rclone_config()
-        return context
 
 class GeneralModuleView(CommonContextMixin, TemplateView):
     template_name = 'general_module.html'
@@ -528,7 +524,6 @@ def run_export(request):
             status=Project.TaskStatus.PENDING,
             parameters={
                 'blob_url': data['blob_url'],
-                'container_name': data['container_name'],
             }
         )
         return JsonResponse({
@@ -607,15 +602,6 @@ def load_settings(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
-def load_rclone_config():
-    rclone_config_path = os.path.join(SETTINGS_DIR, 'rclone.conf')
-    with open(rclone_config_path, 'r') as f:
-        rclone_config = f.read()
-    rclone_config_names = []
-    for line in rclone_config.splitlines():
-        if line.startswith('[') and line.endswith(']'):
-            rclone_config_names.append(line[1:-1])
-    return rclone_config_names
 
 def get_dicom_fields():
     dicom_fields = [

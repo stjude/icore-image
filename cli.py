@@ -119,6 +119,18 @@ def build_textdeid_params(config, input_dir, output_dir, run_dirs):
     }
 
 
+def build_image_export_params(config, input_dir, run_dirs):
+    appdata_dir = os.environ.get('ICORE_APPDATA_DIR')
+    return {
+        "input_dir": input_dir,
+        "sas_url": config.get("sas_url"),
+        "project_name": config.get("project_name"),
+        "appdata_dir": appdata_dir,
+        "debug": config.get("debug", False),
+        "run_dirs": run_dirs
+    }
+
+
 def run(config_path, input_dir, output_dir):
     from utils import setup_run_directories
     
@@ -146,6 +158,10 @@ def run(config_path, input_dir, output_dir):
         from module_textdeid import textdeid
         params = build_textdeid_params(config, input_dir, output_dir, run_dirs)
         return textdeid(**params)
+    elif module == "imageexport":
+        from module_image_export import image_export
+        params = build_image_export_params(config, input_dir, run_dirs)
+        return image_export(**params)
     else:
         raise ValueError(f"Unknown module: {module}")
 

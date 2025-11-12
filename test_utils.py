@@ -30,6 +30,19 @@ def _cleanup_test_containers():
     for container_name in container_names:
         subprocess.run(["docker", "stop", container_name], capture_output=True)
         subprocess.run(["docker", "rm", container_name], capture_output=True)
+    
+    result = subprocess.run(
+        ["docker", "ps", "-a", "--filter", "name=azurite_test_", "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True
+    )
+    
+    container_names = result.stdout.strip().split('\n')
+    container_names = [name for name in container_names if name]
+    
+    for container_name in container_names:
+        subprocess.run(["docker", "stop", container_name], capture_output=True)
+        subprocess.run(["docker", "rm", container_name], capture_output=True)
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -404,6 +417,112 @@ class OrthancServer:
         return len(response.json())
     
     def stop(self):
+        if self.container:
+            subprocess.run(["docker", "stop", self.container], capture_output=True)
+            subprocess.run(["docker", "rm", self.container], capture_output=True)
+
+
+class AzuriteServer:
+    """
+    Manages an Azurite Docker container for testing Azure Blob Storage functionality.
+    Azurite is the official Azure Storage emulator.
+    """
+    
+    def __init__(self, blob_port=None):
+        self.blob_port = blob_port or self._get_free_port()
+        self.container = None
+        self.account_name = "devstoreaccount1"
+        self.account_key = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+        self.connection_string = (
+            f"DefaultEndpointsProtocol=http;"
+            f"AccountName={self.account_name};"
+            f"AccountKey={self.account_key};"
+            f"BlobEndpoint=http://127.0.0.1:{self.blob_port}/{self.account_name};"
+        )
+        
+    def _get_free_port(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('', 0))
+            s.listen(1)
+            port = s.getsockname()[1]
+        return port
+    
+    def start(self):
+        """Start the Azurite Docker container"""
+        container_name = f"azurite_test_{uuid.uuid4().hex[:8]}"
+        
+        subprocess.run([
+            "docker", "run", "-d",
+            "--name", container_name,
+            "-p", f"{self.blob_port}:10000",
+            "mcr.microsoft.com/azure-storage/azurite:latest",
+            "azurite-blob", "--blobHost", "0.0.0.0"
+        ], check=True, capture_output=True)
+        
+        self.container = container_name
+        
+        # Wait for Azurite to be ready
+        time.sleep(2)
+        
+        # Verify connection
+        from azure.storage.blob import BlobServiceClient
+        for attempt in range(30):
+            try:
+                client = BlobServiceClient.from_connection_string(self.connection_string)
+                client.get_account_information()
+                break
+            except Exception:
+                if attempt == 29:
+                    raise
+                time.sleep(1)
+    
+    def get_sas_url(self, container_name):
+        """Generate a SAS URL for a container"""
+        from azure.storage.blob import BlobServiceClient, generate_container_sas, ContainerSasPermissions
+        from datetime import datetime, timedelta
+        
+        # Create container if it doesn't exist
+        client = BlobServiceClient.from_connection_string(self.connection_string)
+        try:
+            client.create_container(container_name)
+        except Exception:
+            pass  # Container might already exist
+        
+        # Generate SAS token with proper permissions
+        sas_token = generate_container_sas(
+            account_name=self.account_name,
+            container_name=container_name,
+            account_key=self.account_key,
+            permission=ContainerSasPermissions(read=True, write=True, delete=True, list=True),
+            expiry=datetime.utcnow() + timedelta(hours=1)
+        )
+        
+        # Return the container URL (not including container name in path, it's implicit)
+        return f"http://127.0.0.1:{self.blob_port}/{self.account_name}/{container_name}?{sas_token}"
+    
+    def list_blobs(self, container_name):
+        """List all blobs in a container"""
+        from azure.storage.blob import BlobServiceClient
+        
+        client = BlobServiceClient.from_connection_string(self.connection_string)
+        container_client = client.get_container_client(container_name)
+        
+        blobs = []
+        for blob in container_client.list_blobs():
+            blobs.append(blob.name)
+        return blobs
+    
+    def get_blob_content(self, container_name, blob_name):
+        """Get the content of a blob"""
+        from azure.storage.blob import BlobServiceClient
+        
+        client = BlobServiceClient.from_connection_string(self.connection_string)
+        blob_client = client.get_blob_client(container=container_name, blob=blob_name)
+        
+        return blob_client.download_blob().readall()
+    
+    def stop(self):
+        """Stop and remove the Azurite Docker container"""
         if self.container:
             subprocess.run(["docker", "stop", self.container], capture_output=True)
             subprocess.run(["docker", "rm", self.container], capture_output=True)

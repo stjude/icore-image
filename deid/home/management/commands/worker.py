@@ -442,17 +442,15 @@ def build_text_deid_config(task):
 def process_image_export(task):
     print('Processing image export')
     input_folder = task.input_folder
-    build_rclone_config(task)
     build_image_export_config(task)
 
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'temp_output'))
-    os.makedirs(output_full_path, exist_ok=True)
+    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
 
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path
@@ -467,14 +465,14 @@ def process_image_export(task):
 
 def build_image_export_config(task):
     """Build the configuration for image export"""
+    settings = json.load(open(SETTINGS_PATH))
+    
     config = {
         'module': 'imageexport',
-        'container_name': task.parameters['container_name'],
+        'sas_url': task.parameters['blob_url'],
         'project_name': task.name,
-        'site_id': task.parameters['site_id'],
     }
     
-    settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled
     
@@ -483,15 +481,6 @@ def build_image_export_config(task):
         yaml.dump(config, f)
     return config
 
-def build_rclone_config(task):
-    """Build the configuration for rclone"""
-    config = f"""
-        [azure]
-        type = azureblob
-        sas_url = {task.parameters['blob_url']}
-    """
-    with open(RCLONE_CONFIG_PATH, 'w') as f:
-        f.write(config)
 
 
 def process_general_module(task):

@@ -10,6 +10,7 @@ from cli import (
     build_imagedeid_pacs_params,
     build_imagedeid_local_params,
     build_textdeid_params,
+    build_image_export_params,
     run
 )
 from utils import PacsConfiguration, Spreadsheet
@@ -41,6 +42,15 @@ def test_determine_module_imagedeid_without_input_xlsx_routes_to_local(tmp_path)
     result = determine_module(config, input_dir)
     
     assert result == "imagedeid_local"
+
+
+def test_determine_module_image_export(tmp_path):
+    config = {"module": "imageexport"}
+    input_dir = str(tmp_path)
+    
+    result = determine_module(config, input_dir)
+    
+    assert result == "imageexport"
 
 
 def test_build_imageqr_params_builds_pacs_configuration_list(tmp_path):
@@ -684,6 +694,45 @@ def test_build_textdeid_params_includes_debug_when_specified(tmp_path):
     assert params["debug"] is True
 
 
+def test_build_image_export_params_maps_config_keys_correctly(tmp_path):
+    config = {
+        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
+        "project_name": "TestProject"
+    }
+    input_dir = str(tmp_path)
+    
+    params = build_image_export_params(config, input_dir, {})
+    
+    assert params["input_dir"] == input_dir
+    assert params["sas_url"] == "http://127.0.0.1:10000/devstoreaccount1/container?sig=token"
+    assert params["project_name"] == "TestProject"
+
+
+def test_build_image_export_params_debug_defaults_to_false(tmp_path):
+    config = {
+        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
+        "project_name": "TestProject"
+    }
+    input_dir = str(tmp_path)
+    
+    params = build_image_export_params(config, input_dir, {})
+    
+    assert params["debug"] is False
+
+
+def test_build_image_export_params_includes_debug_when_specified(tmp_path):
+    config = {
+        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
+        "project_name": "TestProject",
+        "debug": True
+    }
+    input_dir = str(tmp_path)
+    
+    params = build_image_export_params(config, input_dir, {})
+    
+    assert params["debug"] is True
+
+
 def test_run_calls_textdeid_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text("module: textdeid\nto_keep_list:\n  - medical\nto_remove_list:\n  - secret\ncolumns_to_drop:\n  - DropColumn\ncolumns_to_deid:\n  - PatientName")
@@ -704,4 +753,24 @@ def test_run_calls_textdeid_with_correct_params(tmp_path):
         assert call_kwargs["to_keep_list"] == ["medical"]
         assert call_kwargs["to_remove_list"] == ["secret"]
         assert result == {"num_rows_processed": 10}
+
+
+def test_run_calls_image_export_with_correct_params(tmp_path):
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("module: imageexport\nsas_url: http://127.0.0.1:10000/devstoreaccount1/container?sig=token\nproject_name: TestProject")
+    input_dir = str(tmp_path / "input")
+    os.makedirs(input_dir)
+    output_dir = str(tmp_path / "output")
+    
+    with patch('module_image_export.image_export') as mock_image_export:
+        mock_image_export.return_value = {"files_uploaded": 5, "bytes_uploaded": 1024}
+        
+        result = run(str(config_path), input_dir, output_dir)
+        
+        mock_image_export.assert_called_once()
+        call_kwargs = mock_image_export.call_args.kwargs
+        assert call_kwargs["input_dir"] == input_dir
+        assert call_kwargs["sas_url"] == "http://127.0.0.1:10000/devstoreaccount1/container?sig=token"
+        assert call_kwargs["project_name"] == "TestProject"
+        assert result == {"files_uploaded": 5, "bytes_uploaded": 1024}
 

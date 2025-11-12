@@ -3,28 +3,23 @@
 {% block title %}Secure Data Transfer{% endblock %}
 
 {% block content %}
-{{ storage_locations|json_script:"storage-locations-data" }}
-<script>
-    const storageLocations = JSON.parse(document.getElementById('storage-locations-data').textContent);
-</script>
-
 <div class="px-4">
     <h1 class="text-xl flex-1">Secure Data Transfer</h1>
 </div>
 
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
     <div class="text-sm text-black-5">Project Name</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" onkeypress="return event.charCode !== 32" />
 
     <div class="text-sm text-black-5 mt-4">Select Folder for Secure Data Transfer</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" placeholder="Drag and drop folder to export" />
     
     <div class="text-sm text-black-5 mt-4">SAS URL</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="blob_url" />
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="blob_url" placeholder="https://account.blob.core.windows.net/container?sas_token" />
 </div>
 
 <div class="m-4">
-    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runExport()" id="export_button">
+    <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runExport()" id="export_button" disabled>
         Run Export
     </button>
 </div>
@@ -35,25 +30,61 @@
         try {
             const response = await fetch('/load_settings/');
             settings = await response.json();
+            
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            fetch('/set_timezone/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ timezone: timezone })
+            });
+            
+            // Add validation listeners
+            document.querySelector('[name="study_name"]').addEventListener('input', validateExportForm);
+            document.querySelector('[name="study_name"]').addEventListener('change', validateExportForm);
+            document.querySelector('[name="input_folder"]').addEventListener('input', validateExportForm);
+            document.querySelector('[name="input_folder"]').addEventListener('change', validateExportForm);
+            document.querySelector('[name="blob_url"]').addEventListener('input', validateExportForm);
+            document.querySelector('[name="blob_url"]').addEventListener('change', validateExportForm);
+            
+            validateExportForm();
         } catch (error) {
             console.error('Error loading settings:', error);
         }
     });
 
-    async function runExport() {
-        if (!settings.site_id) {
-            alert('Site ID is not set. Please set the site ID in the settings.');
-            return;
+    function validateExportForm() {
+        const studyName = document.querySelector('[name="study_name"]').value.trim();
+        const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
+        const blobUrl = document.querySelector('[name="blob_url"]').value.trim();
+        const button = document.getElementById('export_button');
+        
+        const isValid = studyName && inputFolder && blobUrl;
+        
+        if (isValid) {
+            button.disabled = false;
+            button.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            button.disabled = true;
+            button.classList.add('opacity-50', 'cursor-not-allowed');
         }
+    }
+
+    async function runExport() {
+        const studyName = document.querySelector('[name="study_name"]').value.trim();
+        const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
+        const blobUrl = document.querySelector('[name="blob_url"]').value.trim();
 
         const data = {
-            study_name: document.querySelector('[name="study_name"]').value,
-            input_folder: document.querySelector('[name="input_folder"]').value,
-            container_name: settings.container_name || 'icorefiles',
-            site_id: settings.site_id,
-            blob_url: document.querySelector('[name="blob_url"]').value
+            study_name: studyName,
+            input_folder: inputFolder,
+            blob_url: blobUrl
         };
-        console.log(data);
+
+        const button = document.getElementById('export_button');
+        button.disabled = true;
+        button.textContent = 'Starting Export...';
 
         try {
             const response = await fetch('/run_export/', {
@@ -67,9 +98,15 @@
             if (result.status === 'success') {
                 window.location.href = `/task_progress?project_id=${result.project_id}`;
             } else {
+                button.disabled = false;
+                button.textContent = 'Run Export';
+                alert(result.message || 'Error starting export. Please try again.');
                 console.error('Error starting export:', result);
             }
         } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Run Export';
+            alert('Error starting export: ' + error.message);
             console.error('Error:', error);
         }
     }
