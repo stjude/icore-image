@@ -13,6 +13,7 @@ create-dmg-arm.sh
 .env
 dcmtk
 jre8
+rclone
 input
 output
 appdata

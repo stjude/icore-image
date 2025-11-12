@@ -1,11 +1,29 @@
 import logging
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
 from utils import configure_run_logging, setup_run_directories
+
+
+def _get_rclone_binary():
+    """
+    Get the path to the rclone binary.
+    Checks bundled/local location first, then falls back to system PATH.
+    
+    Returns:
+        str: Path to rclone binary
+    """
+    if getattr(sys, 'frozen', False):
+        bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
+        rclone_binary = os.path.join(bundle_dir, '_internal', 'rclone', 'rclone')
+    else:
+        rclone_binary = os.path.join(os.path.dirname(__file__), 'rclone', 'rclone')
+    
+    return rclone_binary
 
 
 def _parse_sas_url(sas_url):
@@ -159,8 +177,9 @@ def image_export(input_dir, sas_url, project_name, appdata_dir=None, debug=False
             # rclone will preserve the folder structure from input_dir
             destination = f"azure:{container_name}/{project_name}"
             
+            rclone_binary = _get_rclone_binary()
             cmd = [
-                "rclone",
+                rclone_binary,
                 "copy",
                 "--progress",
                 "--config", rclone_config_path,

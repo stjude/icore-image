@@ -17,6 +17,7 @@ dev: external-deps
 		export JAVA_HOME=$$(pwd)/jre8/Contents/Home; \
 	fi && \
 	export DCMTK_HOME=$$(pwd)/dcmtk && \
+	export RCLONE_HOME=$$(pwd)/rclone && \
 	cd electron && npm start
 
 deps: deps-python deps-deid deps-electron
@@ -70,18 +71,25 @@ dcmtk:
 	fi
 
 rclone:
-	@if command -v rclone >/dev/null 2>&1; then \
-		echo "rclone is already installed: $$(rclone version | head -n1)"; \
-	else \
-		echo "Installing rclone..."; \
-		if [ -n "$$CI" ] || [ -n "$$GITHUB_ACTIONS" ]; then \
-			echo "CI environment detected, installing rclone without sudo..."; \
-			curl https://rclone.org/install.sh | bash || \
-			(echo "Failed to install rclone. Please install manually from https://rclone.org/downloads/" && exit 1); \
+	@if [ ! -d "rclone" ] || [ ! -f "rclone/rclone" ]; then \
+		echo "Downloading rclone..."; \
+		mkdir -p rclone; \
+		if [ "$$(uname -s)" = "Linux" ]; then \
+			curl -L https://downloads.rclone.org/v1.66.0/rclone-v1.66.0-linux-amd64.zip -o rclone.zip; \
+			unzip -q rclone.zip; \
+			mv rclone-v1.66.0-linux-amd64/rclone rclone/; \
+			chmod +x rclone/rclone; \
+			rm -rf rclone-v1.66.0-linux-amd64 rclone.zip; \
 		else \
-			curl https://rclone.org/install.sh | sudo bash || \
-			(echo "Failed to install rclone. Please install manually from https://rclone.org/downloads/" && exit 1); \
+			RCLONE_VERSION=$$(curl -s https://api.github.com/repos/rclone/rclone/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
+			curl -L https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-osx-amd64.zip -o rclone.zip; \
+			unzip -q rclone.zip; \
+			mv rclone-$$RCLONE_VERSION-osx-amd64/rclone rclone/; \
+			chmod +x rclone/rclone; \
+			rm -rf rclone-$$RCLONE_VERSION-osx-amd64 rclone.zip; \
 		fi; \
+	else \
+		echo "rclone already exists"; \
 	fi
 
 external-deps: jre8 dcmtk rclone
