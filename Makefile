@@ -1,5 +1,5 @@
 .PHONY: all signed clean deps deps-python deps-deid deps-electron test dev
-.PHONY: external-deps jre8 dcmtk build-binaries build-icorecli build-django-app
+.PHONY: external-deps jre8 dcmtk rclone build-binaries build-icorecli build-django-app
 .PHONY: prepare-assets build-dmg build-dmg-signed
 
 .DEFAULT_GOAL := all
@@ -69,7 +69,22 @@ dcmtk:
 		echo "DCMTK already exists"; \
 	fi
 
-external-deps: jre8 dcmtk
+rclone:
+	@if command -v rclone >/dev/null 2>&1; then \
+		echo "rclone is already installed: $$(rclone version | head -n1)"; \
+	else \
+		echo "Installing rclone..."; \
+		if [ -n "$$CI" ] || [ -n "$$GITHUB_ACTIONS" ]; then \
+			echo "CI environment detected, installing rclone without sudo..."; \
+			curl https://rclone.org/install.sh | bash || \
+			(echo "Failed to install rclone. Please install manually from https://rclone.org/downloads/" && exit 1); \
+		else \
+			curl https://rclone.org/install.sh | sudo bash || \
+			(echo "Failed to install rclone. Please install manually from https://rclone.org/downloads/" && exit 1); \
+		fi; \
+	fi
+
+external-deps: jre8 dcmtk rclone
 
 build-icorecli:
 	rm -rf dist

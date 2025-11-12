@@ -843,7 +843,7 @@ def test_run_calls_image_export_with_correct_params(tmp_path):
     config_path.write_text("module: imageexport\nsas_url: http://127.0.0.1:10000/devstoreaccount1/container?sig=token\nproject_name: TestProject")
     input_dir = str(tmp_path / "input")
     os.makedirs(input_dir)
-    output_dir = str(tmp_path / "output"
+    output_dir = str(tmp_path / "output")
                      
     with patch('module_image_export.image_export') as mock_image_export:
         mock_image_export.return_value = {"files_uploaded": 5, "bytes_uploaded": 1024}
