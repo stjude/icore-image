@@ -4,6 +4,7 @@ import os
 
 import pandas as pd
 import pydicom
+from pydicom.errors import InvalidDicomError
 
 from utils import configure_run_logging, format_number_with_commas, setup_run_directories
 
@@ -33,9 +34,12 @@ def _find_dicom_files(input_dir):
     dicom_files = []
     for root, dirs, files in os.walk(input_dir):
         for file in files:
-            if file.lower().endswith('.dcm'):
-                file_path = os.path.join(root, file)
+            file_path = os.path.join(root, file)
+            try:
+                pydicom.dcmread(file_path, stop_before_pixels=True)
                 dicom_files.append(file_path)
+            except (InvalidDicomError, Exception):
+                continue
     return dicom_files
 
 
