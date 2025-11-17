@@ -74,12 +74,13 @@ rclone:
 	@if [ ! -d "rclone" ] || [ ! -f "rclone/rclone" ]; then \
 		echo "Downloading rclone..."; \
 		mkdir -p rclone; \
-		if [ "$$(uname -s)" = "Linux" ]; then \
-			curl -L https://downloads.rclone.org/v1.66.0/rclone-v1.66.0-linux-amd64.zip -o rclone.zip; \
+		if [ "$$(uname -s)" = "Darwin" ]; then \
+			RCLONE_VERSION=$$(curl -s https://api.github.com/repos/rclone/rclone/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
+			curl -L https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-linux-amd64.zip -o rclone.zip; \
 			unzip -q rclone.zip; \
-			mv rclone-v1.66.0-linux-amd64/rclone rclone/; \
+			mv rclone-$$RCLONE_VERSION-linux-amd64/rclone rclone/; \
 			chmod +x rclone/rclone; \
-			rm -rf rclone-v1.66.0-linux-amd64 rclone.zip; \
+			rm -rf rclone-$$RCLONE_VERSION-linux-amd64 rclone.zip; \
 		else \
 			RCLONE_VERSION=$$(curl -s https://api.github.com/repos/rclone/rclone/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
 			curl -L https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-osx-amd64.zip -o rclone.zip; \
