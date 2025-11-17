@@ -38,7 +38,7 @@
     "foreground-child": "^3.3.0",
     "fraction.js": "^4.3.7",
     "function-bind": "^1.1.2",
-    "glob": "^10.4.5",
+    "glob": "^11.1.0",
     "glob-parent": "^6.0.2",
     "hasown": "^2.0.2",
     "is-binary-path": "^2.1.0",
