@@ -232,3 +232,47 @@ def test_headerextraction_concatenates_multiple_values(tmp_path):
     assert result["num_files_processed"] == 2
     assert result["num_studies"] == 1
 
+
+def test_headerextraction_files_without_extension(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
+    ds.PatientSex = "M"
+    ds.StudyDescription = "Test Study"
+    filepath = input_dir / "f001"
+    ds.save_as(str(filepath), write_like_original=False)
+    
+    non_dicom_file = input_dir / "not_a_dicom.txt"
+    non_dicom_file.write_text("This is not a DICOM file")
+    
+    result = headerextraction(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir)
+    )
+    
+    metadata_path = output_dir / "metadata.xlsx"
+    assert metadata_path.exists(), "metadata.xlsx should exist"
+    
+    df = pd.read_excel(metadata_path)
+    assert len(df) == 1, "Should have 1 study (extensionless DICOM file should be detected)"
+    
+    assert "AccessionNumber" in df.columns
+    assert "StudyInstanceUID" in df.columns
+    assert "PatientName" in df.columns
+    assert "PatientID" in df.columns
+    
+    assert df.loc[0, "AccessionNumber"] == "ACC001"
+    assert df.loc[0, "PatientID"] == "MRN001"
+    assert df.loc[0, "PatientName"] == "Smith^John"
+    assert df.loc[0, "PatientSex"] == "M"
+    assert df.loc[0, "Modality"] == "CT"
+    assert df.loc[0, "StudyDescription"] == "Test Study"
+    
+    assert result["num_files_processed"] == 1, "Should process 1 DICOM file (non-DICOM file should be skipped)"
+
