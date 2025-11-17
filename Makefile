@@ -6,7 +6,7 @@
 
 test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
-	pytest -v --reruns 3 --reruns-delay 5
+	pytest -v --reruns 3 --reruns-delay 5 test_module_image_export.py
 	cd electron && npm test -- --verbose
 
 dev: external-deps
@@ -74,7 +74,7 @@ rclone:
 	@if [ ! -d "rclone" ] || [ ! -f "rclone/rclone" ]; then \
 		echo "Downloading rclone..."; \
 		mkdir -p rclone; \
-		if [ "$$(uname -s)" = "Darwin" ]; then \
+		if [ "$$(uname -s)" = "Linux" ]; then \
 			RCLONE_VERSION=$$(curl -s https://api.github.com/repos/rclone/rclone/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
 			curl -L https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-linux-amd64.zip -o rclone.zip; \
 			unzip -q rclone.zip; \
