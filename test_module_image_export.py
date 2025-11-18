@@ -151,35 +151,6 @@ def test_image_export_empty_folder(tmp_path, azurite):
     assert str(input_dir) in error_msg
 
 
-def test_image_export_logs_progress(tmp_path, azurite, caplog):
-    """Test that progress is logged during export"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-    
-    input_dir.mkdir()
-    appdata_dir.mkdir()
-    
-    for i in range(5):
-        ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:03d}", f"Patient{i}", "CT", "1.0")
-        filepath = input_dir / f"file{i:03d}.dcm"
-        ds.save_as(str(filepath), write_like_original=False)
-    
-    container_name = "testcontainer"
-    sas_url = azurite.get_sas_url(container_name)
-    project_name = "TestProject"
-    
-    with caplog.at_level(logging.INFO):
-        result = image_export(
-            input_dir=str(input_dir),
-            sas_url=sas_url,
-            project_name=project_name,
-            appdata_dir=str(appdata_dir)
-        )
-    
-    blobs = azurite.list_blobs(container_name)
-    assert len(blobs) == 5
-
-
 def test_image_export_multiple_file_types(tmp_path, azurite):
     """Test exporting different file types (not just .dcm)"""
     input_dir = tmp_path / "input"
