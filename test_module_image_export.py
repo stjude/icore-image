@@ -21,11 +21,6 @@ def azurite():
     server.stop()
 
 
-def _get_azurite_endpoint(azurite):
-    """Get the Azurite endpoint URL for rclone configuration"""
-    return f"http://127.0.0.1:{azurite.blob_port}"
-
-
 def test_image_export_single_file(tmp_path, azurite):
     """Test exporting a single DICOM file to Azure blob storage under project_name folder"""
     input_dir = tmp_path / "input"
@@ -41,14 +36,12 @@ def test_image_export_single_file(tmp_path, azurite):
     container_name = "testcontainer"
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
-    azurite_endpoint = _get_azurite_endpoint(azurite)
     
     result = image_export(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,
-        appdata_dir=str(appdata_dir),
-        azurite_endpoint=azurite_endpoint
+        appdata_dir=str(appdata_dir)
     )
     
     blobs = azurite.list_blobs(container_name)
@@ -85,14 +78,12 @@ def test_image_export_preserves_folder_structure(tmp_path, azurite):
     container_name = "testcontainer"
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
-    azurite_endpoint = _get_azurite_endpoint(azurite)
     
     result = image_export(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,
-        appdata_dir=str(appdata_dir),
-        azurite_endpoint=azurite_endpoint
+        appdata_dir=str(appdata_dir)
     )
     
     blobs = azurite.list_blobs(container_name)
@@ -136,7 +127,7 @@ def test_image_export_invalid_sas_token(tmp_path):
 
 
 def test_image_export_empty_folder(tmp_path, azurite):
-    """Test exporting an empty folder"""
+    """Test that exporting an empty folder raises an error"""
     input_dir = tmp_path / "input"
     appdata_dir = tmp_path / "appdata"
     
@@ -146,18 +137,18 @@ def test_image_export_empty_folder(tmp_path, azurite):
     container_name = "testcontainer"
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
-    azurite_endpoint = _get_azurite_endpoint(azurite)
     
-    result = image_export(
-        input_dir=str(input_dir),
-        sas_url=sas_url,
-        project_name=project_name,
-        appdata_dir=str(appdata_dir),
-        azurite_endpoint=azurite_endpoint
-    )
-
-    blobs = azurite.list_blobs(container_name)
-    assert len(blobs) == 0
+    with pytest.raises(Exception) as exc_info:
+        image_export(
+            input_dir=str(input_dir),
+            sas_url=sas_url,
+            project_name=project_name,
+            appdata_dir=str(appdata_dir)
+        )
+    
+    error_msg = str(exc_info.value)
+    assert "empty" in error_msg.lower()
+    assert str(input_dir) in error_msg
 
 
 def test_image_export_logs_progress(tmp_path, azurite, caplog):
@@ -176,15 +167,13 @@ def test_image_export_logs_progress(tmp_path, azurite, caplog):
     container_name = "testcontainer"
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
-    azurite_endpoint = _get_azurite_endpoint(azurite)
     
     with caplog.at_level(logging.INFO):
         result = image_export(
             input_dir=str(input_dir),
             sas_url=sas_url,
             project_name=project_name,
-            appdata_dir=str(appdata_dir),
-            azurite_endpoint=azurite_endpoint
+            appdata_dir=str(appdata_dir)
         )
     
     blobs = azurite.list_blobs(container_name)
@@ -208,14 +197,12 @@ def test_image_export_multiple_file_types(tmp_path, azurite):
     container_name = "testcontainer"
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
-    azurite_endpoint = _get_azurite_endpoint(azurite)
     
     result = image_export(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,
-        appdata_dir=str(appdata_dir),
-        azurite_endpoint=azurite_endpoint
+        appdata_dir=str(appdata_dir)
     )
     
     blobs = azurite.list_blobs(container_name)

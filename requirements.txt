@@ -66,7 +66,6 @@ tenacity==9.0.0
 
 # Azure Storage (for testing with Azurite)
 azure-storage-blob==12.19.0
-azure-core==1.30.0
 
 # Testing
 pytest==8.3.4

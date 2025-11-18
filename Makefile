@@ -17,7 +17,6 @@ dev: external-deps
 		export JAVA_HOME=$$(pwd)/jre8/Contents/Home; \
 	fi && \
 	export DCMTK_HOME=$$(pwd)/dcmtk && \
-	export RCLONE_HOME=$$(pwd)/rclone && \
 	cd electron && npm start
 
 deps: deps-python deps-deid deps-electron
