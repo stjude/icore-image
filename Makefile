@@ -1,5 +1,5 @@
 .PHONY: all signed clean deps deps-python deps-deid deps-electron test dev
-.PHONY: external-deps jre8 dcmtk build-binaries build-icorecli build-django-app
+.PHONY: external-deps jre8 dcmtk rclone build-binaries build-icorecli build-django-app
 .PHONY: prepare-assets build-dmg build-dmg-signed
 
 .DEFAULT_GOAL := all
@@ -69,7 +69,30 @@ dcmtk:
 		echo "DCMTK already exists"; \
 	fi
 
-external-deps: jre8 dcmtk
+rclone:
+	@if [ ! -d "rclone" ] || [ ! -f "rclone/rclone" ]; then \
+		echo "Downloading rclone..."; \
+		mkdir -p rclone; \
+		if [ "$$(uname -s)" = "Linux" ]; then \
+			RCLONE_VERSION=$$(curl -s https://api.github.com/repos/rclone/rclone/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
+			curl -L https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-linux-amd64.zip -o rclone.zip; \
+			unzip -q rclone.zip; \
+			mv rclone-$$RCLONE_VERSION-linux-amd64/rclone rclone/; \
+			chmod +x rclone/rclone; \
+			rm -rf rclone-$$RCLONE_VERSION-linux-amd64 rclone.zip; \
+		else \
+			RCLONE_VERSION=$$(curl -s https://api.github.com/repos/rclone/rclone/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
+			curl -L https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-osx-amd64.zip -o rclone.zip; \
+			unzip -q rclone.zip; \
+			mv rclone-$$RCLONE_VERSION-osx-amd64/rclone rclone/; \
+			chmod +x rclone/rclone; \
+			rm -rf rclone-$$RCLONE_VERSION-osx-amd64 rclone.zip; \
+		fi; \
+	else \
+		echo "rclone already exists"; \
+	fi
+
+external-deps: jre8 dcmtk rclone
 
 build-icorecli:
 	rm -rf dist

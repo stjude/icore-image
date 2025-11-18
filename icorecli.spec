@@ -22,6 +22,10 @@ dcmtk_path = os.path.join(project_path, 'dcmtk')
 if os.path.exists(dcmtk_path):
     datas.append((dcmtk_path, 'dcmtk'))
 
+rclone_path = os.path.join(project_path, 'rclone')
+if os.path.exists(rclone_path):
+    datas.append((rclone_path, 'rclone'))
+
 try:
     openpyxl_datas = collect_data_files('openpyxl')
     datas.extend(openpyxl_datas)
