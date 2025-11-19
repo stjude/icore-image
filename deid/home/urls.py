@@ -4,7 +4,7 @@ from . import views
 
 urlpatterns = [
     path('headerquery/', views.HeaderQueryView.as_view(), name='header_query'),
-    path('headerextraction/', views.HeaderExtractView.as_view(), name='header_extract'),
+    path('headerextract/', views.HeaderExtractView.as_view(), name='header_extract'),
     path('imagedeid/', views.ImageDeIdentificationView.as_view(), name='image_deid'),
     path('imagequery/', views.ImageQueryView.as_view(), name='image_query'),
     path('textdeid/', views.TextDeIdentificationView.as_view(), name='text_deid'),

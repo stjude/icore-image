@@ -360,7 +360,7 @@ def process_header_extract(task):
 
 def build_header_extract_config(task):
     """Build the configuration for header extract"""
-    config = {'module': 'headerextraction'}
+    config = {'module': 'headerextract'}
     
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
@@ -368,6 +368,10 @@ def build_header_extract_config(task):
     
     extract_all_headers = task.parameters.get('extract_all_headers', False)
     config['extract_all_headers'] = extract_all_headers
+    
+    headers_to_extract = task.parameters.get('headers_to_extract')
+    if headers_to_extract:
+        config['headers_to_extract'] = headers_to_extract
     
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()

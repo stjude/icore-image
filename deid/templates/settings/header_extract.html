@@ -19,7 +19,6 @@
     </div>
 </div>
 
-{% include 'components/filters_section.html' with section_title="Default Extraction Filters" %}
 {% endblock %}
 
 {% block settings_scripts %}
@@ -35,8 +34,8 @@
             if (settings.default_tags_to_extract) {
                 document.querySelector('textarea[name="default_tags_to_extract"]').value = settings.default_tags_to_extract || '';
             }
-            if (settings.header_extraction_filters) {
-                loadFiltersFromSettings(settings.header_extraction_filters);
+            if (settings.header_extract_filters) {
+                loadFiltersFromSettings(settings.header_extract_filters);
             }
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -48,7 +47,7 @@
 
         const data = {
             default_tags_to_extract: document.querySelector('[name="default_tags_to_extract"]').value,
-            header_extraction_filters: filterData
+            header_extract_filters: filterData
         };
 
         try {

@@ -7,13 +7,13 @@ import pandas as pd
 from pydicom.uid import generate_uid
 
 from test_utils import _create_test_dicom
-from module_headerextraction import headerextraction
+from module_headerextract_local import headerextract_local
 
 
 logging.basicConfig(level=logging.INFO)
 
 
-def test_headerextraction_basic(tmp_path):
+def test_headerextract_basic(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -28,9 +28,15 @@ def test_headerextraction_basic(tmp_path):
     filepath = input_dir / "f001.dcm"
     ds.save_as(str(filepath), write_like_original=False)
     
-    result = headerextraction(
+    headers = ["AccessionNumber", "StudyInstanceUID", "PatientName", "PatientID", 
+               "PatientSex", "Manufacturer", "ManufacturerModelName", "StudyDescription", 
+               "StudyDate", "SeriesInstanceUID", "SOPClassUID", "Modality", 
+               "SeriesDescription", "Rows", "Columns", "InstitutionName", "StudyTime"]
+    
+    result = headerextract_local(
         input_dir=str(input_dir),
-        output_dir=str(output_dir)
+        output_dir=str(output_dir),
+        headers_to_extract=headers
     )
     
     metadata_path = output_dir / "metadata.xlsx"
@@ -69,7 +75,7 @@ def test_headerextraction_basic(tmp_path):
     assert result["num_files_processed"] == 1
 
 
-def test_headerextraction_extract_all_headers(tmp_path):
+def test_headerextract_extract_all_headers(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -85,7 +91,7 @@ def test_headerextraction_extract_all_headers(tmp_path):
     filepath = input_dir / "f001.dcm"
     ds.save_as(str(filepath), write_like_original=False)
     
-    result = headerextraction(
+    result = headerextract_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         extract_all_headers=True
@@ -114,7 +120,7 @@ def test_headerextraction_extract_all_headers(tmp_path):
     assert result["num_files_processed"] == 1
 
 
-def test_headerextraction_study_level_aggregation(tmp_path):
+def test_headerextract_study_level_aggregation(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -149,9 +155,12 @@ def test_headerextraction_study_level_aggregation(tmp_path):
     filepath3 = input_dir / "f003.dcm"
     ds3.save_as(str(filepath3), write_like_original=False)
     
-    result = headerextraction(
+    headers = ["AccessionNumber", "StudyInstanceUID", "PatientID"]
+    
+    result = headerextract_local(
         input_dir=str(input_dir),
-        output_dir=str(output_dir)
+        output_dir=str(output_dir),
+        headers_to_extract=headers
     )
     
     metadata_path = output_dir / "metadata.xlsx"
@@ -174,8 +183,7 @@ def test_headerextraction_study_level_aggregation(tmp_path):
     assert result["num_studies"] == 2
 
 
-
-def test_headerextraction_concatenates_multiple_values(tmp_path):
+def test_headerextract_concatenates_multiple_values(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -203,11 +211,13 @@ def test_headerextraction_concatenates_multiple_values(tmp_path):
     ds2.SeriesNumber = 2
     filepath2 = input_dir / "f002.dcm"
     ds2.save_as(str(filepath2), write_like_original=False)
-
     
-    result = headerextraction(
+    headers = ["StudyInstanceUID", "SeriesInstanceUID", "SeriesDescription"]
+    
+    result = headerextract_local(
         input_dir=str(input_dir),
-        output_dir=str(output_dir)
+        output_dir=str(output_dir),
+        headers_to_extract=headers
     )
     
     metadata_path = output_dir / "metadata.xlsx"
@@ -233,7 +243,7 @@ def test_headerextraction_concatenates_multiple_values(tmp_path):
     assert result["num_studies"] == 1
 
 
-def test_headerextraction_files_without_extension(tmp_path):
+def test_headerextract_custom_tags(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -245,34 +255,54 @@ def test_headerextraction_files_without_extension(tmp_path):
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     ds.PatientSex = "M"
     ds.StudyDescription = "Test Study"
-    filepath = input_dir / "f001"
+    filepath = input_dir / "f001.dcm"
     ds.save_as(str(filepath), write_like_original=False)
     
-    non_dicom_file = input_dir / "not_a_dicom.txt"
-    non_dicom_file.write_text("This is not a DICOM file")
+    custom_headers = ["PatientID", "StudyDate", "Modality"]
     
-    result = headerextraction(
+    result = headerextract_local(
         input_dir=str(input_dir),
-        output_dir=str(output_dir)
+        output_dir=str(output_dir),
+        headers_to_extract=custom_headers
     )
     
     metadata_path = output_dir / "metadata.xlsx"
     assert metadata_path.exists(), "metadata.xlsx should exist"
     
     df = pd.read_excel(metadata_path)
-    assert len(df) == 1, "Should have 1 study (extensionless DICOM file should be detected)"
+    assert len(df) == 1, "Should have 1 study"
     
-    assert "AccessionNumber" in df.columns
-    assert "StudyInstanceUID" in df.columns
-    assert "PatientName" in df.columns
     assert "PatientID" in df.columns
+    assert "StudyDate" in df.columns
+    assert "Modality" in df.columns
+    assert "StudyInstanceUID" in df.columns
     
-    assert df.loc[0, "AccessionNumber"] == "ACC001"
+    assert "PatientName" not in df.columns
+    assert "PatientSex" not in df.columns
+    assert "AccessionNumber" not in df.columns
+    
     assert df.loc[0, "PatientID"] == "MRN001"
-    assert df.loc[0, "PatientName"] == "Smith^John"
-    assert df.loc[0, "PatientSex"] == "M"
     assert df.loc[0, "Modality"] == "CT"
-    assert df.loc[0, "StudyDescription"] == "Test Study"
     
-    assert result["num_files_processed"] == 1, "Should process 1 DICOM file (non-DICOM file should be skipped)"
+    assert result["num_files_processed"] == 1
 
+
+def test_headerextract_no_headers_raises_error(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
+    filepath = input_dir / "f001.dcm"
+    ds.save_as(str(filepath), write_like_original=False)
+    
+    import pytest
+    with pytest.raises(ValueError, match="Must provide either headers_to_extract or set extract_all_headers=True"):
+        headerextract_local(
+            input_dir=str(input_dir),
+            output_dir=str(output_dir)
+        )
