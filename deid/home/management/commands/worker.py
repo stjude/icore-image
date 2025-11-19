@@ -360,7 +360,7 @@ def process_header_extract(task):
 
 def build_header_extract_config(task):
     """Build the configuration for header extract"""
-    config = {'module': 'headerextraction_local'}
+    config = {'module': 'headerextract'}
     
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)

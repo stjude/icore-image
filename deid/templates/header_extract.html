@@ -29,8 +29,8 @@
     <div id="header_extract_options" class="mt-4 hidden ml-4">
         <div class="text-sm text-black-5 mt-4">Headers to Extract</div>
         <textarea id="headers_to_extract" name="headers_to_extract" class="mt-2 w-full border-2 border-gray-400 p-2" rows="6" placeholder="Enter one header per line, e.g.:&#10;PatientID&#10;StudyDate&#10;Modality&#10;AccessionNumber"></textarea>
-        <div class="text-xs text-gray-500 mt-2">
-            Enter DICOM tag names (one per line) to extract. Leave empty and check "Extract All Headers" to extract all headers.
+        <div id="headersToExtractInstructions" class="text-xs text-gray-500 mt-2">
+            Enter DICOM tag names (one per line) to extract. Check "Extract All Headers" to extract all headers.
         </div>
         
         <div class="flex items-center mt-4">
@@ -59,9 +59,28 @@
             if (settings.default_output_folder) {
                 document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
             }
+            if (settings.default_headers_to_extract) {
+                document.getElementById('headers_to_extract').value = settings.default_headers_to_extract;
+            }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
+
+        const extractAllHeadersCheckbox = document.getElementById('extract_all_headers');
+        const headersToExtractTextarea = document.getElementById('headers_to_extract');
+        
+        function toggleHeadersTextarea() {
+            if (extractAllHeadersCheckbox.checked) {
+                headersToExtractTextarea.style.display = 'none';
+                headersToExtractInstructions.style.display = 'none';
+            } else {
+                headersToExtractTextarea.style.display = 'block';
+                headersToExtractInstructions.style.display = 'block';
+            }
+        }
+        
+        extractAllHeadersCheckbox.addEventListener('change', toggleHeadersTextarea);
+        toggleHeadersTextarea();
     });
 
     function toggleHeaderExtractOptions() {

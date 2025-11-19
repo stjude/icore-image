@@ -62,7 +62,7 @@
         "modality_filters": {}
     },
     "default_tags_to_extract": "",
-    "header_extraction_filters": {
+    "header_extract_filters": {
         "general_filters": [],
         "modality_filters": {
             "MR": [
@@ -86,6 +86,7 @@
     "default_columns_to_drop": "Accession Number\nPatient MRN\nPatient First Name\nPatient Last Name\nOrdered Date\nScheduled Date\nPatient Arrived Date\nExam Started Date\nExam Completed Date\nReport Created Date\nPreliminary Report Date\nReport Finalized Date\nReport Addendum Date\nSource System\nPatient Status\nOrganization\nOrdered By\nScheduled By\nPatient Arrived By\nExam Started By\nExam Completed By\nReport Created By\nPreliminary Report By\nReport Finalized By\nReport Addendum By\nName\nMrn\nMpi\nAcc\nPlacerOrder\nBirthDate\nResultDateTime\nExamDateTime\nCompletedDateTime\nOrderedDateTime\nPatientZipCode\nOrg\nFacility\nPatientLocation\nOrderingLocation\nPerformingResource\nOrderingPhysician\nTechnologist\nDraftingMd\nPrelimingMd\nSigningMd\nResidentMd\nAttendingMd",
     "default_text_to_keep": "INDICATION\nTECHNIQUE\nFINDINGS\nIMPRESSION\nCOMPARISON\nHISTORY\nCT\nMRI\nMR\nUS\nXR\nPET\nCTA\nMRA\nCXR\nleft\nright\nbilateral\nAP\nPA\nsupine\nprone\nmm\ncm\nHU\nmGy\nmSv\nno acute intracranial hemorrhage\nno pneumothorax\nwithin normal limits\nsuspicious for\ncompatible with\nconsistent with\nrecommend follow-up\nALL\nAML\nmedulloblastoma\nEwing sarcoma\nWilms tumor\nneuroblastoma\nosteosarcoma\nrhabdomyosarcoma\nHodgkin lymphoma\nnon-Hodgkin lymphoma\nHodgkin\nParkinson\nGraves\nCrohn\nChiari\nBaker cyst\nWhipple\nBroca\nWernicke\nPICC\nPort-A-Cath\nVP shunt\npacemaker\nstent\ncatheter",
     "default_text_to_remove": "St. Jude Children\u2019s Research Hospital\nSt Jude Children\u2019s Research Hospital\nSt. Jude Children\u2019s Hospital\nSt Jude Children\u2019s Hospital\nSt. Jude\nSt Jude\nSJCRH\nMemphis, TN 38105\nMemphis, TN\nShelby County\n@stjude.org",
+    "default_headers_to_extract": "AccessionNumber\nStudyInstanceUID\nPatientName\nPatientID\nPatientSex\nManufacturer\nManufacturerModelName\nStudyDescription\nStudyDate\nSeriesInstanceUID\nSOPClassUID\nModality\nSeriesDescription\nRows\nColumns\nInstitutionName\nStudyTime",
     "timezone": "US/Central",
     "debug_logging": false,
     "application_aet": "ICORE",

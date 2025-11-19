@@ -70,7 +70,7 @@ def _aggregate_by_study(all_headers):
     return pd.DataFrame(aggregated_data)
 
 
-def headerextraction_local(input_dir, output_dir, headers_to_extract=None,
+def headerextract_local(input_dir, output_dir, headers_to_extract=None,
                      extract_all_headers=False, debug=False, run_dirs=None):
     if run_dirs is None:
         run_dirs = setup_run_directories()

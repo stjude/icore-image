@@ -7,13 +7,13 @@ import pandas as pd
 from pydicom.uid import generate_uid
 
 from test_utils import _create_test_dicom
-from module_headerextraction_local import headerextraction_local
+from module_headerextract_local import headerextract_local
 
 
 logging.basicConfig(level=logging.INFO)
 
 
-def test_headerextraction_basic(tmp_path):
+def test_headerextract_basic(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -33,7 +33,7 @@ def test_headerextraction_basic(tmp_path):
                "StudyDate", "SeriesInstanceUID", "SOPClassUID", "Modality", 
                "SeriesDescription", "Rows", "Columns", "InstitutionName", "StudyTime"]
     
-    result = headerextraction_local(
+    result = headerextract_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         headers_to_extract=headers
@@ -75,7 +75,7 @@ def test_headerextraction_basic(tmp_path):
     assert result["num_files_processed"] == 1
 
 
-def test_headerextraction_extract_all_headers(tmp_path):
+def test_headerextract_extract_all_headers(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -91,7 +91,7 @@ def test_headerextraction_extract_all_headers(tmp_path):
     filepath = input_dir / "f001.dcm"
     ds.save_as(str(filepath), write_like_original=False)
     
-    result = headerextraction_local(
+    result = headerextract_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         extract_all_headers=True
@@ -120,7 +120,7 @@ def test_headerextraction_extract_all_headers(tmp_path):
     assert result["num_files_processed"] == 1
 
 
-def test_headerextraction_study_level_aggregation(tmp_path):
+def test_headerextract_study_level_aggregation(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -157,7 +157,7 @@ def test_headerextraction_study_level_aggregation(tmp_path):
     
     headers = ["AccessionNumber", "StudyInstanceUID", "PatientID"]
     
-    result = headerextraction_local(
+    result = headerextract_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         headers_to_extract=headers
@@ -183,7 +183,7 @@ def test_headerextraction_study_level_aggregation(tmp_path):
     assert result["num_studies"] == 2
 
 
-def test_headerextraction_concatenates_multiple_values(tmp_path):
+def test_headerextract_concatenates_multiple_values(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -214,7 +214,7 @@ def test_headerextraction_concatenates_multiple_values(tmp_path):
     
     headers = ["StudyInstanceUID", "SeriesInstanceUID", "SeriesDescription"]
     
-    result = headerextraction_local(
+    result = headerextract_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         headers_to_extract=headers
@@ -243,7 +243,7 @@ def test_headerextraction_concatenates_multiple_values(tmp_path):
     assert result["num_studies"] == 1
 
 
-def test_headerextraction_custom_tags(tmp_path):
+def test_headerextract_custom_tags(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -260,7 +260,7 @@ def test_headerextraction_custom_tags(tmp_path):
     
     custom_headers = ["PatientID", "StudyDate", "Modality"]
     
-    result = headerextraction_local(
+    result = headerextract_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         headers_to_extract=custom_headers
@@ -287,7 +287,7 @@ def test_headerextraction_custom_tags(tmp_path):
     assert result["num_files_processed"] == 1
 
 
-def test_headerextraction_no_headers_raises_error(tmp_path):
+def test_headerextract_no_headers_raises_error(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
@@ -302,7 +302,7 @@ def test_headerextraction_no_headers_raises_error(tmp_path):
     
     import pytest
     with pytest.raises(ValueError, match="Must provide either headers_to_extract or set extract_all_headers=True"):
-        headerextraction_local(
+        headerextract_local(
             input_dir=str(input_dir),
             output_dir=str(output_dir)
         )
