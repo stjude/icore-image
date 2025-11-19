@@ -9,15 +9,9 @@
 <p align="center"><img src="deid/static/screenshot.png" width="600px"/></p>
 
 ## Install Dependencies
-iCore requires Python 3.12. For development it is recommended to use a virtual environment.
-```
-python -m venv venv
-source venv/bin/activate
-```
-For MacOS, homebrew is also required. It can be installed with the following command:
-```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
+Please install the following before running any make commands.
+* Python 3.12 (virtual environment recommended)
+* Node 20+
 Then install the dependencies.
 
 ```
