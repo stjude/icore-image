@@ -9,6 +9,10 @@
 <p align="center"><img src="deid/static/screenshot.png" width="600px"/></p>
 
 ## Install Dependencies
+Please install the following before running any make commands.
+* Python 3.12 (virtual environment recommended)
+* Node 20+
+Then install the dependencies.
 
 ```
 make deps external-deps
@@ -19,6 +23,7 @@ make deps external-deps
 ```
 make dev
 ```
+Note: Electron uses Chromium to lauch the development build. It is recommended to clear the Chrome cache to avoid hanging of the application.
 
 ## Running Test Suite
 
