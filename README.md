@@ -9,6 +9,16 @@
 <p align="center"><img src="deid/static/screenshot.png" width="600px"/></p>
 
 ## Install Dependencies
+iCore requires Python 3.12. For development it is recommended to use a virtual environment.
+```
+python -m venv venv
+source venv/bin/activate
+```
+For MacOS, homebrew is also required. It can be installed with the following command:
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+Then install the dependencies.
 
 ```
 make deps external-deps
@@ -19,6 +29,7 @@ make deps external-deps
 ```
 make dev
 ```
+Note: Electron uses Chromium to lauch the development build. It is recommended to clear the Chrome cache to avoid hanging of the application.
 
 ## Running Test Suite
 
