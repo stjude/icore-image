@@ -4,42 +4,17 @@ import os
 
 import pandas as pd
 import pydicom
-from pydicom.errors import InvalidDicomError
 
 from utils import configure_run_logging, format_number_with_commas, setup_run_directories
-
-
-DEFAULT_HEADERS = [
-    "AccessionNumber",
-    "StudyInstanceUID",
-    "PatientName",
-    "PatientID",
-    "PatientSex",
-    "Manufacturer",
-    "ManufacturerModelName",
-    "StudyDescription",
-    "StudyDate",
-    "SeriesInstanceUID",
-    "SOPClassUID",
-    "Modality",
-    "SeriesDescription",
-    "Rows",
-    "Columns",
-    "InstitutionName",
-    "StudyTime"
-]
 
 
 def _find_dicom_files(input_dir):
     dicom_files = []
     for root, dirs, files in os.walk(input_dir):
         for file in files:
-            file_path = os.path.join(root, file)
-            try:
-                pydicom.dcmread(file_path, stop_before_pixels=True)
+            if file.lower().endswith('.dcm'):
+                file_path = os.path.join(root, file)
                 dicom_files.append(file_path)
-            except (InvalidDicomError, Exception):
-                continue
     return dicom_files
 
 
@@ -95,8 +70,8 @@ def _aggregate_by_study(all_headers):
     return pd.DataFrame(aggregated_data)
 
 
-def headerextraction(input_dir, output_dir, extract_all_headers=False, 
-                     debug=False, run_dirs=None):
+def headerextraction_local(input_dir, output_dir, headers_to_extract=None,
+                     extract_all_headers=False, debug=False, run_dirs=None):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -115,10 +90,16 @@ def headerextraction(input_dir, output_dir, extract_all_headers=False,
     total_files = len(dicom_files)
     logging.info(f"Found {format_number_with_commas(total_files)} DICOM files")
     
-    headers_to_extract = DEFAULT_HEADERS
-    if extract_all_headers:
+    if headers_to_extract:
+        logging.info(f"Extracting custom headers: {headers_to_extract}")
+    elif extract_all_headers:
         logging.info("Extracting all headers")
         headers_to_extract = None
+    else:
+        raise ValueError("Must provide either headers_to_extract or set extract_all_headers=True")
+    
+    if headers_to_extract and "StudyInstanceUID" not in headers_to_extract:
+        headers_to_extract.append("StudyInstanceUID")
     
     all_headers = []
     files_processed = 0

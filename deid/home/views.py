@@ -312,6 +312,11 @@ def run_header_extract(request):
         if request.method == 'POST':
             data = json.loads(request.body)
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        
+        headers_to_extract = data.get('headers_to_extract')
+        if headers_to_extract:
+            headers_to_extract = [h.strip() for h in headers_to_extract.split('\n') if h.strip()]
+        
         project = Project.objects.create(
             name=data['study_name'],
             timestamp=timestamp,
@@ -321,7 +326,8 @@ def run_header_extract(request):
             output_folder=data['output_folder'],
             status=Project.TaskStatus.PENDING,
             parameters={
-                'extract_all_headers': data.get('extract_all_headers', False)
+                'extract_all_headers': data.get('extract_all_headers', False),
+                'headers_to_extract': headers_to_extract
             }
         )
         return JsonResponse({

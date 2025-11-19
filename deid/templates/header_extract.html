@@ -17,7 +17,7 @@
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" />
 
     <div class="text-sm text-black-5 mt-4">Input Folder</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" />
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" placeholder="Drag and drop query excel file"/>
 
     <div class="text-sm text-black-5 mt-4">Output Folder</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
@@ -27,12 +27,18 @@
         <div class="text-sm text-black ml-4">Header Extraction Options</div>
     </div>
     <div id="header_extract_options" class="mt-4 hidden ml-4">
-        <div class="flex items-center mt-2">
+        <div class="text-sm text-black-5 mt-4">Headers to Extract</div>
+        <textarea id="headers_to_extract" name="headers_to_extract" class="mt-2 w-full border-2 border-gray-400 p-2" rows="6" placeholder="Enter one header per line, e.g.:&#10;PatientID&#10;StudyDate&#10;Modality&#10;AccessionNumber"></textarea>
+        <div class="text-xs text-gray-500 mt-2">
+            Enter DICOM tag names (one per line) to extract. Leave empty and check "Extract All Headers" to extract all headers.
+        </div>
+        
+        <div class="flex items-center mt-4">
             <input type="checkbox" id="extract_all_headers" name="extract_all_headers" class="mr-2" />
             <label for="extract_all_headers" class="text-sm text-gray-700">Extract All Headers</label>
         </div>
         <div class="text-xs text-gray-500 mt-2 ml-6">
-            If checked, extracts all DICOM headers found in the images. Otherwise, extracts only the default headers.
+            If checked, extracts all DICOM headers found in the images.
         </div>
     </div>
 </div>
@@ -70,6 +76,7 @@
         const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
         const outputFolder = document.querySelector('[name="output_folder"]').value.trim();
         const extractAllHeaders = document.getElementById('extract_all_headers').checked;
+        const headersToExtract = document.getElementById('headers_to_extract').value.trim();
 
         if (!studyName) {
             alert('Project name is required');
@@ -83,12 +90,18 @@
             alert('Output folder is required');
             return;
         }
+        
+        if (!headersToExtract && !extractAllHeaders) {
+            alert('Please either enter headers to extract or check "Extract All Headers"');
+            return;
+        }
 
         const data = {
             study_name: studyName,
             input_folder: inputFolder,
             output_folder: outputFolder,
-            extract_all_headers: extractAllHeaders
+            extract_all_headers: extractAllHeaders,
+            headers_to_extract: headersToExtract
         };
         console.log(data);
 

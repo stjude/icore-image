@@ -11,7 +11,7 @@ from cli import (
     build_imagedeid_local_params,
     build_textdeid_params,
     build_image_export_params,
-    build_headerextraction_params,
+    build_headerextraction_local_params,
     run
 )
 from utils import PacsConfiguration, Spreadsheet
@@ -751,7 +751,7 @@ def test_build_headerextraction_params_maps_config_keys_correctly(tmp_path):
     input_dir = str(tmp_path)
     output_dir = str(tmp_path / "output")
     
-    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    params = build_headerextraction_local_params(config, input_dir, output_dir, {})
     
     assert params["input_dir"] == input_dir
     assert params["output_dir"] == output_dir
@@ -764,7 +764,7 @@ def test_build_headerextraction_params_handles_missing_optional_params(tmp_path)
     input_dir = str(tmp_path)
     output_dir = str(tmp_path / "output")
     
-    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    params = build_headerextraction_local_params(config, input_dir, output_dir, {})
     
     assert params["input_dir"] == input_dir
     assert params["output_dir"] == output_dir
@@ -777,7 +777,7 @@ def test_build_headerextraction_params_extract_all_headers_defaults_to_false(tmp
     input_dir = str(tmp_path)
     output_dir = str(tmp_path / "output")
     
-    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    params = build_headerextraction_local_params(config, input_dir, output_dir, {})
     
     assert params["extract_all_headers"] is False
 
@@ -789,7 +789,7 @@ def test_build_headerextraction_params_includes_extract_all_headers_when_true(tm
     input_dir = str(tmp_path)
     output_dir = str(tmp_path / "output")
     
-    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    params = build_headerextraction_local_params(config, input_dir, output_dir, {})
     
     assert params["extract_all_headers"] is True
 
@@ -799,7 +799,7 @@ def test_build_headerextraction_params_debug_defaults_to_false(tmp_path):
     input_dir = str(tmp_path)
     output_dir = str(tmp_path / "output")
     
-    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    params = build_headerextraction_local_params(config, input_dir, output_dir, {})
     
     assert params["debug"] is False
 
@@ -811,7 +811,7 @@ def test_build_headerextraction_params_includes_debug_when_specified(tmp_path):
     input_dir = str(tmp_path)
     output_dir = str(tmp_path / "output")
     
-    params = build_headerextraction_params(config, input_dir, output_dir, {})
+    params = build_headerextraction_local_params(config, input_dir, output_dir, {})
     
     assert params["debug"] is True
 
@@ -858,14 +858,14 @@ def test_run_calls_image_export_with_correct_params(tmp_path):
         assert result == {"files_uploaded": 5, "bytes_uploaded": 1024}
 
                      
-def test_run_calls_headerextraction_with_correct_params(tmp_path):
+def test_run_calls_headerextraction_local_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
-    config_path.write_text("module: headerextraction\nextract_all_headers: true\ndebug: false")
+    config_path.write_text("module: headerextraction_local\nextract_all_headers: true\ndebug: false")
     input_dir = str(tmp_path / "input")
     os.makedirs(input_dir)
     output_dir = str(tmp_path / "output")
 
-    with patch('module_headerextraction.headerextraction') as mock_headerextraction:
+    with patch('module_headerextraction_local.headerextraction_local') as mock_headerextraction:
         mock_headerextraction.return_value = {"num_files_processed": 10, "num_studies": 5}
         
         result = run(str(config_path), input_dir, output_dir)

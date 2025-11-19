@@ -18,8 +18,8 @@ def determine_module(config, input_dir):
         else:
             return "imagedeid_local"
     
-    if module == "headerextraction":
-        return "headerextraction"
+    if module == "headerextraction_local":
+        return "headerextraction_local"
     
     return module
 
@@ -134,10 +134,11 @@ def build_image_export_params(config, input_dir, run_dirs):
     }
 
   
-def build_headerextraction_params(config, input_dir, output_dir, run_dirs):
+def build_headerextraction_local_params(config, input_dir, output_dir, run_dirs):
     return {
         "input_dir": input_dir,
         "output_dir": output_dir,
+        "headers_to_extract": config.get("headers_to_extract"),
         "extract_all_headers": config.get("extract_all_headers", False),
         "debug": config.get("debug", False),
         "run_dirs": run_dirs
@@ -175,10 +176,10 @@ def run(config_path, input_dir, output_dir):
         from module_image_export import image_export
         params = build_image_export_params(config, input_dir, run_dirs)
         return image_export(**params)
-    elif module == "headerextraction":
-        from module_headerextraction import headerextraction
-        params = build_headerextraction_params(config, input_dir, output_dir, run_dirs)
-        return headerextraction(**params)
+    elif module == "headerextraction_local":
+        from module_headerextraction_local import headerextraction_local
+        params = build_headerextraction_local_params(config, input_dir, output_dir, run_dirs)
+        return headerextraction_local(**params)
     else:
         raise ValueError(f"Unknown module: {module}")
 
