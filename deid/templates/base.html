@@ -38,9 +38,153 @@
                 {% block content %}{% endblock %}
             </div>
         </section>
+        
+        {% include 'modals/usecase_setup.html' %}
+        {% include 'modals/sas_url_input.html' %}
+        
         <script>
+            async function checkAndShowUsecaseSetup() {
+                try {
+                    const response = await fetch('/load_settings/');
+                    const settings = await response.json();
+                    
+                    if (!settings.icore_usecase) {
+                        document.getElementById('usecaseModal').classList.remove('hidden');
+                    } else if (settings.icore_usecase === 'imagine' && !settings.imagine_sas_url) {
+                        document.getElementById('sasUrlModal').classList.remove('hidden');
+                    }
+                } catch (error) {
+                    console.error('Error checking usecase setup:', error);
+                }
+            }
+            
+            async function saveUsecase(usecase) {
+                try {
+                    const response = await fetch('/load_settings/');
+                    const settings = await response.json();
+                    
+                    settings.icore_usecase = usecase;
+                    
+                    await fetch('/save_settings/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf_token"]').content
+                        },
+                        body: JSON.stringify(settings)
+                    });
+                    
+                    return true;
+                } catch (error) {
+                    console.error('Error saving usecase:', error);
+                    return false;
+                }
+            }
+            
+            async function validateAndSaveSasUrl(sasUrl) {
+                const validationMessage = document.getElementById('sasUrlValidationMessage');
+                const validateBtn = document.getElementById('sasUrlValidateBtn');
+                
+                validateBtn.disabled = true;
+                validateBtn.textContent = 'Validating...';
+                validationMessage.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+                validationMessage.classList.add('bg-blue-100', 'text-blue-700');
+                validationMessage.textContent = 'Validating SAS URL...';
+                
+                try {
+                    const validationResponse = await fetch('/validate_sas_url/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf_token"]').content
+                        },
+                        body: JSON.stringify({ sas_url: sasUrl })
+                    });
+                    
+                    const validationResult = await validationResponse.json();
+                    
+                    if (validationResult.valid) {
+                        const response = await fetch('/load_settings/');
+                        const settings = await response.json();
+                        
+                        settings.imagine_sas_url = sasUrl;
+                        
+                        await fetch('/save_settings/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': document.querySelector('meta[name="csrf_token"]').content
+                            },
+                            body: JSON.stringify(settings)
+                        });
+                        
+                        validationMessage.classList.remove('bg-blue-100', 'text-blue-700');
+                        validationMessage.classList.add('bg-green-100', 'text-green-700');
+                        validationMessage.textContent = 'SAS URL validated and saved successfully!';
+                        
+                        setTimeout(() => {
+                            document.getElementById('sasUrlModal').classList.add('hidden');
+                        }, 1500);
+                        
+                        return true;
+                    } else {
+                        validationMessage.classList.remove('bg-blue-100', 'text-blue-700');
+                        validationMessage.classList.add('bg-red-100', 'text-red-700');
+                        validationMessage.textContent = `Validation failed: ${validationResult.error}`;
+                        return false;
+                    }
+                } catch (error) {
+                    validationMessage.classList.remove('bg-blue-100', 'text-blue-700');
+                    validationMessage.classList.add('bg-red-100', 'text-red-700');
+                    validationMessage.textContent = `Error: ${error.message}`;
+                    return false;
+                } finally {
+                    validateBtn.disabled = false;
+                    validateBtn.textContent = 'Validate & Save';
+                }
+            }
+            
             document.addEventListener('DOMContentLoaded', () => {
-                // Select all text input boxes
+                checkAndShowUsecaseSetup();
+                
+                const usecaseSubmitBtn = document.getElementById('usecaseSubmitBtn');
+                if (usecaseSubmitBtn) {
+                    usecaseSubmitBtn.addEventListener('click', async () => {
+                        const selectedUsecase = document.querySelector('input[name="usecase"]:checked').value;
+                        const success = await saveUsecase(selectedUsecase);
+                        
+                        if (success) {
+                            document.getElementById('usecaseModal').classList.add('hidden');
+                            
+                            if (selectedUsecase === 'imagine') {
+                                document.getElementById('sasUrlModal').classList.remove('hidden');
+                            }
+                        }
+                    });
+                }
+                
+                const sasUrlValidateBtn = document.getElementById('sasUrlValidateBtn');
+                if (sasUrlValidateBtn) {
+                    sasUrlValidateBtn.addEventListener('click', async () => {
+                        const sasUrl = document.getElementById('sasUrlInput').value.trim();
+                        if (sasUrl) {
+                            await validateAndSaveSasUrl(sasUrl);
+                        } else {
+                            const validationMessage = document.getElementById('sasUrlValidationMessage');
+                            validationMessage.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
+                            validationMessage.classList.add('bg-red-100', 'text-red-700');
+                            validationMessage.textContent = 'Please enter a SAS URL';
+                        }
+                    });
+                }
+                
+                const sasUrlCancelBtn = document.getElementById('sasUrlCancelBtn');
+                if (sasUrlCancelBtn) {
+                    sasUrlCancelBtn.addEventListener('click', () => {
+                        document.getElementById('sasUrlModal').classList.add('hidden');
+                    });
+                }
+                
                 const inputBoxes = document.querySelectorAll('input[type="text"]');
 
                 // Loop through each input box and attach event listeners
