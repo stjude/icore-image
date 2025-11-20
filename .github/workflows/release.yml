@@ -1,20 +1,25 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 0.0.16)'
+        required: true
+        type: string
 
 jobs:
   release:
     permissions:
       contents: write
+      pull-requests: write
     runs-on: macos-15-intel
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: dev
           fetch-depth: 0
 
       - name: Setup Python 3.12
@@ -27,12 +32,33 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Get version from tag
-        id: version
+      - name: Update version in package.json
         run: |
-          TAG=${GITHUB_REF#refs/tags/v}
-          echo "version=$TAG" >> $GITHUB_OUTPUT
-          echo "Version: $TAG"
+          VERSION="${{ inputs.version }}"
+          cd electron
+          npm version "$VERSION" --no-git-tag-version
+          echo "Updated package.json to version $VERSION"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit version change
+        run: |
+          VERSION="${{ inputs.version }}"
+          git add electron/package.json
+          git commit -m "Release version $VERSION"
+          echo "Committed version change"
+
+      - name: Create and push tag
+        run: |
+          VERSION="${{ inputs.version }}"
+          TAG="v$VERSION"
+          git tag -a "$TAG" -m "Release $VERSION"
+          git push origin dev
+          git push origin "$TAG"
+          echo "Created and pushed tag $TAG"
 
       - name: Import signing certificate
         env:
@@ -57,39 +83,28 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: make signed
 
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          
-          if [ -z "$PREVIOUS_TAG" ]; then
-            echo "No previous tag found, using all commits"
-            COMMITS=$(git log --oneline --no-decorate)
-          else
-            echo "Generating changelog from $PREVIOUS_TAG to HEAD"
-            COMMITS=$(git log --oneline --no-decorate $PREVIOUS_TAG..HEAD)
-          fi
-          
-          {
-            echo "notes<<EOF"
-            echo "## What's Changed"
-            echo ""
-            echo "$COMMITS" | while read -r line; do
-              echo "- $line"
-            done
-            echo ""
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...v${{ steps.version.outputs.version }}"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          name: v${{ steps.version.outputs.version }}
-          body: ${{ steps.release_notes.outputs.notes }}
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          body: ''
           files: icore-x64-*.dmg
-          draft: false
+          draft: true
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: dev
+          base: main
+          title: Release v${{ inputs.version }}
+          body: |
+            Automated release PR for version ${{ inputs.version }}
+            
+            This PR merges the release changes from dev to main.
+          reviewers: qsodia
 
