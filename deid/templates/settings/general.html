@@ -78,6 +78,35 @@
     </select>
 </div>
 
+<!-- iCore Use Case Section -->
+<div class="mt-8">
+    <div class="text-md mb-4">iCore Use Case</div>
+    <div class="text-sm text-gray-500 mb-2">How are you using iCore?</div>
+    <select class="w-full border-2 border-gray-400 p-1" name="icore_usecase" id="icore_usecase">
+        <option value="internal">Internal DeIdentification Projects</option>
+        <option value="imagine">As part of the IMAGINE Initiative</option>
+    </select>
+    
+    <div id="sasUrlContainer" class="mt-4 hidden">
+        <div class="text-sm text-gray-500 mb-2">IMAGINE Initiative SAS URL</div>
+        <div class="flex gap-2">
+            <input type="text" 
+                   class="flex-1 border-2 border-gray-400 p-1" 
+                   name="imagine_sas_url"
+                   id="imagine_sas_url"
+                   placeholder="https://account.blob.core.windows.net/container?sas_token">
+            <button type="button" 
+                    onclick="validateSasUrlInSettings()" 
+                    id="validateSasBtn"
+                    class="px-4 py-1 bg-white shadow text-sm rounded hover:bg-blue-100">
+                Validate
+            </button>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Azure Blob Storage SAS URL for secure data transfer</p>
+        <div id="sasValidationResult" class="mt-2 p-2 text-sm hidden"></div>
+    </div>
+</div>
+
 <!-- Input Excel File Defaults Section -->
 <div class="mt-8">
     <div class="text-md mb-4">Input Excel File Defaults</div>
@@ -157,7 +186,74 @@
 
 {% block settings_scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', loadSavedSettings);
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSavedSettings();
+        
+        const usecaseSelect = document.getElementById('icore_usecase');
+        if (usecaseSelect) {
+            usecaseSelect.addEventListener('change', toggleSasUrlField);
+        }
+    });
+    
+    function toggleSasUrlField() {
+        const usecase = document.getElementById('icore_usecase').value;
+        const sasUrlContainer = document.getElementById('sasUrlContainer');
+        
+        if (usecase === 'imagine') {
+            sasUrlContainer.classList.remove('hidden');
+        } else {
+            sasUrlContainer.classList.add('hidden');
+        }
+    }
+    
+    async function validateSasUrlInSettings() {
+        const sasUrl = document.getElementById('imagine_sas_url').value.trim();
+        const resultDiv = document.getElementById('sasValidationResult');
+        const validateBtn = document.getElementById('validateSasBtn');
+        
+        if (!sasUrl) {
+            resultDiv.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
+            resultDiv.classList.add('bg-red-100', 'text-red-700');
+            resultDiv.textContent = 'Please enter a SAS URL';
+            return;
+        }
+        
+        validateBtn.disabled = true;
+        validateBtn.textContent = 'Validating...';
+        resultDiv.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+        resultDiv.classList.add('bg-blue-100', 'text-blue-700');
+        resultDiv.textContent = 'Validating SAS URL...';
+        
+        try {
+            const response = await fetch('/validate_sas_url/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({ sas_url: sasUrl })
+            });
+            
+            const result = await response.json();
+            
+            if (result.valid) {
+                resultDiv.classList.remove('bg-blue-100', 'text-blue-700');
+                resultDiv.classList.add('bg-green-100', 'text-green-700');
+                resultDiv.textContent = 'SAS URL is valid and not expired!';
+            } else {
+                resultDiv.classList.remove('bg-blue-100', 'text-blue-700');
+                resultDiv.classList.add('bg-red-100', 'text-red-700');
+                resultDiv.textContent = `Validation failed: ${result.error}`;
+            }
+        } catch (error) {
+            resultDiv.classList.remove('bg-blue-100', 'text-blue-700');
+            resultDiv.classList.add('bg-red-100', 'text-red-700');
+            resultDiv.textContent = `Error: ${error.message}`;
+        } finally {
+            validateBtn.disabled = false;
+            validateBtn.textContent = 'Validate';
+        }
+    }
 
     function addPacsConfig() {
         const template = document.querySelector('.pacs-config').cloneNode(true);
@@ -260,6 +356,13 @@
             if (settings.debug_logging) {
                 document.querySelector('[name="debug_logging"]').checked = settings.debug_logging;
             }
+            if (settings.icore_usecase) {
+                document.querySelector('[name="icore_usecase"]').value = settings.icore_usecase;
+                toggleSasUrlField();
+            }
+            if (settings.imagine_sas_url) {
+                document.querySelector('[name="imagine_sas_url"]').value = settings.imagine_sas_url;
+            }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -284,7 +387,9 @@
             default_date_window_days: parseInt(document.querySelector('[name="default_date_window_days"]').value) || 0,
             default_output_folder: document.querySelector('[name="default_output_folder"]').value,
             timezone: document.querySelector('[name="timezone"]').value,
-            debug_logging: document.querySelector('[name="debug_logging"]').checked
+            debug_logging: document.querySelector('[name="debug_logging"]').checked,
+            icore_usecase: document.querySelector('[name="icore_usecase"]').value,
+            imagine_sas_url: document.querySelector('[name="imagine_sas_url"]').value
         };
 
         try {
