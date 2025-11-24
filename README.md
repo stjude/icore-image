@@ -12,6 +12,7 @@
 Please install the following before running any make commands.
 * Python 3.12 (virtual environment recommended)
 * Node 20+
+
 Then install the dependencies.
 
 ```

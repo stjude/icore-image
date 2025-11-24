@@ -31,6 +31,7 @@ urlpatterns = [
     path('settings/new_module/', views.NewModuleView.as_view(), name='new_module'),
     path('save_settings/', views.save_settings, name='save_settings'),
     path('load_settings/', views.load_settings, name='load_settings'),
+    path('validate_sas_url/', views.validate_sas_url_endpoint, name='validate_sas_url'),
     path('load_admin_settings/', views.load_admin_settings, name='load_admin_settings'),
     path('save_admin_settings/', views.save_admin_settings, name='save_admin_settings'),
     path('get_protocol_settings/<str:protocol_id>/', views.get_protocol_settings, name='get_protocol_settings'),

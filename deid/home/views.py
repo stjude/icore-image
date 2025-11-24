@@ -2,10 +2,13 @@ import logging
 import json
 import os
 import shutil
+import subprocess
 import sys
+import tempfile
 import time
 import socket
 from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 
 import bcrypt
 import pandas as pd
@@ -44,6 +47,61 @@ def validate_pacs_configuration(pacs_configs):
             return False
     
     return True
+
+
+@require_http_methods(["POST"])
+def validate_sas_url_endpoint(request):
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+        sas_url_param = data.get('sas_url', '')
+        
+        if not sas_url_param:
+            return JsonResponse({'valid': False, 'error': 'SAS URL is required'}, status=400)
+        
+        result = _validate_sas_url(sas_url_param)
+        
+        if result.get('error') is not None:
+            return JsonResponse({'valid': False, 'error': 'Validation error during SAS URL check'}, status=400)
+        return JsonResponse({'valid': True, 'error': None}, status=200)
+    except Exception as e:
+        return JsonResponse({'valid': False, 'error': 'Validation error during SAS URL check'}, status=500)
+
+
+def _validate_sas_url(sas_url):
+    """
+    Validate a SAS URL by checking expiry and URL format.
+    """
+    try:
+        parsed = urlparse(sas_url)
+        
+        if not parsed.scheme or not parsed.netloc:
+            return {"valid": False, "error": "Invalid URL format"}
+        
+        query_params = parse_qs(parsed.query)
+        
+        if 'se' in query_params:
+            expiry_str = query_params['se'][0]
+            try:
+                expiry_time = datetime.strptime(expiry_str, '%Y-%m-%dT%H:%M:%SZ')
+                current_time = datetime.utcnow()
+                
+                if current_time >= expiry_time:
+                    return {"valid": False, "error": "SAS token has expired"}
+            except ValueError:
+                return {"valid": False, "error": "Invalid expiry date format in SAS token"}
+        
+        try:
+            account_name = parsed.netloc.split('.')[0]
+            container_name = parsed.path.lstrip('/').split('/')[0]
+            if not container_name:
+                return {"valid": False, "error": "Container name not found in URL"}
+        except Exception as e:
+            return {"valid": False, "error": f"Failed to parse SAS URL: {str(e)}"}
+        
+        return {"valid": True, "error": None}
+                
+    except Exception as e:
+        return {"valid": False, "error": f"Validation error: {str(e)}"}
 
 os.makedirs(os.path.dirname(AUTHENTICATION_LOG_PATH), exist_ok=True)
 
