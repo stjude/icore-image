@@ -185,6 +185,14 @@
                     });
                 }
                 
+                const sasUrlBackBtn = document.getElementById('sasUrlBackBtn');
+                if (sasUrlBackBtn) {
+                    sasUrlBackBtn.addEventListener('click', () => {
+                        document.getElementById('sasUrlModal').classList.add('hidden');
+                        document.getElementById('usecaseModal').classList.remove('hidden');
+                    });
+                }
+                
                 const inputBoxes = document.querySelectorAll('input[type="text"]');
 
                 // Loop through each input box and attach event listeners

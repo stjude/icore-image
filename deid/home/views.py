@@ -60,9 +60,11 @@ def validate_sas_url_endpoint(request):
         
         result = _validate_sas_url(sas_url_param)
         
-        return JsonResponse(result)
+        if result.get('error') is not None:
+            return JsonResponse({'valid': False, 'error': 'Validation error during SAS URL check'}, status=400)
+        return JsonResponse({'valid': True, 'error': None}, status=200)
     except Exception as e:
-        return JsonResponse({'valid': False, 'error': str(e)}, status=500)
+        return JsonResponse({'valid': False, 'error': 'Validation error during SAS URL check'}, status=500)
 
 
 def _validate_sas_url(sas_url):
