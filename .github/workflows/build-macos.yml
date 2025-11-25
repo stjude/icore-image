@@ -7,6 +7,11 @@ name: Build macOS
 on:
   workflow_dispatch:
     inputs:
+      branch:
+        description: 'Branch to build'
+        required: true
+        default: 'main'
+        type: string
       build_type:
         description: 'Build type'
         required: true
@@ -23,6 +28,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
 
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
