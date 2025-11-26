@@ -75,14 +75,12 @@ rclone:
 		mkdir -p rclone; \
 		RCLONE_VERSION="v1.68.2"; \
 		if [ "$$(uname -s)" = "Linux" ]; then \
-			echo "Downloading rclone $$RCLONE_VERSION for Linux..."; \
 			curl -fL https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-linux-amd64.zip -o rclone.zip; \
 			unzip -q rclone.zip; \
 			mv rclone-$$RCLONE_VERSION-linux-amd64/rclone rclone/; \
 			chmod +x rclone/rclone; \
 			rm -rf rclone-$$RCLONE_VERSION-linux-amd64 rclone.zip; \
 		else \
-			echo "Downloading rclone $$RCLONE_VERSION for macOS..."; \
 			curl -fL https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-osx-amd64.zip -o rclone.zip; \
 			unzip -q rclone.zip; \
 			mv rclone-$$RCLONE_VERSION-osx-amd64/rclone rclone/; \
