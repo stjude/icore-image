@@ -73,16 +73,17 @@ rclone:
 	@if [ ! -d "rclone" ] || [ ! -f "rclone/rclone" ]; then \
 		echo "Downloading rclone..."; \
 		mkdir -p rclone; \
+		RCLONE_VERSION="v1.68.2"; \
 		if [ "$$(uname -s)" = "Linux" ]; then \
-			RCLONE_VERSION=$$(curl -s https://api.github.com/repos/rclone/rclone/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
-			curl -L https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-linux-amd64.zip -o rclone.zip; \
+			echo "Downloading rclone $$RCLONE_VERSION for Linux..."; \
+			curl -fL https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-linux-amd64.zip -o rclone.zip; \
 			unzip -q rclone.zip; \
 			mv rclone-$$RCLONE_VERSION-linux-amd64/rclone rclone/; \
 			chmod +x rclone/rclone; \
 			rm -rf rclone-$$RCLONE_VERSION-linux-amd64 rclone.zip; \
 		else \
-			RCLONE_VERSION=$$(curl -s https://api.github.com/repos/rclone/rclone/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
-			curl -L https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-osx-amd64.zip -o rclone.zip; \
+			echo "Downloading rclone $$RCLONE_VERSION for macOS..."; \
+			curl -fL https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-osx-amd64.zip -o rclone.zip; \
 			unzip -q rclone.zip; \
 			mv rclone-$$RCLONE_VERSION-osx-amd64/rclone rclone/; \
 			chmod +x rclone/rclone; \
