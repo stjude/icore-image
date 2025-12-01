@@ -476,7 +476,7 @@ def build_image_export_config(task):
     
     config = {
         'module': 'imageexport',
-        'sas_url': task.parameters['blob_url'],
+        'sas_url': task.parameters['sas_url'],
         'project_name': task.name,
     }
     

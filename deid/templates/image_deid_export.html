@@ -3,6 +3,7 @@
 {% block title %}Image Deidentification and Export{% endblock %}
 
 {% block content %}
+{% include 'modals/sas_url_required.html' %}
 <div class="px-4">
     <h1 class="text-xl flex-1">Image Deidentification and Export</h1>
 </div>
@@ -221,10 +222,28 @@
 
 <script>
     let settings = {};
+    let adminSettings = {};
+    
     document.addEventListener('DOMContentLoaded', async function() {
         try {
             const response = await fetch('/load_settings/');
             settings = await response.json();
+            
+            const adminResponse = await fetch('/load_admin_settings/');
+            adminSettings = await adminResponse.json();
+
+            if (!adminSettings.imagine_sas_url || adminSettings.imagine_sas_url.trim() === '') {
+                document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
+                document.getElementById('deidexport_button').disabled = true;
+                return;
+            } else {
+                const result = await validateSasUrlOnLoad(adminSettings.imagine_sas_url);
+                if (!result.valid) {
+                    document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
+                    document.getElementById('deidexport_button').disabled = true;
+                    return;
+                }
+            }
             
             if (settings.default_query_method === "Accession") {
                 document.getElementById('query_accession').checked = true;
@@ -311,6 +330,31 @@
             console.error('Error loading settings:', error);
         }
     });
+
+    async function validateSasUrlOnLoad(sasUrl) {
+        try {
+            const response = await fetch('/validate_sas_url/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({ sas_url: sasUrl })
+            });
+            
+            const result = await response.json();
+            
+            return result;
+        } catch (error) {
+            console.error('Error validating SAS URL:', error);
+            return { valid: false, error: 'Error validating SAS URL' };
+        }
+    }
+    
+    function getCsrfToken() {
+        const tokenElement = document.querySelector('meta[name="csrf_token"]');
+        return tokenElement ? tokenElement.content : '';
+    }
 
     function validateForm() {
         const studyName = document.querySelector('[name="study_name"]').value.trim();
@@ -524,6 +568,7 @@
             site_id: settings.site_id || '',
             pacs_configs: settings.pacs_configs || [],
             application_aet: settings.application_aet || '',
+            sas_url: adminSettings.imagine_sas_url || '',
             ...filters
         };
 

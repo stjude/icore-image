@@ -3,6 +3,7 @@
 {% block title %}Secure Data Transfer{% endblock %}
 
 {% block content %}
+{% include 'modals/sas_url_required.html' %}
 <div class="px-4">
     <h1 class="text-xl flex-1">Secure Data Transfer</h1>
 </div>
@@ -14,8 +15,8 @@
     <div class="text-sm text-black-5 mt-4">Select Folder for Secure Data Transfer</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" placeholder="Drag and drop folder to export" />
     
-    <div class="text-sm text-black-5 mt-4">SAS URL</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="blob_url" placeholder="https://account.blob.core.windows.net/container?sas_token" />
+    <div class="text-sm text-black-5 mt-4">SAS URL (configured in Admin Settings)</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2 bg-gray-100" name="sas_url" placeholder="https://account.blob.core.windows.net/container?sas_token" readonly />
 </div>
 
 <div class="m-4">
@@ -26,11 +27,16 @@
 
 <script>
     let settings = {};
+    let adminSettings = {};
+    
     document.addEventListener('DOMContentLoaded', async function() {
         try {
             const response = await fetch('/load_settings/');
             settings = await response.json();
             
+            const adminResponse = await fetch('/load_admin_settings/');
+            adminSettings = await adminResponse.json();
+
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
             fetch('/set_timezone/', {
                 method: 'POST',
@@ -39,21 +45,24 @@
                 },
                 body: JSON.stringify({ timezone: timezone })
             });
-            
-            if (settings.icore_usecase === 'imagine' && settings.imagine_sas_url) {
-                const blobUrlInput = document.querySelector('[name="blob_url"]');
-                blobUrlInput.value = settings.imagine_sas_url;
-                
-                validateSasUrlOnLoad(settings.imagine_sas_url);
+
+            if (!adminSettings.imagine_sas_url || adminSettings.imagine_sas_url.trim() === '') {
+                document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
+                document.getElementById('export_button').disabled = true;
+                return;
+            } else {
+                const result = await validateSasUrlOnLoad(adminSettings.imagine_sas_url);
+                if (!result.valid) {
+                    document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
+                    document.getElementById('export_button').disabled = true;
+                    return;
+                }
             }
             
-            // Add validation listeners
             document.querySelector('[name="study_name"]').addEventListener('input', validateExportForm);
             document.querySelector('[name="study_name"]').addEventListener('change', validateExportForm);
             document.querySelector('[name="input_folder"]').addEventListener('input', validateExportForm);
             document.querySelector('[name="input_folder"]').addEventListener('change', validateExportForm);
-            document.querySelector('[name="blob_url"]').addEventListener('input', validateExportForm);
-            document.querySelector('[name="blob_url"]').addEventListener('change', validateExportForm);
             
             validateExportForm();
         } catch (error) {
@@ -67,36 +76,32 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
                 },
                 body: JSON.stringify({ sas_url: sasUrl })
             });
             
             const result = await response.json();
             
-            if (!result.valid) {
-                const warningDiv = document.createElement('div');
-                warningDiv.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mt-4 ml-4';
-                warningDiv.innerHTML = `
-                    <p class="font-bold">Warning: SAS URL Issue</p>
-                    <p class="text-sm">${result.error}</p>
-                    <p class="text-sm mt-2">Please update the SAS URL below or in the General Settings.</p>
-                `;
-                
-                const exportButton = document.getElementById('export_button');
-                exportButton.parentNode.insertBefore(warningDiv, exportButton);
-            }
+            return result;
         } catch (error) {
             console.error('Error validating SAS URL:', error);
+            return { valid: false, error: 'Error validating SAS URL' };
         }
+    }
+    
+    function getCsrfToken() {
+        const tokenElement = document.querySelector('meta[name="csrf_token"]');
+        return tokenElement ? tokenElement.content : '';
     }
 
     function validateExportForm() {
         const studyName = document.querySelector('[name="study_name"]').value.trim();
         const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
-        const blobUrl = document.querySelector('[name="blob_url"]').value.trim();
+        const sasUrl = document.querySelector('[name="sas_url"]').value.trim();
         const button = document.getElementById('export_button');
         
-        const isValid = studyName && inputFolder && blobUrl;
+        const isValid = studyName && inputFolder && sasUrl;
         
         if (isValid) {
             button.disabled = false;
@@ -110,12 +115,12 @@
     async function runExport() {
         const studyName = document.querySelector('[name="study_name"]').value.trim();
         const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
-        const blobUrl = document.querySelector('[name="blob_url"]').value.trim();
+        const sasUrl = document.querySelector('[name="sas_url"]').value.trim();
 
         const data = {
             study_name: studyName,
             input_folder: inputFolder,
-            blob_url: blobUrl
+            sas_url: sasUrl
         };
 
         const button = document.getElementById('export_button');

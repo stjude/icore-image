@@ -601,7 +601,7 @@ def run_export(request):
             input_folder=data['input_folder'],
             status=Project.TaskStatus.PENDING,
             parameters={
-                'blob_url': data['blob_url'],
+                'sas_url': data['sas_url'],
             }
         )
         return JsonResponse({
@@ -904,9 +904,6 @@ def load_admin_settings(request):
         
         if settings.get('date_shift_range'):
             settings['date_shift_range'] = int(settings['date_shift_range'])
-        
-        if settings.get('container_name'):
-            settings['container_name'] = settings['container_name']
         
         return JsonResponse(settings)
     except Exception as e:
