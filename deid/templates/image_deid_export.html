@@ -1,0 +1,645 @@
+{% extends 'base.html' %}
+
+{% block title %}Image Deidentification and Export{% endblock %}
+
+{% block content %}
+<div class="px-4">
+    <h1 class="text-xl flex-1">Image Deidentification and Export</h1>
+</div>
+<div class="flex-1 bg-white p-4 ml-4 mt-4">
+    <div class="text-sm text-black-5">Project Name</div>
+    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" onkeypress="return event.charCode !== 32"/>
+    
+    <div class="text-sm text-gray-500 mt-4">Input File</div>
+    <div class="flex items-center">
+        <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" placeholder="Drag and drop query excel file" />
+    </div>
+    
+    <div class="flex items-center mt-4">
+        <div class="text-sm text-gray-600">Query using:</div>
+        <input class="ml-4" type="radio" id="query_accession" name="query_type" value="accession" checked onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">Accession</span>
+        <input class="ml-4" type="radio" id="query_mrn_date" name="query_type" value="mrn_date" onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">MRN + Date</span>
+    </div>
+    
+    <input type="hidden" name="accession_column" id="accession_column_value" />
+    <input type="hidden" name="mrn_column" id="mrn_column_value" />
+    <input type="hidden" name="date_column" id="date_column_value" />
+    <input type="hidden" name="date_window" id="date_window_value" />
+    
+    <div id="accession_display" class="mt-2">
+        <div class="text-sm text-gray-500">
+            Accession column: <span id="accession_column_display">AccessionNumber</span> 
+            <a href="#" onclick="openColumnModal('accession'); return false;" class="text-blue-600 hover:text-blue-800 ml-2">(Change)</a>
+        </div>
+    </div>
+    
+    <div id="mrn_date_display" class="hidden mt-2">
+        <div class="text-sm text-gray-500">
+            MRN column: <span id="mrn_column_display">PatientID</span> 
+            <a href="#" onclick="openColumnModal('mrn'); return false;" class="text-blue-600 hover:text-blue-800 ml-2">(Change)</a>
+            <span class="ml-6">Date column: <span id="date_column_display">StudyDate</span></span>
+            <a href="#" onclick="openColumnModal('date'); return false;" class="text-blue-600 hover:text-blue-800 ml-2">(Change)</a>
+            <span class="ml-6">Date window (days): <span id="date_window_display">0</span></span>
+            <a href="#" onclick="openDateWindowModal(); return false;" class="text-blue-600 hover:text-blue-800 ml-2">(Change)</a>
+        </div>
+    </div>
+    
+    <div class="flex items-center mt-4">
+        <button class="text-black" onclick="toggleDeidOptions()" id="deidOptionsButton">▼</button>
+        <div class="text-sm text-black ml-4">Deidentification Options</div>
+    </div>
+    <div id="deid_options" class="mt-4 hidden ml-4">
+        <div class="mb-4">
+            <div class="text-sm text-gray-600 mb-2">General Filters</div>
+            <div class="text-sm text-gray-400 mb-2">Only include images where</div>
+            {% include 'components/add_filters.html' %}
+        </div>
+
+        <div class="mt-4">
+            <div class="flex items-center">
+                <input type="checkbox" 
+                       id="modality-filter-toggle" 
+                       class="mr-2"
+                       onchange="toggleModalityFilters()">
+                <label for="modality-filter-toggle">Filter by Modality</label>
+            </div>
+
+            <div id="modality-options" class="ml-4 mt-2 hidden">
+                <div class="grid grid-cols-1 gap-2">
+                    {% for modality in modalities %}
+                    <div>
+                        <div class="flex items-center">
+                            <input type="checkbox" 
+                                   id="modality-{{ modality }}" 
+                                   value="{{ modality }}"
+                                   class="modality-checkbox mr-2"
+                                   onchange="handleModalitySelection(this)">
+                            <label for="modality-{{ modality }}">{{ modality }}</label>
+                        </div>
+                        <div id="filters-{{ modality }}" class="ml-4 mt-2 hidden"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div id="modality-filters-container" class="ml-4 mt-2">
+            </div>
+        
+        </div>
+        
+        <div class="mt-6">
+            <div class="text-md mb-2">Advanced Deidentification Options</div>
+            <div class="flex space-x-4">
+                <div class="flex-1">
+                    <div class="text-sm text-gray-500">To keep</div>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_keep"></textarea>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm text-gray-500">To date shift</div>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_dateshift"></textarea>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm text-gray-500">To randomize</div>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_randomize"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="mt-8">
+            <div class="text-md mb-4">Global Deidentification Settings</div>
+            <div class="space-y-4">
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="remove_unspecified" name="remove_unspecified" class="mr-2">
+                        <label for="remove_unspecified">Remove unspecified tags</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">If checked, any tag not specified in the lists above will be removed. If unchecked, unspecified tags will be preserved</div>
+                </div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="remove_overlays" name="remove_overlays" class="mr-2">
+                        <label for="remove_overlays">Remove overlays</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Remove all elements in 60xx groups. These are overlays and are sometimes removed when fully de-identifying an object because they can contain PHI.</div>
+                </div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="remove_curves" name="remove_curves" class="mr-2">
+                        <label for="remove_curves">Remove curve data</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Remove all elements in 50xx groups. These are groups which contain curve data.</div>
+                </div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="remove_private" name="remove_private" class="mr-2">
+                        <label for="remove_private">Remove all private tags</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Remove all elements in odd-numbered groups. These are private groups whose contents are not specified by the DICOM standard</div>
+                </div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="apply_default_ctp_filter_script" name="apply_default_ctp_filter_script" class="mr-2" checked>
+                        <label for="apply_default_ctp_filter_script">Apply default filters from known devices</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Remove DICOM files during the deidentification process from known devices that are known to contain PHI. These files will be stored in the quarantine.</div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-8">
+            <div class="text-md mb-4">Pixel Deidentification</div>
+            <div class="mb-4">
+                <div class="flex items-center">
+                    <input type="checkbox" id="deid_pixels" name="deid_pixels" class="mr-2">
+                    <label for="deid_pixels">Deidentify pixel data from device scanners</label>
+                </div>
+                <div class="text-sm text-gray-500 ml-6">Blacks out regions of pixels in a DICOM image from known devices.</div>
+            </div>
+            <div class="text-md mb-4 mt-8">Mapping File Configuration</div>
+            <div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="use_mapping_file" name="use_mapping_file" class="mr-2" onchange="toggleMappingFileInput()">
+                    <label for="use_mapping_file">Use Mapping File</label>
+                </div>
+                <div id="mapping_file_input_container" class="mt-2 hidden">
+                    <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="mapping_file_path" />
+                    <div class="text-sm text-gray-500 mt-1">Excel file with columns: TagName, New-TagName (e.g., AccessionNumber, New-AccessionNumber)</div>
+                </div>
+            </div>
+        </div>    
+    </div>
+</div>
+<div class="m-4">
+    <div class="flex items-center mb-4">
+        <input type="checkbox" id="schedule_job" class="mr-2" onchange="toggleScheduling()">
+        <label for="schedule_job">Schedule Job</label>
+    </div>
+    
+    <div id="scheduling_options" class="hidden mb-4">
+        <input type="datetime-local" id="scheduled_time" class="border-2 border-gray-400 p-2">
+    </div>
+
+    <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runImageDeidExport()" id="deidexport_button" disabled>
+        Pull Images, Deidentify and Export
+    </button>
+</div>
+
+<div id="column-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+        <h3 class="text-lg font-medium mb-4" id="modal-title">Edit Column Name</h3>
+        <div class="mb-4">
+            <label class="text-sm text-gray-600 mb-2 block" id="modal-label">Column Name:</label>
+            <input type="text" id="modal-input" class="w-full border-2 border-gray-400 p-2" />
+        </div>
+        <div class="flex justify-end gap-2">
+            <button onclick="closeColumnModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                Cancel
+            </button>
+            <button onclick="saveColumnValue()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="date-window-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+        <h3 class="text-lg font-medium mb-4">Edit Date Window</h3>
+        <div class="mb-4">
+            <label class="text-sm text-gray-600 mb-2 block">Date Window (Days):</label>
+            <input type="number" id="date-window-input" class="w-full border-2 border-gray-400 p-2" min="0" value="0" />
+            <div class="text-xs text-gray-500 mt-1">Number of days before and after the study date to query</div>
+        </div>
+        <div class="flex justify-end gap-2">
+            <button onclick="closeDateWindowModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                Cancel
+            </button>
+            <button onclick="saveDateWindowValue()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let settings = {};
+    document.addEventListener('DOMContentLoaded', async function() {
+        try {
+            const response = await fetch('/load_settings/');
+            settings = await response.json();
+            
+            if (settings.default_query_method === "Accession") {
+                document.getElementById('query_accession').checked = true;
+            } else {
+                document.getElementById('query_mrn_date').checked = true;
+            }
+            toggleQueryTypeInputs();
+            
+            if (settings.default_accession_header) {
+                setColumnValue('accession', settings.default_accession_header);
+            } else {
+                setColumnValue('accession', 'AccessionNumber');
+            }
+            if (settings.default_mrn_header) {
+                setColumnValue('mrn', settings.default_mrn_header);
+            } else {
+                setColumnValue('mrn', 'PatientID');
+            }
+            if (settings.default_date_header) {
+                setColumnValue('date', settings.default_date_header);
+            } else {
+                setColumnValue('date', 'StudyDate');
+            }
+            if (settings.default_date_window_days !== undefined) {
+                setDateWindowValue(settings.default_date_window_days);
+            } else {
+                setDateWindowValue(0);
+            }
+            
+            if (settings.default_tags_to_keep) {
+                document.querySelector('[name="tags_to_keep"]').value = settings.default_tags_to_keep;
+            }
+            if (settings.default_tags_to_dateshift) {
+                document.querySelector('[name="tags_to_dateshift"]').value = settings.default_tags_to_dateshift;
+            }
+            if (settings.default_tags_to_randomize) {
+                document.querySelector('[name="tags_to_randomize"]').value = settings.default_tags_to_randomize;
+            }
+            if (settings.mapping_file_path) {
+                document.querySelector('[name="mapping_file_path"]').value = settings.mapping_file_path;
+            }
+            if (settings.use_mapping_file) {
+                document.getElementById('use_mapping_file').checked = settings.use_mapping_file;
+                toggleMappingFileInput();
+            }
+            if (settings.default_deid_pixels) {
+                document.getElementById('deid_pixels').checked = settings.default_deid_pixels;
+            }
+            if (settings.default_remove_unspecified !== undefined) {
+                document.getElementById('remove_unspecified').checked = settings.default_remove_unspecified;
+            }
+            if (settings.default_remove_overlays !== undefined) {
+                document.getElementById('remove_overlays').checked = settings.default_remove_overlays;
+            }
+            if (settings.default_remove_curves !== undefined) {
+                document.getElementById('remove_curves').checked = settings.default_remove_curves;
+            }
+            if (settings.default_remove_private !== undefined) {
+                document.getElementById('remove_private').checked = settings.default_remove_private;
+            }
+            if (settings.default_apply_default_ctp_filter_script !== undefined) {
+                document.getElementById('apply_default_ctp_filter_script').checked = settings.default_apply_default_ctp_filter_script;
+            }
+            if (settings.deid_filters) {
+                loadFiltersFromSettings(settings.deid_filters);
+            }
+
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            fetch('/set_timezone/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ timezone: timezone })
+            });
+
+            document.querySelector('[name="study_name"]').addEventListener('input', validateForm);
+            document.querySelector('[name="study_name"]').addEventListener('change', validateForm);
+            document.querySelector('[name="input_file"]').addEventListener('input', validateForm);
+            document.querySelector('[name="input_file"]').addEventListener('change', validateForm);
+            validateForm();
+
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    });
+
+    function validateForm() {
+        const studyName = document.querySelector('[name="study_name"]').value.trim();
+        const inputFile = document.querySelector('[name="input_file"]').value.trim();
+        const button = document.getElementById('deidexport_button');
+        
+        const isValid = studyName && inputFile;
+        
+        if (isValid) {
+            button.disabled = false;
+            button.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            button.disabled = true;
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
+    
+    let currentEditColumn = '';
+
+    function toggleQueryTypeInputs() {
+        const accessionDisplay = document.getElementById('accession_display');
+        const mrnDateDisplay = document.getElementById('mrn_date_display');
+        const queryAccession = document.getElementById('query_accession');
+        
+        if (queryAccession.checked) {
+            accessionDisplay.classList.remove('hidden');
+            mrnDateDisplay.classList.add('hidden');
+        } else {
+            accessionDisplay.classList.add('hidden');
+            mrnDateDisplay.classList.remove('hidden');
+        }
+    }
+
+    function openColumnModal(columnType) {
+        currentEditColumn = columnType;
+        const modal = document.getElementById('column-modal');
+        const modalInput = document.getElementById('modal-input');
+        const modalTitle = document.getElementById('modal-title');
+        const modalLabel = document.getElementById('modal-label');
+        
+        let currentValue = '';
+        if (columnType === 'accession') {
+            modalTitle.textContent = 'Edit Accession Column Name';
+            modalLabel.textContent = 'Accession Column Name:';
+            currentValue = document.getElementById('accession_column_display').textContent;
+        } else if (columnType === 'mrn') {
+            modalTitle.textContent = 'Edit MRN Column Name';
+            modalLabel.textContent = 'MRN Column Name:';
+            currentValue = document.getElementById('mrn_column_display').textContent;
+        } else if (columnType === 'date') {
+            modalTitle.textContent = 'Edit Date Column Name';
+            modalLabel.textContent = 'Date Column Name:';
+            currentValue = document.getElementById('date_column_display').textContent;
+        }
+        
+        modalInput.value = currentValue;
+        modal.classList.remove('hidden');
+        modalInput.focus();
+        
+        modalInput.onkeydown = function(e) {
+            if (e.key === 'Enter') {
+                saveColumnValue();
+            } else if (e.key === 'Escape') {
+                closeColumnModal();
+            }
+        };
+    }
+
+    function closeColumnModal() {
+        document.getElementById('column-modal').classList.add('hidden');
+    }
+
+    function saveColumnValue() {
+        const modalInput = document.getElementById('modal-input');
+        const value = modalInput.value.trim();
+        
+        if (value) {
+            setColumnValue(currentEditColumn, value);
+        }
+        
+        closeColumnModal();
+    }
+
+    function setColumnValue(columnType, value) {
+        if (columnType === 'accession') {
+            document.getElementById('accession_column_display').textContent = value;
+            document.getElementById('accession_column_value').value = value;
+        } else if (columnType === 'mrn') {
+            document.getElementById('mrn_column_display').textContent = value;
+            document.getElementById('mrn_column_value').value = value;
+        } else if (columnType === 'date') {
+            document.getElementById('date_column_display').textContent = value;
+            document.getElementById('date_column_value').value = value;
+        }
+    }
+
+    function openDateWindowModal() {
+        const modal = document.getElementById('date-window-modal');
+        const modalInput = document.getElementById('date-window-input');
+        const currentValue = document.getElementById('date_window_value').value || '0';
+        
+        modalInput.value = currentValue;
+        modal.classList.remove('hidden');
+        modalInput.focus();
+        
+        modalInput.onkeydown = function(e) {
+            if (e.key === 'Enter') {
+                saveDateWindowValue();
+            } else if (e.key === 'Escape') {
+                closeDateWindowModal();
+            }
+        };
+    }
+
+    function closeDateWindowModal() {
+        document.getElementById('date-window-modal').classList.add('hidden');
+    }
+
+    function saveDateWindowValue() {
+        const modalInput = document.getElementById('date-window-input');
+        const value = parseInt(modalInput.value) || 0;
+        
+        setDateWindowValue(value);
+        closeDateWindowModal();
+    }
+
+    function setDateWindowValue(value) {
+        document.getElementById('date_window_display').textContent = value;
+        document.getElementById('date_window_value').value = value;
+    }
+
+    function loadFiltersFromSettings(filters) {
+        document.querySelector('#filters-container').innerHTML = '';
+        if (filters.general_filters) {
+            filters.general_filters.forEach(filter => {
+                const newFilter = addFilter();
+                newFilter.querySelector('[name="tag"]').value = filter.tag;
+                newFilter.querySelector('[name="action"]').value = filter.action;
+                newFilter.querySelector('[name="value"]').value = filter.value;
+            });
+        }
+        if (filters.modality_filters) {
+            Object.entries(filters.modality_filters).forEach(([modality, modalityFilters]) => {
+                const filterContainer = document.querySelector(`#filter-container-${modality}`);
+                if (filterContainer) {
+                    filterContainer.innerHTML = '';
+                    modalityFilters.forEach(filter => {
+                        const template = document.querySelector('#filter-template');
+                        const newFilter = template.cloneNode(true);
+                        newFilter.style.display = 'block';
+                        newFilter.removeAttribute('id');
+                        newFilter.classList.add('filter-row');
+                        
+                        newFilter.querySelector('[name="tag"]').value = filter.tag;
+                        newFilter.querySelector('[name="action"]').value = filter.action;
+                        newFilter.querySelector('[name="value"]').value = filter.value;
+                        
+                        filterContainer.appendChild(newFilter);
+                    });
+                }
+            });
+        }
+    }
+
+    function toggleDeidOptions() {
+        const deidOptions = document.getElementById('deid_options');
+        const deidOptionsButton = document.getElementById('deidOptionsButton');
+        deidOptions.classList.toggle('hidden');
+        deidOptionsButton.textContent = deidOptions.classList.contains('hidden') ? '▼' : '▲';
+    }
+
+    function toggleScheduling() {
+        const schedulingOptions = document.getElementById('scheduling_options');
+        const isScheduled = document.getElementById('schedule_job').checked;
+        schedulingOptions.classList.toggle('hidden', !isScheduled);
+        updateButtonText();
+    }
+
+    function toggleMappingFileInput() {
+        const mappingFileInputContainer = document.getElementById('mapping_file_input_container');
+        const isChecked = document.getElementById('use_mapping_file').checked;
+        mappingFileInputContainer.classList.toggle('hidden', !isChecked);
+    }
+
+    function updateButtonText() {
+        const button = document.getElementById('deidexport_button');
+        const isScheduled = document.getElementById('schedule_job').checked;
+        button.textContent = isScheduled ? 'Schedule Pull Images, Deidentify and Export' : 'Pull Images, Deidentify and Export';
+    }
+
+    async function runImageDeidExport() {
+        const filters = collectFilters('#filters-container');
+        const isAccessionQuery = document.getElementById('query_accession').checked;
+        const isScheduled = document.getElementById('schedule_job').checked;
+        
+        const data = {
+            study_name: document.querySelector('[name="study_name"]').value,
+            input_file: document.querySelector('[name="input_file"]').value,
+            tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
+            tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
+            tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,
+            mapping_file_path: document.querySelector('[name="mapping_file_path"]').value || settings.mapping_file_path || '',
+            use_mapping_file: document.getElementById('use_mapping_file').checked,
+            deid_pixels: document.getElementById('deid_pixels').checked,
+            remove_unspecified: document.getElementById('remove_unspecified').checked,
+            remove_overlays: document.getElementById('remove_overlays').checked,
+            remove_curves: document.getElementById('remove_curves').checked,
+            remove_private: document.getElementById('remove_private').checked,
+            apply_default_ctp_filter_script: document.getElementById('apply_default_ctp_filter_script').checked,
+            date_shift_days: settings.date_shift_range || 0,
+            site_id: settings.site_id || '',
+            pacs_configs: settings.pacs_configs || [],
+            application_aet: settings.application_aet || '',
+            ...filters
+        };
+
+        if (!data.input_file.endsWith('.xlsx')) {
+            alert('Input file must be an Excel file.');
+            return;
+        }
+
+        if (isScheduled) {
+            const scheduledTime = document.getElementById('scheduled_time').value;
+            if (!scheduledTime) {
+                alert('Please select a scheduled time');
+                return;
+            }
+            data.scheduled_time = scheduledTime;
+        }
+
+        if (isAccessionQuery) {
+            data.acc_col = document.querySelector('[name="accession_column"]').value;
+            data.mrn_col = document.querySelector('[name="mrn_column"]').value;
+            data.date_col = '';
+            data.date_window = 0;
+        } else {
+            data.acc_col = '';
+            data.mrn_col = document.querySelector('[name="mrn_column"]').value;
+            data.date_col = document.querySelector('[name="date_column"]').value;
+            data.date_window = parseInt(document.querySelector('[name="date_window"]').value) || 0;
+        }
+
+        try {
+            const response = await fetch('/run_imagedeidexport/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                if (isScheduled) {
+                    window.location.href = '/task_list';
+                } else {
+                    window.location.href = `/task_progress?project_id=${result.project_id}`;
+                }
+            } else {
+                alert(result.message || 'Error starting deidentification and export');
+                console.error('Error:', result);
+            }
+        } catch (error) {
+            alert('Error starting deidentification and export: ' + error.message);
+            console.error('Error:', error);
+        }
+    }
+
+    function toggleModalityFilters() {
+        const modalityOptions = document.getElementById('modality-options');
+        modalityOptions.classList.toggle('hidden');
+        
+        if (!document.getElementById('modality-filter-toggle').checked) {
+            document.getElementById('modality-filters-container').innerHTML = '';
+        }
+    }
+
+    function handleModalitySelection(checkbox) {
+        const modalityId = checkbox.value;
+        const filterSection = document.getElementById(`filters-${modalityId}`);
+        
+        if (checkbox.checked) {
+            filterSection.classList.remove('hidden');
+            
+            if (filterSection.children.length === 0) {
+                const filterContainer = document.createElement('div');
+                filterContainer.id = `filter-container-${modalityId}`;
+                filterContainer.classList.add('space-y-2');
+                
+                const addButton = document.createElement('button');
+                addButton.textContent = '+ Add Filter';
+                addButton.classList.add('mt-2', 'px-2', 'py-1', 'bg-white', 'shadow', 'text-sm', 'hover:bg-blue-100');
+                addButton.onclick = () => {
+                    const template = document.querySelector('#filter-template');
+                    const newFilter = template.cloneNode(true);
+                    newFilter.style.display = 'block';
+                    newFilter.removeAttribute('id');
+                    filterContainer.appendChild(newFilter);
+                };
+                
+                filterSection.appendChild(filterContainer);
+                filterSection.appendChild(addButton);
+
+                try {
+                    fetch('/load_settings/')
+                        .then(response => response.json())
+                        .then(settings => {
+                            const savedFilters = settings.deid_filters?.modality_filters?.[modalityId] || [];
+                            if (savedFilters.length > 0) {
+                                savedFilters.forEach(filter => {
+                                    const template = document.querySelector('#filter-template');
+                                    const newFilter = template.cloneNode(true);
+                                    newFilter.style.display = 'block';
+                                    newFilter.removeAttribute('id');
+                                    filterContainer.appendChild(newFilter);
+                                    newFilter.querySelector('[name="tag"]').value = filter.tag;
+                                    newFilter.querySelector('[name="action"]').value = filter.action;
+                                    newFilter.querySelector('[name="value"]').value = filter.value;
+                                });
+                            }
+                        });
+                } catch (error) {
+                    console.error('Error loading settings:', error);
+                }
+            }
+        } else {
+            filterSection.classList.add('hidden');
+        }
+    }
+</script>
+{% endblock %}
+
+

@@ -18,8 +18,9 @@ class Project(models.Model):
         HEADER_EXTRACT = 'HEADER_EXTRACT', 'Header Extract'
         TEXT_DEID = 'TEXT_DEID', 'Text Deidentification'
         IMAGE_EXPORT = 'IMAGE_EXPORT', 'Image Export'
+        IMAGE_DEID_EXPORT = 'IMAGE_DEID_EXPORT', 'Image Deidentification and Export'
         GENERAL_MODULE = 'GENERAL_MODULE', 'General Module'
-    task_type = models.CharField(max_length=20, choices=TaskType.choices)
+    task_type = models.CharField(max_length=25, choices=TaskType.choices)
     class TaskStatus(models.TextChoices):
         PENDING = 'PENDING', 'Pending'
         RUNNING = 'RUNNING', 'Running'

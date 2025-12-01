@@ -11,6 +11,9 @@ def determine_module(config, input_dir):
     if module == "imageqr":
         return "imageqr"
     
+    if module == "imagedeidexport":
+        return "imagedeidexport"
+    
     if module == "imagedeid":
         input_xlsx_path = os.path.join(input_dir, "input.xlsx")
         if os.path.exists(input_xlsx_path):
@@ -133,6 +136,47 @@ def build_image_export_params(config, input_dir, run_dirs):
         "run_dirs": run_dirs
     }
 
+
+def build_imagedeidexport_params(config, input_dir, run_dirs):
+    from utils import PacsConfiguration, Spreadsheet
+    
+    pacs_list = [
+        PacsConfiguration(
+            host=pacs["ip"],
+            port=pacs["port"],
+            aet=pacs["ae"]
+        )
+        for pacs in config.get("pacs", [])
+    ]
+    
+    input_xlsx_path = os.path.join(input_dir, "input.xlsx")
+    query_spreadsheet = Spreadsheet.from_file(
+        input_xlsx_path,
+        acc_col=config.get("acc_col"),
+        mrn_col=config.get("mrn_col"),
+        date_col=config.get("date_col")
+    )
+    
+    appdata_dir = os.environ.get('ICORE_APPDATA_DIR')
+    
+    return {
+        "pacs_list": pacs_list,
+        "query_spreadsheet": query_spreadsheet,
+        "application_aet": config.get("application_aet"),
+        "sas_url": config.get("sas_url"),
+        "project_name": config.get("project_name"),
+        "appdata_dir": appdata_dir,
+        "filter_script": config.get("ctp_filters"),
+        "anonymizer_script": config.get("ctp_anonymizer"),
+        "lookup_table": config.get("ctp_lookup_table"),
+        "mapping_file_path": config.get("mapping_file_path"),
+        "date_window_days": config.get("date_window", 0),
+        "deid_pixels": config.get("deid_pixels", False),
+        "debug": config.get("debug", False),
+        "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
+        "run_dirs": run_dirs
+    }
+
   
 def build_headerextract_local_params(config, input_dir, output_dir, run_dirs):
     return {
@@ -176,6 +220,10 @@ def run(config_path, input_dir, output_dir):
         from module_image_export import image_export
         params = build_image_export_params(config, input_dir, run_dirs)
         return image_export(**params)
+    elif module == "imagedeidexport":
+        from module_imagedeidexport import imagedeidexport
+        params = build_imagedeidexport_params(config, input_dir, run_dirs)
+        return imagedeidexport(**params)
     elif module == "headerextract_local":
         from module_headerextract_local import headerextract_local
         params = build_headerextract_local_params(config, input_dir, output_dir, run_dirs)

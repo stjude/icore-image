@@ -191,6 +191,18 @@ class ImageExportView(CommonContextMixin, CreateView):
     success_url = reverse_lazy('task_list')
 
 
+class ImageDeidExportView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name']
+    template_name = 'image_deid_export.html'
+    success_url = reverse_lazy('task_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['modalities'] = ['CT', 'MR', 'PT', 'US', 'CR', 'DX', 'MG', 'NM', 'RF', 'XA']
+        return context
+
+
 class GeneralModuleView(CommonContextMixin, TemplateView):
     template_name = 'general_module.html'
 
@@ -601,6 +613,76 @@ def run_export(request):
         print(f'Error: {e}')
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
+
+@csrf_exempt
+def run_imagedeidexport(request):
+    print('Running image deid export')
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+        
+        if not validate_pacs_configuration(data.get('pacs_configs', [])):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No PACS configured. Please configure PACS settings before running.'
+            }, status=400)
+        
+        scheduled_time = None
+        if 'scheduled_time' in data:
+            settings = json.load(open(os.path.join(SETTINGS_DIR, 'settings.json')))
+            timezone_str = settings.get('timezone', 'UTC')
+            tz = pytz.timezone(timezone_str)
+            local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
+            scheduled_time = tz.localize(local_dt)
+            scheduled_time = scheduled_time.astimezone(pytz.UTC)
+        
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        project = Project.objects.create(
+            name=data['study_name'],
+            timestamp=timestamp,
+            log_path="",
+            task_type=Project.TaskType.IMAGE_DEID_EXPORT,
+            image_source='PACS',
+            input_folder='',
+            output_folder='',
+            pacs_configs=data['pacs_configs'],
+            application_aet=data['application_aet'],
+            status=Project.TaskStatus.PENDING,
+            scheduled_time=scheduled_time,
+            parameters={
+                'input_file': data['input_file'],
+                'acc_col': data['acc_col'],
+                'mrn_col': data['mrn_col'],
+                'date_col': data['date_col'],
+                'date_window': data.get('date_window', 0),
+                'general_filters': data['general_filters'],
+                'modality_filters': data['modality_filters'],
+                'tags_to_keep': data['tags_to_keep'],
+                'tags_to_dateshift': data['tags_to_dateshift'],
+                'tags_to_randomize': data['tags_to_randomize'],
+                'date_shift_days': data['date_shift_days'],
+                'mapping_file_path': data.get('mapping_file_path', ''),
+                'use_mapping_file': data.get('use_mapping_file', False),
+                'deid_pixels': data.get('deid_pixels', False),
+                'remove_unspecified': data.get('remove_unspecified', False),
+                'remove_overlays': data.get('remove_overlays', False),
+                'remove_curves': data.get('remove_curves', False),
+                'remove_private': data.get('remove_private', False),
+                'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
+                'site_id': data['site_id'],
+                'sas_url': data['sas_url'],
+            }
+        )
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id,
+            'log_path': project.log_path
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+
 @csrf_exempt
 def run_general_module(request):
     try:
@@ -860,8 +942,9 @@ def save_admin_settings(request):
     if request.POST.get('site_id'):
         existing_settings['site_id'] = request.POST['site_id']
 
-    if request.POST.get('container_name'):
-        existing_settings['container_name'] = request.POST['container_name']
+    
+    if request.POST.get('imagine_sas_url'):
+        existing_settings['imagine_sas_url'] = request.POST['imagine_sas_url']
     
     # Save updated settings
     with open(settings_path, 'w') as f:

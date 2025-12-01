@@ -489,6 +489,102 @@ def build_image_export_config(task):
     return config
 
 
+def process_image_deid_export(task):
+    build_image_deid_export_config(task)
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+
+    os.makedirs(TMP_INPUT_PATH, exist_ok=True)
+    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
+    shutil.copy2(task.parameters['input_file'], temp_input)
+    input_folder = TMP_INPUT_PATH
+    
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), '/dev/null']
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), '/dev/null']
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    
+    try:
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
+    finally:
+        if os.path.exists(TMP_INPUT_PATH):
+            shutil.rmtree(TMP_INPUT_PATH)
+
+
+def build_image_deid_export_config(task):
+    """Build the configuration for image deidentification and export"""
+    config = {'module': 'imagedeidexport'}
+    
+    settings = json.load(open(SETTINGS_PATH))
+    debug_enabled = settings.get('debug_logging', False)
+    config['debug'] = debug_enabled
+    
+    config.update({
+        'pacs': task.pacs_configs,
+        'application_aet': task.application_aet,
+        'sas_url': task.parameters['sas_url'],
+        'project_name': task.name,
+    })
+    
+    if task.parameters['acc_col'] != '':
+        config.update({
+            'acc_col': task.parameters['acc_col'],
+            'mrn_col': task.parameters['mrn_col']
+        })
+    elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
+        config.update({
+            'mrn_col': task.parameters['mrn_col'],
+            'date_col': task.parameters['date_col'],
+            'date_window': task.parameters.get('date_window', 0)
+        })
+
+    general_filters = task.parameters['general_filters']
+    modality_filters = task.parameters['modality_filters']
+    expression_string = generate_filters_string(general_filters, modality_filters)
+    if expression_string != '':
+        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+
+    tags_to_keep = task.parameters['tags_to_keep']
+    tags_to_dateshift = task.parameters['tags_to_dateshift']
+    tags_to_randomize = task.parameters['tags_to_randomize']
+    date_shift_days = task.parameters['date_shift_days']
+
+    mapping_file_path = task.parameters.get('mapping_file_path', '') if task.parameters.get('use_mapping_file', False) else None
+    if mapping_file_path:
+        config['mapping_file_path'] = mapping_file_path
+
+    anonymizer_script = generate_anonymizer_script(
+        tags_to_keep,
+        tags_to_dateshift,
+        tags_to_randomize,
+        date_shift_days,
+        task.parameters['site_id'],
+        None,
+        remove_unspecified=task.parameters.get('remove_unspecified', True),
+        remove_overlays=task.parameters.get('remove_overlays', True),
+        remove_curves=task.parameters.get('remove_curves', True),
+        remove_private=task.parameters.get('remove_private', True)
+    )
+    config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
+    
+    deid_pixels = task.parameters.get('deid_pixels', False)
+    config['deid_pixels'] = deid_pixels
+    
+    apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
+    config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
+    
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+    return config
+
 
 def process_general_module(task):
     module_name = task.parameters['module_name']
@@ -565,6 +661,8 @@ def run_worker():
                         process_text_deid(task)
                     elif task.task_type == Project.TaskType.IMAGE_EXPORT:
                         process_image_export(task)
+                    elif task.task_type == Project.TaskType.IMAGE_DEID_EXPORT:
+                        process_image_deid_export(task)
                     elif task.task_type == Project.TaskType.GENERAL_MODULE:
                         process_general_module(task)
                     task.status = Project.TaskStatus.COMPLETED
