@@ -197,7 +197,7 @@ def configure_run_logging(log_file_path, log_level=logging.INFO):
         format='%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[
-            logging.FileHandler(log_file_path, mode='w'),
+            logging.FileHandler(log_file_path, mode='a'),
             logging.StreamHandler(sys.stdout)
         ],
         force=True
