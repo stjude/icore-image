@@ -490,8 +490,10 @@ def build_image_export_config(task):
 
 
 def process_image_deid_export(task):
+    output_folder = task.output_folder
     build_image_deid_export_config(task)
     app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
 
     os.makedirs(TMP_INPUT_PATH, exist_ok=True)
     temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
@@ -499,9 +501,9 @@ def process_image_deid_export(task):
     input_folder = TMP_INPUT_PATH
     
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), '/dev/null']
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), '/dev/null']
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
     
     env = os.environ.copy()
     env['ICORE_APPDATA_DIR'] = app_data_full_path

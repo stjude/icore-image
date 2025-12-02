@@ -16,6 +16,9 @@
         <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_file" placeholder="Drag and drop query excel file" />
     </div>
     
+    <div class="text-sm text-gray-500 mt-4">Output Folder</div>
+    <input type="text" class="mt-2 mb-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" />
+    
     <div class="flex items-center mt-4">
         <div class="text-sm text-gray-600">Query using:</div>
         <input class="ml-4" type="radio" id="query_accession" name="query_type" value="accession" checked onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">Accession</span>
@@ -271,6 +274,9 @@
                 setDateWindowValue(settings.default_date_window_days);
             } else {
                 setDateWindowValue(0);
+            }
+            if (settings.default_output_folder) {
+                document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
             }
             
             if (settings.default_tags_to_keep) {
@@ -553,6 +559,7 @@
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             input_file: document.querySelector('[name="input_file"]').value,
+            output_folder: document.querySelector('[name="output_folder"]').value,
             tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
             tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
             tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,

@@ -137,7 +137,7 @@ def build_image_export_params(config, input_dir, run_dirs):
     }
 
 
-def build_imagedeidexport_params(config, input_dir, run_dirs):
+def build_imagedeidexport_params(config, input_dir, output_dir, run_dirs):
     from utils import PacsConfiguration, Spreadsheet
     
     pacs_list = [
@@ -165,6 +165,7 @@ def build_imagedeidexport_params(config, input_dir, run_dirs):
         "application_aet": config.get("application_aet"),
         "sas_url": config.get("sas_url"),
         "project_name": config.get("project_name"),
+        "output_dir": output_dir,
         "appdata_dir": appdata_dir,
         "filter_script": config.get("ctp_filters"),
         "anonymizer_script": config.get("ctp_anonymizer"),
@@ -222,7 +223,7 @@ def run(config_path, input_dir, output_dir):
         return image_export(**params)
     elif module == "imagedeidexport":
         from module_imagedeidexport import imagedeidexport
-        params = build_imagedeidexport_params(config, input_dir, run_dirs)
+        params = build_imagedeidexport_params(config, input_dir, output_dir, run_dirs)
         return imagedeidexport(**params)
     elif module == "headerextract_local":
         from module_headerextract_local import headerextract_local

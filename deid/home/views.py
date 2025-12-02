@@ -311,7 +311,7 @@ def task_status(request, project_id):
             appdata_folder = os.path.join(ICORE_BASE_DIR, 'appdata', timestamp)
         
         if task.output_folder and task.name and task.timestamp:
-            if task.task_type in ['IMAGE_DEID', 'TEXT_DEID']:
+            if task.task_type in ['IMAGE_DEID', 'TEXT_DEID', 'IMAGE_DEID_EXPORT']:
                 prefix = 'DeID'
             else:
                 prefix = 'PHI'
@@ -644,7 +644,7 @@ def run_imagedeidexport(request):
             task_type=Project.TaskType.IMAGE_DEID_EXPORT,
             image_source='PACS',
             input_folder='',
-            output_folder='',
+            output_folder=data['output_folder'],
             pacs_configs=data['pacs_configs'],
             application_aet=data['application_aet'],
             status=Project.TaskStatus.PENDING,

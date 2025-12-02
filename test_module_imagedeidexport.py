@@ -20,6 +20,8 @@ def test_imagedeidexport_basic_workflow(tmp_path):
     
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
     
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
@@ -69,6 +71,7 @@ def test_imagedeidexport_basic_workflow(tmp_path):
             application_aet="TEST_AET",
             sas_url=sas_url,
             project_name=project_name,
+            output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False
@@ -90,18 +93,23 @@ def test_imagedeidexport_basic_workflow(tmp_path):
         
         quarantine_dir = appdata_dir / "quarantine"
         assert quarantine_dir.exists()
+        
+        dcm_files_in_output = list(output_dir.rglob("*.dcm"))
+        assert len(dcm_files_in_output) == 2, "Deidentified DICOM files should be preserved in output_dir"
     
     finally:
         orthanc.stop()
         azurite.stop()
 
 
-def test_imagedeidexport_preserves_metadata_deletes_dicoms(tmp_path):
+def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
     
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
     
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
@@ -147,6 +155,7 @@ def test_imagedeidexport_preserves_metadata_deletes_dicoms(tmp_path):
             application_aet="TEST_AET",
             sas_url=sas_url,
             project_name=project_name,
+            output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False
@@ -158,9 +167,8 @@ def test_imagedeidexport_preserves_metadata_deletes_dicoms(tmp_path):
             assert metadata_path.exists(), f"{metadata_file} should be preserved in appdata"
             assert metadata_path.stat().st_size > 0, f"{metadata_file} should not be empty"
         
-        dcm_files_in_appdata = list(appdata_dir.rglob("*.dcm"))
-        assert len(dcm_files_in_appdata) == 0, \
-            "No DICOM files should remain in appdata directory tree (except quarantine)"
+        dcm_files_in_output = list(output_dir.rglob("*.dcm"))
+        assert len(dcm_files_in_output) == 1, "Deidentified DICOM files should be preserved in output_dir"
         
         quarantine_dir = appdata_dir / "quarantine"
         if quarantine_dir.exists():
@@ -182,6 +190,8 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path):
     
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
     
     azurite = AzuriteServer()
     azurite.start()
@@ -215,6 +225,7 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path):
             application_aet="TEST_AET",
             sas_url=sas_url,
             project_name=project_name,
+            output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False
@@ -237,6 +248,8 @@ def test_imagedeidexport_handles_export_failures(tmp_path):
     
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
     
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
@@ -277,6 +290,7 @@ def test_imagedeidexport_handles_export_failures(tmp_path):
                 application_aet="TEST_AET",
                 sas_url=invalid_sas_url,
                 project_name=project_name,
+                output_dir=str(output_dir),
                 appdata_dir=str(appdata_dir),
                 anonymizer_script=anonymizer_script,
                 apply_default_filter_script=False
@@ -295,6 +309,8 @@ def test_imagedeidexport_with_filter_script(tmp_path):
     
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
     
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
@@ -341,6 +357,7 @@ def test_imagedeidexport_with_filter_script(tmp_path):
             application_aet="TEST_AET",
             sas_url=sas_url,
             project_name=project_name,
+            output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             filter_script=filter_script,
@@ -365,6 +382,8 @@ def test_imagedeidexport_with_mapping_file(tmp_path):
     
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
     mapping_file = tmp_path / "mapping.xlsx"
     
     df_mapping = pd.DataFrame({
@@ -417,6 +436,7 @@ def test_imagedeidexport_with_mapping_file(tmp_path):
             application_aet="TEST_AET",
             sas_url=sas_url,
             project_name=project_name,
+            output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             mapping_file_path=str(mapping_file),
@@ -445,6 +465,8 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
     
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
     
     orthanc1 = OrthancServer(aet="ORTHANC1")
     orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
@@ -497,6 +519,7 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
             application_aet="TEST_AET",
             sas_url=sas_url,
             project_name=project_name,
+            output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False
@@ -507,6 +530,9 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
         
         blobs = azurite.list_blobs(container_name)
         assert len(blobs) == 4, "All 4 files from both PACS should be exported"
+        
+        dcm_files_in_output = list(output_dir.rglob("*.dcm"))
+        assert len(dcm_files_in_output) == 4, "Deidentified DICOM files should be preserved in output_dir"
     
     finally:
         orthanc1.stop()
