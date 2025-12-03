@@ -234,3 +234,35 @@ def move_study(host, port, calling_aet, called_aet, move_destination, study_uid,
     
     return _parse_move_output(result.stderr, result.returncode)
 
+
+def echo_pacs(host, port, calling_aet, called_aet):
+    """
+    Ping a PACS to check if it is reachable.
+
+    Args:
+        host: PACS hostname or IP address
+        port: PACS DICOM port
+        aet: AE title of the PACS
+
+    Returns:
+        Dict with keys: success (bool), message (str)
+    """
+    dcmtk_home = _get_default_dcmtk_home()
+    echo_binary = os.path.join(dcmtk_home, 'bin', 'echoscu')
+    cmd = [
+        echo_binary,
+        "-v",
+        "-aet", calling_aet,
+        "-aec", called_aet,
+        host,
+        str(port)
+    ]
+    logging.debug(f"Running echoscu: {' '.join(cmd)}")
+
+    env = _build_dcmtk_env()
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+
+    return {
+        "success": result.returncode == 0,
+        "message": result.stderr
+    }

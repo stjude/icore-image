@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from openpyxl import Workbook
 
-from dcmtk import find_studies, move_study
+from dcmtk import find_studies, move_study, echo_pacs
 
 
 @dataclass
@@ -94,10 +94,31 @@ def validate_date_window_days(date_window_days):
         raise ValueError(f"date_window_days must be between 0 and 10, got {date_window_days}")
 
 
+def find_valid_pacs_list(pacs_list, application_aet):
+    valid_pacs_list = []
+    for pacs in pacs_list:
+        try:
+            result = echo_pacs(pacs.host, pacs.port, application_aet, pacs.aet)
+            if result["success"]:
+                valid_pacs_list.append(pacs)
+            else:
+                logging.warning(f"Failed to ping PACS {pacs.host}:{pacs.port} (AE: {pacs.aet}): {result['message']}")
+                continue
+        except Exception as e:
+            logging.warning(f"Failed to ping PACS {pacs.host}:{pacs.port} (AE: {pacs.aet}): {e}")
+            continue
+    return valid_pacs_list
+
+
 def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
     study_pacs_map = {}
     failed_query_indices = []
     total_queries = len(query_params_list)
+
+    if len(pacs_list) == 0:
+        logging.warning("No valid PACS found")
+        failed_query_indices = list(range(total_queries))
+        return study_pacs_map, failed_query_indices
     
     for pacs in pacs_list:
         logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
