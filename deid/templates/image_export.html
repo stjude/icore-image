@@ -14,9 +14,6 @@
 
     <div class="text-sm text-black-5 mt-4">Select Folder for Secure Data Transfer</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="input_folder" placeholder="Drag and drop folder to export" />
-    
-    <div class="text-sm text-black-5 mt-4">SAS URL (configured in Admin Settings)</div>
-    <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2 bg-gray-100" name="sas_url" placeholder="https://account.blob.core.windows.net/container?sas_token" readonly />
 </div>
 
 <div class="m-4">
@@ -98,7 +95,7 @@
     function validateExportForm() {
         const studyName = document.querySelector('[name="study_name"]').value.trim();
         const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
-        const sasUrl = document.querySelector('[name="sas_url"]').value.trim();
+        const sasUrl = adminSettings.imagine_sas_url;
         const button = document.getElementById('export_button');
         
         const isValid = studyName && inputFolder && sasUrl;
@@ -115,7 +112,7 @@
     async function runExport() {
         const studyName = document.querySelector('[name="study_name"]').value.trim();
         const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
-        const sasUrl = document.querySelector('[name="sas_url"]').value.trim();
+        const sasUrl = adminSettings.imagine_sas_url;
 
         const data = {
             study_name: studyName,
