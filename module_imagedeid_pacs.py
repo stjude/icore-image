@@ -5,7 +5,7 @@ import time
 from ctp import CTPPipeline
 from module_imagedeid_local import _save_metadata_files, _apply_default_filter_script, _process_mapping_file
 from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
-                   combine_filters, validate_date_window_days, find_studies_from_pacs_list,
+                   combine_filters, validate_date_window_days, find_valid_pacs_list, find_studies_from_pacs_list,
                    move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
                    format_number_with_commas)
 
@@ -65,8 +65,9 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     query_params_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
     combined_filter = combine_filters(filter_script, generated_filter)
     combined_filter = _apply_default_filter_script(combined_filter, apply_default_filter_script)
-    
-    study_pacs_map, failed_find_indices = find_studies_from_pacs_list(pacs_list, query_params_list, application_aet)
+
+    valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
+    study_pacs_map, failed_find_indices = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet)
     
     pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
     ctp_log_level = "DEBUG" if debug else None
