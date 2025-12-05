@@ -26,12 +26,14 @@ class Project(models.Model):
         RUNNING = 'RUNNING', 'Running'
         COMPLETED = 'COMPLETED', 'Completed'
         FAILED = 'FAILED', 'Failed'
+        CANCELLED = 'CANCELLED', 'Cancelled'
 
     status = models.CharField(
         max_length=20,
         choices=TaskStatus.choices,
         default=TaskStatus.PENDING
     )
+    process_pid = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     scheduled_time = models.DateTimeField(null=True, blank=True)
