@@ -96,15 +96,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: dev
-          base: main
-          title: Release v${{ inputs.version }}
-          body: |
-            Automated release PR for version ${{ inputs.version }}
-            
-            This PR merges the release changes from dev to main.
-          reviewers: qsodia
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head dev \
+            --title "Release v${{ inputs.version }}" \
+            --body "Automated release PR for version ${{ inputs.version }}" \
+            --reviewer qsodia \
+            --draft
 
