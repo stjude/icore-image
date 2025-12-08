@@ -9,7 +9,8 @@
         <button id="openOutputFolder" class="px-2 py-1 bg-white shadow text-xs hover:bg-gray-100">Open output folder</button>
         <div>
             <button id="openAppdataFolder" class="px-2 py-1 bg-white shadow text-xs hover:bg-gray-100 mr-2">Open appdata folder</button>
-            <button id="openLogsFolder" class="px-2 py-1 bg-white shadow text-xs hover:bg-gray-100">Open logs folder</button>
+            <button id="openLogsFolder" class="px-2 py-1 bg-white shadow text-xs hover:bg-gray-100 mr-2">Open logs folder</button>
+            <button id="cancelTask" class="px-2 py-1 bg-white shadow text-xs hover:bg-gray-100 text-orange-600 hover:text-orange-900 hidden">Cancel task</button>
         </div>
     </div>
     <div id="errorPopup" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
@@ -21,6 +22,21 @@
                 </div>
                 <div class="items-center px-4 py-3">
                     <button id="closeError" class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="cancelledPopup" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <h3 id="cancelledTitle" class="text-lg leading-6 font-medium text-gray-900">Task Cancelled</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p id="cancelledMessage" class="text-sm text-gray-500"></p>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="closeCancelled" class="px-4 py-2 bg-green-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-300">
                         Close
                     </button>
                 </div>
@@ -42,6 +58,7 @@
     let sameContentCount = 0;
     let pollInterval;
     let hasError = false;
+    let taskStatus = null;
     
     // List of error messages from validate_config
     const errorMessages = [
@@ -68,6 +85,8 @@
             const response = await fetch(`/api/task_status/${projectId}`);
             const data = await response.json();
             
+            taskStatus = data.status;
+            
             if (data.log_path && data.log_path !== '' && data.log_path !== logPath) {
                 logPath = data.log_path;
                 console.log('Log path updated to:', logPath);
@@ -84,11 +103,24 @@
             }
             
             updateFolderLinks();
+            updateCancelButton();
             
             if (data.status === 'FAILED') {
                 hasError = true;
                 document.getElementById('errorMessage').textContent = "Task has failed. Please check the logs for details.";
                 document.getElementById('errorPopup').classList.remove('hidden');
+                clearInterval(pollInterval);
+                clearInterval(statusInterval);
+                setTimeout(() => {
+                    window.location.href = '/task_list';
+                }, 3000);
+                return;
+            }
+            
+            if (data.status === 'CANCELLED') {
+                hasError = true;
+                document.getElementById('cancelledMessage').textContent = "Task has been cancelled.";
+                document.getElementById('cancelledPopup').classList.remove('hidden');
                 clearInterval(pollInterval);
                 clearInterval(statusInterval);
                 setTimeout(() => {
@@ -151,6 +183,53 @@
         }
     }
     
+    function updateCancelButton() {
+        const cancelBtn = document.getElementById('cancelTask');
+        
+        if (taskStatus === 'PENDING' || taskStatus === 'RUNNING') {
+            cancelBtn.classList.remove('hidden');
+        } else {
+            cancelBtn.classList.add('hidden');
+        }
+    }
+    
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
+    }
+    
+    async function cancelTask() {
+        if (!confirm('Are you sure you want to cancel this task?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/cancel_task/${projectId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                },
+            });
+            
+            if (response.ok) {
+                hasError = true;
+                document.getElementById('cancelledTitle').textContent = "Cancelling Task";
+                document.getElementById('cancelledMessage').textContent = "Task is being cancelled...";
+                document.getElementById('cancelledPopup').classList.remove('hidden');
+                clearInterval(pollInterval);
+                clearInterval(statusInterval);
+                setTimeout(() => {
+                    window.location.href = '/task_list';
+                }, 2000);
+            } else {
+                const result = await response.json();
+                alert('Failed to cancel task: ' + (result.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to cancel task: ' + error.message);
+        }
+    }
+    
     async function fetchLogContent() {
         if (hasError) return;
         
@@ -187,6 +266,9 @@
         document.getElementById('errorPopup').classList.add('hidden');
         window.history.back(); // Return to previous page
     });
+    
+    // Handle cancel button click
+    document.getElementById('cancelTask').addEventListener('click', cancelTask);
 
     // Initial fetch
     fetchLogContent();
