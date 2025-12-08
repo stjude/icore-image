@@ -40,6 +40,7 @@ urlpatterns = [
     path('verify_admin_password/', views.verify_admin_password, name='verify_admin_password'),
     path('task_list/', views.TaskListView.as_view(), name='task_list'),
     path('delete_task/<int:task_id>/', views.delete_task, name='delete_task'),
+    path('cancel_task/<int:task_id>/', views.cancel_task, name='cancel_task'),
     path('upload_module/', views.upload_module, name='upload_module'),
     path('get_modules/', views.get_modules, name='get_modules'),
     path('reset_deid_settings/', views.reset_deid_settings, name='reset_deid_settings'),

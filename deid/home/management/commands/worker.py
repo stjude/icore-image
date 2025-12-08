@@ -35,6 +35,9 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
         bufsize=1
     )
     
+    task.process_pid = process.pid
+    task.save()
+    
     log_path_captured = False
     stdout_lines = []
     stderr_lines = []
@@ -673,6 +676,7 @@ def run_worker():
                     print(f"Error processing task {task.id}: {str(e)}")
                     task.status = Project.TaskStatus.FAILED
                 finally:
+                    task.process_pid = None
                     task.save()
                     print(f"Task {task.id} finished with status: {task.status}")
             
