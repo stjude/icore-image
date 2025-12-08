@@ -3,9 +3,10 @@ import os
 import time
 
 from ctp import CTPPipeline
-from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
-                   combine_filters, validate_date_window_days, find_studies_from_pacs_list,
-                   move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
+from utils import (generate_queries_and_filter, combine_filters,
+                   validate_date_window_days, find_valid_pacs_list,
+                   find_studies_from_pacs_list, move_studies_from_study_pacs_map,
+                   setup_run_directories, configure_run_logging,
                    format_number_with_commas, csv_string_to_xlsx)
 
 
@@ -49,8 +50,10 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     
     query_params_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
     combined_filter = combine_filters(filter_script, generated_filter)
+
+    valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
     
-    study_pacs_map, failed_find_indices = find_studies_from_pacs_list(pacs_list, query_params_list, application_aet)
+    study_pacs_map, failed_find_indices = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet)
     
     ctp_log_level = "DEBUG" if debug else None
     

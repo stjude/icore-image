@@ -68,16 +68,22 @@
             </div>
         </div>
         <div class="mt-8">
-            <div class="text-md mb-4">Azure Storage Container</div>
-            <div class="grid grid-cols-2 gap-8">
-                <div>
-                    <div class="text-sm text-gray-500 mb-2">Container Name</div>
-                    <input type="text" 
-                        class="w-full border-2 border-gray-400 p-1" 
-                        id="container_name" 
-                        placeholder="Enter container name">
-                </div>
+            <div class="text-md mb-4">Azure Storage SAS URL</div>
+            <div class="text-sm text-gray-500 mb-2">SAS URL for Secure Data Transfer</div>
+            <div class="flex gap-2">
+                <input type="text" 
+                    class="flex-1 border-2 border-gray-400 p-1" 
+                    id="imagine_sas_url" 
+                    placeholder="https://account.blob.core.windows.net/container?sas_token">
+                <button type="button" 
+                        onclick="validateSasUrlInAdmin()" 
+                        id="validateSasBtnAdmin"
+                        class="px-4 py-1 bg-white shadow text-sm rounded hover:bg-blue-100">
+                    Validate
+                </button>
             </div>
+            <p class="text-xs text-gray-500 mt-1">Azure Blob Storage SAS URL for secure data transfer</p>
+            <div id="sasValidationResultAdmin" class="mt-2 p-2 text-sm hidden"></div>
         </div>
     </div>
 
@@ -158,8 +164,8 @@ async function loadSettings() {
         if (settings.site_id) {
             document.getElementById('site_id').value = settings.site_id;
         }
-        if (settings.container_name) {
-            document.getElementById('container_name').value = settings.container_name;
+        if (settings.imagine_sas_url) {
+            document.getElementById('imagine_sas_url').value = settings.imagine_sas_url;
         }
     } catch (error) {
         console.error('Error loading settings:', error);
@@ -172,7 +178,7 @@ async function saveSettings() {
         const protocolFile = document.getElementById('protocol_file').files[0];
         const dateShiftRange = document.getElementById('date_shift_range').value;
         const siteId = document.getElementById('site_id').value;
-        const containerName = document.getElementById('container_name').value;
+        const imagineSasUrl = document.getElementById('imagine_sas_url').value;
 
         if (protocolFile) {
             formData.append('protocol_file', protocolFile);
@@ -183,8 +189,8 @@ async function saveSettings() {
         if (siteId) {
             formData.append('site_id', siteId);
         }
-        if (containerName) {
-            formData.append('container_name', containerName);
+        if (imagineSasUrl) {
+            formData.append('imagine_sas_url', imagineSasUrl);
         }
         const response = await fetch('/save_admin_settings/', {
             method: 'POST',
@@ -214,6 +220,57 @@ function showSaveMessage(message, isError = false) {
     saveButton.parentNode.appendChild(messageDiv);
 
     setTimeout(() => messageDiv.remove(), 3000);
+}
+
+async function validateSasUrlInAdmin() {
+    const sasUrl = document.getElementById('imagine_sas_url').value.trim();
+    const resultDiv = document.getElementById('sasValidationResultAdmin');
+    const validateBtn = document.getElementById('validateSasBtnAdmin');
+    
+    if (!sasUrl) {
+        resultDiv.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
+        resultDiv.classList.add('bg-red-100', 'text-red-700');
+        resultDiv.textContent = 'Please enter a SAS URL';
+        resultDiv.classList.remove('hidden');
+        return;
+    }
+    
+    validateBtn.disabled = true;
+    validateBtn.textContent = 'Validating...';
+    resultDiv.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+    resultDiv.classList.add('bg-blue-100', 'text-blue-700');
+    resultDiv.textContent = 'Validating SAS URL...';
+    resultDiv.classList.remove('hidden');
+    
+    try {
+        const response = await fetch('/validate_sas_url/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrf_token]').content
+            },
+            body: JSON.stringify({ sas_url: sasUrl })
+        });
+        
+        const result = await response.json();
+        
+        if (result.valid) {
+            resultDiv.classList.remove('bg-blue-100', 'text-blue-700');
+            resultDiv.classList.add('bg-green-100', 'text-green-700');
+            resultDiv.textContent = 'SAS URL is valid! Remember to click "Save Settings" to save it.';
+        } else {
+            resultDiv.classList.remove('bg-blue-100', 'text-blue-700');
+            resultDiv.classList.add('bg-red-100', 'text-red-700');
+            resultDiv.textContent = `Validation failed: ${result.error}`;
+        }
+    } catch (error) {
+        resultDiv.classList.remove('bg-blue-100', 'text-blue-700');
+        resultDiv.classList.add('bg-red-100', 'text-red-700');
+        resultDiv.textContent = `Error: ${error.message}`;
+    } finally {
+        validateBtn.disabled = false;
+        validateBtn.textContent = 'Validate';
+    }
 }
 </script>
 {% endblock %} 

@@ -12,6 +12,7 @@ from cli import (
     build_textdeid_params,
     build_image_export_params,
     build_headerextract_local_params,
+    build_imagedeidexport_params,
     run
 )
 from utils import PacsConfiguration, Spreadsheet
@@ -61,6 +62,15 @@ def test_determine_module_headerextract(tmp_path):
     result = determine_module(config, input_dir)
     
     assert result == "headerextract_local"
+
+
+def test_determine_module_imagedeidexport(tmp_path):
+    config = {"module": "imagedeidexport"}
+    input_dir = str(tmp_path)
+    
+    result = determine_module(config, input_dir)
+    
+    assert result == "imagedeidexport"
 
 
 def test_build_imageqr_params_builds_pacs_configuration_list(tmp_path):
@@ -829,6 +839,73 @@ def test_build_headerextract_params_includes_headers_to_extract_when_specified(t
     assert params["extract_all_headers"] is False
 
 
+def test_build_imagedeidexport_params_maps_config_keys_correctly(tmp_path):
+    config = {
+        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
+        "project_name": "TestProject",
+        "application_aet": "ICORE",
+        "acc_col": "AccessionNumber",
+        "ctp_filters": "Modality.contains(\"CT\")",
+        "ctp_anonymizer": "<script></script>",
+        "ctp_lookup_table": "key=value",
+        "date_window": 7,
+        "mapping_file_path": None
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeidexport_params(config, input_dir, output_dir, {})
+    
+    assert params["sas_url"] == "http://127.0.0.1:10000/devstoreaccount1/container?sig=token"
+    assert params["project_name"] == "TestProject"
+    assert params["application_aet"] == "ICORE"
+    assert params["output_dir"] == output_dir
+    assert params["filter_script"] == "Modality.contains(\"CT\")"
+    assert params["anonymizer_script"] == "<script></script>"
+    assert params["lookup_table"] == "key=value"
+    assert params["date_window_days"] == 7
+    assert params["mapping_file_path"] is None
+
+
+def test_build_imagedeidexport_params_debug_defaults_to_false(tmp_path):
+    config = {
+        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
+        "project_name": "TestProject",
+        "acc_col": "AccessionNumber",
+        "mrn_col": "PatientID",
+        "date_col": "StudyDate"
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeidexport_params(config, input_dir, output_dir, {})
+
+    assert params["debug"] is False
+
+
+def test_build_imagedeidexport_params_includes_debug_when_specified(tmp_path):
+    config = {
+        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
+        "project_name": "TestProject",
+        "acc_col": "AccessionNumber",
+        "mrn_col": "PatientID",
+        "date_col": "StudyDate",
+        "debug": True
+    }
+    input_dir = str(tmp_path)
+    (tmp_path / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('utils.Spreadsheet.from_file'):
+        params = build_imagedeidexport_params(config, input_dir, output_dir, {})
+    
+    assert params["debug"] is True
+
+
 def test_run_calls_textdeid_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text("module: textdeid\nto_keep_list:\n  - medical\nto_remove_list:\n  - secret\ncolumns_to_drop:\n  - DropColumn\ncolumns_to_deid:\n  - PatientName")
@@ -890,3 +967,25 @@ def test_run_calls_headerextract_local_with_correct_params(tmp_path):
         assert call_kwargs["extract_all_headers"] is True
         assert call_kwargs["debug"] is False
         assert result == {"num_files_processed": 10, "num_studies": 5}
+
+
+def test_run_calls_imagedeidexport_with_correct_params(tmp_path):
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("module: imagedeidexport\nsas_url: http://127.0.0.1:10000/devstoreaccount1/container?sig=token\nproject_name: TestProject")
+    input_dir = str(tmp_path / "input")
+    os.makedirs(input_dir)
+    (tmp_path / "input" / "input.xlsx").touch()
+    output_dir = str(tmp_path / "output")
+    
+    with patch('module_imagedeidexport.imagedeidexport') as mock_imagedeidexport:
+        with patch('utils.Spreadsheet.from_file'):
+            mock_imagedeidexport.return_value = {"files_uploaded": 5, "bytes_uploaded": 1024}
+            
+            result = run(str(config_path), input_dir, output_dir)
+
+            mock_imagedeidexport.assert_called_once()
+            call_kwargs = mock_imagedeidexport.call_args.kwargs
+            assert call_kwargs["output_dir"] == output_dir
+            assert call_kwargs["sas_url"] == "http://127.0.0.1:10000/devstoreaccount1/container?sig=token"
+            assert call_kwargs["project_name"] == "TestProject"
+            assert result == {"files_uploaded": 5, "bytes_uploaded": 1024}

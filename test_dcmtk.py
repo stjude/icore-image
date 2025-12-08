@@ -3,7 +3,7 @@ from unittest import mock
 import pytest
 import time
 
-from dcmtk import find_studies, move_study, DCMTKCommandError, DCMTKParseError
+from dcmtk import find_studies, move_study, echo_pacs, DCMTKCommandError, DCMTKParseError
 
 FINDSCU_SINGLE_ACCESSION_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <responses type="C-FIND">
@@ -330,4 +330,33 @@ def test_move_study_retries_on_failure():
     
     assert result["success"] is True
     assert attempt_count["count"] == 2
+
+
+def test_echo_pacs_success():
+    def mock_run(*args, **kwargs):
+        return mock.Mock(returncode=0, stdout="", stderr="")
+    
+    with mock.patch('subprocess.run', side_effect=mock_run):
+        result = echo_pacs(
+            host="localhost",
+            port=11112,
+            calling_aet="TEST_SCU",
+            called_aet="ORTHANC_TEST",
+        )
+    assert result["success"] is True
+
+
+def test_echo_pacs_failure():
+    def mock_run(*args, **kwargs):
+        return mock.Mock(returncode=1, stdout="", stderr="Association Rejected")
+    
+    with mock.patch('subprocess.run', side_effect=mock_run):
+        result = echo_pacs(
+            host="localhost",
+            port=11112,
+            calling_aet="TEST_SCU",
+            called_aet="ORTHANC_TEST",
+        )
+    assert result["success"] is False
+    assert "Association Rejected" in result["message"]
 
