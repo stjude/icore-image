@@ -526,3 +526,110 @@ class AzuriteServer:
         if self.container:
             subprocess.run(["docker", "stop", self.container], capture_output=True)
             subprocess.run(["docker", "rm", self.container], capture_output=True)
+
+
+# Filesystem verification tests
+def test_verify_study_on_filesystem_exists(tmp_path):
+    """Returns True when study exists"""
+    from utils import verify_study_on_filesystem
+    
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    study_uid = "1.2.3.4.5"
+    study_dir = output_dir / "images" / f"DATE-20250101--CT--PID-TEST001" / "SER-1"
+    study_dir.mkdir(parents=True)
+    
+    # Create a DICOM file with the study UID
+    ds = Fixtures.create_minimal_dicom(
+        patient_id="TEST001",
+        modality="CT",
+        StudyInstanceUID=study_uid  # Use StudyInstanceUID not study_uid
+    )
+    ds.StudyDate = "20250101"
+    ds.SeriesNumber = 1
+    ds.InstanceNumber = 1
+    
+    filepath = study_dir / "image.dcm"
+    ds.save_as(str(filepath), write_like_original=False)
+    
+    assert verify_study_on_filesystem(str(output_dir), study_uid) is True
+
+
+def test_verify_study_on_filesystem_missing(tmp_path):
+    """Returns False when missing"""
+    from utils import verify_study_on_filesystem
+    
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    # Study UID that doesn't exist
+    assert verify_study_on_filesystem(str(output_dir), "1.2.3.4.999") is False
+
+
+def test_count_study_files_multiple(tmp_path):
+    """Counts multiple files correctly"""
+    from utils import count_study_files
+    
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    study_uid = "1.2.3.4.5"
+    study_dir = output_dir / "images" / f"DATE-20250101--CT--PID-TEST001" / "SER-1"
+    study_dir.mkdir(parents=True)
+    
+    # Create 5 DICOM files with the same study UID
+    for i in range(5):
+        ds = Fixtures.create_minimal_dicom(
+            patient_id="TEST001",
+            modality="CT",
+            StudyInstanceUID=study_uid  # Use StudyInstanceUID not study_uid
+        )
+        ds.StudyDate = "20250101"
+        ds.SeriesNumber = 1
+        ds.InstanceNumber = i + 1
+        
+        filepath = study_dir / f"image{i}.dcm"
+        ds.save_as(str(filepath), write_like_original=False)
+    
+    assert count_study_files(str(output_dir), study_uid) == 5
+
+
+def test_count_study_files_zero(tmp_path):
+    """Returns 0 when no files"""
+    from utils import count_study_files
+    
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    # Study UID that doesn't exist
+    assert count_study_files(str(output_dir), "1.2.3.4.999") == 0
+
+
+def test_verify_study_on_filesystem_partial(tmp_path):
+    """Handles partial downloads"""
+    from utils import verify_study_on_filesystem, count_study_files
+    
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    study_uid = "1.2.3.4.5"
+    study_dir = output_dir / "images" / f"DATE-20250101--CT--PID-TEST001" / "SER-1"
+    study_dir.mkdir(parents=True)
+    
+    # Create only 1 file (partial download)
+    ds = Fixtures.create_minimal_dicom(
+        patient_id="TEST001",
+        modality="CT",
+        StudyInstanceUID=study_uid  # Use StudyInstanceUID not study_uid
+    )
+    ds.StudyDate = "20250101"
+    ds.SeriesNumber = 1
+    ds.InstanceNumber = 1
+    
+    filepath = study_dir / "image.dcm"
+    ds.save_as(str(filepath), write_like_original=False)
+    
+    # Study should be found (at least partial files exist)
+    assert verify_study_on_filesystem(str(output_dir), study_uid) is True
+    assert count_study_files(str(output_dir), study_uid) == 1

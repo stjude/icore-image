@@ -3,6 +3,7 @@ import io
 import logging
 import os
 import sys
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -110,7 +111,7 @@ def find_valid_pacs_list(pacs_list, application_aet):
     return valid_pacs_list
 
 
-def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
+def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, progress_tracker=None):
     study_pacs_map = {}
     failed_query_indices = []
     total_queries = len(query_params_list)
@@ -120,10 +121,20 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
         failed_query_indices = list(range(total_queries))
         return study_pacs_map, failed_query_indices
     
+    # Get completed rows to skip
+    completed_rows = progress_tracker.get_completed_rows() if progress_tracker else set()
+    if completed_rows:
+        logging.info(f"Skipping {len(completed_rows)} already completed rows")
+    
     for pacs in pacs_list:
         logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
         
         for i, query_params in enumerate(query_params_list):
+            # Skip rows that are already completed
+            if i in completed_rows:
+                logging.debug(f"Skipping row {i} (already completed)")
+                continue
+            
             logging.info(f"Queried {i} / {total_queries} rows")
             logging.debug(f"Processing Excel row {i + 1}")
             
@@ -142,6 +153,10 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
                     if study_uid and study_uid not in study_pacs_map:
                         study_pacs_map[study_uid] = (pacs, i)
                         logging.debug(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
+                        
+                        # Mark row as queried in progress tracker
+                        if progress_tracker:
+                            progress_tracker.mark_row_queried(i, study_uid)
                 
                 if not results:
                     logging.warning(f"No studies found for query {i}: {query_params}")
@@ -157,13 +172,20 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
     return study_pacs_map, failed_query_indices
 
 
-def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
+def move_studies_from_study_pacs_map(study_pacs_map, application_aet, progress_tracker=None, output_dir=None):
     successful_moves = 0
     failed_query_indices = []
     total_studies = len(study_pacs_map)
     processed = 0
     
     for study_uid, (pacs, query_index) in study_pacs_map.items():
+        # Skip studies that are already downloaded
+        if progress_tracker and progress_tracker.is_study_downloaded(study_uid):
+            logging.info(f"Skipping study {study_uid} (already downloaded)")
+            processed += 1
+            successful_moves += 1
+            continue
+        
         logging.info(f"Moved {processed} / {total_studies} studies")
         logging.debug(f"Processing study from Excel row {query_index + 1}")
         
@@ -181,6 +203,19 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
         if result["success"]:
             successful_moves += 1
             logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
+            
+            # Verify download and update progress tracker
+            if progress_tracker and output_dir:
+                # Give CTP a moment to save the files
+                time.sleep(0.5)
+                
+                # Verify the study is on filesystem
+                if verify_study_on_filesystem(output_dir, study_uid):
+                    file_count = count_study_files(output_dir, study_uid)
+                    progress_tracker.mark_study_downloaded(study_uid, files_count=file_count)
+                    logging.debug(f"Verified and marked study {study_uid} as downloaded ({file_count} files)")
+                else:
+                    logging.warning(f"Study {study_uid} move reported success but files not found on filesystem")
         else:
             logging.error(f"Excel row {query_index + 1} failed after 4 retries. Moving on.")
             if query_index not in failed_query_indices:
@@ -384,4 +419,66 @@ def format_dicom_date(date_value):
         return date_value.strftime("%Y%m%d")
     else:
         raise ValueError(f"Cannot format non-date value: {date_value} (type: {type(date_value).__name__})")
+
+
+def verify_study_on_filesystem(output_dir, study_uid):
+    """
+    Check if study files exist on filesystem.
+    
+    Returns True if at least one DICOM file with the study UID is found,
+    False otherwise.
+    """
+    try:
+        import pydicom
+    except ImportError:
+        logging.warning("pydicom not available, cannot verify study on filesystem")
+        return False
+    
+    for root, dirs, files in os.walk(output_dir):
+        for filename in files:
+            if filename.lower().endswith('.dcm'):
+                filepath = os.path.join(root, filename)
+                try:
+                    ds = pydicom.dcmread(filepath, stop_before_pixels=True, force=True)
+                    if hasattr(ds, 'StudyInstanceUID'):
+                        file_study_uid = str(ds.StudyInstanceUID).strip()
+                        if file_study_uid == str(study_uid).strip():
+                            return True
+                except Exception as e:
+                    # Skip files that can't be read
+                    logging.debug(f"Could not read file {filepath}: {e}")
+                    continue
+    
+    return False
+
+
+def count_study_files(output_dir, study_uid):
+    """
+    Count the number of DICOM files for a given study UID.
+    
+    Returns the count of files found with the specified study UID.
+    """
+    try:
+        import pydicom
+    except ImportError:
+        logging.warning("pydicom not available, cannot count study files")
+        return 0
+    
+    count = 0
+    for root, dirs, files in os.walk(output_dir):
+        for filename in files:
+            if filename.lower().endswith('.dcm'):
+                filepath = os.path.join(root, filename)
+                try:
+                    ds = pydicom.dcmread(filepath, stop_before_pixels=True, force=True)
+                    if hasattr(ds, 'StudyInstanceUID'):
+                        file_study_uid = str(ds.StudyInstanceUID).strip()
+                        if file_study_uid == str(study_uid).strip():
+                            count += 1
+                except Exception as e:
+                    # Skip files that can't be read
+                    logging.debug(f"Could not read file {filepath}: {e}")
+                    continue
+    
+    return count
 

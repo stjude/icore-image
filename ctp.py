@@ -1,3 +1,4 @@
+import logging
 import os
 import platform
 import re
@@ -54,9 +55,13 @@ def ctp_get(url, port, timeout=3):
         return requests.get(
             f"http://localhost:{port}/{url}",
             auth=("admin", "password"),
-            timeout=timeout
+            timeout=(timeout, timeout)  # (connection timeout, read timeout)
         )
-    except Exception:
+    except requests.exceptions.Timeout:
+        logging.warning(f"HTTP GET timeout for URL: {url}")
+        return None
+    except Exception as e:
+        logging.debug(f"HTTP GET failed for URL {url}: {e}")
         return None
 
 
@@ -67,9 +72,13 @@ def ctp_post(url, port, data, timeout=6):
             auth=("admin", "password"),
             data=data,
             headers={"Referer": f"http://localhost:{port}/{url}"},
-            timeout=timeout
+            timeout=(timeout, timeout)  # (connection timeout, read timeout)
         )
-    except Exception:
+    except requests.exceptions.Timeout:
+        logging.warning(f"HTTP POST timeout for URL: {url}")
+        return None
+    except Exception as e:
+        logging.debug(f"HTTP POST failed for URL {url}: {e}")
         return None
 
 
@@ -226,6 +235,13 @@ class CTPServer:
             raise self._monitor_exception
         return self.metrics.stable_count > 3
     
+    def check_health(self):
+        """Check if the monitor thread is alive and functioning"""
+        if not self.monitor_thread or not self.monitor_thread.is_alive():
+            raise RuntimeError("Monitor thread is not running")
+        if self._monitor_exception:
+            raise self._monitor_exception
+    
     def _send_shutdown_request(self):
         try:
             requests.get(
@@ -321,13 +337,34 @@ class CTPServer:
     
     def _monitor_loop(self):
         try:
+            logging.info(f"CTP monitor thread started (stall_timeout={self.stall_timeout}s)")
             while self._monitor_running:
                 time.sleep(3)
-                self._update_metrics()
                 
-                if self.metrics.time_since_last_change() > self.stall_timeout:
+                # Wrap metrics update in try-except to handle HTTP timeouts gracefully
+                try:
+                    self._update_metrics()
+                    logging.debug(f"CTP metrics updated: received={self.metrics.files_received}, "
+                                f"saved={self.metrics.files_saved}, quarantined={self.metrics.files_quarantined}, "
+                                f"queue={self.metrics.queue_size}")
+                except Exception as update_error:
+                    logging.warning(f"Failed to update CTP metrics: {update_error}")
+                
+                time_since_change = self.metrics.time_since_last_change()
+                if time_since_change > self.stall_timeout:
+                    logging.error(f"CTP stall detected: metrics unchanged for {time_since_change:.1f}s (timeout={self.stall_timeout}s)")
+                    logging.info("Initiating forceful shutdown due to stall...")
+                    
+                    # Forcefully shut down the CTP process
+                    try:
+                        self._shutdown_process(self.process)
+                        logging.info("CTP process shut down successfully after stall detection")
+                    except Exception as shutdown_error:
+                        logging.error(f"Error during forceful shutdown: {shutdown_error}")
+                    
                     raise TimeoutError(f"CTP metrics have not changed for {self.stall_timeout} seconds")
         except Exception as e:
+            logging.error(f"CTP monitor thread exception: {type(e).__name__}: {e}")
             self._monitor_exception = e
 
 
