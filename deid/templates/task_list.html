@@ -29,6 +29,7 @@
                             {% if task.status == 'PENDING' %}bg-yellow-100 text-yellow-800
                             {% elif task.status == 'RUNNING' %}bg-blue-100 text-blue-800
                             {% elif task.status == 'COMPLETED' %}bg-green-100 text-green-800
+                            {% elif task.status == 'CANCELLED' %}bg-gray-100 text-gray-800
                             {% else %}bg-red-100 text-red-800{% endif %}">
                             {{ task.get_status_display }}
                         </span>
@@ -47,7 +48,10 @@
                         <div class="flex space-x-4 justify-end">
                             <a href="{% url 'task_progress' %}?project_id={{ task.id }}" 
                                class="text-indigo-600 hover:text-indigo-900">Open</a>
-                            {% if task.status != 'RUNNING' %}
+                            {% if task.status == 'PENDING' or task.status == 'RUNNING' %}
+                                <button onclick="cancelTask('{{ task.id }}')" 
+                                        class="text-orange-600 hover:text-orange-900">Cancel</button>
+                            {% else %}
                                 <button onclick="deleteTask('{{ task.id }}')" 
                                         class="text-red-600 hover:text-red-900">Delete</button>
                             {% endif %}
@@ -69,6 +73,31 @@
 <script>
 function getCsrfToken() {
     return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
+}
+
+async function cancelTask(taskId) {
+    if (!confirm('Are you sure you want to cancel this task?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/cancel_task/${taskId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+            },
+        });
+        
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            const result = await response.json();
+            alert('Failed to cancel task: ' + (result.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to cancel task: ' + error.message);
+    }
 }
 
 async function deleteTask(taskId) {
