@@ -204,6 +204,18 @@ class ImageDeidExportView(CommonContextMixin, CreateView):
         return context
 
 
+class SingleClickICoreView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name']
+    template_name = 'singleclick_icore.html'
+    success_url = reverse_lazy('task_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['modalities'] = ['CT', 'MR', 'PT', 'US', 'CR', 'DX', 'MG', 'NM', 'RF', 'XA']
+        return context
+
+
 class GeneralModuleView(CommonContextMixin, TemplateView):
     template_name = 'general_module.html'
 
@@ -312,7 +324,7 @@ def task_status(request, project_id):
             appdata_folder = os.path.join(ICORE_BASE_DIR, 'appdata', timestamp)
         
         if task.output_folder and task.name and task.timestamp:
-            if task.task_type in ['IMAGE_DEID', 'TEXT_DEID', 'IMAGE_DEID_EXPORT']:
+            if task.task_type in ['IMAGE_DEID', 'TEXT_DEID', 'IMAGE_DEID_EXPORT', 'SINGLE_CLICK_ICORE']:
                 prefix = 'DeID'
             else:
                 prefix = 'PHI'
@@ -672,6 +684,75 @@ def run_imagedeidexport(request):
                 'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
                 'site_id': data['site_id'],
                 'sas_url': data['sas_url'],
+            }
+        )
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id,
+            'log_path': project.log_path
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+
+@csrf_exempt
+def run_singleclickicore(request):
+    print('Running Single-Click iCore')
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+        
+        if not validate_pacs_configuration(data.get('pacs_configs', [])):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No PACS configured. Please configure PACS settings before running.'
+            }, status=400)
+        
+        scheduled_time = None
+        if 'scheduled_time' in data:
+            settings = json.load(open(os.path.join(SETTINGS_DIR, 'settings.json')))
+            timezone_str = settings.get('timezone', 'UTC')
+            tz = pytz.timezone(timezone_str)
+            local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
+            scheduled_time = tz.localize(local_dt)
+            scheduled_time = scheduled_time.astimezone(pytz.UTC)
+        
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        project = Project.objects.create(
+            name=data['study_name'],
+            timestamp=timestamp,
+            log_path="",
+            task_type=Project.TaskType.SINGLE_CLICK_ICORE,
+            image_source='PACS',
+            input_folder='',
+            output_folder=data['output_folder'],
+            pacs_configs=data['pacs_configs'],
+            application_aet=data['application_aet'],
+            status=Project.TaskStatus.PENDING,
+            scheduled_time=scheduled_time,
+            parameters={
+                'input_file': data['input_file'],
+                'general_filters': data['general_filters'],
+                'modality_filters': data['modality_filters'],
+                'tags_to_keep': data['tags_to_keep'],
+                'tags_to_dateshift': data['tags_to_dateshift'],
+                'tags_to_randomize': data['tags_to_randomize'],
+                'date_shift_days': data['date_shift_days'],
+                'mapping_file_path': data.get('mapping_file_path', ''),
+                'use_mapping_file': data.get('use_mapping_file', False),
+                'deid_pixels': data.get('deid_pixels', False),
+                'remove_unspecified': data.get('remove_unspecified', False),
+                'remove_overlays': data.get('remove_overlays', False),
+                'remove_curves': data.get('remove_curves', False),
+                'remove_private': data.get('remove_private', False),
+                'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
+                'site_id': data['site_id'],
+                'sas_url': data['sas_url'],
+                'text_to_keep': data.get('text_to_keep', ''),
+                'text_to_remove': data.get('text_to_remove', ''),
+                'columns_to_deid': data.get('columns_to_deid', ''),
+                'columns_to_drop': data.get('columns_to_drop', ''),
             }
         )
         return JsonResponse({
