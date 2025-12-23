@@ -172,11 +172,14 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, p
     return study_pacs_map, failed_query_indices
 
 
-def move_studies_from_study_pacs_map(study_pacs_map, application_aet, progress_tracker=None, output_dir=None):
+def move_studies_from_study_pacs_map(study_pacs_map, application_aet, progress_tracker=None, move_delay_seconds=2.0):
     successful_moves = 0
     failed_query_indices = []
     total_studies = len(study_pacs_map)
     processed = 0
+    
+    if move_delay_seconds > 0:
+        logging.info(f"Throttling enabled: {move_delay_seconds}s delay between move requests to prevent PACS overload")
     
     for study_uid, (pacs, query_index) in study_pacs_map.items():
         # Skip studies that are already downloaded
@@ -204,22 +207,16 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet, progress_t
             successful_moves += 1
             logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
             
-            # Verify download and update progress tracker
-            if progress_tracker and output_dir:
-                # Give CTP a moment to save the files
-                time.sleep(0.5)
-                
-                # Verify the study is on filesystem
-                if verify_study_on_filesystem(output_dir, study_uid):
-                    file_count = count_study_files(output_dir, study_uid)
-                    progress_tracker.mark_study_downloaded(study_uid, files_count=file_count)
-                    logging.debug(f"Verified and marked study {study_uid} as downloaded ({file_count} files)")
-                else:
-                    logging.warning(f"Study {study_uid} move reported success but files not found on filesystem")
+            if progress_tracker:
+                progress_tracker.mark_study_downloaded(study_uid)
         else:
             logging.error(f"Excel row {query_index + 1} failed after 4 retries. Moving on.")
             if query_index not in failed_query_indices:
                 failed_query_indices.append(query_index)
+        
+        # Throttle move requests to prevent overwhelming PACS
+        if move_delay_seconds > 0 and processed < total_studies:
+            time.sleep(move_delay_seconds)
     
     logging.info(f"Moved {processed} / {total_studies} studies")
     

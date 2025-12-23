@@ -32,7 +32,7 @@ def _log_progress(pipeline):
 def _imageqr_single_attempt(pacs_list, query_spreadsheet, application_aet, 
                             output_dir, appdata_dir, filter_script, date_window_days, 
                             debug, run_dirs, progress_tracker, query_params_list, 
-                            combined_filter, quarantine_dir):
+                            combined_filter, quarantine_dir, move_delay_seconds):
     """Single attempt at running imageqr with CTP pipeline"""
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
     
@@ -55,7 +55,8 @@ def _imageqr_single_attempt(pacs_list, query_spreadsheet, application_aet,
         
         successful_moves, failed_move_indices = move_studies_from_study_pacs_map(
             study_pacs_map, application_aet, 
-            progress_tracker=progress_tracker, output_dir=output_dir
+            progress_tracker=progress_tracker,
+            move_delay_seconds=move_delay_seconds
         )
         
         failed_query_indices = list(set(failed_find_indices + failed_move_indices))
@@ -72,10 +73,10 @@ def _imageqr_single_attempt(pacs_list, query_spreadsheet, application_aet,
                 # Save progress periodically
                 progress_tracker.save_progress(appdata_dir)
                 
-                # Check CTP health
-                pipeline.server.check_health()
-                
                 last_save_time = current_time
+            
+            # Check CTP health explicitly to catch monitor thread exceptions
+            pipeline.server.check_health()
             
             time.sleep(1)
         
@@ -98,7 +99,7 @@ def _imageqr_single_attempt(pacs_list, query_spreadsheet, application_aet,
 
 
 def imageqr(pacs_list, query_spreadsheet, application_aet, 
-            output_dir, appdata_dir=None, filter_script=None, date_window_days=0, debug=False, run_dirs=None, max_restart_attempts=10):
+            output_dir, appdata_dir=None, filter_script=None, date_window_days=0, debug=False, run_dirs=None, max_restart_attempts=10, move_delay_seconds=2.0):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -161,7 +162,7 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
                 pacs_list, query_spreadsheet, application_aet, 
                 output_dir, appdata_dir, filter_script, date_window_days, 
                 debug, run_dirs, progress_tracker, query_params_list, 
-                combined_filter, quarantine_dir
+                combined_filter, quarantine_dir, move_delay_seconds
             )
             
             # If we get here, the attempt completed successfully

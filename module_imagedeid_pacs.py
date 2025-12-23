@@ -27,7 +27,8 @@ def _imagedeid_pacs_single_attempt(pacs_list, query_spreadsheet, application_aet
                                    output_dir, appdata_dir, filter_script, 
                                    date_window_days, anonymizer_script, deid_pixels,
                                    lookup_table, debug, run_dirs, progress_tracker, 
-                                   query_params_list, combined_filter, quarantine_dir):
+                                   query_params_list, combined_filter, quarantine_dir,
+                                   move_delay_seconds):
     """Single attempt at running imagedeid_pacs with CTP pipeline"""
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
     study_pacs_map, failed_find_indices = find_studies_from_pacs_list(
@@ -52,7 +53,8 @@ def _imagedeid_pacs_single_attempt(pacs_list, query_spreadsheet, application_aet
         
         successful_moves, failed_move_indices = move_studies_from_study_pacs_map(
             study_pacs_map, application_aet,
-            progress_tracker=progress_tracker, output_dir=output_dir
+            progress_tracker=progress_tracker,
+            move_delay_seconds=move_delay_seconds
         )
         
         failed_query_indices = list(set(failed_find_indices + failed_move_indices))
@@ -98,7 +100,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
                    output_dir, appdata_dir=None, filter_script=None, 
                    date_window_days=0, anonymizer_script=None, deid_pixels=False,
                    lookup_table=None, debug=False, run_dirs=None, apply_default_filter_script=True,
-                   mapping_file_path=None, max_restart_attempts=10):
+                   mapping_file_path=None, max_restart_attempts=10, move_delay_seconds=2.0):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -180,7 +182,8 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
                 output_dir, appdata_dir, filter_script, 
                 date_window_days, anonymizer_script, deid_pixels,
                 lookup_table, debug, run_dirs, progress_tracker, 
-                query_params_list, combined_filter, quarantine_dir
+                query_params_list, combined_filter, quarantine_dir,
+                move_delay_seconds
             )
             
             # If we get here, the attempt completed successfully

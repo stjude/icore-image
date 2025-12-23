@@ -44,14 +44,13 @@ class ProgressTracker:
         
         self.last_updated = datetime.now(timezone.utc).isoformat()
     
-    def mark_study_downloaded(self, study_uid: str, files_count: int):
+    def mark_study_downloaded(self, study_uid: str):
         """Mark that a study has been successfully downloaded"""
         if study_uid not in self.studies:
             logging.warning(f"Study {study_uid} marked as downloaded but was never queried")
             return
         
         self.studies[study_uid]["status"] = "downloaded"
-        self.studies[study_uid]["file_count"] = files_count
         
         # Check if all studies for this row are now downloaded
         row_index = self.studies[study_uid]["row_index"]
@@ -65,10 +64,6 @@ class ProgressTracker:
             if all_downloaded:
                 self.rows[row_index]["status"] = "completed"
                 self.rows[row_index]["completed_at"] = datetime.now(timezone.utc).isoformat()
-                self.rows[row_index]["files_downloaded"] = sum(
-                    self.studies.get(uid, {}).get("file_count", 0)
-                    for uid in row_study_uids
-                )
         
         self.last_updated = datetime.now(timezone.utc).isoformat()
     
