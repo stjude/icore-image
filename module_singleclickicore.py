@@ -16,12 +16,12 @@ def singleclickicore(pacs_list, query_spreadsheet, application_aet,
                      mapping_file_path=None,
                      to_keep_list=None, to_remove_list=None,
                      columns_to_drop=None, columns_to_deid=None,
-                     debug=False, run_dirs=None):
+                     debug=False, run_dirs=None, skip_export=False):
     """
     Combined module that performs:
     1. Image deidentification from PACS
     2. Text deidentification on input Excel file
-    3. Export of all output to Azure Blob Storage
+    3. Export of all output to Azure Blob Storage (optional)
     
     Args:
         pacs_list: List of PacsConfiguration objects
@@ -45,6 +45,7 @@ def singleclickicore(pacs_list, query_spreadsheet, application_aet,
         columns_to_deid: List of columns to deidentify in Excel
         debug: Enable debug logging
         run_dirs: Run directories dictionary
+        skip_export: Whether to skip Azure export (default: False)
         
     Returns:
         dict: Combined results from all steps
@@ -100,22 +101,27 @@ def singleclickicore(pacs_list, query_spreadsheet, application_aet,
         run_dirs=run_dirs
     )
     
-    # Step 3: Export to Azure (only if we have content to export)
-    logging.info("="*80)
-    logging.info("STEP 3: Export to Azure Blob Storage")
-    logging.info("="*80)
-    
-    if deid_result["num_images_saved"] > 0 or text_result["num_rows_processed"] > 0:
-        image_export(
-            input_dir=output_dir,
-            sas_url=sas_url,
-            project_name=project_name,
-            appdata_dir=appdata_dir,
-            debug=debug,
-            run_dirs=run_dirs
-        )
+    # Step 3: Export to Azure (only if we have content to export and not skipped)
+    if not skip_export:
+        logging.info("="*80)
+        logging.info("STEP 3: Export to Azure Blob Storage")
+        logging.info("="*80)
+        
+        if deid_result["num_images_saved"] > 0 or text_result["num_rows_processed"] > 0:
+            image_export(
+                input_dir=output_dir,
+                sas_url=sas_url,
+                project_name=project_name,
+                appdata_dir=appdata_dir,
+                debug=debug,
+                run_dirs=run_dirs
+            )
+        else:
+            logging.info("No content to export - skipping Azure upload")
     else:
-        logging.info("No content to export - skipping Azure upload")
+        logging.info("="*80)
+        logging.info("STEP 3: Export to Azure Blob Storage - SKIPPED")
+        logging.info("="*80)
     
     logging.info("="*80)
     logging.info("singleclickicore complete")
@@ -128,5 +134,6 @@ def singleclickicore(pacs_list, query_spreadsheet, application_aet,
         "num_images_quarantined": deid_result["num_images_quarantined"],
         "failed_query_indices": deid_result["failed_query_indices"],
         "num_rows_processed": text_result["num_rows_processed"],
-        "output_file": text_result["output_file"]
+        "output_file": text_result["output_file"],
+        "export_performed": not skip_export
     }

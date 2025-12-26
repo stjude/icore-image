@@ -441,3 +441,220 @@ def test_singleclickicore_handles_export_failures(tmp_path):
     
     finally:
         orthanc.stop()
+
+
+def test_singleclickicore_skip_export_option(tmp_path):
+    """Test that skip_export=True prevents Azure upload but preserves local files"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    appdata_dir = tmp_path / "appdata"
+    appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "input.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001"],
+            "Notes": ["Test note"]
+        })
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+</script>"""
+        
+        from module_singleclickicore import singleclickicore
+        
+        result = singleclickicore(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            sas_url="",
+            project_name="TestProject",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            input_file=str(query_file),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            skip_export=True
+        )
+        
+        assert result["num_studies_found"] == 1
+        assert result["num_images_exported"] == 1
+        assert result["num_rows_processed"] == 1
+        assert result["export_performed"] == False
+        
+        dcm_files = list(output_dir.rglob("*.dcm"))
+        assert len(dcm_files) == 1, "Local DICOM file should exist"
+        
+        output_xlsx = output_dir / "output.xlsx"
+        assert output_xlsx.exists(), "Local Excel file should exist"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_singleclickicore_export_enabled_by_default(tmp_path):
+    """Test that export happens by default when skip_export is not specified"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    appdata_dir = tmp_path / "appdata"
+    appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    azurite = AzuriteServer()
+    azurite.start()
+    
+    try:
+        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "input.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001"],
+            "Notes": ["Test note"]
+        })
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+</script>"""
+        
+        container_name = "testcontainer"
+        sas_url = azurite.get_sas_url(container_name)
+        project_name = "DefaultExportProject"
+        
+        from module_singleclickicore import singleclickicore
+        
+        result = singleclickicore(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            input_file=str(query_file),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False
+        )
+        
+        assert result["export_performed"] == True
+        
+        blobs = azurite.list_blobs(container_name)
+        dcm_blobs = [b for b in blobs if b.endswith('.dcm')]
+        xlsx_blobs = [b for b in blobs if b.endswith('.xlsx')]
+        assert len(dcm_blobs) == 1, "DICOM should be uploaded to Azure"
+        assert len(xlsx_blobs) == 1, "Excel should be uploaded to Azure"
+    
+    finally:
+        orthanc.stop()
+        azurite.stop()
+
+
+def test_singleclickicore_skip_export_no_sas_required(tmp_path):
+    """Test that SAS URL is not required when skip_export=True"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    appdata_dir = tmp_path / "appdata"
+    appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "input.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001"],
+            "Notes": ["Test note"]
+        })
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+</script>"""
+        
+        from module_singleclickicore import singleclickicore
+        
+        result = singleclickicore(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            sas_url=None,
+            project_name="NoSASProject",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            input_file=str(query_file),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            skip_export=True
+        )
+        
+        assert result["num_studies_found"] == 1
+        assert result["num_images_exported"] == 1
+        assert result["export_performed"] == False
+        
+        dcm_files = list(output_dir.rglob("*.dcm"))
+        assert len(dcm_files) == 1
+        
+        output_xlsx = output_dir / "output.xlsx"
+        assert output_xlsx.exists()
+    
+    finally:
+        orthanc.stop()
+

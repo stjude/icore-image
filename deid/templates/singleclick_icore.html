@@ -19,159 +19,165 @@
     <div class="text-sm text-gray-500 mt-4">Output Folder</div>
     <input type="text" class="mt-2 mb-2 w-full h-full border-2 border-gray-400 p-2" name="output_folder" placeholder="Folder to store deidentified images and Excel (preserved locally after export)" />
     
-    <!-- Image Deidentification Options -->
+    <!-- Combined Deidentification Options -->
     <div class="flex items-center mt-4">
-        <button class="text-black" onclick="toggleImageDeidOptions()" id="imageDeidOptionsButton">▼</button>
-        <div class="text-sm text-black ml-4">Image Deidentification Options</div>
+        <button class="text-black" onclick="toggleDeidOptions()" id="deidOptionsButton">▼</button>
+        <div class="text-sm text-black ml-4">Deidentification Options</div>
     </div>
-    <div id="image_deid_options" class="mt-4 hidden ml-4">
-        <div class="mb-4">
-            <div class="text-sm text-gray-600 mb-2">General Filters</div>
-            <div class="text-sm text-gray-400 mb-2">Only include images where</div>
-            {% include 'components/add_filters.html' %}
-        </div>
-
-        <div class="mt-4">
-            <div class="flex items-center">
-                <input type="checkbox" 
-                       id="modality-filter-toggle" 
-                       class="mr-2"
-                       onchange="toggleModalityFilters()">
-                <label for="modality-filter-toggle">Filter by Modality</label>
+    <div id="deid_options" class="mt-4 hidden ml-4">
+        <!-- Image Deidentification Sub-section -->
+        <div class="mb-6">
+            <div class="text-md font-medium mb-2">Image Deidentification</div>
+            <div class="mb-4">
+                <div class="text-sm text-gray-600 mb-2">General Filters</div>
+                <div class="text-sm text-gray-400 mb-2">Only include images where</div>
+                {% include 'components/add_filters.html' %}
             </div>
 
-            <div id="modality-options" class="ml-4 mt-2 hidden">
-                <div class="grid grid-cols-1 gap-2">
-                    {% for modality in modalities %}
+            <div class="mt-4">
+                <div class="flex items-center">
+                    <input type="checkbox" 
+                           id="modality-filter-toggle" 
+                           class="mr-2"
+                           onchange="toggleModalityFilters()">
+                    <label for="modality-filter-toggle">Filter by Modality</label>
+                </div>
+
+                <div id="modality-options" class="ml-4 mt-2 hidden">
+                    <div class="grid grid-cols-1 gap-2">
+                        {% for modality in modalities %}
+                        <div>
+                            <div class="flex items-center">
+                                <input type="checkbox" 
+                                       id="modality-{{ modality }}" 
+                                       value="{{ modality }}"
+                                       class="modality-checkbox mr-2"
+                                       onchange="handleModalitySelection(this)">
+                                <label for="modality-{{ modality }}">{{ modality }}</label>
+                            </div>
+                            <div id="filters-{{ modality }}" class="ml-4 mt-2 hidden"></div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div id="modality-filters-container" class="ml-4 mt-2">
+                </div>
+            
+            </div>
+            
+            <div class="mt-6">
+                <div class="text-md mb-2">Advanced Deidentification Options</div>
+                <div class="flex space-x-4">
+                    <div class="flex-1">
+                        <div class="text-sm text-gray-500">To keep</div>
+                        <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_keep"></textarea>
+                    </div>
+                    <div class="flex-1">
+                        <div class="text-sm text-gray-500">To date shift</div>
+                        <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_dateshift"></textarea>
+                    </div>
+                    <div class="flex-1">
+                        <div class="text-sm text-gray-500">To randomize</div>
+                        <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_randomize"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8">
+                <div class="text-md mb-4">Global Deidentification Settings</div>
+                <div class="space-y-4">
                     <div>
                         <div class="flex items-center">
-                            <input type="checkbox" 
-                                   id="modality-{{ modality }}" 
-                                   value="{{ modality }}"
-                                   class="modality-checkbox mr-2"
-                                   onchange="handleModalitySelection(this)">
-                            <label for="modality-{{ modality }}">{{ modality }}</label>
+                            <input type="checkbox" id="remove_unspecified" name="remove_unspecified" class="mr-2">
+                            <label for="remove_unspecified">Remove unspecified tags</label>
                         </div>
-                        <div id="filters-{{ modality }}" class="ml-4 mt-2 hidden"></div>
+                        <div class="text-sm text-gray-500 ml-6">If checked, any tag not specified in the lists above will be removed. If unchecked, unspecified tags will be preserved</div>
                     </div>
-                    {% endfor %}
+                    <div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="remove_overlays" name="remove_overlays" class="mr-2">
+                            <label for="remove_overlays">Remove overlays</label>
+                        </div>
+                        <div class="text-sm text-gray-500 ml-6">Remove all elements in 60xx groups. These are overlays and are sometimes removed when fully de-identifying an object because they can contain PHI.</div>
+                    </div>
+                    <div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="remove_curves" name="remove_curves" class="mr-2">
+                            <label for="remove_curves">Remove curve data</label>
+                        </div>
+                        <div class="text-sm text-gray-500 ml-6">Remove all elements in 50xx groups. These are groups which contain curve data.</div>
+                    </div>
+                    <div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="remove_private" name="remove_private" class="mr-2">
+                            <label for="remove_private">Remove all private tags</label>
+                        </div>
+                        <div class="text-sm text-gray-500 ml-6">Remove all elements in odd-numbered groups. These are private groups whose contents are not specified by the DICOM standard</div>
+                    </div>
+                    <div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="apply_default_ctp_filter_script" name="apply_default_ctp_filter_script" class="mr-2" checked>
+                            <label for="apply_default_ctp_filter_script">Apply default filters from known devices</label>
+                        </div>
+                        <div class="text-sm text-gray-500 ml-6">Remove DICOM files during the deidentification process from known devices that are known to contain PHI. These files will be stored in the quarantine.</div>
+                    </div>
                 </div>
             </div>
+            <div class="mt-8">
+                <div class="text-md mb-4">Pixel Deidentification</div>
+                <div class="mb-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="deid_pixels" name="deid_pixels" class="mr-2">
+                        <label for="deid_pixels">Deidentify pixel data from device scanners</label>
+                    </div>
+                    <div class="text-sm text-gray-500 ml-6">Blacks out regions of pixels in a DICOM image from known devices.</div>
+                </div>
+                <div class="text-md mb-4 mt-8">Mapping File Configuration</div>
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="use_mapping_file" name="use_mapping_file" class="mr-2" onchange="toggleMappingFileInput()">
+                        <label for="use_mapping_file">Use Mapping File</label>
+                    </div>
+                    <div id="mapping_file_input_container" class="mt-2 hidden">
+                        <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="mapping_file_path" />
+                        <div class="text-sm text-gray-500 mt-1">Excel file with columns: TagName, New-TagName (e.g., AccessionNumber, New-AccessionNumber)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            <div id="modality-filters-container" class="ml-4 mt-2">
-            </div>
-        
-        </div>
-        
-        <div class="mt-6">
-            <div class="text-md mb-2">Advanced Deidentification Options</div>
-            <div class="flex space-x-4">
+        <!-- Text Deidentification Sub-section -->
+        <div class="mb-6">
+            <div class="text-md font-medium mb-2">Text Deidentification</div>
+            <div class="flex space-x-4 mt-4">
                 <div class="flex-1">
-                    <div class="text-sm text-gray-500">To keep</div>
-                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_keep"></textarea>
+                    <div class="text-sm text-gray-500">Columns to deid</div>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="columns_to_deid"></textarea>
                 </div>
                 <div class="flex-1">
-                    <div class="text-sm text-gray-500">To date shift</div>
-                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_dateshift"></textarea>
+                    <div class="text-sm text-gray-500">Columns to drop</div>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="columns_to_drop"></textarea>
+                </div>
+            </div>
+            <div class="flex space-x-4 mt-4">
+                <div class="flex-1">
+                    <div class="text-sm text-gray-500">Phrases to keep</div>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="text_to_keep"></textarea>
                 </div>
                 <div class="flex-1">
-                    <div class="text-sm text-gray-500">To randomize</div>
-                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_randomize"></textarea>
+                    <div class="text-sm text-gray-500">Phrases to remove</div>
+                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="text_to_remove"></textarea>
                 </div>
-            </div>
-        </div>
-        <div class="mt-8">
-            <div class="text-md mb-4">Global Deidentification Settings</div>
-            <div class="space-y-4">
-                <div>
-                    <div class="flex items-center">
-                        <input type="checkbox" id="remove_unspecified" name="remove_unspecified" class="mr-2">
-                        <label for="remove_unspecified">Remove unspecified tags</label>
-                    </div>
-                    <div class="text-sm text-gray-500 ml-6">If checked, any tag not specified in the lists above will be removed. If unchecked, unspecified tags will be preserved</div>
-                </div>
-                <div>
-                    <div class="flex items-center">
-                        <input type="checkbox" id="remove_overlays" name="remove_overlays" class="mr-2">
-                        <label for="remove_overlays">Remove overlays</label>
-                    </div>
-                    <div class="text-sm text-gray-500 ml-6">Remove all elements in 60xx groups. These are overlays and are sometimes removed when fully de-identifying an object because they can contain PHI.</div>
-                </div>
-                <div>
-                    <div class="flex items-center">
-                        <input type="checkbox" id="remove_curves" name="remove_curves" class="mr-2">
-                        <label for="remove_curves">Remove curve data</label>
-                    </div>
-                    <div class="text-sm text-gray-500 ml-6">Remove all elements in 50xx groups. These are groups which contain curve data.</div>
-                </div>
-                <div>
-                    <div class="flex items-center">
-                        <input type="checkbox" id="remove_private" name="remove_private" class="mr-2">
-                        <label for="remove_private">Remove all private tags</label>
-                    </div>
-                    <div class="text-sm text-gray-500 ml-6">Remove all elements in odd-numbered groups. These are private groups whose contents are not specified by the DICOM standard</div>
-                </div>
-                <div>
-                    <div class="flex items-center">
-                        <input type="checkbox" id="apply_default_ctp_filter_script" name="apply_default_ctp_filter_script" class="mr-2" checked>
-                        <label for="apply_default_ctp_filter_script">Apply default filters from known devices</label>
-                    </div>
-                    <div class="text-sm text-gray-500 ml-6">Remove DICOM files during the deidentification process from known devices that are known to contain PHI. These files will be stored in the quarantine.</div>
-                </div>
-            </div>
-        </div>
-        <div class="mt-8">
-            <div class="text-md mb-4">Pixel Deidentification</div>
-            <div class="mb-4">
-                <div class="flex items-center">
-                    <input type="checkbox" id="deid_pixels" name="deid_pixels" class="mr-2">
-                    <label for="deid_pixels">Deidentify pixel data from device scanners</label>
-                </div>
-                <div class="text-sm text-gray-500 ml-6">Blacks out regions of pixels in a DICOM image from known devices.</div>
-            </div>
-            <div class="text-md mb-4 mt-8">Mapping File Configuration</div>
-            <div>
-                <div class="flex items-center">
-                    <input type="checkbox" id="use_mapping_file" name="use_mapping_file" class="mr-2" onchange="toggleMappingFileInput()">
-                    <label for="use_mapping_file">Use Mapping File</label>
-                </div>
-                <div id="mapping_file_input_container" class="mt-2 hidden">
-                    <input type="text" class="w-full h-full border-2 border-gray-400 p-2" name="mapping_file_path" />
-                    <div class="text-sm text-gray-500 mt-1">Excel file with columns: TagName, New-TagName (e.g., AccessionNumber, New-AccessionNumber)</div>
-                </div>
-            </div>
-        </div>    
-    </div>
-
-    <!-- Text Deidentification Options -->
-    <div class="flex items-center mt-4">
-        <button class="text-black" onclick="toggleTextDeidOptions()" id="textDeidOptionsButton">▼</button>
-        <div class="text-sm text-black ml-4">Text Deidentification Options</div>
-    </div>
-    <div id="text_deid_options" class="mt-4 hidden ml-4">
-        <div class="flex space-x-4 mt-4">
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">Columns to deid</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="columns_to_deid"></textarea>
-            </div>
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">Columns to drop</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="columns_to_drop"></textarea>
-            </div>
-        </div>
-        <div class="flex space-x-4 mt-4">
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">Phrases to keep</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="text_to_keep"></textarea>
-            </div>
-            <div class="flex-1">
-                <div class="text-sm text-gray-500">Phrases to remove</div>
-                <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="text_to_remove"></textarea>
             </div>
         </div>
     </div>
 </div>
 <div class="m-4">
+    <div class="flex items-center mb-4">
+        <input type="checkbox" id="export_to_azure" class="mr-2" checked>
+        <label for="export_to_azure">Export to Azure Blob Storage</label>
+    </div>
+    
     <div class="flex items-center mb-4">
         <input type="checkbox" id="schedule_job" class="mr-2" onchange="toggleScheduling()">
         <label for="schedule_job">Schedule Job</label>
@@ -362,16 +368,9 @@
         }
     }
 
-    function toggleImageDeidOptions() {
-        const deidOptions = document.getElementById('image_deid_options');
-        const deidOptionsButton = document.getElementById('imageDeidOptionsButton');
-        deidOptions.classList.toggle('hidden');
-        deidOptionsButton.textContent = deidOptions.classList.contains('hidden') ? '▼' : '▲';
-    }
-
-    function toggleTextDeidOptions() {
-        const deidOptions = document.getElementById('text_deid_options');
-        const deidOptionsButton = document.getElementById('textDeidOptionsButton');
+    function toggleDeidOptions() {
+        const deidOptions = document.getElementById('deid_options');
+        const deidOptionsButton = document.getElementById('deidOptionsButton');
         deidOptions.classList.toggle('hidden');
         deidOptionsButton.textContent = deidOptions.classList.contains('hidden') ? '▼' : '▲';
     }
@@ -425,6 +424,8 @@
             text_to_remove: document.querySelector('[name="text_to_remove"]').value,
             columns_to_deid: document.querySelector('[name="columns_to_deid"]').value,
             columns_to_drop: document.querySelector('[name="columns_to_drop"]').value,
+            // Export preference
+            export_to_azure: document.getElementById('export_to_azure').checked,
             ...filters
         };
 

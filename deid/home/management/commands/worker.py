@@ -649,6 +649,9 @@ def build_singleclickicore_config(task):
     if columns_to_drop_list:
         config['columns_to_drop'] = columns_to_drop_list
     
+    skip_export = task.parameters.get('skip_export', False)
+    config['skip_export'] = skip_export
+    
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)

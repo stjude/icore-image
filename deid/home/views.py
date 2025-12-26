@@ -21,7 +21,7 @@ from django.http import (
     HttpResponseNotFound,
     JsonResponse,
 )
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -213,6 +213,18 @@ class SingleClickICoreView(CommonContextMixin, CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['modalities'] = ['CT', 'MR', 'PT', 'US', 'CR', 'DX', 'MG', 'NM', 'RF', 'XA']
+        return context
+
+
+class ProfileView(CommonContextMixin, TemplateView):
+    template_name = 'profile.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+        with open(settings_path, 'r') as f:
+            settings = json.load(f)
+        context['current_usecase'] = settings.get('icore_usecase', '')
         return context
 
 
@@ -753,6 +765,7 @@ def run_singleclickicore(request):
                 'text_to_remove': data.get('text_to_remove', ''),
                 'columns_to_deid': data.get('columns_to_deid', ''),
                 'columns_to_drop': data.get('columns_to_drop', ''),
+                'skip_export': not data.get('export_to_azure', True),
             }
         )
         return JsonResponse({
@@ -1391,3 +1404,18 @@ def reset_deid_settings(request):
             'status': 'error',
             'message': str(e)
         }, status=400)
+
+def root_redirect(request):
+    settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+    try:
+        with open(settings_path, 'r') as f:
+            settings = json.load(f)
+        
+        icore_usecase = settings.get('icore_usecase', 'internal')
+        
+        if icore_usecase == 'imagine':
+            return redirect('single_click_icore')
+        else:
+            return redirect('header_query')
+    except Exception:
+        return redirect('header_query')

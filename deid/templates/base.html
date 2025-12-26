@@ -20,17 +20,18 @@
             </div>
             <div class="flex-initial my-auto text-sm text-gray-700">
                 <a href="/task_list" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/task_list/' %}bg-gray-100{% endif %}">Projects</a>
+                <a href="/profile" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/profile/' %}bg-gray-100{% endif %}">Profile</a>
                 <a href="/settings/general" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/settings/general/' %}bg-gray-100{% endif %}">Settings</a>
             </div>
         </header>
-        <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24">
-            <a href="/imagequery" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %}">Image Query</a>
-            <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %}">Image Deidentification</a>
-            <a href="/textdeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/textdeid/' %}bg-gray-100{% endif %}">Text Deidentification</a>
-            <a href="/imageexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imageexport/' %}bg-gray-100{% endif %}">Secure Data Transfer</a>
-            <a href="/imagedeidexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeidexport/' %}bg-gray-100{% endif %}">Image Deidentification / Export</a>
-            <a href="/singleclickicore" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/singleclickicore/' %}bg-gray-100{% endif %}">Single-Click iCore</a>
-            <a href="/headerextract" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/headerextract/' %}bg-gray-100{% endif %}">Header Extraction</a>
+        <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24" id="sidebar">
+            <a href="/imagequery" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %} sidebar-module">Image Query</a>
+            <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %} sidebar-module">Image Deidentification</a>
+            <a href="/textdeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/textdeid/' %}bg-gray-100{% endif %} sidebar-module">Text Deidentification</a>
+            <a href="/imageexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imageexport/' %}bg-gray-100{% endif %} sidebar-module-imagine">Secure Data Transfer</a>
+            <a href="/imagedeidexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeidexport/' %}bg-gray-100{% endif %} sidebar-module">Image Deidentification / Export</a>
+            <a href="/singleclickicore" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/singleclickicore/' %}bg-gray-100{% endif %} sidebar-module-imagine">Single-Click iCore</a>
+            <a href="/headerextract" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/headerextract/' %}bg-gray-100{% endif %} sidebar-module">Header Extraction</a>
         <!-- {% for module in modules %}
             <a href="/{{ module.name }}" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/{{ module.name }}/' %}bg-gray-100{% endif %}">{{ module.name }}</a>
         {% endfor %} -->
@@ -51,9 +52,25 @@
                     
                     if (!settings.icore_usecase) {
                         document.getElementById('usecaseModal').classList.remove('hidden');
+                    } else {
+                        applyModuleFiltering(settings.icore_usecase);
                     }
                 } catch (error) {
                     console.error('Error checking usecase setup:', error);
+                }
+            }
+            
+            function applyModuleFiltering(usecase) {
+                if (usecase === 'imagine') {
+                    const allModules = document.querySelectorAll('.sidebar-module');
+                    allModules.forEach(module => {
+                        module.style.display = 'none';
+                    });
+                } else {
+                    const allModules = document.querySelectorAll('.sidebar-module, .sidebar-module-imagine');
+                    allModules.forEach(module => {
+                        module.style.display = 'block';
+                    });
                 }
             }
             
@@ -72,6 +89,8 @@
                         },
                         body: JSON.stringify(settings)
                     });
+                    
+                    applyModuleFiltering(usecase);
                     
                     return true;
                 } catch (error) {

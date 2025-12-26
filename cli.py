@@ -236,6 +236,7 @@ def build_singleclickicore_params(config, input_dir, output_dir, run_dirs):
         "columns_to_deid": config.get("columns_to_deid"),
         "debug": config.get("debug", False),
         "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
+        "skip_export": config.get("skip_export", False),
         "run_dirs": run_dirs
     }
 

@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('', views.root_redirect, name='root'),
     path('headerquery/', views.HeaderQueryView.as_view(), name='header_query'),
     path('headerextract/', views.HeaderExtractView.as_view(), name='header_extract'),
     path('imagedeid/', views.ImageDeIdentificationView.as_view(), name='image_deid'),
@@ -24,6 +25,7 @@ urlpatterns = [
     path('task_progress/', views.TaskProgressView.as_view(), name='task_progress'),
     path('get_log_content/', views.get_log_content, name='get_log_content'),
     path('api/task_status/<int:project_id>/', views.task_status, name='task_status'),
+    path('profile/', views.ProfileView.as_view(), name='profile'),
     path('settings/general/', views.GeneralSettingsView.as_view(), name='general_settings'),
     path('test_pacs_connection/', views.test_pacs_connection, name='test_pacs_connection'),
     path('settings/dicom_header_qr/', views.DicomHeaderQRSettingsView.as_view(), name='dicom_header_qr_settings'),
