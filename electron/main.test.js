@@ -126,7 +126,7 @@ describe('main.js', () => {
     jest.restoreAllMocks();
   });
 
-  it('loads Image Query page as default', async () => {
+  it('loads root URL which redirects to appropriate module', async () => {
     let readyHandler;
     
     jest.isolateModules(() => {
@@ -146,7 +146,7 @@ describe('main.js', () => {
     
     await readyHandler();
     
-    expect(mockWindowInstance.loadURL).toHaveBeenCalledWith('http://127.0.0.1:8000/imagequery');
+    expect(mockWindowInstance.loadURL).toHaveBeenCalledWith('http://127.0.0.1:8000/');
     
     jest.restoreAllMocks();
   });

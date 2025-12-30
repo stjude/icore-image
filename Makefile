@@ -57,12 +57,16 @@ dcmtk:
 	@if [ ! -d "dcmtk" ]; then \
 		echo "Downloading DCMTK..."; \
 		if [ "$$(uname -s)" = "Linux" ]; then \
-			curl -L https://dicom.offis.de/download/dcmtk/release/bin/dcmtk-3.6.9-linux-x86_64.tar.bz2 | tar -xj; \
-			mv dcmtk-3.6.9-linux-x86_64 dcmtk; \
+			curl -fL https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-linux-x86_64.tar.bz2 -o dcmtk.tar.bz2 && \
+			tar -xjf dcmtk.tar.bz2 && \
+			rm dcmtk.tar.bz2 && \
+			mv dcmtk-3.6.9-linux-x86_64 dcmtk && \
 			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'echoscu' -delete; \
 		else \
-			curl -L https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 | tar -xj; \
-			mv dcmtk-3.6.9-macosx-x86_64 dcmtk; \
+			curl -fL https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 -o dcmtk.tar.bz2 && \
+			tar -xjf dcmtk.tar.bz2 && \
+			rm dcmtk.tar.bz2 && \
+			mv dcmtk-3.6.9-macosx-x86_64 dcmtk && \
 			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'echoscu' -delete; \
 		fi; \
 	else \
