@@ -39,6 +39,9 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
     task.process_pid = process.pid
     task.save()
     
+    task.process_pid = process.pid
+    task.save()
+    
     log_path_captured = False
     stdout_lines = []
     stderr_lines = []
@@ -481,6 +484,7 @@ def build_image_export_config(task):
     config = {
         'module': 'imageexport',
         'sas_url': task.parameters['sas_url'],
+        'sas_url': task.parameters['sas_url'],
         'project_name': task.name,
     }
     
@@ -813,6 +817,7 @@ def run_worker():
                     print(f"Error processing task {task.id}: {str(e)}")
                     task.status = Project.TaskStatus.FAILED
                 finally:
+                    task.process_pid = None
                     task.process_pid = None
                     task.save()
                     print(f"Task {task.id} finished with status: {task.status}")
