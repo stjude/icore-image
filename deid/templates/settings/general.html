@@ -78,17 +78,6 @@
     </select>
 </div>
 
-<!-- iCore Use Case Section -->
-<div class="mt-8">
-    <div class="text-md mb-4">iCore Use Case</div>
-    <div class="text-sm text-gray-500 mb-2">How are you using iCore?</div>
-    <select class="w-full border-2 border-gray-400 p-1" name="icore_usecase" id="icore_usecase">
-        <option value="internal">Internal DeIdentification Projects</option>
-        <option value="imagine">As part of the IMAGINE Initiative</option>
-    </select>
-    
-</div>
-
 <!-- Input Excel File Defaults Section -->
 <div class="mt-8">
     <div class="text-md mb-4">Input Excel File Defaults</div>
@@ -273,9 +262,6 @@
             if (settings.debug_logging) {
                 document.querySelector('[name="debug_logging"]').checked = settings.debug_logging;
             }
-            if (settings.icore_usecase) {
-                document.querySelector('[name="icore_usecase"]').value = settings.icore_usecase;
-            }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -300,8 +286,7 @@
             default_date_window_days: parseInt(document.querySelector('[name="default_date_window_days"]').value) || 0,
             default_output_folder: document.querySelector('[name="default_output_folder"]').value,
             timezone: document.querySelector('[name="timezone"]').value,
-            debug_logging: document.querySelector('[name="debug_logging"]').checked,
-            icore_usecase: document.querySelector('[name="icore_usecase"]').value
+            debug_logging: document.querySelector('[name="debug_logging"]').checked
         };
 
         try {

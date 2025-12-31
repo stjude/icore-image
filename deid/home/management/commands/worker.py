@@ -8,6 +8,7 @@ import traceback
 from datetime import datetime
 from shutil import which
 
+import pandas as pd
 import pytz
 from django.core.management.base import BaseCommand
 from django.db import models, transaction
@@ -34,6 +35,9 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
         text=True,
         bufsize=1
     )
+    
+    task.process_pid = process.pid
+    task.save()
     
     task.process_pid = process.pid
     task.save()
@@ -480,6 +484,7 @@ def build_image_export_config(task):
     config = {
         'module': 'imageexport',
         'sas_url': task.parameters['sas_url'],
+        'sas_url': task.parameters['sas_url'],
         'project_name': task.name,
     }
     
@@ -521,6 +526,140 @@ def process_image_deid_export(task):
     finally:
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
+
+
+def process_singleclickicore(task):
+    output_folder = task.output_folder
+    build_singleclickicore_config(task)
+    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
+
+    os.makedirs(TMP_INPUT_PATH, exist_ok=True)
+    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
+    shutil.copy2(task.parameters['input_file'], temp_input)
+    input_folder = TMP_INPUT_PATH
+    
+    if IS_DEV:
+        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+    else:
+        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+    
+    env = os.environ.copy()
+    env['ICORE_APPDATA_DIR'] = app_data_full_path
+    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    
+    try:
+        output = run_subprocess_and_capture_log_path(cmd, env, task)
+        print("Output:", output)
+    except subprocess.CalledProcessError as e:
+        print(f"Error output: {e.stderr}")
+        raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
+    finally:
+        if os.path.exists(TMP_INPUT_PATH):
+            shutil.rmtree(TMP_INPUT_PATH)
+
+
+def detect_file_type_and_columns(input_file_path):
+    """
+    Detect file type (Primordial vs mPower) based on column names
+    Returns dict with acc_col and mrn_col
+    """
+    df = pd.read_excel(input_file_path, nrows=0)
+    columns = df.columns.tolist()
+    
+    if 'Acc' in columns:
+        return {'acc_col': 'Acc'}
+    elif 'Accession Number' in columns:
+        return {'acc_col': 'Accession Number'}
+    else:
+        raise ValueError(
+            f"Unknown file format. Expected Primordial (Acc column) or mPower (Accession Number column). "
+            f"Found columns: {', '.join(columns)}"
+        )
+
+
+def build_singleclickicore_config(task):
+    """Build the configuration for singleclickicore (image deid + text deid + export)"""
+    config = {'module': 'singleclickicore'}
+    
+    settings = json.load(open(SETTINGS_PATH))
+    debug_enabled = settings.get('debug_logging', False)
+    config['debug'] = debug_enabled
+    
+    config.update({
+        'pacs': task.pacs_configs,
+        'application_aet': task.application_aet,
+        'sas_url': task.parameters['sas_url'],
+        'project_name': task.name,
+    })
+    
+    input_file = task.parameters['input_file']
+    detected_columns = detect_file_type_and_columns(input_file)
+    config.update(detected_columns)
+
+    # Image deid filters
+    general_filters = task.parameters.get('general_filters', [])
+    modality_filters = task.parameters.get('modality_filters', {})
+    expression_string = generate_filters_string(general_filters, modality_filters)
+    if expression_string != '':
+        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+
+    # Image deid anonymizer
+    tags_to_keep = task.parameters.get('tags_to_keep', '')
+    tags_to_dateshift = task.parameters.get('tags_to_dateshift', '')
+    tags_to_randomize = task.parameters.get('tags_to_randomize', '')
+    date_shift_days = task.parameters.get('date_shift_days', '-21')
+
+    mapping_file_path = task.parameters.get('mapping_file_path', '') if task.parameters.get('use_mapping_file', False) else None
+    if mapping_file_path:
+        config['mapping_file_path'] = mapping_file_path
+
+    anonymizer_script = generate_anonymizer_script(
+        tags_to_keep,
+        tags_to_dateshift,
+        tags_to_randomize,
+        date_shift_days,
+        task.parameters.get('site_id', ''),
+        None,
+        remove_unspecified=task.parameters.get('remove_unspecified', True),
+        remove_overlays=task.parameters.get('remove_overlays', True),
+        remove_curves=task.parameters.get('remove_curves', True),
+        remove_private=task.parameters.get('remove_private', True)
+    )
+    config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
+    
+    deid_pixels = task.parameters.get('deid_pixels', False)
+    config['deid_pixels'] = deid_pixels
+    
+    apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
+    config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
+    
+    # Text deid options
+    to_keep_list = task.parameters.get('text_to_keep', '').split('\n') if task.parameters.get('text_to_keep') else []
+    to_remove_list = task.parameters.get('text_to_remove', '').split('\n') if task.parameters.get('text_to_remove') else []
+    
+    columns_to_deid = task.parameters.get('columns_to_deid', '')
+    columns_to_drop = task.parameters.get('columns_to_drop', '')
+    
+    columns_to_deid_list = [col.strip() for col in columns_to_deid.split('\n') if col.strip()] if columns_to_deid else None
+    columns_to_drop_list = [col.strip() for col in columns_to_drop.split('\n') if col.strip()] if columns_to_drop else None
+    
+    if to_keep_list:
+        config['to_keep_list'] = to_keep_list
+    if to_remove_list:
+        config['to_remove_list'] = to_remove_list
+    if columns_to_deid_list:
+        config['columns_to_deid'] = columns_to_deid_list
+    if columns_to_drop_list:
+        config['columns_to_drop'] = columns_to_drop_list
+    
+    skip_export = task.parameters.get('skip_export', False)
+    config['skip_export'] = skip_export
+    
+    with open(CONFIG_PATH, 'w') as f:
+        yaml = YAML()
+        yaml.dump(config, f)
+    return config
 
 
 def build_image_deid_export_config(task):
@@ -668,6 +807,8 @@ def run_worker():
                         process_image_export(task)
                     elif task.task_type == Project.TaskType.IMAGE_DEID_EXPORT:
                         process_image_deid_export(task)
+                    elif task.task_type == Project.TaskType.SINGLE_CLICK_ICORE:
+                        process_singleclickicore(task)
                     elif task.task_type == Project.TaskType.GENERAL_MODULE:
                         process_general_module(task)
                     task.status = Project.TaskStatus.COMPLETED
@@ -676,6 +817,7 @@ def run_worker():
                     print(f"Error processing task {task.id}: {str(e)}")
                     task.status = Project.TaskStatus.FAILED
                 finally:
+                    task.process_pid = None
                     task.process_pid = None
                     task.save()
                     print(f"Task {task.id} finished with status: {task.status}")
