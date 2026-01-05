@@ -7,7 +7,7 @@ from module_imagedeid_local import _save_metadata_files, _apply_default_filter_s
 from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
                    combine_filters, validate_date_window_days, find_valid_pacs_list, find_studies_from_pacs_list,
                    move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
-                   format_number_with_commas)
+                   format_number_with_commas, save_failed_queries_csv)
 
 
 def _log_progress(pipeline):
@@ -67,7 +67,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     combined_filter = _apply_default_filter_script(combined_filter, apply_default_filter_script)
 
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
-    study_pacs_map, failed_find_indices = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet, expected_values_list)
+    study_pacs_map, failed_find_indices, failed_find_details = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet, expected_values_list)
     
     pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
     ctp_log_level = "DEBUG" if debug else None
@@ -85,9 +85,10 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     ) as pipeline:
         time.sleep(3)
         
-        successful_moves, failed_move_indices = move_studies_from_study_pacs_map(study_pacs_map, application_aet)
+        successful_moves, failed_move_indices, failed_move_details = move_studies_from_study_pacs_map(study_pacs_map, application_aet)
         
         failed_query_indices = list(set(failed_find_indices + failed_move_indices))
+        combined_failure_details = {**failed_find_details, **failed_move_details}
         
         save_interval = 5
         last_save_time = 0
@@ -96,12 +97,14 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
             current_time = time.time()
             if current_time - last_save_time >= save_interval:
                 _save_metadata_files(pipeline, appdata_dir)
+                save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, combined_failure_details)
                 _log_progress(pipeline)
                 last_save_time = current_time
             
             time.sleep(1)
         
         _save_metadata_files(pipeline, appdata_dir)
+        save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, combined_failure_details)
         
         num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
         num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0

@@ -307,8 +307,8 @@ def test_imagedeid_filter_script_generation(tmp_path):
          patch('module_imagedeid_pacs.move_studies_from_study_pacs_map') as mock_move, \
          patch('module_imagedeid_pacs.CTPPipeline') as mock_pipeline_class:
         
-        mock_find_studies.return_value = ({}, [])
-        mock_move.return_value = (0, [])
+        mock_find_studies.return_value = ({}, [], {})
+        mock_move.return_value = (0, [], {})
         mock_pipeline_instance = MagicMock()
         mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
         mock_pipeline_instance.is_complete.return_value = True
@@ -1397,4 +1397,77 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path):
     
     finally:
         orthanc.stop()
+
+
+def test_imagedeid_pacs_saves_failed_queries_csv(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001", "ACC999"],
+            "PatientID": ["MRN001", "MRN999"]
+        })
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(
+            str(query_file),
+            acc_col="AccessionNumber",
+            mrn_col="PatientID"
+        )
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+        
+        result = imagedeid_pacs(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False
+        )
+        
+        assert result["num_studies_found"] == 1
+        assert len(result["failed_query_indices"]) == 1
+        
+        csv_path = appdata_dir / "failed_queries.csv"
+        assert csv_path.exists(), "failed_queries.csv should exist"
+        
+        df = pd.read_csv(csv_path)
+        assert len(df) == 1
+        assert list(df.columns) == ["Accession Number", "MRN", "Failure Reason"]
+        assert df.loc[0, "Accession Number"] == "ACC999"
+        assert df.loc[0, "MRN"] == "MRN999"
+        assert df.loc[0, "Failure Reason"] == "Failed to find images"
+    
+    finally:
+        orthanc.stop()
+
 

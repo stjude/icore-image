@@ -96,6 +96,60 @@ def validate_date_window_days(date_window_days):
         raise ValueError(f"date_window_days must be between 0 and 10, got {date_window_days}")
 
 
+def save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, failure_reasons):
+    csv_path = os.path.join(appdata_dir, "failed_queries.csv")
+    
+    has_accession = query_spreadsheet.acc_col is not None
+    has_mrn = query_spreadsheet.mrn_col is not None
+    has_date = query_spreadsheet.date_col is not None
+    
+    if has_accession and has_mrn:
+        headers = ["Accession Number", "MRN", "Failure Reason"]
+    elif has_accession:
+        headers = ["Accession Number", "Failure Reason"]
+    elif has_mrn and has_date:
+        headers = ["MRN", "Date", "Failure Reason"]
+    else:
+        raise ValueError("Spreadsheet must have either acc_col or both mrn_col and date_col")
+    
+    rows = []
+    for index in failed_query_indices:
+        if index < 0 or index >= len(query_spreadsheet.dataframe):
+            logging.warning(f"Invalid query index {index}, skipping")
+            continue
+        
+        row_data = query_spreadsheet.dataframe.iloc[index]
+        csv_row = []
+        
+        if has_accession:
+            acc = row_data.get(query_spreadsheet.acc_col)
+            csv_row.append(str(acc) if pd.notna(acc) else "")
+        
+        if has_mrn:
+            mrn = row_data.get(query_spreadsheet.mrn_col)
+            csv_row.append(str(mrn) if pd.notna(mrn) else "")
+        
+        if has_date:
+            date_val = row_data.get(query_spreadsheet.date_col)
+            if pd.notna(date_val):
+                if isinstance(date_val, pd.Timestamp):
+                    csv_row.append(date_val.strftime("%Y-%m-%d"))
+                else:
+                    csv_row.append(str(date_val))
+            else:
+                csv_row.append("")
+        
+        failure_reason = failure_reasons.get(index, "Unknown failure")
+        csv_row.append(failure_reason)
+        
+        rows.append(csv_row)
+    
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows)
+
+
 def find_valid_pacs_list(pacs_list, application_aet):
     valid_pacs_list = []
     for pacs in pacs_list:
@@ -115,6 +169,7 @@ def find_valid_pacs_list(pacs_list, application_aet):
 def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, expected_values_list=None):
     study_pacs_map = {}
     failed_query_indices = []
+    failure_details = {}
     total_queries = len(query_params_list)
     
     expected_accessions_map = {}
@@ -125,7 +180,9 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
     if len(pacs_list) == 0:
         logging.warning("No valid PACS found")
         failed_query_indices = list(range(total_queries))
-        return study_pacs_map, failed_query_indices
+        for i in failed_query_indices:
+            failure_details[i] = "Failed to find images"
+        return study_pacs_map, failed_query_indices, failure_details
     
     for pacs in pacs_list:
         logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
@@ -169,17 +226,25 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
                 logging.error(f"Excel row {i + 1} failed after 4 retries. Moving on.")
                 if i not in failed_query_indices:
                     failed_query_indices.append(i)
+                    failure_details[i] = "Failed to find images"
         
         logging.info(f"Queried {total_queries} / {total_queries} rows")
     
+    query_indices_with_studies = set(query_index for _, query_index in study_pacs_map.values())
+    for i in range(total_queries):
+        if i not in query_indices_with_studies and i not in failed_query_indices:
+            failed_query_indices.append(i)
+            failure_details[i] = "Failed to find images"
+    
     logging.info(f"Found {len(study_pacs_map)} unique studies total")
     
-    return study_pacs_map, failed_query_indices
+    return study_pacs_map, failed_query_indices, failure_details
 
 
 def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
     successful_moves = 0
     failed_query_indices = []
+    failure_details = {}
     total_studies = len(study_pacs_map)
     processed = 0
     
@@ -205,10 +270,11 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
             logging.error(f"Excel row {query_index + 1} failed after 4 retries. Moving on.")
             if query_index not in failed_query_indices:
                 failed_query_indices.append(query_index)
+                failure_details[query_index] = "Failed to move images after successful query"
     
     logging.info(f"Moved {processed} / {total_studies} studies")
     
-    return successful_moves, failed_query_indices
+    return successful_moves, failed_query_indices, failure_details
 
 
 def setup_run_directories():

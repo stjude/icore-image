@@ -14,7 +14,7 @@ import requests
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import generate_uid
 
-from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter
+from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, move_studies_from_study_pacs_map, PacsConfiguration
 
 
 def _cleanup_test_containers():
@@ -581,3 +581,221 @@ def test_generate_queries_mrn_date_no_expected_values(tmp_path):
     query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(spreadsheet)
     
     assert len(expected_values_list) == 0
+
+
+def test_save_failed_queries_csv_with_accession_numbers(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002", "ACC003"]
+    })
+    query_df.to_excel(query_file, index=False)
+    
+    spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    appdata_dir = str(tmp_path / "appdata")
+    os.makedirs(appdata_dir, exist_ok=True)
+    
+    failed_query_indices = [0, 2]
+    failure_reasons = {
+        0: "Failed to find images",
+        2: "Failed to move images after successful query"
+    }
+    
+    save_failed_queries_csv(failed_query_indices, spreadsheet, appdata_dir, failure_reasons)
+    
+    csv_path = os.path.join(appdata_dir, "failed_queries.csv")
+    assert os.path.exists(csv_path)
+    
+    df = pd.read_csv(csv_path)
+    assert len(df) == 2
+    assert list(df.columns) == ["Accession Number", "Failure Reason"]
+    assert df.loc[0, "Accession Number"] == "ACC001"
+    assert df.loc[0, "Failure Reason"] == "Failed to find images"
+    assert df.loc[1, "Accession Number"] == "ACC003"
+    assert df.loc[1, "Failure Reason"] == "Failed to move images after successful query"
+
+
+def test_save_failed_queries_csv_with_accession_and_mrn(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002", "ACC003"],
+        "PatientID": ["MRN001", "MRN002", "MRN003"]
+    })
+    query_df.to_excel(query_file, index=False)
+    
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        acc_col="AccessionNumber",
+        mrn_col="PatientID"
+    )
+    appdata_dir = str(tmp_path / "appdata")
+    os.makedirs(appdata_dir, exist_ok=True)
+    
+    failed_query_indices = [1]
+    failure_reasons = {1: "Failed to find images"}
+    
+    save_failed_queries_csv(failed_query_indices, spreadsheet, appdata_dir, failure_reasons)
+    
+    csv_path = os.path.join(appdata_dir, "failed_queries.csv")
+    df = pd.read_csv(csv_path)
+    assert len(df) == 1
+    assert list(df.columns) == ["Accession Number", "MRN", "Failure Reason"]
+    assert df.loc[0, "Accession Number"] == "ACC002"
+    assert df.loc[0, "MRN"] == "MRN002"
+    assert df.loc[0, "Failure Reason"] == "Failed to find images"
+
+
+def test_save_failed_queries_csv_with_mrn_dates(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "PatientID": ["MRN001", "MRN002", "MRN003"],
+        "StudyDate": [
+            pd.Timestamp("2025-01-15"),
+            pd.Timestamp("2025-02-20"),
+            pd.Timestamp("2025-03-10")
+        ]
+    })
+    query_df.to_excel(query_file, index=False)
+    
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        mrn_col="PatientID",
+        date_col="StudyDate"
+    )
+    appdata_dir = str(tmp_path / "appdata")
+    os.makedirs(appdata_dir, exist_ok=True)
+    
+    failed_query_indices = [0, 2]
+    failure_reasons = {
+        0: "Failed to find images",
+        2: "Failed to move images after successful query"
+    }
+    
+    save_failed_queries_csv(failed_query_indices, spreadsheet, appdata_dir, failure_reasons)
+    
+    csv_path = os.path.join(appdata_dir, "failed_queries.csv")
+    df = pd.read_csv(csv_path)
+    assert len(df) == 2
+    assert list(df.columns) == ["MRN", "Date", "Failure Reason"]
+    assert df.loc[0, "MRN"] == "MRN001"
+    assert df.loc[0, "Date"] == "2025-01-15"
+    assert df.loc[0, "Failure Reason"] == "Failed to find images"
+    assert df.loc[1, "MRN"] == "MRN003"
+    assert df.loc[1, "Date"] == "2025-03-10"
+
+
+def test_save_failed_queries_csv_mixed_failure_types(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002", "ACC003", "ACC004"]
+    })
+    query_df.to_excel(query_file, index=False)
+    
+    spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    appdata_dir = str(tmp_path / "appdata")
+    os.makedirs(appdata_dir, exist_ok=True)
+    
+    failed_query_indices = [0, 1, 3]
+    failure_reasons = {
+        0: "Failed to find images",
+        1: "Failed to move images after successful query",
+        3: "Failed to find images"
+    }
+    
+    save_failed_queries_csv(failed_query_indices, spreadsheet, appdata_dir, failure_reasons)
+    
+    csv_path = os.path.join(appdata_dir, "failed_queries.csv")
+    df = pd.read_csv(csv_path)
+    assert len(df) == 3
+    assert df.loc[0, "Failure Reason"] == "Failed to find images"
+    assert df.loc[1, "Failure Reason"] == "Failed to move images after successful query"
+    assert df.loc[2, "Failure Reason"] == "Failed to find images"
+
+
+def test_save_failed_queries_csv_empty_failures(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002"]
+    })
+    query_df.to_excel(query_file, index=False)
+    
+    spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    appdata_dir = str(tmp_path / "appdata")
+    os.makedirs(appdata_dir, exist_ok=True)
+    
+    failed_query_indices = []
+    failure_reasons = {}
+    
+    save_failed_queries_csv(failed_query_indices, spreadsheet, appdata_dir, failure_reasons)
+    
+    csv_path = os.path.join(appdata_dir, "failed_queries.csv")
+    assert os.path.exists(csv_path)
+    
+    df = pd.read_csv(csv_path)
+    assert len(df) == 0
+    assert list(df.columns) == ["Accession Number", "Failure Reason"]
+
+
+def test_find_studies_returns_failure_details(tmp_path):
+    orthanc = OrthancServer(aet="ORTHANC")
+    try:
+        orthanc.start()
+        
+        orthanc.upload_study(
+            patient_id="MRN001",
+            accession="ACC001",
+            study_date="20250115"
+        )
+        
+        query_file = tmp_path / "query.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001", "ACC999"]
+        })
+        query_df.to_excel(query_file, index=False)
+        
+        spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        query_params_list, expected_values_list, _ = generate_queries_and_filter(spreadsheet)
+        
+        pacs_list = [PacsConfiguration(host="localhost", port=orthanc.dicom_port, aet=orthanc.aet)]
+        application_aet = "TEST_AET"
+        
+        study_pacs_map, failed_query_indices, failure_details = find_studies_from_pacs_list(
+            pacs_list, query_params_list, application_aet, expected_values_list
+        )
+        
+        assert len(study_pacs_map) == 1
+        assert len(failed_query_indices) == 1
+        assert 1 in failed_query_indices
+        assert 1 in failure_details
+        assert failure_details[1] == "Failed to find images"
+        
+    finally:
+        orthanc.stop()
+
+
+def test_move_studies_returns_failure_details(tmp_path):
+    """Test that move_studies_from_study_pacs_map returns failure details as 3rd value"""
+    from unittest.mock import patch, MagicMock
+    
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {
+        "study_uid_1": (pacs, 0),
+        "study_uid_2": (pacs, 1)
+    }
+    
+    # Mock move_study to simulate one success and one failure
+    with patch('utils.move_study') as mock_move:
+        mock_move.side_effect = [
+            {"success": True, "message": "Move successful"},
+            {"success": False, "message": "Move failed"}
+        ]
+        
+        successful_moves, failed_query_indices, failure_details = move_studies_from_study_pacs_map(
+            study_pacs_map, "TEST_AET"
+        )
+        
+        assert successful_moves == 1, "Should have 1 successful move"
+        assert len(failed_query_indices) == 1, "Should have 1 failed query index"
+        assert 1 in failed_query_indices, "Query index 1 should have failed"
+        assert len(failure_details) == 1, "Should have 1 failure detail entry"
+        assert 1 in failure_details, "Failure details should contain query index 1"
+        assert failure_details[1] == "Failed to move images after successful query"

@@ -232,8 +232,8 @@ def test_imageqr_filter_script_generation(tmp_path):
          patch('module_imageqr.move_studies_from_study_pacs_map') as mock_move, \
          patch('module_imageqr.CTPPipeline') as mock_pipeline_class:
         
-        mock_find_studies.return_value = ({}, [])
-        mock_move.return_value = (0, [])
+        mock_find_studies.return_value = ({}, [], {})
+        mock_move.return_value = (0, [], {})
         mock_pipeline_instance = MagicMock()
         mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
         mock_pipeline_instance.is_complete.return_value = True
@@ -668,4 +668,151 @@ def test_imageqr_accession_wildcard_filtering(tmp_path):
     
     finally:
         orthanc.stop()
+
+
+def test_imageqr_saves_failed_queries_csv_on_find_failure(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001", "ACC999", "ACC998"]
+        })
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        result = imageqr(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir)
+        )
+        
+        assert result["num_studies_found"] == 1
+        assert len(result["failed_query_indices"]) == 2
+        
+        csv_path = appdata_dir / "failed_queries.csv"
+        assert csv_path.exists(), "failed_queries.csv should exist"
+        
+        df = pd.read_csv(csv_path)
+        assert len(df) == 2
+        assert list(df.columns) == ["Accession Number", "Failure Reason"]
+        assert df.loc[0, "Accession Number"] == "ACC999"
+        assert df.loc[0, "Failure Reason"] == "Failed to find images"
+        assert df.loc[1, "Accession Number"] == "ACC998"
+        assert df.loc[1, "Failure Reason"] == "Failed to find images"
+    
+    finally:
+        orthanc.stop()
+
+
+def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds = Fixtures.create_minimal_dicom(
+            patient_id="MRN001",
+            patient_name="Patient1",
+            accession="",
+            study_date="20250115",
+            modality="CT",
+            SliceThickness="3.0"
+        )
+        ds.InstitutionName = "Test Hospital"
+        ds.Manufacturer = "TestManufacturer"
+        ds.ManufacturerModelName = "TestModel"
+        ds.SeriesNumber = 1
+        ds.InstanceNumber = 1
+        ds.SamplesPerPixel = 1
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        ds.Rows = 64
+        ds.Columns = 64
+        ds.BitsAllocated = 16
+        ds.BitsStored = 16
+        ds.HighBit = 15
+        ds.PixelRepresentation = 0
+        ds.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
+        _upload_dicom_to_orthanc(ds, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({
+            "PatientID": ["MRN001", "MRN999"],
+            "StudyDate": [pd.Timestamp("2025-01-15"), pd.Timestamp("2025-02-20")]
+        })
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(
+            str(query_file),
+            mrn_col="PatientID",
+            date_col="StudyDate"
+        )
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        result = imageqr(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir)
+        )
+        
+        assert result["num_studies_found"] == 1
+        assert len(result["failed_query_indices"]) == 1
+        
+        csv_path = appdata_dir / "failed_queries.csv"
+        assert csv_path.exists(), "failed_queries.csv should exist"
+        
+        df = pd.read_csv(csv_path)
+        assert len(df) == 1
+        assert list(df.columns) == ["MRN", "Date", "Failure Reason"]
+        assert df.loc[0, "MRN"] == "MRN999"
+        assert df.loc[0, "Date"] == "2025-02-20"
+        assert df.loc[0, "Failure Reason"] == "Failed to find images"
+    
+    finally:
+        orthanc.stop()
+
 
