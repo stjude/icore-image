@@ -41,13 +41,15 @@ class Spreadsheet:
 
 def generate_queries_and_filter(spreadsheet, date_window_days=0):
     query_params_list = []
+    expected_values_list = []
     filter_conditions = []
     
-    for _, row in spreadsheet.dataframe.iterrows():
+    for i, row in spreadsheet.dataframe.iterrows():
         if spreadsheet.acc_col and pd.notna(row.get(spreadsheet.acc_col)):
-            acc = str(row[spreadsheet.acc_col])
+            acc = str(row[spreadsheet.acc_col]).strip()
             query_params = {"AccessionNumber": f"*{acc}*"}
             query_params_list.append(query_params)
+            expected_values_list.append((acc, len(query_params_list) - 1))
             filter_conditions.append(f'AccessionNumber.contains("{acc}")')
         elif (spreadsheet.mrn_col and spreadsheet.date_col and 
               pd.notna(row.get(spreadsheet.mrn_col)) and 
@@ -77,7 +79,7 @@ def generate_queries_and_filter(spreadsheet, date_window_days=0):
     
     generated_filter = " + ".join(filter_conditions) if filter_conditions else None
     
-    return query_params_list, generated_filter
+    return query_params_list, expected_values_list, generated_filter
 
 
 def combine_filters(user_filter, generated_filter):
@@ -110,10 +112,15 @@ def find_valid_pacs_list(pacs_list, application_aet):
     return valid_pacs_list
 
 
-def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
+def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, expected_values_list=None):
     study_pacs_map = {}
     failed_query_indices = []
     total_queries = len(query_params_list)
+    
+    expected_accessions_map = {}
+    if expected_values_list:
+        for expected_acc, query_index in expected_values_list:
+            expected_accessions_map[query_index] = expected_acc
 
     if len(pacs_list) == 0:
         logging.warning("No valid PACS found")
@@ -128,20 +135,33 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
             logging.debug(f"Processing Excel row {i + 1}")
             
             try:
+                return_tags = ["StudyInstanceUID", "StudyDate"]
+                if i in expected_accessions_map:
+                    return_tags.append("AccessionNumber")
+                
                 results = find_studies(
                     host=pacs.host,
                     port=pacs.port,
                     calling_aet=application_aet,
                     called_aet=pacs.aet,
                     query_params=query_params,
-                    return_tags=["StudyInstanceUID", "StudyDate"]
+                    return_tags=return_tags
                 )
                 
                 for result in results:
                     study_uid = result.get("StudyInstanceUID")
-                    if study_uid and study_uid not in study_pacs_map:
-                        study_pacs_map[study_uid] = (pacs, i)
-                        logging.debug(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
+                    if not study_uid or study_uid in study_pacs_map:
+                        continue
+                    
+                    if i in expected_accessions_map:
+                        result_acc = result.get("AccessionNumber", "").strip()
+                        expected_acc = expected_accessions_map[i]
+                        if result_acc != expected_acc:
+                            logging.debug(f"Rejecting study {study_uid}: AccessionNumber '{result_acc}' does not match expected '{expected_acc}'")
+                            continue
+                    
+                    study_pacs_map[study_uid] = (pacs, i)
+                    logging.debug(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
                 
                 if not results:
                     logging.warning(f"No studies found for query {i}: {query_params}")
@@ -233,8 +253,13 @@ def count_dicom_files(directory):
     count = 0
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.lower().endswith('.dcm'):
-                count += 1
+            try:
+                with open(os.path.join(root, file), 'rb') as f:
+                    f.seek(128)
+                    if f.read(4) == b'DICM':
+                        count += 1
+            except:
+                continue
     return count
 
 

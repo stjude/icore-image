@@ -599,3 +599,73 @@ def test_imageqr_pacs_date_window(tmp_path):
     finally:
         orthanc.stop()
 
+
+def test_imageqr_accession_wildcard_filtering(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds1 = _create_test_dicom("  ABC001  ", "MRN001", "Patient1", "CT", "3.0")
+        ds1.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds1, orthanc)
+        
+        ds2 = _create_test_dicom("ABC001", "MRN002", "Patient2", "CT", "3.0")
+        ds2.InstanceNumber = 2
+        _upload_dicom_to_orthanc(ds2, orthanc)
+        
+        ds3 = _create_test_dicom("12ABC0011", "MRN003", "Patient3", "CT", "3.0")
+        ds3.InstanceNumber = 3
+        _upload_dicom_to_orthanc(ds3, orthanc)
+        
+        ds4 = _create_test_dicom("ABC001ABC", "MRN004", "Patient4", "CT", "3.0")
+        ds4.InstanceNumber = 4
+        _upload_dicom_to_orthanc(ds4, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ABC001"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        result = imageqr(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir)
+        )
+        
+        images_dir = output_dir / "images"
+        output_files = list(images_dir.rglob("*.dcm"))
+        
+        assert result["num_studies_found"] == 2, f"Should find exactly 2 studies (with exact match and whitespace), found {result['num_studies_found']}"
+        assert len(output_files) == 2, f"Expected 2 .dcm files, found {len(output_files)}"
+        
+        found_accessions = set()
+        for file in output_files:
+            ds = pydicom.dcmread(file)
+            found_accessions.add(ds.AccessionNumber.strip())
+        
+        assert found_accessions == {"ABC001"}, f"Should only find studies with exact AccessionNumber 'ABC001' (after trimming), found: {found_accessions}"
+    
+    finally:
+        orthanc.stop()
+

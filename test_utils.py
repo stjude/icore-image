@@ -14,7 +14,7 @@ import requests
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import generate_uid
 
-from utils import csv_string_to_xlsx
+from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter
 
 
 def _cleanup_test_containers():
@@ -526,3 +526,58 @@ class AzuriteServer:
         if self.container:
             subprocess.run(["docker", "stop", self.container], capture_output=True)
             subprocess.run(["docker", "rm", self.container], capture_output=True)
+
+
+def test_generate_queries_trims_accession_numbers(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["  ABC001  ", "ABC002", "  ABC003"]
+    })
+    query_df.to_excel(query_file, index=False)
+    
+    spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(spreadsheet)
+    
+    assert len(query_params_list) == 3
+    assert query_params_list[0]["AccessionNumber"] == "*ABC001*"
+    assert query_params_list[1]["AccessionNumber"] == "*ABC002*"
+    assert query_params_list[2]["AccessionNumber"] == "*ABC003*"
+    
+    assert len(expected_values_list) == 3
+    assert expected_values_list[0] == ("ABC001", 0)
+    assert expected_values_list[1] == ("ABC002", 1)
+    assert expected_values_list[2] == ("ABC003", 2)
+
+
+def test_generate_queries_filter_format(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002"]
+    })
+    query_df.to_excel(query_file, index=False)
+    
+    spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(spreadsheet)
+    
+    expected_filter = 'AccessionNumber.contains("ACC001") + AccessionNumber.contains("ACC002")'
+    assert generated_filter == expected_filter
+
+
+def test_generate_queries_mrn_date_no_expected_values(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": [None, None],
+        "PatientID": ["MRN001", "MRN002"],
+        "StudyDate": [pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-02")]
+    })
+    query_df.to_excel(query_file, index=False)
+    
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        acc_col="AccessionNumber",
+        mrn_col="PatientID",
+        date_col="StudyDate"
+    )
+    query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(spreadsheet)
+    
+    assert len(expected_values_list) == 0
