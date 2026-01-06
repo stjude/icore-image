@@ -1543,3 +1543,279 @@ def test_ctp_server_stall_timeout(tmp_path):
                     raise AssertionError(f"Stall timeout did not trigger within {safety_timeout} seconds")
                 time.sleep(1)
 
+
+def test_ctp_metrics_http_timeout(tmp_path):
+    """Test that HTTP calls to CTP metrics endpoint timeout properly"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    tempdir = tmp_path / "temp"
+    ctp_dir = tmp_path / "ctp"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    tempdir.mkdir()
+    ctp_dir.mkdir()
+    
+    (tempdir / "roots").mkdir()
+    (tempdir / "quarantine").mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    for item in source_ctp.iterdir():
+        if item.is_dir():
+            shutil.copytree(item, ctp_dir / item.name)
+        else:
+            shutil.copy(item, ctp_dir / item.name)
+    
+    create_test_dicoms(input_dir, num_files=10)
+    time.sleep(2)
+    
+    config_xml = PIPELINE_TEMPLATES["imagecopy_local"].format(
+        input_dir=str(input_dir.absolute()),
+        output_dir=str(output_dir.absolute()),
+        tempdir=str(tempdir.absolute()),
+        port=50000
+    )
+    
+    config_path = ctp_dir / "config.xml"
+    config_path.write_text(config_xml)
+    
+    server = CTPServer(str(ctp_dir), stall_timeout=10)
+    server.start()
+    
+    try:
+        # Simulate HTTP timeout by killing CTP but monitoring should handle it gracefully
+        time.sleep(3)
+        server.process.kill()
+        server.process.wait()
+        
+        # Monitor thread should detect the timeout and set exception
+        time.sleep(15)
+        
+        # is_complete() should raise the monitor exception
+        with pytest.raises((TimeoutError, Exception)):
+            while not server.is_complete():
+                time.sleep(1)
+    finally:
+        try:
+            server.stop()
+        except:
+            pass
+
+
+def test_ctp_stall_triggers_shutdown(tmp_path):
+    """Test that CTP server shuts down when stall is detected"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    with pytest.raises(TimeoutError):
+        with CTPPipeline(
+            pipeline_type="imagecopy_local",
+            output_dir=str(output_dir),
+            input_dir=str(input_dir),
+            source_ctp_dir=str(source_ctp),
+            stall_timeout=10
+        ) as pipeline:
+            # Pipeline with no input files will stall
+            start_time = time.time()
+            max_wait = 30
+            
+            while not pipeline.is_complete():
+                if time.time() - start_time > max_wait:
+                    raise AssertionError("Stall timeout should have triggered")
+                time.sleep(1)
+            
+            # Server should be shut down after stall timeout
+            assert pipeline.server.process.poll() is not None, "CTP process should be terminated after stall"
+
+
+def test_ctp_health_check_detects_dead_monitor(tmp_path):
+    """Test that check_health() method detects when monitor thread has died"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    tempdir = tmp_path / "temp"
+    ctp_dir = tmp_path / "ctp"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    tempdir.mkdir()
+    ctp_dir.mkdir()
+    
+    (tempdir / "roots").mkdir()
+    (tempdir / "quarantine").mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    for item in source_ctp.iterdir():
+        if item.is_dir():
+            shutil.copytree(item, ctp_dir / item.name)
+        else:
+            shutil.copy(item, ctp_dir / item.name)
+    
+    create_test_dicoms(input_dir, num_files=100)
+    time.sleep(2)
+    
+    config_xml = PIPELINE_TEMPLATES["imagecopy_local"].format(
+        input_dir=str(input_dir.absolute()),
+        output_dir=str(output_dir.absolute()),
+        tempdir=str(tempdir.absolute()),
+        port=50000
+    )
+    
+    config_path = ctp_dir / "config.xml"
+    config_path.write_text(config_xml)
+    
+    server = CTPServer(str(ctp_dir))
+    server.start()
+    
+    try:
+        time.sleep(3)
+        
+        # Health check should pass when monitor is alive
+        server.check_health()  # Should not raise
+        
+        # Simulate monitor thread dying
+        server._monitor_running = False
+        server.monitor_thread.join(timeout=5)
+        
+        # Health check should now raise an exception
+        with pytest.raises(RuntimeError, match="Monitor thread"):
+            server.check_health()
+    finally:
+        server.stop()
+
+
+def test_ctp_monitor_exception_propagates(tmp_path):
+    """Test that exceptions in monitor thread propagate to is_complete()"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    # Use a very short stall timeout to trigger exception quickly
+    with CTPPipeline(
+        pipeline_type="imagecopy_local",
+        output_dir=str(output_dir),
+        input_dir=str(input_dir),
+        source_ctp_dir=str(source_ctp),
+        stall_timeout=5
+    ) as pipeline:
+        # Wait for stall timeout to trigger
+        time.sleep(10)
+        
+        # is_complete() should raise the TimeoutError from monitor thread
+        with pytest.raises(TimeoutError, match="CTP metrics have not changed"):
+            while True:
+                if pipeline.is_complete():
+                    break
+                time.sleep(0.5)
+
+
+def test_ctp_watchdog_forceful_shutdown(tmp_path):
+    """Test that watchdog can forcefully shut down a hung CTP process"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    tempdir = tmp_path / "temp"
+    ctp_dir = tmp_path / "ctp"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    tempdir.mkdir()
+    ctp_dir.mkdir()
+    
+    (tempdir / "roots").mkdir()
+    (tempdir / "quarantine").mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    for item in source_ctp.iterdir():
+        if item.is_dir():
+            shutil.copytree(item, ctp_dir / item.name)
+        else:
+            shutil.copy(item, ctp_dir / item.name)
+    
+    config_xml = PIPELINE_TEMPLATES["imagecopy_local"].format(
+        input_dir=str(input_dir.absolute()),
+        output_dir=str(output_dir.absolute()),
+        tempdir=str(tempdir.absolute()),
+        port=50000
+    )
+    
+    config_path = ctp_dir / "config.xml"
+    config_path.write_text(config_xml)
+    
+    server = CTPServer(str(ctp_dir), stall_timeout=10)
+    server.start()
+    
+    try:
+        time.sleep(3)
+        initial_pid = server.process.pid
+        assert server.process.poll() is None, "Server should be running"
+        
+        # Wait for stall timeout to trigger
+        time.sleep(15)
+        
+        # Server should have been forcefully shut down
+        assert server.process.poll() is not None, "CTP process should be terminated after stall timeout"
+        
+        # Verify the process is actually dead
+        import psutil
+        assert not psutil.pid_exists(initial_pid), "Process should no longer exist"
+    finally:
+        try:
+            server.stop()
+        except:
+            pass
+
+
+def test_ctp_timeout_logging(tmp_path, caplog):
+    """Test that timeout events are properly logged"""
+    import logging
+    caplog.set_level(logging.INFO)
+    
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    
+    input_dir.mkdir()
+    output_dir.mkdir()
+    
+    source_ctp = Path(__file__).parent / "ctp"
+    
+    with pytest.raises(TimeoutError):
+        with CTPPipeline(
+            pipeline_type="imagecopy_local",
+            output_dir=str(output_dir),
+            input_dir=str(input_dir),
+            source_ctp_dir=str(source_ctp),
+            stall_timeout=10
+        ) as pipeline:
+            start_time = time.time()
+            max_wait = 30
+            
+            while not pipeline.is_complete():
+                if time.time() - start_time > max_wait:
+                    raise AssertionError("Stall timeout should have triggered")
+                time.sleep(1)
+    
+    # Check that stall detection was logged
+    log_messages = [record.message for record in caplog.records]
+    assert any("stall" in msg.lower() or "timeout" in msg.lower() or "not changed" in msg.lower() 
+               for msg in log_messages), "Stall detection should be logged"
+

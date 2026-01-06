@@ -3,6 +3,7 @@ import io
 import logging
 import os
 import sys
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -110,7 +111,7 @@ def find_valid_pacs_list(pacs_list, application_aet):
     return valid_pacs_list
 
 
-def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
+def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, progress_tracker=None):
     study_pacs_map = {}
     failed_query_indices = []
     total_queries = len(query_params_list)
@@ -120,10 +121,20 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
         failed_query_indices = list(range(total_queries))
         return study_pacs_map, failed_query_indices
     
+    # Get completed rows to skip
+    completed_rows = progress_tracker.get_completed_rows() if progress_tracker else set()
+    if completed_rows:
+        logging.info(f"Skipping {len(completed_rows)} already completed rows")
+    
     for pacs in pacs_list:
         logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
         
         for i, query_params in enumerate(query_params_list):
+            # Skip rows that are already completed
+            if i in completed_rows:
+                logging.debug(f"Skipping row {i} (already completed)")
+                continue
+            
             logging.info(f"Queried {i} / {total_queries} rows")
             logging.debug(f"Processing Excel row {i + 1}")
             
@@ -142,6 +153,10 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
                     if study_uid and study_uid not in study_pacs_map:
                         study_pacs_map[study_uid] = (pacs, i)
                         logging.debug(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
+                        
+                        # Mark row as queried in progress tracker
+                        if progress_tracker:
+                            progress_tracker.mark_row_queried(i, study_uid)
                 
                 if not results:
                     logging.warning(f"No studies found for query {i}: {query_params}")
@@ -157,13 +172,23 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet):
     return study_pacs_map, failed_query_indices
 
 
-def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
+def move_studies_from_study_pacs_map(study_pacs_map, application_aet, progress_tracker=None, move_delay_seconds=2.0):
     successful_moves = 0
     failed_query_indices = []
     total_studies = len(study_pacs_map)
     processed = 0
     
+    if move_delay_seconds > 0:
+        logging.info(f"Throttling enabled: {move_delay_seconds}s delay between move requests to prevent PACS overload")
+    
     for study_uid, (pacs, query_index) in study_pacs_map.items():
+        # Skip studies that are already downloaded
+        if progress_tracker and progress_tracker.is_study_downloaded(study_uid):
+            logging.info(f"Skipping study {study_uid} (already downloaded)")
+            processed += 1
+            successful_moves += 1
+            continue
+        
         logging.info(f"Moved {processed} / {total_studies} studies")
         logging.debug(f"Processing study from Excel row {query_index + 1}")
         
@@ -181,10 +206,17 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
         if result["success"]:
             successful_moves += 1
             logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
+            
+            if progress_tracker:
+                progress_tracker.mark_study_downloaded(study_uid)
         else:
             logging.error(f"Excel row {query_index + 1} failed after 4 retries. Moving on.")
             if query_index not in failed_query_indices:
                 failed_query_indices.append(query_index)
+        
+        # Throttle move requests to prevent overwhelming PACS
+        if move_delay_seconds > 0 and processed < total_studies:
+            time.sleep(move_delay_seconds)
     
     logging.info(f"Moved {processed} / {total_studies} studies")
     
@@ -384,4 +416,3 @@ def format_dicom_date(date_value):
         return date_value.strftime("%Y%m%d")
     else:
         raise ValueError(f"Cannot format non-date value: {date_value} (type: {type(date_value).__name__})")
-
