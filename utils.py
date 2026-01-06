@@ -319,12 +319,14 @@ def count_dicom_files(directory):
     count = 0
     for root, dirs, files in os.walk(directory):
         for file in files:
+            file_path = os.path.join(root, file)
             try:
-                with open(os.path.join(root, file), 'rb') as f:
+                with open(file_path, 'rb') as f:
                     f.seek(128)
                     if f.read(4) == b'DICM':
                         count += 1
-            except:
+            except (OSError, IOError) as e:
+                logging.warning("Failed to read file '%s' while counting DICOM files: %s", file_path, e)
                 continue
     return count
 
