@@ -539,3 +539,78 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
         orthanc2.stop()
         azurite.stop()
 
+
+def test_imagedeidexport_saves_failed_queries_csv(tmp_path):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    appdata_dir = tmp_path / "appdata"
+    appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    azurite = AzuriteServer()
+    azurite.start()
+    
+    try:
+        ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds1.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds1, orthanc)
+        
+        time.sleep(2)
+        
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC999"]})
+        query_df.to_excel(query_file, index=False)
+        
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+        
+        container_name = "testcontainer"
+        sas_url = azurite.get_sas_url(container_name)
+        project_name = "TestProject"
+        
+        from module_imagedeidexport import imagedeidexport
+        
+        result = imagedeidexport(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False
+        )
+        
+        assert result["num_studies_found"] == 1
+        assert len(result["failed_query_indices"]) == 1
+        
+        csv_path = appdata_dir / "failed_queries.csv"
+        assert csv_path.exists(), "failed_queries.csv should be created by imagedeid_pacs"
+        
+        df = pd.read_csv(csv_path)
+        assert len(df) == 1
+        assert df.loc[0, "Accession Number"] == "ACC999"
+        assert df.loc[0, "Failure Reason"] == "Failed to find images"
+    
+    finally:
+        orthanc.stop()
+        azurite.stop()
+
+

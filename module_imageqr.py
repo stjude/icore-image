@@ -7,7 +7,7 @@ from utils import (generate_queries_and_filter, combine_filters,
                    validate_date_window_days, find_valid_pacs_list,
                    find_studies_from_pacs_list, move_studies_from_study_pacs_map,
                    setup_run_directories, configure_run_logging,
-                   format_number_with_commas, csv_string_to_xlsx)
+                   format_number_with_commas, csv_string_to_xlsx, save_failed_queries_csv)
 
 
 def _save_metadata_files(pipeline, appdata_dir):
@@ -48,12 +48,12 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     
     validate_date_window_days(date_window_days)
     
-    query_params_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
+    query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
     combined_filter = combine_filters(filter_script, generated_filter)
 
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
     
-    study_pacs_map, failed_find_indices = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet)
+    study_pacs_map, failed_find_indices, find_failure_details = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet, expected_values_list)
     
     ctp_log_level = "DEBUG" if debug else None
     
@@ -68,9 +68,10 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     ) as pipeline:
         time.sleep(3)
         
-        successful_moves, failed_move_indices = move_studies_from_study_pacs_map(study_pacs_map, application_aet)
+        successful_moves, failed_move_indices, move_failure_details = move_studies_from_study_pacs_map(study_pacs_map, application_aet)
         
         failed_query_indices = list(set(failed_find_indices + failed_move_indices))
+        combined_failure_details = {**find_failure_details, **move_failure_details}
         
         save_interval = 5
         last_save_time = 0
@@ -79,12 +80,14 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
             current_time = time.time()
             if current_time - last_save_time >= save_interval:
                 _save_metadata_files(pipeline, appdata_dir)
+                save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, combined_failure_details)
                 _log_progress(pipeline)
                 last_save_time = current_time
             
             time.sleep(1)
         
         _save_metadata_files(pipeline, appdata_dir)
+        save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, combined_failure_details)
         
         num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
         num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0

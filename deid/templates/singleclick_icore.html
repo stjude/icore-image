@@ -203,19 +203,6 @@
             
             const adminResponse = await fetch('/load_admin_settings/');
             adminSettings = await adminResponse.json();
-
-            if (!adminSettings.imagine_sas_url || adminSettings.imagine_sas_url.trim() === '') {
-                document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
-                document.getElementById('singleclick_button').disabled = true;
-                return;
-            } else {
-                const result = await validateSasUrlOnLoad(adminSettings.imagine_sas_url);
-                if (!result.valid) {
-                    document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
-                    document.getElementById('singleclick_button').disabled = true;
-                    return;
-                }
-            }
             
             if (settings.default_output_folder) {
                 document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
@@ -395,6 +382,20 @@
     }
 
     async function runSingleClickICore() {
+        const exportEnabled = document.getElementById('export_to_azure').checked;
+        
+        if (exportEnabled) {
+            if (!adminSettings.imagine_sas_url || adminSettings.imagine_sas_url.trim() === '') {
+                document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
+                return;
+            }
+            const sasValidation = await validateSasUrlOnLoad(adminSettings.imagine_sas_url);
+            if (!sasValidation.valid) {
+                document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
+                return;
+            }
+        }
+
         const filters = collectFilters('#filters-container');
         const isScheduled = document.getElementById('schedule_job').checked;
         
