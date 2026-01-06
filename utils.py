@@ -223,7 +223,7 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
                 if not results:
                     logging.warning(f"No studies found for query {i}: {query_params}")
             except Exception as e:
-                logging.error(f"Excel row {i + 1} failed after 4 retries. Moving on.")
+                logging.error(f"Failed to find studies for query {i + 1}. Moving on.")
                 if i not in failed_query_indices:
                     failed_query_indices.append(i)
                     failure_details[i] = "Failed to find images"
@@ -267,7 +267,7 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
             successful_moves += 1
             logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
         else:
-            logging.error(f"Excel row {query_index + 1} failed after 4 retries. Moving on.")
+            logging.error(f"Failed to move study for query {query_index + 1}. Moving on.")
             if query_index not in failed_query_indices:
                 failed_query_indices.append(query_index)
                 failure_details[query_index] = "Failed to move images after successful query"
