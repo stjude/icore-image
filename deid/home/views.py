@@ -34,7 +34,7 @@ from .models import Project, Module
 
 ICORE_BASE_DIR = os.path.join(os.path.expanduser('~'), 'Documents', 'iCore')
 SETTINGS_DIR = os.path.join(ICORE_BASE_DIR, 'config')
-APP_DATA_PATH = os.path.join(ICORE_BASE_DIR, 'app_data')
+APP_DATA_PATH = os.path.join(ICORE_BASE_DIR, 'appdata')
 AUTHENTICATION_LOG_PATH = os.path.join(ICORE_BASE_DIR, 'logs', 'system', 'authentication.log')
 SECURE_DIR = os.path.join(os.path.expanduser('~'), '.secure', '.config', '.sysdata')
 LOGS_DIR = os.path.join(ICORE_BASE_DIR, 'logs')
@@ -1466,6 +1466,6 @@ def root_redirect(request):
         if icore_usecase == 'imagine':
             return redirect('single_click_icore')
         else:
-            return redirect('header_query')
+            return redirect('image_query')
     except Exception:
-        return redirect('header_query')
+        return redirect('image_query')
