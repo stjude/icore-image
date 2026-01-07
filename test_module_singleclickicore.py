@@ -658,3 +658,75 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path):
     finally:
         orthanc.stop()
 
+
+def test_singleclickicore_saves_failed_queries_csv(tmp_path):
+    """Test that failed_queries.csv is created via imagedeid_pacs"""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    
+    appdata_dir = tmp_path / "appdata"
+    appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+    
+    try:
+        ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds1.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds1, orthanc)
+        
+        time.sleep(2)
+        
+        input_file = appdata_dir / "input.xlsx"
+        input_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001", "ACC999"],
+            "PatientName": ["Test Patient", "Missing Patient"]
+        })
+        input_df.to_excel(input_file, index=False)
+        
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+        
+        anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+        
+        from module_singleclickicore import singleclickicore
+        
+        result = singleclickicore(
+            pacs_list=[pacs_config],
+            query_spreadsheet=Spreadsheet.from_file(str(input_file), acc_col="AccessionNumber"),
+            application_aet="TEST_AET",
+            sas_url="https://dummy.blob.core.windows.net/container?sas",
+            project_name="TestProject",
+            output_dir=str(output_dir),
+            input_file=str(input_file),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            columns_to_drop=["PatientName"],
+            apply_default_filter_script=False,
+            skip_export=True
+        )
+        
+        assert result["num_studies_found"] == 1
+        assert len(result["failed_query_indices"]) == 1
+        
+        csv_path = appdata_dir / "failed_queries.csv"
+        assert csv_path.exists(), "failed_queries.csv should be created by imagedeid_pacs"
+        
+        df = pd.read_csv(csv_path)
+        assert len(df) == 1
+        assert df.loc[0, "Accession Number"] == "ACC999"
+        assert df.loc[0, "Failure Reason"] == "Failed to find images"
+    
+    finally:
+        orthanc.stop()
+
+
