@@ -14,6 +14,7 @@ import bcrypt
 import pandas as pd
 import psutil
 import psutil
+import psutil
 import pytz
 from django.db import OperationalError
 from django.http import (
@@ -22,6 +23,7 @@ from django.http import (
     HttpResponseNotFound,
     JsonResponse,
 )
+from django.shortcuts import get_object_or_404, redirect
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -202,6 +204,30 @@ class ImageDeidExportView(CommonContextMixin, CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['modalities'] = ['CT', 'MR', 'PT', 'US', 'CR', 'DX', 'MG', 'NM', 'RF', 'XA']
+        return context
+
+
+class SingleClickICoreView(CommonContextMixin, CreateView):
+    model = Project
+    fields = ['name']
+    template_name = 'singleclick_icore.html'
+    success_url = reverse_lazy('task_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['modalities'] = ['CT', 'MR', 'PT', 'US', 'CR', 'DX', 'MG', 'NM', 'RF', 'XA']
+        return context
+
+
+class ProfileView(CommonContextMixin, TemplateView):
+    template_name = 'profile.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        settings_path = os.path.join(SETTINGS_DIR, 'settings.json')
+        with open(settings_path, 'r') as f:
+            settings = json.load(f)
+        context['current_usecase'] = settings.get('icore_usecase', '')
         return context
 
 
@@ -629,6 +655,7 @@ def run_export(request):
             parameters={
                 'sas_url': data['sas_url'],
                 'sas_url': data['sas_url'],
+                'sas_url': data['sas_url'],
             }
         )
         return JsonResponse({
@@ -698,6 +725,76 @@ def run_imagedeidexport(request):
                 'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
                 'site_id': data['site_id'],
                 'sas_url': data['sas_url'],
+            }
+        )
+        return JsonResponse({
+            'status': 'success',
+            'project_id': project.id,
+            'log_path': project.log_path
+        })
+    except Exception as e:
+        print(f'Error: {e}')
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+
+@csrf_exempt
+def run_singleclickicore(request):
+    print('Running Single-Click iCore')
+    try:
+        if request.method == 'POST':
+            data = json.loads(request.body)
+        
+        if not validate_pacs_configuration(data.get('pacs_configs', [])):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No PACS configured. Please configure PACS settings before running.'
+            }, status=400)
+        
+        scheduled_time = None
+        if 'scheduled_time' in data:
+            settings = json.load(open(os.path.join(SETTINGS_DIR, 'settings.json')))
+            timezone_str = settings.get('timezone', 'UTC')
+            tz = pytz.timezone(timezone_str)
+            local_dt = datetime.fromisoformat(data['scheduled_time'].replace('Z', ''))
+            scheduled_time = tz.localize(local_dt)
+            scheduled_time = scheduled_time.astimezone(pytz.UTC)
+        
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        project = Project.objects.create(
+            name=data['study_name'],
+            timestamp=timestamp,
+            log_path="",
+            task_type=Project.TaskType.SINGLE_CLICK_ICORE,
+            image_source='PACS',
+            input_folder='',
+            output_folder=data['output_folder'],
+            pacs_configs=data['pacs_configs'],
+            application_aet=data['application_aet'],
+            status=Project.TaskStatus.PENDING,
+            scheduled_time=scheduled_time,
+            parameters={
+                'input_file': data['input_file'],
+                'general_filters': data['general_filters'],
+                'modality_filters': data['modality_filters'],
+                'tags_to_keep': data['tags_to_keep'],
+                'tags_to_dateshift': data['tags_to_dateshift'],
+                'tags_to_randomize': data['tags_to_randomize'],
+                'date_shift_days': data['date_shift_days'],
+                'mapping_file_path': data.get('mapping_file_path', ''),
+                'use_mapping_file': data.get('use_mapping_file', False),
+                'deid_pixels': data.get('deid_pixels', False),
+                'remove_unspecified': data.get('remove_unspecified', False),
+                'remove_overlays': data.get('remove_overlays', False),
+                'remove_curves': data.get('remove_curves', False),
+                'remove_private': data.get('remove_private', False),
+                'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
+                'site_id': data['site_id'],
+                'sas_url': data['sas_url'],
+                'text_to_keep': data.get('text_to_keep', ''),
+                'text_to_remove': data.get('text_to_remove', ''),
+                'columns_to_deid': data.get('columns_to_deid', ''),
+                'columns_to_drop': data.get('columns_to_drop', ''),
+                'skip_export': not data.get('export_to_azure', True),
             }
         )
         return JsonResponse({
@@ -1043,6 +1140,9 @@ def save_admin_settings(request):
     if request.POST.get('imagine_sas_url'):
         existing_settings['imagine_sas_url'] = request.POST['imagine_sas_url']
     
+    if request.POST.get('imagine_sas_url'):
+        existing_settings['imagine_sas_url'] = request.POST['imagine_sas_url']
+    
     # Save updated settings
     with open(settings_path, 'w') as f:
         json.dump(existing_settings, f, indent=4)
@@ -1211,6 +1311,51 @@ def delete_task(request, task_id):
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+
+def kill_process_tree(pid):
+    try:
+        parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
+        for child in children:
+            try:
+                child.terminate()
+            except psutil.NoSuchProcess:
+                pass
+        parent.terminate()
+        gone, alive = psutil.wait_procs(children + [parent], timeout=5)
+        for p in alive:
+            try:
+                p.kill()
+            except psutil.NoSuchProcess:
+                pass
+    except psutil.NoSuchProcess:
+        pass
+
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def cancel_task(request, task_id):
+    try:
+        task = get_object_or_404(Project, id=task_id)
+        
+        if task.status not in [Project.TaskStatus.PENDING, Project.TaskStatus.RUNNING]:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Only pending or running tasks can be cancelled'
+            }, status=400)
+        
+        if task.status == Project.TaskStatus.RUNNING and task.process_pid:
+            kill_process_tree(task.process_pid)
+        
+        task.status = Project.TaskStatus.CANCELLED
+        task.process_pid = None
+        task.save()
+        
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
 
 
 def kill_process_tree(pid):
