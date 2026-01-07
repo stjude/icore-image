@@ -13,7 +13,6 @@ from urllib.parse import urlparse, parse_qs
 import bcrypt
 import pandas as pd
 import psutil
-import psutil
 import pytz
 from django.db import OperationalError
 from django.http import (
@@ -628,7 +627,6 @@ def run_export(request):
             status=Project.TaskStatus.PENDING,
             parameters={
                 'sas_url': data['sas_url'],
-                'sas_url': data['sas_url'],
             }
         )
         return JsonResponse({
@@ -1040,9 +1038,6 @@ def save_admin_settings(request):
     if request.POST.get('imagine_sas_url'):
         existing_settings['imagine_sas_url'] = request.POST['imagine_sas_url']
     
-    if request.POST.get('imagine_sas_url'):
-        existing_settings['imagine_sas_url'] = request.POST['imagine_sas_url']
-    
     # Save updated settings
     with open(settings_path, 'w') as f:
         json.dump(existing_settings, f, indent=4)
@@ -1211,51 +1206,6 @@ def delete_task(request, task_id):
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-
-
-def kill_process_tree(pid):
-    try:
-        parent = psutil.Process(pid)
-        children = parent.children(recursive=True)
-        for child in children:
-            try:
-                child.terminate()
-            except psutil.NoSuchProcess:
-                pass
-        parent.terminate()
-        gone, alive = psutil.wait_procs(children + [parent], timeout=5)
-        for p in alive:
-            try:
-                p.kill()
-            except psutil.NoSuchProcess:
-                pass
-    except psutil.NoSuchProcess:
-        pass
-
-
-@require_http_methods(["POST"])
-@csrf_exempt
-def cancel_task(request, task_id):
-    try:
-        task = get_object_or_404(Project, id=task_id)
-        
-        if task.status not in [Project.TaskStatus.PENDING, Project.TaskStatus.RUNNING]:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Only pending or running tasks can be cancelled'
-            }, status=400)
-        
-        if task.status == Project.TaskStatus.RUNNING and task.process_pid:
-            kill_process_tree(task.process_pid)
-        
-        task.status = Project.TaskStatus.CANCELLED
-        task.process_pid = None
-        task.save()
-        
-        return JsonResponse({'status': 'success'})
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-
 
 
 def kill_process_tree(pid):
