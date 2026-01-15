@@ -7,6 +7,26 @@
 <div class="px-4">
     <h1 class="text-xl flex-1">Single-Click iCore</h1>
 </div>
+
+<!-- HIPAA Safe Harbor Banner -->
+<div class="mx-4 mt-4 bg-blue-50 border-l-4 border-blue-500 p-4">
+    <div class="flex items-start">
+        <div class="flex-shrink-0">
+            <svg class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <div class="ml-3">
+            <h3 class="text-md font-semibold text-blue-900">HIPAA Safe Harbor Mode (Automatic)</h3>
+            <div class="mt-2 text-sm text-blue-800">
+                <p class="font-medium">Single-click iCore automatically enforces HIPAA Safe Harbor de-identification per 45 CFR §164.514(b)(2).</p>
+                <p class="mt-2">All 18 HIPAA identifiers will be removed or anonymized. Files containing encapsulated documents, PDFs, or burned-in annotations will be automatically quarantined for manual review.</p>
+                <p class="mt-2"><strong>These settings are NOT user-configurable.</strong> For custom de-identification settings, use the Local De-identification workflow.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
     <div class="text-sm text-black-5">Project Name</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" onkeypress="return event.charCode !== 32"/>
@@ -65,73 +85,86 @@
                 </div>
             
             </div>
-            
-            <div class="mt-6">
-                <div class="text-md mb-2">Advanced Deidentification Options</div>
-                <div class="flex space-x-4">
-                    <div class="flex-1">
-                        <div class="text-sm text-gray-500">To keep</div>
-                        <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_keep"></textarea>
+
+            <div class="mt-6 bg-gray-50 border border-gray-300 rounded p-4">
+                <div class="text-md mb-3 font-medium text-gray-900">Advanced Deidentification Options</div>
+                <div class="text-sm text-gray-700 mb-4">
+                    The following HIPAA Safe Harbor settings are automatically enforced and cannot be modified:
+                </div>
+
+                <div class="flex space-x-4 mb-4">
+                    <div class="flex-1 bg-white p-3 rounded border border-gray-200">
+                        <div class="text-sm font-medium text-gray-700 mb-2">To keep</div>
+                        <div class="text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
+                            {% for tag_name in tags_to_keep %}
+                            <div>• {{ tag_name }}</div>
+                            {% endfor %}
+                        </div>
                     </div>
-                    <div class="flex-1">
-                        <div class="text-sm text-gray-500">To date shift</div>
-                        <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_dateshift"></textarea>
+                    <div class="flex-1 bg-white p-3 rounded border border-gray-200">
+                        <div class="text-sm font-medium text-gray-700 mb-2">To date shift</div>
+                        <div class="text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
+                            {% for tag_name in tags_to_dateshift %}
+                            <div>• {{ tag_name }}</div>
+                            {% endfor %}
+                        </div>
                     </div>
-                    <div class="flex-1">
-                        <div class="text-sm text-gray-500">To randomize</div>
-                        <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="tags_to_randomize"></textarea>
+                    <div class="flex-1 bg-white p-3 rounded border border-gray-200">
+                        <div class="text-sm font-medium text-gray-700 mb-2">To randomize</div>
+                        <div class="text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
+                            {% for tag_name in tags_to_randomize %}
+                            <div>• {{ tag_name }}</div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="mt-8">
-                <div class="text-md mb-4">Global Deidentification Settings</div>
-                <div class="space-y-4">
-                    <div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="remove_unspecified" name="remove_unspecified" class="mr-2">
-                            <label for="remove_unspecified">Remove unspecified tags</label>
-                        </div>
-                        <div class="text-sm text-gray-500 ml-6">If checked, any tag not specified in the lists above will be removed. If unchecked, unspecified tags will be preserved</div>
+
+            <div class="mt-8 bg-gray-50 border border-gray-300 rounded p-4">
+                <div class="text-md mb-3 font-medium text-gray-900">Global Deidentification Settings</div>
+                <div class="text-sm text-gray-700 mb-4">
+                    The following settings are automatically enabled for HIPAA Safe Harbor compliance:
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center text-sm">
+                        <svg class="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-gray-700"><strong>Remove unspecified tags</strong> - Any tag not specified in the lists above will be removed</span>
                     </div>
-                    <div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="remove_overlays" name="remove_overlays" class="mr-2">
-                            <label for="remove_overlays">Remove overlays</label>
-                        </div>
-                        <div class="text-sm text-gray-500 ml-6">Remove all elements in 60xx groups. These are overlays and are sometimes removed when fully de-identifying an object because they can contain PHI.</div>
+                    <div class="flex items-center text-sm">
+                        <svg class="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-gray-700"><strong>Remove overlays</strong> - All elements in 60xx groups (may contain PHI)</span>
                     </div>
-                    <div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="remove_curves" name="remove_curves" class="mr-2">
-                            <label for="remove_curves">Remove curve data</label>
-                        </div>
-                        <div class="text-sm text-gray-500 ml-6">Remove all elements in 50xx groups. These are groups which contain curve data.</div>
+                    <div class="flex items-center text-sm">
+                        <svg class="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-gray-700"><strong>Remove curve data</strong> - All elements in 50xx groups</span>
                     </div>
-                    <div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="remove_private" name="remove_private" class="mr-2">
-                            <label for="remove_private">Remove all private tags</label>
-                        </div>
-                        <div class="text-sm text-gray-500 ml-6">Remove all elements in odd-numbered groups. These are private groups whose contents are not specified by the DICOM standard</div>
-                    </div>
-                    <div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="apply_default_ctp_filter_script" name="apply_default_ctp_filter_script" class="mr-2" checked>
-                            <label for="apply_default_ctp_filter_script">Apply default filters from known devices</label>
-                        </div>
-                        <div class="text-sm text-gray-500 ml-6">Remove DICOM files during the deidentification process from known devices that are known to contain PHI. These files will be stored in the quarantine.</div>
+                    <div class="flex items-center text-sm">
+                        <svg class="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-gray-700"><strong>Remove all private tags</strong> - Odd-numbered groups (not specified by DICOM standard)</span>
                     </div>
                 </div>
             </div>
-            <div class="mt-8">
-                <div class="text-md mb-4">Pixel Deidentification</div>
-                <div class="mb-4">
-                    <div class="flex items-center">
-                        <input type="checkbox" id="deid_pixels" name="deid_pixels" class="mr-2">
-                        <label for="deid_pixels">Deidentify pixel data from device scanners</label>
-                    </div>
-                    <div class="text-sm text-gray-500 ml-6">Blacks out regions of pixels in a DICOM image from known devices.</div>
+
+            <div class="mt-8 bg-gray-50 border border-gray-300 rounded p-4">
+                <div class="text-md mb-3 font-medium text-gray-900">Pixel Deidentification</div>
+                <div class="flex items-center text-sm">
+                    <svg class="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-gray-700"><strong>Deidentify pixel data from device scanners</strong> - Blacks out regions of pixels in DICOM images from known devices</span>
                 </div>
+            </div>
+
+            <div class="mt-8">
                 <div class="text-md mb-4 mt-8">Mapping File Configuration</div>
                 <div>
                     <div class="flex items-center">
@@ -207,17 +240,7 @@
             if (settings.default_output_folder) {
                 document.querySelector('[name="output_folder"]').value = settings.default_output_folder;
             }
-            
-            // Image deid defaults
-            if (settings.default_tags_to_keep) {
-                document.querySelector('[name="tags_to_keep"]').value = settings.default_tags_to_keep;
-            }
-            if (settings.default_tags_to_dateshift) {
-                document.querySelector('[name="tags_to_dateshift"]').value = settings.default_tags_to_dateshift;
-            }
-            if (settings.default_tags_to_randomize) {
-                document.querySelector('[name="tags_to_randomize"]').value = settings.default_tags_to_randomize;
-            }
+
             if (settings.mapping_file_path) {
                 document.querySelector('[name="mapping_file_path"]').value = settings.mapping_file_path;
             }
@@ -225,24 +248,7 @@
                 document.getElementById('use_mapping_file').checked = settings.use_mapping_file;
                 toggleMappingFileInput();
             }
-            if (settings.default_deid_pixels) {
-                document.getElementById('deid_pixels').checked = settings.default_deid_pixels;
-            }
-            if (settings.default_remove_unspecified !== undefined) {
-                document.getElementById('remove_unspecified').checked = settings.default_remove_unspecified;
-            }
-            if (settings.default_remove_overlays !== undefined) {
-                document.getElementById('remove_overlays').checked = settings.default_remove_overlays;
-            }
-            if (settings.default_remove_curves !== undefined) {
-                document.getElementById('remove_curves').checked = settings.default_remove_curves;
-            }
-            if (settings.default_remove_private !== undefined) {
-                document.getElementById('remove_private').checked = settings.default_remove_private;
-            }
-            if (settings.default_apply_default_ctp_filter_script !== undefined) {
-                document.getElementById('apply_default_ctp_filter_script').checked = settings.default_apply_default_ctp_filter_script;
-            }
+
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
             }
@@ -404,19 +410,9 @@
             input_file: document.querySelector('[name="input_file"]').value,
             output_folder: document.querySelector('[name="output_folder"]').value,
             // Image deid options
-            tags_to_keep: document.querySelector('[name="tags_to_keep"]').value,
-            tags_to_dateshift: document.querySelector('[name="tags_to_dateshift"]').value,
-            tags_to_randomize: document.querySelector('[name="tags_to_randomize"]').value,
             mapping_file_path: document.querySelector('[name="mapping_file_path"]').value || settings.mapping_file_path || '',
             use_mapping_file: document.getElementById('use_mapping_file').checked,
-            deid_pixels: document.getElementById('deid_pixels').checked,
-            remove_unspecified: document.getElementById('remove_unspecified').checked,
-            remove_overlays: document.getElementById('remove_overlays').checked,
-            remove_curves: document.getElementById('remove_curves').checked,
-            remove_private: document.getElementById('remove_private').checked,
-            apply_default_ctp_filter_script: document.getElementById('apply_default_ctp_filter_script').checked,
-            date_shift_days: settings.date_shift_range || 0,
-            site_id: settings.site_id || '',
+
             pacs_configs: settings.pacs_configs || [],
             application_aet: settings.application_aet || '',
             sas_url: adminSettings.imagine_sas_url || '',
