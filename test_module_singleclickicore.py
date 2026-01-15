@@ -9,9 +9,33 @@ import pytest
 
 from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, AzuriteServer, OrthancServer
 from utils import PacsConfiguration, Spreadsheet
+from deid.grammar import generate_hipaa_safe_harbor_script, generate_hipaa_encapsulated_content_filter
 
 
 logging.basicConfig(level=logging.INFO)
+
+
+def get_hipaa_test_config(user_filter_script=None):
+    """
+    Helper function to generate HIPAA Safe Harbor configuration for tests.
+    Mimics what the config builder (worker.py) does.
+    """
+    site_id = 'TEST_SITE'
+    date_shift_days = -730
+    anonymizer_script = generate_hipaa_safe_harbor_script(site_id, date_shift_days)
+    hipaa_filter = generate_hipaa_encapsulated_content_filter()
+    if user_filter_script:
+        combined_filter = f"!({hipaa_filter})\n* ({user_filter_script})"
+    else:
+        combined_filter = f"!({hipaa_filter})"
+    return {
+        'anonymizer_script': anonymizer_script,
+        'filter_script': combined_filter,
+        'deid_pixels': True,
+        'apply_default_filter_script': False,
+        'site_id': site_id,
+        'date_shift_days': date_shift_days
+    }
 
 
 def test_singleclickicore_basic_workflow(tmp_path):
@@ -59,19 +83,15 @@ def test_singleclickicore_basic_workflow(tmp_path):
             port=orthanc.dicom_port,
             aet=orthanc.aet
         )
-        
-        anonymizer_script = """<script>
-<e en="T" t="00100010" n="PatientName">@empty()</e>
-<e en="T" t="00100020" n="PatientID">@empty()</e>
-<e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
-</script>"""
-        
+
+        hipaa_config = get_hipaa_test_config()
+
         container_name = "testcontainer"
         sas_url = azurite.get_sas_url(container_name)
         project_name = "TestProject"
-        
+
         from module_singleclickicore import singleclickicore
-        
+
         result = singleclickicore(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
@@ -81,8 +101,10 @@ def test_singleclickicore_basic_workflow(tmp_path):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             input_file=str(query_file),
-            anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False
+            anonymizer_script=hipaa_config['anonymizer_script'],
+            filter_script=hipaa_config['filter_script'],
+            deid_pixels=hipaa_config['deid_pixels'],
+            apply_default_filter_script=hipaa_config['apply_default_filter_script'],
         )
         
         # Verify image deid results
