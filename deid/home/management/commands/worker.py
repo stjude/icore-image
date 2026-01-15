@@ -625,14 +625,12 @@ def build_singleclickicore_config(task):
 
     config['ctp_anonymizer'] = scalarstring.LiteralScalarString(hipaa_anonymizer_script)
 
-    config['deid_pixels'] = True
-
-    config['apply_default_ctp_filter_script'] = True
+    config['apply_default_ctp_filter_script'] = task.parameters.get('apply_default_ctp_filter_script', True)
     
-    hippa_config = get_hipaa_safe_harbor_config()
-    config['tags_to_keep'] = hippa_config['tags_to_keep']
-    config['tags_to_dateshift'] = hippa_config['tags_to_dateshift']
-    config['tags_to_randomize'] = hippa_config['tags_to_randomize']
+    hipaa_config = get_hipaa_safe_harbor_config()
+    config['tags_to_keep'] = hipaa_config['tags_to_keep']
+    config['tags_to_dateshift'] = hipaa_config['tags_to_dateshift']
+    config['tags_to_randomize'] = hipaa_config['tags_to_randomize']
 
     skip_export = task.parameters.get('skip_export', False)
     config['skip_export'] = skip_export

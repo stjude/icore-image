@@ -32,7 +32,7 @@ def get_hipaa_test_config(user_filter_script=None):
         'anonymizer_script': anonymizer_script,
         'filter_script': combined_filter,
         'deid_pixels': True,
-        'apply_default_filter_script': True,
+        'apply_default_filter_script': False,
         'site_id': site_id,
         'date_shift_days': date_shift_days
     }
@@ -104,7 +104,7 @@ def test_singleclickicore_basic_workflow(tmp_path):
             anonymizer_script=hipaa_config['anonymizer_script'],
             filter_script=hipaa_config['filter_script'],
             deid_pixels=hipaa_config['deid_pixels'],
-            apply_default_filter_script=False,
+            apply_default_filter_script=hipaa_config['apply_default_filter_script'],
         )
         
         # Verify image deid results
