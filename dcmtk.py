@@ -207,7 +207,7 @@ def get_study(host, port, calling_aet, called_aet, output_dir, study_uid, query_
         port: PACS DICOM port
         calling_aet: AE title of the calling application
         called_aet: AE title of the PACS
-        output_dir: Directory where retrieved DICOM files will be written (must exist)
+        output_dir: Directory where retrieved DICOM files will be written (will be created if it does not exist)
         study_uid: StudyInstanceUID to retrieve
         query_level: Query/retrieve level (default: "STUDY")
 
