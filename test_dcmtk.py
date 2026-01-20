@@ -360,3 +360,39 @@ def test_echo_pacs_failure():
     assert result["success"] is False
     assert "Association Rejected" in result["message"]
 
+
+def test_get_study_only_renames_new_files(tmp_path):
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    
+    existing_file = output_dir / "existing_file.txt"
+    existing_file.write_text("existing content")
+    existing_file_with_dcm = output_dir / "existing.dcm"
+    existing_file_with_dcm.write_text("existing dcm")
+    
+    def mock_run(*args, **kwargs):
+        time.sleep(0.1)
+        new_file = output_dir / "new_dicom_file"
+        new_file.write_text("new dicom content")
+        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
+
+    with mock.patch('subprocess.run', side_effect=mock_run):
+        result = get_study(
+            host="localhost",
+            port=11112,
+            calling_aet="TEST_SCU",
+            called_aet="ORTHANC_TEST",
+            output_dir=str(output_dir),
+            study_uid="1.2.826.0.1.3680043.8.498.12345",
+        )
+
+    assert result["success"] is True
+    
+    assert existing_file.exists()
+    assert not (output_dir / "existing_file.txt.dcm").exists()
+    
+    assert existing_file_with_dcm.exists()
+    
+    assert not (output_dir / "new_dicom_file").exists()
+    assert (output_dir / "new_dicom_file.dcm").exists()
+

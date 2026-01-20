@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 
 from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result, RetryCallState, before_sleep_log
@@ -236,6 +237,9 @@ def get_study(host, port, calling_aet, called_aet, output_dir, study_uid, query_
     logging.debug(f"Running getscu: {' '.join(cmd)}")
 
     env = _build_dcmtk_env()
+    
+    start_time = time.time()
+    
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     
     parsed_result = _parse_get_output(result.stderr, result.returncode)
@@ -245,7 +249,8 @@ def get_study(host, port, calling_aet, called_aet, output_dir, study_uid, query_
         for filename in os.listdir(output_dir):
             filepath = os.path.join(output_dir, filename)
             if os.path.isfile(filepath) and not filename.endswith('.dcm'):
-                os.rename(filepath, filepath + '.dcm')
+                if os.path.getmtime(filepath) >= start_time:
+                    os.rename(filepath, filepath + '.dcm')
 
     return parsed_result
 
