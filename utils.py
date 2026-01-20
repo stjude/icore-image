@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from openpyxl import Workbook
 
-from dcmtk import find_studies, move_study, echo_pacs
+from dcmtk import find_studies, get_study, echo_pacs
 
 
 @dataclass
@@ -241,40 +241,41 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
     return study_pacs_map, failed_query_indices, failure_details
 
 
-def move_studies_from_study_pacs_map(study_pacs_map, application_aet):
-    successful_moves = 0
+def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir):
+    """Retrieve multiple studies from PACS using C-GET based on a study-to-PACS mapping."""
+    successful_gets = 0
     failed_query_indices = []
     failure_details = {}
     total_studies = len(study_pacs_map)
     processed = 0
-    
+
     for study_uid, (pacs, query_index) in study_pacs_map.items():
-        logging.info(f"Moved {processed} / {total_studies} studies")
+        logging.info(f"Retrieved {processed} / {total_studies} studies")
         logging.debug(f"Processing study from Excel row {query_index + 1}")
-        
-        result = move_study(
+
+        result = get_study(
             host=pacs.host,
             port=pacs.port,
             calling_aet=application_aet,
             called_aet=pacs.aet,
-            move_destination=application_aet,
+            output_dir=output_dir,
             study_uid=study_uid
         )
-        
+
         processed += 1
-        
+
         if result["success"]:
-            successful_moves += 1
-            logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
+            successful_gets += 1
+            logging.debug(f"Successfully retrieved study {study_uid} from {pacs.host}:{pacs.port}")
         else:
-            logging.error(f"Failed to move study for query {query_index + 1}. Moving on.")
+            logging.error(f"Failed to retrieve study for query {query_index + 1}. Moving on.")
             if query_index not in failed_query_indices:
                 failed_query_indices.append(query_index)
-                failure_details[query_index] = "Failed to move images after successful query"
-    
-    logging.info(f"Moved {processed} / {total_studies} studies")
-    
-    return successful_moves, failed_query_indices, failure_details
+                failure_details[query_index] = "Failed to retrieve images after successful query"
+
+    logging.info(f"Retrieved {processed} / {total_studies} studies")
+
+    return successful_gets, failed_query_indices, failure_details
 
 
 def setup_run_directories():

@@ -61,7 +61,7 @@ def _parse_find_xml(xml_content):
     return results
 
 
-def _parse_move_output(stderr, returncode):
+def _parse_get_output(stderr, returncode):
     result = {
         "success": False,
         "num_completed": 0,
@@ -69,31 +69,34 @@ def _parse_move_output(stderr, returncode):
         "num_warning": 0,
         "message": ""
     }
-    
-    if "Received Final Move Response (Success)" in stderr:
+
+    if ("Received Final Get Response (Success)" in stderr or 
+        "Received C-GET Response (Success)" in stderr):
         result["success"] = True
-        
+
         completed_match = re.search(r'Sub-Operations Complete:\s*(\d+)', stderr)
+        if not completed_match:
+            completed_match = re.search(r'Number of Completed Subopera[^:]*:\s*(\d+)', stderr)
         if completed_match:
             result["num_completed"] = int(completed_match.group(1))
-        
+
         failed_match = re.search(r'Complete:\s*\d+,\s*Failed:\s*(\d+)', stderr)
         if failed_match:
             result["num_failed"] = int(failed_match.group(1))
-        
+
         warning_match = re.search(r'Failed:\s*\d+,\s*Warning:\s*(\d+)', stderr)
         if warning_match:
             result["num_warning"] = int(warning_match.group(1))
-        
-        result["message"] = "Move completed successfully"
+
+        result["message"] = "Get completed successfully"
     else:
         if "Failed: UnableToProcess" in stderr:
-            result["message"] = "Move failed: UnableToProcess"
+            result["message"] = "Get failed: UnableToProcess"
         elif "Failed" in stderr:
-            result["message"] = "Move failed"
+            result["message"] = "Get failed"
         else:
-            result["message"] = f"Move failed with exit code {returncode}"
-    
+            result["message"] = f"Get failed with exit code {returncode}"
+
     return result
 
 
@@ -184,55 +187,67 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
 def _return_last_result(retry_state: RetryCallState):
     return retry_state.outcome.result()
 
-def _log_move_retry(retry_state: RetryCallState):
-    logging.info("Move failed. Retrying")
+def _log_get_retry(retry_state: RetryCallState):
+    logging.info("Get failed. Retrying")
 
 
 @retry(
     stop=stop_after_attempt(4),
     wait=wait_chain(wait_fixed(4), wait_fixed(16), wait_fixed(32)),
     retry=retry_if_result(lambda result: not result["success"]),
-    before_sleep=_log_move_retry,
+    before_sleep=_log_get_retry,
     retry_error_callback=_return_last_result
 )
-def move_study(host, port, calling_aet, called_aet, move_destination, study_uid, query_level="STUDY"):
+def get_study(host, port, calling_aet, called_aet, output_dir, study_uid, query_level="STUDY"):
     """
-    Move a study from PACS using movescu.
-    
+    Retrieve a study from PACS using getscu (C-GET).
+
     Args:
         host: PACS hostname or IP address
         port: PACS DICOM port
         calling_aet: AE title of the calling application
         called_aet: AE title of the PACS
-        move_destination: AE title of the move destination
-        study_uid: StudyInstanceUID to move
+        output_dir: Directory where retrieved DICOM files will be written (must exist)
+        study_uid: StudyInstanceUID to retrieve
         query_level: Query/retrieve level (default: "STUDY")
-        
+
     Returns:
         Dict with keys: success (bool), num_completed (int), num_failed (int),
         num_warning (int), message (str)
     """
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
     dcmtk_home = _get_default_dcmtk_home()
-    movescu_binary = os.path.join(dcmtk_home, 'bin', 'movescu')
-    
+    getscu_binary = os.path.join(dcmtk_home, 'bin', 'getscu')
+
     cmd = [
-        movescu_binary,
+        getscu_binary,
         "-v",
+        "-od", output_dir,
         "-aet", calling_aet,
-        "-aem", move_destination,
         "-aec", called_aet,
         "-k", f"QueryRetrieveLevel={query_level}",
         "-k", f"StudyInstanceUID={study_uid}",
         host,
         str(port)
     ]
-    
-    logging.debug(f"Running movescu: {' '.join(cmd)}")
-    
+
+    logging.debug(f"Running getscu: {' '.join(cmd)}")
+
     env = _build_dcmtk_env()
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     
-    return _parse_move_output(result.stderr, result.returncode)
+    parsed_result = _parse_get_output(result.stderr, result.returncode)
+    
+    # Add .dcm extension to retrieved files (required by CTP ArchiveImportService)
+    if parsed_result["success"]:
+        for filename in os.listdir(output_dir):
+            filepath = os.path.join(output_dir, filename)
+            if os.path.isfile(filepath) and not filename.endswith('.dcm'):
+                os.rename(filepath, filepath + '.dcm')
+
+    return parsed_result
 
 
 def echo_pacs(host, port, calling_aet, called_aet):

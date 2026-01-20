@@ -448,14 +448,18 @@ PIPELINE_TEMPLATES = {
         <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="DeidAuditLog" name="DeidAuditLog"
                 root="{tempdir}/roots/DeidAuditLog"/>
         <Pipeline name="imagedeid">
-        <DicomImportService
-            class="org.rsna.ctp.stdstages.DicomImportService"
-            name="DicomImportService"
-            port="{dicom_port}"
-            calledAETTag="{application_aet}"
-            root="{tempdir}/roots/DicomImportService"
-            quarantine="{tempdir}/quarantine"
-            logConnections="no" />
+        <ArchiveImportService
+            class="org.rsna.ctp.stdstages.ArchiveImportService"
+            name="ArchiveImportService"
+            fsName="DICOM Image Directory"
+            root="{tempdir}/roots/ArchiveImportService"
+            treeRoot="{input_dir}"
+            quarantine="{tempdir}/quarantine/ArchiveImportService"
+            minAge="1000"
+            acceptFileObjects="no"
+            acceptXmlObjects="no"
+            acceptZipObjects="no"
+            expandTARs="no"/>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
@@ -608,14 +612,18 @@ PIPELINE_TEMPLATES = {
         <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="DeidAuditLog" name="DeidAuditLog"
                 root="{tempdir}/roots/DeidAuditLog"/>
         <Pipeline name="imagedeid">
-        <DicomImportService
-            class="org.rsna.ctp.stdstages.DicomImportService"
-            name="DicomImportService"
-            port="{dicom_port}"
-            calledAETTag="{application_aet}"
-            root="{tempdir}/roots/DicomImportService"
-            quarantine="{tempdir}/quarantine"
-            logConnections="no" />
+        <ArchiveImportService
+            class="org.rsna.ctp.stdstages.ArchiveImportService"
+            name="ArchiveImportService"
+            fsName="DICOM Image Directory"
+            root="{tempdir}/roots/ArchiveImportService"
+            treeRoot="{input_dir}"
+            quarantine="{tempdir}/quarantine/ArchiveImportService"
+            minAge="1000"
+            acceptFileObjects="no"
+            acceptXmlObjects="no"
+            acceptZipObjects="no"
+            expandTARs="no"/>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
@@ -695,15 +703,19 @@ PIPELINE_TEMPLATES = {
         </Server>
         <Plugin class="org.rsna.ctp.stdplugins.AuditLog" id="AuditLog" name="AuditLog"
                 root="{tempdir}/roots/AuditLog"/>
-        <Pipeline name="imagedeid">
-        <DicomImportService
-            class="org.rsna.ctp.stdstages.DicomImportService"
-            name="DicomImportService"
-            port="{dicom_port}"
-            calledAETTag="{application_aet}"
-            root="{tempdir}/roots/DicomImportService"
-            quarantine="{tempdir}/quarantine/DicomImportService"
-            logConnections="no" />
+        <Pipeline name="imageqr">
+        <ArchiveImportService
+            class="org.rsna.ctp.stdstages.ArchiveImportService"
+            name="ArchiveImportService"
+            fsName="DICOM Image Directory"
+            root="{tempdir}/roots/ArchiveImportService"
+            treeRoot="{input_dir}"
+            quarantine="{tempdir}/quarantine/ArchiveImportService"
+            minAge="1000"
+            acceptFileObjects="no"
+            acceptXmlObjects="no"
+            acceptZipObjects="no"
+            expandTARs="no"/>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
@@ -730,7 +742,7 @@ PIPELINE_TEMPLATES = {
             whitespaceReplacement="_"/>
         </Pipeline>
     </Configuration>
-    """
+    """,
 }
 
 

@@ -3,7 +3,7 @@ from unittest import mock
 import pytest
 import time
 
-from dcmtk import find_studies, move_study, echo_pacs, DCMTKCommandError, DCMTKParseError
+from dcmtk import find_studies, get_study, echo_pacs, DCMTKCommandError, DCMTKParseError
 
 FINDSCU_SINGLE_ACCESSION_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <responses type="C-FIND">
@@ -63,36 +63,36 @@ FINDSCU_SERIES_LEVEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 </data-set>
 </responses>'''
 
-MOVESCU_SUCCESS_STDERR = '''I: Requesting Association
+GETSCU_SUCCESS_STDERR = '''I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
-I: Sending Move Request (MsgID 1)
+I: Sending Get Request (MsgID 1)
 I: Request Identifiers:
-I: 
+I:
 I: # Dicom-Data-Set
 I: # Used TransferSyntax: Little Endian Explicit
 I: (0008,0052) CS [STUDY]                                  #   6, 1 QueryRetrieveLevel
 I: (0020,000d) UI [1.2.826.0.1.3680043.8.498.12345]       #  64, 1 StudyInstanceUID
-I: 
-I: Move Response 1 (Pending)
+I:
+I: Get Response 1 (Pending)
 I: Sub-Operations Remaining: 10, Completed: 0, Failed: 0, Warning: 0
-I: Move Response 2 (Pending)
+I: Get Response 2 (Pending)
 I: Sub-Operations Remaining: 5, Completed: 5, Failed: 0, Warning: 0
-I: Received Final Move Response (Success)
+I: Received Final Get Response (Success)
 I: Sub-Operations Complete: 10, Failed: 0, Warning: 0
 I: Releasing Association'''
 
-MOVESCU_FAILURE_STDERR = '''I: Requesting Association
+GETSCU_FAILURE_STDERR = '''I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
-I: Sending Move Request (MsgID 1)
+I: Sending Get Request (MsgID 1)
 I: Request Identifiers:
-I: 
+I:
 I: # Dicom-Data-Set
 I: # Used TransferSyntax: Little Endian Explicit
 I: (0008,0052) CS [STUDY]                                  #   6, 1 QueryRetrieveLevel
 I: (0020,000d) UI [9.9.9.9.9.9.9.9]                        #  16, 1 StudyInstanceUID
-I: 
-W: Move response with error status (Failed: UnableToProcess)
-I: Received Final Move Response (Failed: UnableToProcess)
+I:
+W: Get response with error status (Failed: UnableToProcess)
+I: Received Final Get Response (Failed: UnableToProcess)
 I: Releasing Association'''
 
 
@@ -204,42 +204,42 @@ def test_find_studies_command_error(tmp_path):
                     )
 
 
-def test_move_study_success():
+def test_get_study_success(tmp_path):
     def mock_run(*args, **kwargs):
-        return mock.Mock(returncode=0, stdout="", stderr=MOVESCU_SUCCESS_STDERR)
-    
+        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
+
     with mock.patch('subprocess.run', side_effect=mock_run):
         with mock.patch('time.sleep'):
-            result = move_study(
+            result = get_study(
                 host="localhost",
                 port=11112,
                 calling_aet="TEST_SCU",
                 called_aet="ORTHANC_TEST",
-                move_destination="TEST_SCU",
+                output_dir=str(tmp_path / "output"),
                 study_uid="1.2.826.0.1.3680043.8.498.12345",
             )
-    
+
     assert result["success"] is True
     assert result["num_completed"] == 10
     assert result["num_failed"] == 0
     assert result["num_warning"] == 0
 
 
-def test_move_study_failure():
+def test_get_study_failure(tmp_path):
     def mock_run(*args, **kwargs):
-        return mock.Mock(returncode=69, stdout="", stderr=MOVESCU_FAILURE_STDERR)
-    
+        return mock.Mock(returncode=69, stdout="", stderr=GETSCU_FAILURE_STDERR)
+
     with mock.patch('subprocess.run', side_effect=mock_run):
         with mock.patch('time.sleep'):
-            result = move_study(
+            result = get_study(
                 host="localhost",
                 port=11112,
                 calling_aet="TEST_SCU",
                 called_aet="ORTHANC_TEST",
-                move_destination="TEST_SCU",
+                output_dir=str(tmp_path / "output"),
                 study_uid="9.9.9.9.9.9.9.9",
             )
-    
+
     assert result["success"] is False
     assert "UnableToProcess" in result["message"]
 
@@ -306,28 +306,28 @@ def test_find_studies_retries_on_failure(tmp_path):
     assert attempt_count["count"] == 2
 
 
-def test_move_study_retries_on_failure():
+def test_get_study_retries_on_failure(tmp_path):
     attempt_count = {"count": 0}
-    
+
     def mock_run(*args, **kwargs):
         attempt_count["count"] += 1
-        
+
         if attempt_count["count"] == 1:
-            return mock.Mock(returncode=69, stdout="", stderr=MOVESCU_FAILURE_STDERR)
-        
-        return mock.Mock(returncode=0, stdout="", stderr=MOVESCU_SUCCESS_STDERR)
-    
+            return mock.Mock(returncode=69, stdout="", stderr=GETSCU_FAILURE_STDERR)
+
+        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
+
     with mock.patch('subprocess.run', side_effect=mock_run):
         with mock.patch('time.sleep'):
-            result = move_study(
+            result = get_study(
                 host="localhost",
                 port=11112,
                 calling_aet="TEST_SCU",
                 called_aet="ORTHANC_TEST",
-                move_destination="TEST_SCU",
+                output_dir=str(tmp_path / "output"),
                 study_uid="1.2.826.0.1.3680043.8.498.12345",
             )
-    
+
     assert result["success"] is True
     assert attempt_count["count"] == 2
 

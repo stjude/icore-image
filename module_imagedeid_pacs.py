@@ -4,9 +4,9 @@ import time
 
 from ctp import CTPPipeline
 from module_imagedeid_local import _save_metadata_files, _apply_default_filter_script, _process_mapping_file
-from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter, 
+from utils import (PacsConfiguration, Spreadsheet, generate_queries_and_filter,
                    combine_filters, validate_date_window_days, find_valid_pacs_list, find_studies_from_pacs_list,
-                   move_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
+                   get_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
                    format_number_with_commas, save_failed_queries_csv)
 
 
@@ -68,12 +68,24 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
 
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
     study_pacs_map, failed_find_indices, failed_find_details = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet, expected_values_list)
-    
+
+    # Create directory for getscu to write retrieved DICOM files
+    getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
+    os.makedirs(getscu_output_dir, exist_ok=True)
+
+    # Choose pipeline type based on whether pixel de-identification is needed
     pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
     ctp_log_level = "DEBUG" if debug else None
-    
+
+    # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
+    successful_gets, failed_get_indices, failed_get_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
+
+    # Wait briefly to ensure all files are written
+    time.sleep(2)
+
     with CTPPipeline(
         pipeline_type=pipeline_type,
+        input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
         output_dir=output_dir,
         application_aet=application_aet,
         filter_script=combined_filter,
@@ -83,12 +95,9 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         log_level=ctp_log_level,
         quarantine_dir=quarantine_dir
     ) as pipeline:
-        time.sleep(3)
-        
-        successful_moves, failed_move_indices, failed_move_details = move_studies_from_study_pacs_map(study_pacs_map, application_aet)
-        
-        failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-        combined_failure_details = {**failed_find_details, **failed_move_details}
+
+        failed_query_indices = list(set(failed_find_indices + failed_get_indices))
+        combined_failure_details = {**failed_find_details, **failed_get_details}
         
         save_interval = 5
         last_save_time = 0
