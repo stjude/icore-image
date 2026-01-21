@@ -17,6 +17,9 @@ from grammar import (
     generate_filters_string,
     generate_lookup_contents,
     generate_lookup_table,
+    generate_hipaa_safe_harbor_script,
+    generate_hipaa_encapsulated_content_filter,
+    get_hipaa_safe_harbor_config,
 )
 from home.models import Project
 from ruamel.yaml import YAML, scalarstring
@@ -35,9 +38,6 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
         text=True,
         bufsize=1
     )
-    
-    task.process_pid = process.pid
-    task.save()
     
     task.process_pid = process.pid
     task.save()
@@ -484,7 +484,6 @@ def build_image_export_config(task):
     config = {
         'module': 'imageexport',
         'sas_url': task.parameters['sas_url'],
-        'sas_url': task.parameters['sas_url'],
         'project_name': task.name,
     }
     
@@ -589,7 +588,7 @@ def build_singleclickicore_config(task):
     config.update({
         'pacs': task.pacs_configs,
         'application_aet': task.application_aet,
-        'sas_url': task.parameters['sas_url'],
+        'sas_url': task.parameters.get('sas_url', ''),
         'project_name': task.name,
     })
     
@@ -597,64 +596,62 @@ def build_singleclickicore_config(task):
     detected_columns = detect_file_type_and_columns(input_file)
     config.update(detected_columns)
 
-    # Image deid filters
+    # === HIPAA Safe Harbor Configuration ===
+    # Single-click iCore automatically enforces HIPAA Safe Harbor de-identification
+
+    hipaa_filter = generate_hipaa_encapsulated_content_filter()
+
     general_filters = task.parameters.get('general_filters', [])
     modality_filters = task.parameters.get('modality_filters', {})
-    expression_string = generate_filters_string(general_filters, modality_filters)
-    if expression_string != '':
-        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+    user_filter_string = generate_filters_string(general_filters, modality_filters)
 
-    # Image deid anonymizer
-    tags_to_keep = task.parameters.get('tags_to_keep', '')
-    tags_to_dateshift = task.parameters.get('tags_to_dateshift', '')
-    tags_to_randomize = task.parameters.get('tags_to_randomize', '')
-    date_shift_days = task.parameters.get('date_shift_days', '-21')
+    # Combine user filter with HIPAA filter (both must pass)
+    if user_filter_string:
+        combined_filter = f"!({hipaa_filter})\n* ({user_filter_string})"
+    else:
+        combined_filter = f"!({hipaa_filter})"
+    config['ctp_filters'] = scalarstring.LiteralScalarString(combined_filter)
+
+    config['deid_pixels'] = True
 
     mapping_file_path = task.parameters.get('mapping_file_path', '') if task.parameters.get('use_mapping_file', False) else None
     if mapping_file_path:
         config['mapping_file_path'] = mapping_file_path
+    
+    date_shift_days = settings.get('date_shift_range', -21)
+    site_id = settings.get('site_id', 'SITE1')
 
-    anonymizer_script = generate_anonymizer_script(
-        tags_to_keep,
-        tags_to_dateshift,
-        tags_to_randomize,
-        date_shift_days,
-        task.parameters.get('site_id', ''),
-        None,
-        remove_unspecified=task.parameters.get('remove_unspecified', True),
-        remove_overlays=task.parameters.get('remove_overlays', True),
-        remove_curves=task.parameters.get('remove_curves', True),
-        remove_private=task.parameters.get('remove_private', True)
-    )
-    config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
+    hipaa_anonymizer_script = generate_hipaa_safe_harbor_script(site_id, date_shift_days)
+
+    config['ctp_anonymizer'] = scalarstring.LiteralScalarString(hipaa_anonymizer_script)
+
+    config['apply_default_ctp_filter_script'] = task.parameters.get('apply_default_ctp_filter_script', True)
     
-    deid_pixels = task.parameters.get('deid_pixels', False)
-    config['deid_pixels'] = deid_pixels
+    hipaa_config = get_hipaa_safe_harbor_config()
+    config['tags_to_keep'] = hipaa_config['tags_to_keep']
+    config['tags_to_dateshift'] = hipaa_config['tags_to_dateshift']
+    config['tags_to_randomize'] = hipaa_config['tags_to_randomize']
+
+    skip_export = task.parameters.get('skip_export', False)
+    config['skip_export'] = skip_export
     
-    apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
-    config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
-    
-    # Text deid options
+    # Text deidentification parameters
     to_keep_list = task.parameters.get('text_to_keep', '').split('\n') if task.parameters.get('text_to_keep') else []
     to_remove_list = task.parameters.get('text_to_remove', '').split('\n') if task.parameters.get('text_to_remove') else []
-    
     columns_to_deid = task.parameters.get('columns_to_deid', '')
     columns_to_drop = task.parameters.get('columns_to_drop', '')
-    
-    columns_to_deid_list = [col.strip() for col in columns_to_deid.split('\n') if col.strip()] if columns_to_deid else None
-    columns_to_drop_list = [col.strip() for col in columns_to_drop.split('\n') if col.strip()] if columns_to_drop else None
-    
+
+    to_deid_list = [col.strip() for col in columns_to_deid.split('\n') if col.strip()] if columns_to_deid else None
+    to_drop_list = [col.strip() for col in columns_to_drop.split('\n') if col.strip()] if columns_to_drop else None
+
     if to_keep_list:
         config['to_keep_list'] = to_keep_list
     if to_remove_list:
         config['to_remove_list'] = to_remove_list
-    if columns_to_deid_list:
-        config['columns_to_deid'] = columns_to_deid_list
-    if columns_to_drop_list:
-        config['columns_to_drop'] = columns_to_drop_list
-    
-    skip_export = task.parameters.get('skip_export', False)
-    config['skip_export'] = skip_export
+    if to_deid_list:
+        config['columns_to_deid'] = to_deid_list
+    if to_drop_list:
+        config['columns_to_drop'] = to_drop_list
     
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
@@ -817,7 +814,6 @@ def run_worker():
                     print(f"Error processing task {task.id}: {str(e)}")
                     task.status = Project.TaskStatus.FAILED
                 finally:
-                    task.process_pid = None
                     task.process_pid = None
                     task.save()
                     print(f"Task {task.id} finished with status: {task.status}")
