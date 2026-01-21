@@ -14,7 +14,7 @@ import requests
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import generate_uid
 
-from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, move_studies_from_study_pacs_map, PacsConfiguration
+from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, get_studies_from_study_pacs_map, PacsConfiguration
 
 
 def _cleanup_test_containers():
@@ -311,14 +311,17 @@ class Fixtures:
 
 
 class OrthancServer:
-    
+
     def __init__(self, aet="ORTHANC_TEST", http_port=None, dicom_port=None):
         self.aet = aet
         self.http_port = http_port or self._get_free_port()
         self.dicom_port = dicom_port or self._get_free_port()
         self.container = None
+        self.network = None
         self.base_url = f"http://localhost:{self.http_port}"
         self.modalities = {}
+        self.storage_dir = None
+        self.config_dir = None
         
     def _get_free_port(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -332,15 +335,22 @@ class OrthancServer:
     
     def start(self):
         container_name = f"orthanc_test_{uuid.uuid4().hex[:8]}"
-        
-        config_dir = tempfile.mkdtemp()
-        config_path = os.path.join(config_dir, "orthanc.json")
-        
+        network_name = f"orthanc_net_{uuid.uuid4().hex[:8]}"
+
+        # Create Docker network for C-GET support
+        subprocess.run(["docker", "network", "create", network_name],
+                      check=True, capture_output=True)
+        self.network = network_name
+
+        self.config_dir = tempfile.mkdtemp()
+        self.storage_dir = tempfile.mkdtemp()
+        config_path = os.path.join(self.config_dir, "orthanc.json")
+
         config = {
             "Name": "OrthancTest",
             "DicomAet": self.aet,
-            "DicomPort": 4242,
-            "HttpPort": 8042,
+            "DicomPort": 4242,  # Internal port in container
+            "HttpPort": 8042,   # Internal port in container
             "RemoteAccessEnabled": True,
             "AuthenticationEnabled": False,
             "DicomAlwaysAllowFind": True,
@@ -350,23 +360,25 @@ class OrthancServer:
             "DicomCheckModalityHost": False,
             "DicomModalities": self.modalities
         }
-        
+
         with open(config_path, 'w') as f:
-            json.dump(config, f)
-        
+            json.dump(config, f, indent=2)
+
+        # Run Orthanc on custom network with port mapping
         subprocess.run([
             "docker", "run", "-d",
             "--name", container_name,
-            "--add-host", "host.docker.internal:host-gateway",
+            "--network", network_name,
             "-p", f"{self.http_port}:8042",
             "-p", f"{self.dicom_port}:4242",
-            "-v", f"{config_dir}:/etc/orthanc:ro",
+            "-v", f"{self.config_dir}:/etc/orthanc:ro",
             "orthancteam/orthanc:latest"
-        ], check=True, capture_output=True)
-        
+        ], check=True, capture_output=True, text=True)
+
         self.container = container_name
-        
-        for _ in range(30):
+
+        # Wait for Orthanc to be ready
+        for i in range(30):
             try:
                 response = requests.get(f"{self.base_url}/system", timeout=1)
                 if response.status_code == 200:
@@ -374,6 +386,16 @@ class OrthancServer:
             except:
                 pass
             time.sleep(1)
+        else:
+            # Get container logs for debugging
+            logs_result = subprocess.run(
+                ["docker", "logs", container_name],
+                capture_output=True, text=True
+            )
+            raise RuntimeError(
+                f"Orthanc failed to start after 30 seconds. "
+                f"Container logs:\n{logs_result.stdout}\n{logs_result.stderr}"
+            )
     
     def upload_dicom(self, file_path):
         with open(file_path, 'rb') as f:
@@ -416,10 +438,22 @@ class OrthancServer:
         response = requests.get(f"{self.base_url}/studies")
         return len(response.json())
     
+    def get_pacs_config(self):
+        """Get a PacsConfiguration object for this Orthanc instance."""
+        from utils import PacsConfiguration
+        return PacsConfiguration(
+            host="localhost",
+            port=self.dicom_port,
+            aet=self.aet
+        )
+
     def stop(self):
         if self.container:
-            subprocess.run(["docker", "stop", self.container], capture_output=True)
-            subprocess.run(["docker", "rm", self.container], capture_output=True)
+            subprocess.run(["docker", "stop", self.container], capture_output=True, timeout=10)
+            subprocess.run(["docker", "rm", self.container], capture_output=True, timeout=10)
+            time.sleep(0.5)  # Brief wait to ensure cleanup completes
+        if self.network:
+            subprocess.run(["docker", "network", "rm", self.network], capture_output=True, timeout=10)
 
 
 class AzuriteServer:
@@ -772,30 +806,32 @@ def test_find_studies_returns_failure_details(tmp_path):
         orthanc.stop()
 
 
-def test_move_studies_returns_failure_details(tmp_path):
-    """Test that move_studies_from_study_pacs_map returns failure details as 3rd value"""
+def test_get_studies_returns_failure_details(tmp_path):
+    """Test that get_studies_from_study_pacs_map returns failure details as 3rd value"""
     from unittest.mock import patch, MagicMock
-    
+
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {
         "study_uid_1": (pacs, 0),
         "study_uid_2": (pacs, 1)
     }
-    
-    # Mock move_study to simulate one success and one failure
-    with patch('utils.move_study') as mock_move:
-        mock_move.side_effect = [
-            {"success": True, "message": "Move successful"},
-            {"success": False, "message": "Move failed"}
+
+    output_dir = str(tmp_path / "output")
+
+    # Mock get_study to simulate one success and one failure
+    with patch('utils.get_study') as mock_get:
+        mock_get.side_effect = [
+            {"success": True, "message": "Get successful"},
+            {"success": False, "message": "Get failed"}
         ]
-        
-        successful_moves, failed_query_indices, failure_details = move_studies_from_study_pacs_map(
-            study_pacs_map, "TEST_AET"
+
+        successful_gets, failed_query_indices, failure_details = get_studies_from_study_pacs_map(
+            study_pacs_map, "TEST_AET", output_dir
         )
-        
-        assert successful_moves == 1, "Should have 1 successful move"
+
+        assert successful_gets == 1, "Should have 1 successful get"
         assert len(failed_query_indices) == 1, "Should have 1 failed query index"
         assert 1 in failed_query_indices, "Query index 1 should have failed"
         assert len(failure_details) == 1, "Should have 1 failure detail entry"
         assert 1 in failure_details, "Failure details should contain query index 1"
-        assert failure_details[1] == "Failed to move images after successful query"
+        assert failure_details[1] == "Failed to retrieve images after successful query"

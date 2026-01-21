@@ -381,4 +381,258 @@ def generate_lookup_contents_legacy(lookup_file):
             )
 
     return lookup_lines, script_lines
-    
+
+
+# =============================================================================
+# HIPAA Safe Harbor De-identification Functions
+# =============================================================================
+
+def get_hipaa_safe_harbor_config():
+    """
+    Get HIPAA Safe Harbor configuration as a structured dictionary.
+
+    This is the single source of truth for what tags are kept, removed, date-shifted,
+    and randomized.
+
+    Returns:
+        dict: Configuration with keys:
+            - tags_to_keep: List of (tag_hex, tag_name) tuples for tags that are preserved
+            - tags_to_dateshift: List of (tag_hex, tag_name) tuples for date tags
+            - tags_to_keep_time: List of (tag_hex, tag_name) tuples for time tags (kept as-is)
+            - tags_to_randomize: List of (tag_hex, tag_name) tuples for UID tags
+            - tags_to_remove: List of (tag_hex, tag_name) tuples for explicitly removed tags
+    """
+    config = {
+        'tags_to_keep': [
+            ('00080060', 'Modality'),
+            ('00180015', 'BodyPartExamined'),
+            ('00080008', 'ImageType'),
+            ('00080070', 'Manufacturer'),
+            ('00081090', 'ManufacturerModelName'),
+        ],
+        'tags_to_dateshift': [
+            ('00080020', 'StudyDate'),
+            ('00080021', 'SeriesDate'),
+            ('00080022', 'AcquisitionDate'),
+            ('00080023', 'ContentDate'),
+            ('00100030', 'PatientBirthDate'),
+            ('00181200', 'DateOfLastCalibration'),
+            ('00209030', 'StudyCompletionDate'),
+        ],
+        'tags_to_keep_time': [
+            ('00080030', 'StudyTime'),
+            ('00080031', 'SeriesTime'),
+            ('00080032', 'AcquisitionTime'),
+            ('00080033', 'ContentTime'),
+            ('00181201', 'TimeOfLastCalibration'),
+            ('00209040', 'StudyCompletionTime'),
+        ],
+        'tags_to_randomize': [
+            ('00080018', 'SOPInstanceUID'),
+            ('0020000D', 'StudyInstanceUID'),
+            ('0020000E', 'SeriesInstanceUID'),
+            ('00200052', 'FrameOfReferenceUID'),
+            ('00020003', 'MediaStorageSOPInstanceUID'),
+            ('00209161', 'ConcatenationUID'),
+            ('00209164', 'DimensionOrganizationUID'),
+            ('00180024', 'DeviceUID'),
+            ('00080014', 'InstanceCreatorUID'),
+            ('00083010', 'IrradiationEventUID'),
+            ('00281199', 'PaletteColorLookupTableUID'),
+            ('30060024', 'ReferencedFrameOfReferenceUID'),
+            ('004021A1', 'TemplateExtensionOrganizationUID'),
+        ],
+        'tags_to_remove': [
+            ('00080080', 'InstitutionName'),
+            ('00204000', 'ImageComments'),
+            ('00324000', 'StudyComments'),
+            ('00102180', 'Occupation'),
+            ('00102000', 'MedicalAlerts'),
+            ('001021F0', 'PatientReligiousPreference'),
+            ('0008103E', 'SeriesDescription'),
+            ('00181030', 'ProtocolName'),
+        ]
+    }
+
+    return config
+
+
+def generate_hipaa_safe_harbor_script(site_id, date_shift_days):
+    """
+    Generate a CTP anonymizer script that complies with HIPAA Safe Harbor (45 CFR §164.514(b)(2)).
+
+    This function creates an anonymizer script that removes or anonymizes all 18 HIPAA identifiers:
+    1. Names
+    2. Geographic subdivisions smaller than state
+    3. Dates (except year) - date-shifted by configured amount
+    4. Telephone numbers
+    5. Fax numbers
+    6. Email addresses
+    7. Social Security Numbers
+    8. Medical Record Numbers - hashed
+    9. Health Plan Beneficiary Numbers
+    10. Account Numbers
+    11. Certificate/License Numbers
+    12. Vehicle Identifiers (N/A for DICOM)
+    13. Device Identifiers and Serial Numbers - removed (but keep manufacturer/model per DICOM PS3.15)
+    14. Web URLs
+    15. IP Addresses
+    16. Biometric Identifiers (N/A for typical DICOM)
+    17. Full-face Photographs - handled via SOP Class filtering
+    18. Any Other Unique Identifying Number - all UIDs rehashed, AccessionNumber hashed
+
+    Args:
+        site_id: Site identifier for ClinicalTrialSiteID tag
+        date_shift_days: Number of days to shift dates (negative for backwards shift)
+
+    Returns:
+        str: XML anonymizer script for CTP
+    """
+    script = ['<script>']
+
+    # Add parameters
+    script.extend([
+        f'   <p t="DATEINC">{date_shift_days}</p>',
+        '   <p t="NOTICE1">HIPAA Safe Harbor Mode: All 18 HIPAA identifiers will be removed or anonymized.</p>',
+        '   <p t="NOTICE2">WARNING: Review quarantined files for encapsulated content.</p>',
+        '   <p t="PROFILENAME">HIPAA Safe Harbor De-identification</p>',
+        '   <p t="PROJECTNAME">Project</p>',
+        '   <p t="SITENAME">SiteName</p>',
+        f'   <p t="SITEID">{site_id}</p>',
+        '   <p t="TRIALNAME">Trial</p>',
+        '   <p t="SUBJECT">Subject</p>',
+        '   <p t="UIDROOT">1.2.840.113654.2.70.1</p>',
+    ])
+
+    # De-identification method tags
+    script.extend([
+        '   <e en="T" t="00120062" n="PatientIdentityRemoved">@always()YES</e>',
+        '   <e en="T" t="00120063" n="DeIdentificationMethod">@always()HIPAA Safe Harbor per 45 CFR §164.514(b)(2)</e>',
+        '   <e en="T" t="00120064" n="DeIdentificationMethodCodeSequence">113100/113101/113105/113107/113108/113109/113111</e>',
+        '   <e en="T" t="00280303" n="LongitudinalTemporalInformationModified">@always()MODIFIED</e>',
+        '   <e en="T" t="00200011" n="SeriesNumber">@always()@integer(SeriesInstanceUID,seriesnum,5)</e>',
+    ])
+
+    # HIPAA Identifier #1: Names
+    script.append('   <e en="T" t="00100010" n="PatientName">@hashname(this,6,2)</e>')
+
+    script.append('   <e en="T" t="00080090" n="ReferringPhysicianName">@empty()</e>')
+    script.append('   <e en="T" t="00081050" n="PerformingPhysicianName">@empty()</e>')
+    script.append('   <e en="T" t="00081070" n="OperatorsName">@empty()</e>')
+    script.append('   <e en="T" t="00081048" n="PhysicianOfRecord">@empty()</e>')
+    script.append('   <e en="T" t="00081060" n="NameOfPhysiciansReadingStudy">@empty()</e>')
+    script.append('   <e en="T" t="00081072" n="OperatorIdentificationSequence">@remove()</e>')
+
+    # HIPAA Identifier #2: Geographic subdivisions smaller than state
+    script.append('   <e en="T" t="00101040" n="PatientAddress">@remove()</e>')
+    script.append('   <e en="T" t="00080081" n="InstitutionAddress">@remove()</e>')
+    script.append('   <e en="T" t="00380300" n="CurrentPatientLocation">@remove()</e>')
+
+    # HIPAA Identifier #3: Dates (except year)
+    config = get_hipaa_safe_harbor_config()
+
+    # Handle date tags (date-shifted)
+    for tag_hex, tag_name in config['tags_to_dateshift']:
+        script.append(f'   <e en="T" t="{tag_hex}" n="{tag_name}">@incrementdate(this,@DATEINC)</e>')
+
+    # Handle time tags (kept as-is)
+    for tag_hex, tag_name in config['tags_to_keep_time']:
+        script.append(f'   <e en="T" t="{tag_hex}" n="{tag_name}">@keep()</e>')
+
+    # HIPAA Identifier #4,5,6: Telephone, Fax, Email
+    script.append('   <e en="T" t="0040A353" n="TelephoneNumberTrial">@remove()</e>')
+
+    # HIPAA Identifier #7: SSN - not standard DICOM, removed via private tag removal
+
+    # HIPAA Identifier #8: Medical Record Numbers
+    # PatientID - hash
+    script.append('   <e en="T" t="00100020" n="PatientID">@hash(this,10)</e>')
+    script.append('   <e en="T" t="00101000" n="OtherPatientIDs">@remove()</e>')
+
+    # HIPAA Identifier #9: Health Plan Beneficiary Numbers
+    script.append('   <e en="T" t="00101050" n="InsurancePlanIdentification">@remove()</e>')
+
+    # HIPAA Identifier #10: Account Numbers - typically in private tags
+
+    # HIPAA Identifier #11: Certificate/License Numbers - typically in private tags
+
+    # HIPAA Identifier #13: Device Identifiers and Serial Numbers
+    # Device serial number - remove
+    # But KEEP Manufacturer and ManufacturerModelName (device type is allowed per DICOM PS3.15)
+    script.append('   <e en="T" t="00181000" n="DeviceSerialNumber">@remove()</e>')
+    script.append('   <e en="T" t="00080070" n="Manufacturer">@keep()</e>')
+    script.append('   <e en="T" t="00081090" n="ManufacturerModelName">@keep()</e>')
+
+    # HIPAA Identifier #18: Unique Identifying Numbers
+    # AccessionNumber - hash
+    script.append('   <e en="T" t="00080050" n="AccessionNumber">@hash(this,16)</e>')
+
+    # All UIDs - rehash (using config from single source of truth)
+    for tag_hex, tag_name in config['tags_to_randomize']:
+        script.append(f'   <e en="T" t="{tag_hex}" n="{tag_name}">@hashuid(@UIDROOT,this)</e>')
+
+    # Additional tags to keep (safe for HIPAA) - from config
+    for tag_hex, tag_name in config['tags_to_keep']:
+        script.append(f'   <e en="T" t="{tag_hex}" n="{tag_name}">@keep()</e>')
+
+    # Tags to explicitly remove - from config
+    for tag_hex, tag_name in config['tags_to_remove']:
+        script.append(f'   <e en="T" t="{tag_hex}" n="{tag_name}">@remove()</e>')
+
+    # Set ClinicalTrialSiteID
+    script.append(f'   <e en="T" t="00120030" n="ClinicalTrialSiteID">@always(){site_id}</e>')
+
+    # Global removal options - ALWAYS enabled for HIPAA Safe Harbor
+    script.extend([
+        '   <r en="T" t="curves">Remove curves</r>',
+        '   <r en="T" t="overlays">Remove overlays</r>',
+        '   <r en="T" t="privategroups">Remove private groups</r>',
+        '   <r en="T" t="unspecifiedelements">Remove unchecked elements</r>',
+        '</script>'
+    ])
+
+    return '\n'.join(script)
+
+
+def generate_hipaa_encapsulated_content_filter():
+    """
+    Generate a CTP filter that quarantines file types that cannot be safely de-identified.
+
+    Files with encapsulated content (PDFs, CDA documents, etc.) and burned-in annotations
+    must be quarantined because they may contain PHI that cannot be removed by tag manipulation.
+
+    Returns:
+        str: CTP filter expression that identifies files to quarantine
+    """
+
+    filter_parts = []
+
+    # Encapsulated PDF Storage
+    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.1")')
+
+    # Encapsulated CDA Storage
+    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.2")')
+
+    # Secondary Capture (often contains screenshots/scanned documents with burned-in PHI)
+    filter_parts.append('SOPClassUID.startsWith("1.2.840.10008.5.1.4.1.1.7")')
+
+    # Structured Reports (contain text PHI)
+    filter_parts.append('SOPClassUID.startsWith("1.2.840.10008.5.1.4.1.1.88")')
+
+    # Key Object Selection Documents
+    filter_parts.append('SOPClassUID.startsWith("1.2.840.10008.5.1.4.1.1.8")')
+
+    # Presentation States
+    filter_parts.append('SOPClassUID.startsWith("1.2.840.10008.5.1.4.1.1.11")')
+
+    # Files with BurnedInAnnotation flag set to YES
+    filter_parts.append('BurnedInAnnotation.equalsIgnoreCase("YES")')
+
+    # Files with EncapsulatedDocument tag present
+    filter_parts.append('[0042,0011].exists()')
+
+    filter_expression = '\n+ '.join(filter_parts)
+
+    return filter_expression
+
+

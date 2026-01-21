@@ -5,7 +5,7 @@ import time
 from ctp import CTPPipeline
 from utils import (generate_queries_and_filter, combine_filters,
                    validate_date_window_days, find_valid_pacs_list,
-                   find_studies_from_pacs_list, move_studies_from_study_pacs_map,
+                   find_studies_from_pacs_list, get_studies_from_study_pacs_map,
                    setup_run_directories, configure_run_logging,
                    format_number_with_commas, csv_string_to_xlsx, save_failed_queries_csv)
 
@@ -54,11 +54,22 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
     
     study_pacs_map, failed_find_indices, find_failure_details = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet, expected_values_list)
-    
+
+    # Create directory for getscu to write retrieved DICOM files
+    getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
+    os.makedirs(getscu_output_dir, exist_ok=True)
+
     ctp_log_level = "DEBUG" if debug else None
-    
+
+    # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
+    successful_gets, failed_get_indices, get_failure_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
+
+    # Wait briefly to ensure all files are written
+    time.sleep(2)
+
     with CTPPipeline(
         pipeline_type="imageqr",
+        input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
         output_dir=output_dir,
         application_aet=application_aet,
         filter_script=combined_filter,
@@ -66,12 +77,9 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
         log_level=ctp_log_level,
         quarantine_dir=quarantine_dir
     ) as pipeline:
-        time.sleep(3)
-        
-        successful_moves, failed_move_indices, move_failure_details = move_studies_from_study_pacs_map(study_pacs_map, application_aet)
-        
-        failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-        combined_failure_details = {**find_failure_details, **move_failure_details}
+
+        failed_query_indices = list(set(failed_find_indices + failed_get_indices))
+        combined_failure_details = {**find_failure_details, **get_failure_details}
         
         save_interval = 5
         last_save_time = 0
