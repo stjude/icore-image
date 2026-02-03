@@ -805,6 +805,93 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path):
         assert df.loc[0, "MRN"] == "MRN999"
         assert df.loc[0, "Date"] == "2025-02-20"
         assert df.loc[0, "Failure Reason"] == "Failed to find images"
-    
+
+    finally:
+        orthanc.stop()
+
+
+def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
+    """Test that imageqr job continues despite C-GET failures and zero file retrievals."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+
+    try:
+        # Upload 3 studies
+        for i in range(3):
+            ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Smith^John{i}", "CT", "2.0")
+            ds.InstanceNumber = i + 1
+            _upload_dicom_to_orthanc(ds, orthanc)
+
+        time.sleep(2)
+
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(3)]})
+        query_df.to_excel(query_file, index=False)
+
+        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+
+        original_get_study = __import__('dcmtk').get_study
+        call_count = {"count": 0}
+
+        def mock_get_study(*args, **kwargs):
+            call_count["count"] += 1
+            if call_count["count"] == 1:
+                # First call: simulate zero files retrieved
+                return {
+                    "success": True,
+                    "num_completed": 0,
+                    "num_failed": 0,
+                    "num_warning": 0,
+                    "message": "Get completed with no sub-operations"
+                }
+            elif call_count["count"] == 2:
+                # Second call: simulate exception
+                raise Exception("Network timeout during C-GET")
+            else:
+                # Third call: actually retrieve files
+                return original_get_study(*args, **kwargs)
+
+        with patch('utils.get_study', side_effect=mock_get_study):
+            result = imageqr(
+                pacs_list=[pacs_config],
+                query_spreadsheet=query_spreadsheet,
+                application_aet="TEST_AET",
+                output_dir=str(output_dir),
+                appdata_dir=str(appdata_dir)
+            )
+
+        assert result is not None, "imageqr should return a result"
+
+        assert result["num_studies_found"] == 3, "Should have found 3 studies"
+
+        assert len(result["failed_query_indices"]) == 2, "Should have 2 failed queries"
+        assert 0 in result["failed_query_indices"], "First query should have failed (zero files)"
+        assert 1 in result["failed_query_indices"], "Second query should have failed (exception)"
+
+        captured = capsys.readouterr()
+        assert "0 files" in captured.out or "Exception while retrieving" in captured.out, "Should log failures"
+
+        csv_path = appdata_dir / "failed_queries.csv"
+        assert csv_path.exists(), "failed_queries.csv should exist"
+
+        df = pd.read_csv(csv_path)
+        assert len(df) == 2, "Should have 2 failed queries in CSV"
+
     finally:
         orthanc.stop()

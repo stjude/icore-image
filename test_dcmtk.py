@@ -396,3 +396,80 @@ def test_get_study_only_renames_new_files(tmp_path):
     assert not (output_dir / "new_dicom_file").exists()
     assert (output_dir / "new_dicom_file.dcm").exists()
 
+
+def test_get_study_zero_files_retrieved(tmp_path, caplog):
+    """Test that zero completed gets are logged as warnings."""
+    GETSCU_ZERO_FILES_STDERR = '''I: Requesting Association
+I: Association Accepted (Max Send PDV: 16372)
+I: Sending Get Request (MsgID 1)
+I: Request Identifiers:
+I:
+I: # Dicom-Data-Set
+I: # Used TransferSyntax: Little Endian Explicit
+I: (0008,0052) CS [STUDY]                                  #   6, 1 QueryRetrieveLevel
+I: (0020,000d) UI [1.2.826.0.1.3680043.8.498.12345]       #  64, 1 StudyInstanceUID
+I:
+I: Received Final Get Response (Success)
+I: Sub-Operations Complete: 0, Failed: 0, Warning: 0
+I: Releasing Association'''
+
+    def mock_run(*args, **kwargs):
+        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_ZERO_FILES_STDERR)
+
+    with mock.patch('subprocess.run', side_effect=mock_run):
+        with mock.patch('time.sleep'):
+            result = get_study(
+                host="localhost",
+                port=11112,
+                calling_aet="TEST_SCU",
+                called_aet="ORTHANC_TEST",
+                output_dir=str(tmp_path / "output"),
+                study_uid="1.2.826.0.1.3680043.8.498.12345",
+            )
+
+    # Should still report success (PACS responded successfully)
+    assert result["success"] is True
+    assert result["num_completed"] == 0
+    assert result["num_failed"] == 0
+    assert result["num_warning"] == 0
+    assert "no sub-operations" in result["message"].lower()
+
+    # Check that warning was logged
+    assert any("NO files were retrieved" in record.message for record in caplog.records)
+
+
+def test_get_study_zero_files_with_failed(tmp_path, caplog):
+    """Test that zero completed with failures are logged properly."""
+    GETSCU_ZERO_SUCCESS_WITH_FAILURES_STDERR = '''I: Requesting Association
+I: Association Accepted (Max Send PDV: 16372)
+I: Sending Get Request (MsgID 1)
+I: Get Response 1 (Pending)
+I: Sub-Operations Remaining: 5, Completed: 0, Failed: 0, Warning: 0
+I: Get Response 2 (Pending)
+I: Sub-Operations Remaining: 0, Completed: 0, Failed: 5, Warning: 0
+I: Received Final Get Response (Success)
+I: Sub-Operations Complete: 0, Failed: 5, Warning: 0
+I: Releasing Association'''
+
+    def mock_run(*args, **kwargs):
+        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_ZERO_SUCCESS_WITH_FAILURES_STDERR)
+
+    with mock.patch('subprocess.run', side_effect=mock_run):
+        with mock.patch('time.sleep'):
+            result = get_study(
+                host="localhost",
+                port=11112,
+                calling_aet="TEST_SCU",
+                called_aet="ORTHANC_TEST",
+                output_dir=str(tmp_path / "output"),
+                study_uid="1.2.826.0.1.3680043.8.498.12345",
+            )
+
+    assert result["success"] is True
+    assert result["num_completed"] == 0
+    assert result["num_failed"] == 5
+    assert result["num_warning"] == 0
+
+    # Check that warning was logged about zero files
+    assert any("0 files" in record.message for record in caplog.records)
+
