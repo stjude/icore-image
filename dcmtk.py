@@ -90,7 +90,7 @@ def _parse_get_output(stderr, returncode):
             result["num_warning"] = int(warning_match.group(1))
 
         # Check for zero files retrieved case
-        if result["num_completed"] == 0 and result["num_failed"] == 0:
+        if result["num_completed"] == 0 and result["num_failed"] == 0 and result["num_warning"] == 0:
             result["message"] = "Get completed with no sub-operations (no files retrieved)"
         elif result["num_failed"] > 0 or result["num_warning"] > 0:
             result["message"] = (
