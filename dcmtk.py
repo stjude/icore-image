@@ -92,7 +92,11 @@ def _parse_get_output(stderr, returncode):
         # Check for zero files retrieved case
         if result["num_completed"] == 0 and result["num_failed"] == 0:
             result["message"] = "Get completed with no sub-operations (no files retrieved)"
-            logging.warning("C-GET request completed successfully but NO files were retrieved (no sub-operations occurred)")
+        elif result["num_failed"] > 0 or result["num_warning"] > 0:
+            result["message"] = (
+                f"Get completed: {result['num_completed']} succeeded, "
+                f"{result['num_failed']} failed, {result['num_warning']} warnings"
+            )
         else:
             result["message"] = "Get completed successfully"
     else:

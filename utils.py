@@ -219,11 +219,16 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
                     
                     study_pacs_map[study_uid] = (pacs, i)
                     logging.debug(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
+
+                    # Clear any prior failure for this query index since we found a study
+                    if i in failed_query_indices:
+                        failed_query_indices.remove(i)
+                        failure_details.pop(i, None)
                 
                 if not results:
-                    logging.warning(f"No studies found for query {i}: {query_params}")
+                    logging.warning(f"No studies found for query {i + 1}: {query_params}")
             except Exception as e:
-                logging.error(f"Failed to find studies for query {i + 1}: {str(e)}. Moving on.")
+                logging.exception(f"Failed to find studies for query {i + 1}: {str(e)}. Moving on.")
                 if i not in failed_query_indices:
                     failed_query_indices.append(i)
                     failure_details[i] = f"Failed to find images: {str(e)}"
@@ -268,13 +273,21 @@ def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir)
             if result["success"]:
                 # Check if any files were actually retrieved
                 if result["num_completed"] == 0:
+                    num_failed = result.get("num_failed", 0)
+                    num_warning = result.get("num_warning", 0)
                     logging.warning(
                         f"C-GET for query {query_index + 1} (study {study_uid}) reported success "
-                        f"but retrieved 0 files from {pacs.host}:{pacs.port}. Moving on."
+                        f"but retrieved 0 files from {pacs.host}:{pacs.port}. "
+                        f"Failed: {num_failed}, Warning: {num_warning}. Moving on."
                     )
                     if query_index not in failed_query_indices:
                         failed_query_indices.append(query_index)
-                        failure_details[query_index] = "C-GET succeeded but retrieved 0 files (no sub-operations)"
+                        if num_failed > 0 or num_warning > 0:
+                            failure_details[query_index] = (
+                                f"C-GET succeeded but retrieved 0 files (failed: {num_failed}, warning: {num_warning})"
+                            )
+                        else:
+                            failure_details[query_index] = "C-GET succeeded but retrieved 0 files (no sub-operations)"
                 else:
                     successful_gets += 1
                     logging.debug(
@@ -290,7 +303,7 @@ def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir)
                     failure_details[query_index] = f"Failed to retrieve images: {result['message']}"
 
         except Exception as e:
-            logging.error(
+            logging.exception(
                 f"Exception while retrieving study for query {query_index + 1} "
                 f"(study {study_uid}): {str(e)}. Moving on."
             )

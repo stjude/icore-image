@@ -435,7 +435,7 @@ I: Releasing Association'''
     assert "no sub-operations" in result["message"].lower()
 
     # Check that warning was logged
-    assert any("NO files were retrieved" in record.message for record in caplog.records)
+    assert any("retrieved 0 files" in record.message for record in caplog.records)
 
 
 def test_get_study_zero_files_with_failed(tmp_path, caplog):
