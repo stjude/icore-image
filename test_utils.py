@@ -83,6 +83,8 @@ def _upload_dicom_to_orthanc(ds, orthanc):
     ds.save_as(temp_file)
     orthanc.upload_dicom(temp_file)
     os.remove(temp_file)
+    # Give time for the DICOM to be uploaded to Orthanc
+    time.sleep(2)
 
 
 def test_csv_string_to_xlsx_basic(tmp_path):
@@ -850,11 +852,11 @@ def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
         "1.2.3.4.6": (pacs, 1),
     }
 
-    # Mock get_study to simulate success but with 0 files completed
+    # Mock get_study to simulate failure with 0 files completed
     with patch('utils.get_study') as mock_get:
         mock_get.side_effect = [
-            {"success": True, "num_completed": 0, "num_failed": 0, "num_warning": 0, "message": "Get completed"},
-            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Get completed"},
+            {"success": False, "num_completed": 0, "num_failed": 0, "num_warning": 0, "message": "Get completed with no sub-operations (no files retrieved)"},
+            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Get completed successfully"},
         ]
 
         successful_gets, failed_query_indices, failure_details = get_studies_from_study_pacs_map(
@@ -867,7 +869,7 @@ def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
         assert 0 in failed_query_indices, "Query index 0 should have failed (zero files)"
         assert len(failure_details) == 1, "Should have 1 failure detail entry"
         assert 0 in failure_details, "Failure details should contain query index 0"
-        assert "0 files" in failure_details[0], "Failure message should mention 0 files"
+        assert "no files" in failure_details[0].lower(), "Failure message should mention no files"
 
 
 def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):

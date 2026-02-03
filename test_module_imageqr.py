@@ -12,6 +12,7 @@ import pydicom
 from module_imageqr import imageqr
 from test_utils import OrthancServer, _create_test_dicom, _upload_dicom_to_orthanc, Fixtures
 from utils import Spreadsheet, PacsConfiguration
+from dcmtk import get_study
 
 
 logging.basicConfig(level=logging.INFO)
@@ -47,8 +48,6 @@ def test_imageqr_pacs_with_accession_filter(tmp_path):
             ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Smith^John{i}", "MR", "3.0")
             ds.InstanceNumber = i + 1
             _upload_dicom_to_orthanc(ds, orthanc)
-
-        time.sleep(2)
 
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(9)]})
@@ -130,8 +129,6 @@ def test_continuous_audit_log_saving(tmp_path):
             ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
             ds.InstanceNumber = i + 1
             _upload_dicom_to_orthanc(ds, orthanc)
-
-        time.sleep(2)
 
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(5)]})
@@ -340,8 +337,6 @@ def test_imageqr_multiple_pacs(tmp_path):
             ds.InstanceNumber = i + 1
             _upload_dicom_to_orthanc(ds, orthanc2)
 
-        time.sleep(2)
-
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(4)]})
         query_df.to_excel(query_file, index=False)
@@ -399,8 +394,6 @@ def test_imageqr_pacs_mrn_study_date_fallback(tmp_path):
         ds = _create_test_dicom("", "MRN003", "Patient3", "CT", "3.0")
         ds.InstanceNumber = 3
         _upload_dicom_to_orthanc(ds, orthanc)
-
-        time.sleep(2)
 
         query_file = appdata_dir / "query_valid.xlsx"
         query_data = {
@@ -546,8 +539,6 @@ def test_imageqr_pacs_date_window(tmp_path):
         dicom3.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
         _upload_dicom_to_orthanc(dicom3, orthanc)
 
-        time.sleep(2)
-
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({
             "AccessionNumber": [None],
@@ -627,8 +618,6 @@ def test_imageqr_accession_wildcard_filtering(tmp_path):
         dicom4.InstanceNumber = 4
         _upload_dicom_to_orthanc(dicom4, orthanc)
 
-        time.sleep(2)
-
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": ["ABC001"]})
         query_df.to_excel(query_file, index=False)
@@ -685,8 +674,6 @@ def test_imageqr_saves_failed_queries_csv_on_find_failure(tmp_path):
         dicom = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
         dicom.InstanceNumber = 1
         _upload_dicom_to_orthanc(dicom, orthanc)
-
-        time.sleep(2)
 
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC999", "ACC998"]})
@@ -764,8 +751,6 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path):
         dicom.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
         _upload_dicom_to_orthanc(dicom, orthanc)
 
-        time.sleep(2)
-
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({
             "PatientID": ["MRN001", "MRN999"],
@@ -832,8 +817,6 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
             ds.InstanceNumber = i + 1
             _upload_dicom_to_orthanc(ds, orthanc)
 
-        time.sleep(2)
-
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(3)]})
         query_df.to_excel(query_file, index=False)
@@ -846,7 +829,6 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
             aet=orthanc.aet
         )
 
-        original_get_study = __import__('dcmtk').get_study
         call_count = {"count": 0}
 
         def mock_get_study(*args, **kwargs):
@@ -865,7 +847,7 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
                 raise Exception("Network timeout during C-GET")
             else:
                 # Third call: actually retrieve files
-                return original_get_study(*args, **kwargs)
+                return get_study(*args, **kwargs)
 
         with patch('utils.get_study', side_effect=mock_get_study):
             result = imageqr(
