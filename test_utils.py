@@ -83,6 +83,8 @@ def _upload_dicom_to_orthanc(ds, orthanc):
     ds.save_as(temp_file)
     orthanc.upload_dicom(temp_file)
     os.remove(temp_file)
+    # Give time for the DICOM to be uploaded to Orthanc
+    time.sleep(2)
 
 
 def test_csv_string_to_xlsx_basic(tmp_path):
@@ -821,8 +823,8 @@ def test_get_studies_returns_failure_details(tmp_path):
     # Mock get_study to simulate one success and one failure
     with patch('utils.get_study') as mock_get:
         mock_get.side_effect = [
-            {"success": True, "message": "Get successful"},
-            {"success": False, "message": "Get failed"}
+            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Get successful"},
+            {"success": False, "num_completed": 0, "num_failed": 0, "num_warning": 0, "message": "Get failed"}
         ]
 
         successful_gets, failed_query_indices, failure_details = get_studies_from_study_pacs_map(
@@ -834,4 +836,119 @@ def test_get_studies_returns_failure_details(tmp_path):
         assert 1 in failed_query_indices, "Query index 1 should have failed"
         assert len(failure_details) == 1, "Should have 1 failure detail entry"
         assert 1 in failure_details, "Failure details should contain query index 1"
-        assert failure_details[1] == "Failed to retrieve images after successful query"
+        assert failure_details[1] == "Failed to retrieve images: Get failed"
+
+
+def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
+    """Test that zero file retrievals are logged and treated as failures."""
+    from unittest.mock import patch
+
+    output_dir = str(tmp_path / "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    pacs = PacsConfiguration("localhost", 11112, "ORTHANC")
+    study_pacs_map = {
+        "1.2.3.4.5": (pacs, 0),
+        "1.2.3.4.6": (pacs, 1),
+    }
+
+    # Mock get_study to simulate failure with 0 files completed
+    with patch('utils.get_study') as mock_get:
+        mock_get.side_effect = [
+            {"success": False, "num_completed": 0, "num_failed": 0, "num_warning": 0, "message": "Get completed with no sub-operations (no files retrieved)"},
+            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Get completed successfully"},
+        ]
+
+        successful_gets, failed_query_indices, failure_details = get_studies_from_study_pacs_map(
+            study_pacs_map, "TEST_AET", output_dir
+        )
+
+        # Zero file retrieval should be treated as failure
+        assert successful_gets == 1, "Should have 1 successful get (only the one with files)"
+        assert len(failed_query_indices) == 1, "Should have 1 failed query index"
+        assert 0 in failed_query_indices, "Query index 0 should have failed (zero files)"
+        assert len(failure_details) == 1, "Should have 1 failure detail entry"
+        assert 0 in failure_details, "Failure details should contain query index 0"
+        assert "no files" in failure_details[0].lower(), "Failure message should mention no files"
+
+
+def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
+    """Test that exceptions during get_study don't crash the entire job."""
+    from unittest.mock import patch
+
+    output_dir = str(tmp_path / "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    pacs = PacsConfiguration("localhost", 11112, "ORTHANC")
+    study_pacs_map = {
+        "1.2.3.4.5": (pacs, 0),
+        "1.2.3.4.6": (pacs, 1),
+        "1.2.3.4.7": (pacs, 2),
+    }
+
+    # Mock get_study to simulate various failures including exception
+    with patch('utils.get_study') as mock_get:
+        mock_get.side_effect = [
+            Exception("Network timeout"),  # First call raises exception
+            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Get completed"},  # Second succeeds
+            {"success": False, "message": "PACS refused connection"},  # Third fails normally
+        ]
+
+        successful_gets, failed_query_indices, failure_details = get_studies_from_study_pacs_map(
+            study_pacs_map, "TEST_AET", output_dir
+        )
+
+        # Job should continue despite exception
+        assert successful_gets == 1, "Should have 1 successful get"
+        assert len(failed_query_indices) == 2, "Should have 2 failed query indices"
+        assert 0 in failed_query_indices, "Query index 0 should have failed (exception)"
+        assert 2 in failed_query_indices, "Query index 2 should have failed (normal failure)"
+        assert "Exception during retrieval" in failure_details[0], "Should record exception"
+        assert "Network timeout" in failure_details[0], "Should include exception message"
+
+        # Check that exception was logged but didn't crash
+        assert any("Exception while retrieving" in record.message for record in caplog.records)
+
+
+def test_find_studies_from_pacs_list_exception_handling(tmp_path, caplog):
+    """Test that exceptions during find_studies don't crash the entire job."""
+    from unittest.mock import patch
+
+    query_params_list = [
+        {"AccessionNumber": "ACC001"},
+        {"AccessionNumber": "ACC002"},
+        {"AccessionNumber": "ACC003"},
+    ]
+
+    # Expected values list is a list of tuples: (expected_accession, query_index)
+    expected_values_list = [
+        ("ACC001", 0),
+        ("ACC002", 1),
+        ("ACC003", 2),
+    ]
+
+    pacs = PacsConfiguration("localhost", 11112, "ORTHANC")
+    pacs_list = [pacs]
+
+    # Mock find_studies to simulate exception on first query, success on second, empty on third
+    with patch('utils.find_studies') as mock_find:
+        mock_find.side_effect = [
+            Exception("Connection refused"),  # First query raises exception
+            [{"StudyInstanceUID": "1.2.3.4.5", "AccessionNumber": "ACC002"}],  # Second succeeds
+            [],  # Third returns empty
+        ]
+
+        study_pacs_map, failed_query_indices, failure_details = find_studies_from_pacs_list(
+            pacs_list, query_params_list, "TEST_AET", expected_values_list
+        )
+
+        # Job should continue despite exception
+        assert len(study_pacs_map) == 1, "Should have 1 study found"
+        assert "1.2.3.4.5" in study_pacs_map, "Should have found study from second query"
+        assert len(failed_query_indices) == 2, "Should have 2 failed queries"
+        assert 0 in failed_query_indices, "Query index 0 should have failed (exception)"
+        assert 2 in failed_query_indices, "Query index 2 should have failed (no results)"
+        assert "Connection refused" in failure_details[0], "Should include exception message"
+
+        # Check that exception was logged
+        assert any("Failed to find studies for query 1" in record.message for record in caplog.records)

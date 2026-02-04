@@ -71,7 +71,7 @@ def _parse_get_output(stderr, returncode):
         "message": ""
     }
 
-    if ("Received Final Get Response (Success)" in stderr or 
+    if ("Received Final Get Response (Success)" in stderr or
         "Received C-GET Response (Success)" in stderr):
         result["success"] = True
 
@@ -89,7 +89,16 @@ def _parse_get_output(stderr, returncode):
         if warning_match:
             result["num_warning"] = int(warning_match.group(1))
 
-        result["message"] = "Get completed successfully"
+        # Check for zero files retrieved case
+        if result["num_completed"] == 0 and result["num_failed"] == 0 and result["num_warning"] == 0:
+            result["message"] = "Get completed with no sub-operations (no files retrieved)"
+        elif result["num_failed"] > 0 or result["num_warning"] > 0:
+            result["message"] = (
+                f"Get completed: {result['num_completed']} succeeded, "
+                f"{result['num_failed']} failed, {result['num_warning']} warnings"
+            )
+        else:
+            result["message"] = "Get completed successfully"
     else:
         if "Failed: UnableToProcess" in stderr:
             result["message"] = "Get failed: UnableToProcess"
@@ -241,9 +250,26 @@ def get_study(host, port, calling_aet, called_aet, output_dir, study_uid, query_
     start_time = time.time()
     
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-    
+
     parsed_result = _parse_get_output(result.stderr, result.returncode)
-    
+
+    # Log detailed results
+    if parsed_result["success"]:
+        if parsed_result["num_completed"] == 0:
+            logging.warning(
+                f"C-GET for study {study_uid} completed but retrieved 0 files. "
+                f"Failed: {parsed_result['num_failed']}, Warning: {parsed_result['num_warning']}"
+            )
+        else:
+            logging.info(
+                f"C-GET for study {study_uid}: Retrieved {parsed_result['num_completed']} files. "
+                f"Failed: {parsed_result['num_failed']}, Warning: {parsed_result['num_warning']}"
+            )
+    else:
+        logging.error(
+            f"C-GET for study {study_uid} failed: {parsed_result['message']}"
+        )
+
     # Add .dcm extension to retrieved files (required by CTP ArchiveImportService)
     if parsed_result["success"]:
         for filename in os.listdir(output_dir):
