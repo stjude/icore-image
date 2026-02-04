@@ -1,6 +1,6 @@
 {
   "name": "icore",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "main": "main.js",
   "scripts": {
     "start": "ICORE_DEV=1 electron .",
