@@ -19,7 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: main
           fetch-depth: 0
 
       - name: Setup Python 3.12
@@ -32,17 +32,24 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create release branch
+        run: |
+          VERSION="${{ inputs.version }}"
+          BRANCH="release/v$VERSION"
+          git checkout -b "$BRANCH"
+          echo "Created release branch $BRANCH"
+
       - name: Update version in package.json
         run: |
           VERSION="${{ inputs.version }}"
           cd electron
           npm version "$VERSION" --no-git-tag-version
           echo "Updated package.json to version $VERSION"
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Commit version change
         run: |
@@ -51,14 +58,15 @@ jobs:
           git commit -m "Release version $VERSION"
           echo "Committed version change"
 
-      - name: Create and push tag
+      - name: Push release branch and create tag
         run: |
           VERSION="${{ inputs.version }}"
+          BRANCH="release/v$VERSION"
           TAG="v$VERSION"
+          git push origin "$BRANCH"
           git tag -a "$TAG" -m "Release $VERSION"
-          git push origin dev
           git push origin "$TAG"
-          echo "Created and pushed tag $TAG"
+          echo "Pushed release branch $BRANCH and tag $TAG"
 
       - name: Import signing certificate
         env:
@@ -99,11 +107,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          VERSION="${{ inputs.version }}"
+          BRANCH="release/v$VERSION"
           gh pr create \
             --base main \
-            --head dev \
-            --title "Release v${{ inputs.version }}" \
-            --body "Automated release PR for version ${{ inputs.version }}" \
+            --head "$BRANCH" \
+            --title "Release v$VERSION" \
+            --body "Automated release PR for version $VERSION" \
             --reviewer qsodia \
             --draft
 
