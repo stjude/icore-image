@@ -9,7 +9,7 @@ import pytest
 
 from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, AzuriteServer, OrthancServer
 from utils import PacsConfiguration, Spreadsheet
-from deid.grammar import generate_hipaa_safe_harbor_script, generate_hipaa_encapsulated_content_filter
+from deid.grammar import generate_hipaa_safe_harbor_script, generate_sc_pdf_filter
 
 
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +23,7 @@ def get_hipaa_test_config(user_filter_script=None):
     site_id = 'TEST_SITE'
     date_shift_days = -730
     anonymizer_script = generate_hipaa_safe_harbor_script(site_id, date_shift_days)
-    hipaa_filter = generate_hipaa_encapsulated_content_filter()
+    hipaa_filter = generate_sc_pdf_filter()
     if user_filter_script:
         combined_filter = f"!({hipaa_filter})\n* ({user_filter_script})"
     else:

@@ -14,6 +14,8 @@ from threading import Thread, Lock
 import psutil
 import requests
 
+from deid.grammar import generate_sc_pdf_filter
+
 
 def _get_default_ctp_source_dir():
     if getattr(sys, 'frozen', False):
@@ -71,6 +73,7 @@ def ctp_post(url, port, data, timeout=6):
         )
     except Exception:
         return None
+
 
 
 def _update_log4j_properties(log4j_path, log_path=None, log_level=None):
@@ -392,6 +395,12 @@ PIPELINE_TEMPLATES = {
             expandTARs="no"/>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
+            name="ScPdfFilter"
+            root="{tempdir}/roots/ScPdfFilter"
+            script="scripts/sc-pdf-filter.script"
+            quarantine="{sc_pdf_quarantine}"/>
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
             root="{tempdir}/roots/DicomFilter"
             script="scripts/dicom-filter.script"
@@ -462,6 +471,12 @@ PIPELINE_TEMPLATES = {
             expandTARs="no"/>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
+            name="ScPdfFilter"
+            root="{tempdir}/roots/ScPdfFilter"
+            script="scripts/sc-pdf-filter.script"
+            quarantine="{sc_pdf_quarantine}"/>
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
             root="{tempdir}/roots/DicomFilter"
             script="scripts/dicom-filter.script"
@@ -530,6 +545,12 @@ PIPELINE_TEMPLATES = {
             acceptXmlObjects="no"
             acceptZipObjects="no"
             expandTARs="no"/>
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
+            name="ScPdfFilter"
+            root="{tempdir}/roots/ScPdfFilter"
+            script="scripts/sc-pdf-filter.script"
+            quarantine="{sc_pdf_quarantine}"/>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
@@ -626,6 +647,12 @@ PIPELINE_TEMPLATES = {
             expandTARs="no"/>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
+            name="ScPdfFilter"
+            root="{tempdir}/roots/ScPdfFilter"
+            script="scripts/sc-pdf-filter.script"
+            quarantine="{sc_pdf_quarantine}"/>
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
             root="{tempdir}/roots/DicomFilter"
             script="scripts/dicom-filter.script"
@@ -718,6 +745,12 @@ PIPELINE_TEMPLATES = {
             expandTARs="no"/>
         <DicomFilter
             class="org.rsna.ctp.stdstages.DicomFilter"
+            name="ScPdfFilter"
+            root="{tempdir}/roots/ScPdfFilter"
+            script="scripts/sc-pdf-filter.script"
+            quarantine="{sc_pdf_quarantine}"/>
+        <DicomFilter
+            class="org.rsna.ctp.stdstages.DicomFilter"
             name="DicomFilter"
             root="{tempdir}/roots/DicomFilter"
             script="scripts/dicom-filter.script"
@@ -750,7 +783,8 @@ class CTPPipeline:
     def __init__(self, pipeline_type, output_dir, input_dir=None,
                  filter_script=None, anonymizer_script=None, lookup_table=None,
                  application_aet=None, source_ctp_dir=None, stall_timeout=300, log_path=None, log_level=None,
-                 quarantine_dir=None, dicom_port=None, force_kill_dicom_pipeline=False):
+                 quarantine_dir=None, dicom_port=None, force_kill_dicom_pipeline=False,
+                 sc_pdf_output_dir=None):
         if pipeline_type not in PIPELINE_TEMPLATES:
             raise ValueError(f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}")
         
@@ -767,7 +801,8 @@ class CTPPipeline:
         self.log_level = log_level
         self.quarantine_dir = quarantine_dir
         self.force_kill_dicom_pipeline = force_kill_dicom_pipeline
-        
+        self.sc_pdf_output_dir = sc_pdf_output_dir
+
         if dicom_port is not None:
             self._dicom_port = dicom_port
         elif self._pipeline_needs_dicom_port():
@@ -839,7 +874,11 @@ class CTPPipeline:
         
         log4j_path = os.path.join(ctp_workspace, "log4j.properties")
         _update_log4j_properties(log4j_path, self.log_path, self.log_level)
-        
+
+        sc_pdf_quarantine = self.sc_pdf_output_dir if self.sc_pdf_output_dir else self.quarantine_dir
+        if self.sc_pdf_output_dir:
+            os.makedirs(self.sc_pdf_output_dir, exist_ok=True)
+
         config_template = PIPELINE_TEMPLATES[self.pipeline_type]
         config_xml = config_template.format(
             input_dir=os.path.abspath(self.input_dir) if self.input_dir else "",
@@ -847,24 +886,30 @@ class CTPPipeline:
             tempdir=os.path.abspath(self._tempdir),
             port=self.port,
             dicom_port=self._dicom_port,
-            application_aet=self.application_aet if self.application_aet else ""
+            application_aet=self.application_aet if self.application_aet else "",
+            sc_pdf_quarantine=os.path.abspath(sc_pdf_quarantine)
         )
-        
+
+        sc_pdf_quarantine_abs = os.path.abspath(sc_pdf_quarantine)
         config_xml = re.sub(
-            r'quarantine="[^"]*"',
+            rf'quarantine="(?!{re.escape(sc_pdf_quarantine_abs)})[^"]*"',
             f'quarantine="{os.path.abspath(self.quarantine_dir)}"',
             config_xml
         )
-        
+
         with open(os.path.join(ctp_workspace, "config.xml"), "w") as f:
             f.write(config_xml)
-        
+
         scripts_dir = os.path.join(ctp_workspace, "scripts")
         os.makedirs(scripts_dir, exist_ok=True)
-        
+
         with open(os.path.join(scripts_dir, "dicom-filter.script"), "w") as f:
             f.write(self.filter_script)
-        
+
+        with open(os.path.join(scripts_dir, "sc-pdf-filter.script"), "w") as f:
+            sc_pdf_filter = generate_sc_pdf_filter()
+            f.write(f"!({sc_pdf_filter})")
+
         if self.anonymizer_script:
             with open(os.path.join(scripts_dir, "DicomAnonymizer.script"), "w") as f:
                 f.write(self.anonymizer_script)

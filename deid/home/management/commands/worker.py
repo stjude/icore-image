@@ -18,7 +18,7 @@ from grammar import (
     generate_lookup_contents,
     generate_lookup_table,
     generate_hipaa_safe_harbor_script,
-    generate_hipaa_encapsulated_content_filter,
+    generate_sc_pdf_filter,
     get_hipaa_safe_harbor_config,
 )
 from home.models import Project
@@ -206,7 +206,12 @@ def build_image_deid_config(task):
     
     apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
     config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
-    
+
+    sc_pdf_output_dir = task.parameters.get('sc_pdf_output_dir', '')
+    if sc_pdf_output_dir:
+        sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
+        config['sc_pdf_output_dir'] = sc_pdf_full_path
+
     print(config)
     # Write config to file
     with open(CONFIG_PATH, 'w') as f:
@@ -599,7 +604,7 @@ def build_singleclickicore_config(task):
     # === HIPAA Safe Harbor Configuration ===
     # Single-click iCore automatically enforces HIPAA Safe Harbor de-identification
 
-    hipaa_filter = generate_hipaa_encapsulated_content_filter()
+    hipaa_filter = generate_sc_pdf_filter()
 
     general_filters = task.parameters.get('general_filters', [])
     modality_filters = task.parameters.get('modality_filters', {})
@@ -634,7 +639,12 @@ def build_singleclickicore_config(task):
 
     skip_export = task.parameters.get('skip_export', False)
     config['skip_export'] = skip_export
-    
+
+    sc_pdf_output_dir = task.parameters.get('sc_pdf_output_dir', '')
+    if sc_pdf_output_dir:
+        sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
+        config['sc_pdf_output_dir'] = sc_pdf_full_path
+
     # Text deidentification parameters
     to_keep_list = task.parameters.get('text_to_keep', '').split('\n') if task.parameters.get('text_to_keep') else []
     to_remove_list = task.parameters.get('text_to_remove', '').split('\n') if task.parameters.get('text_to_remove') else []
@@ -720,7 +730,12 @@ def build_image_deid_export_config(task):
     
     apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
     config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
-    
+
+    sc_pdf_output_dir = task.parameters.get('sc_pdf_output_dir', '')
+    if sc_pdf_output_dir:
+        sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
+        config['sc_pdf_output_dir'] = sc_pdf_full_path
+
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
