@@ -10,7 +10,7 @@ import pytest
 import pydicom
 
 from module_imagedeid_local import imagedeid_local, _generate_lookup_table_content
-from test_utils import _create_test_dicom, Fixtures
+from test_utils import _create_test_dicom, _create_secondary_capture_dicom, _create_encapsulated_pdf_dicom, Fixtures
 
 
 logging.basicConfig(level=logging.INFO)
@@ -339,11 +339,21 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
         patient_name="Patient1",
         accession="ACC001",
         study_date="20250101",
-        modality="SR"
+        modality="CT"
     )
-    ds1.SOPClassUID = "1.2.840.10008.5.1.4.1.1.88.11"
-    ds1.save_as(str(input_dir / "sr_image.dcm"), write_like_original=False)
-    
+    ds1.Manufacturer = "UNKNOWN VENDOR"
+    ds1.ImageType = ["DERIVED", "SECONDARY"]
+    ds1.Rows = 512
+    ds1.Columns = 512
+    ds1.SamplesPerPixel = 1
+    ds1.PhotometricInterpretation = "MONOCHROME2"
+    ds1.BitsAllocated = 16
+    ds1.BitsStored = 16
+    ds1.HighBit = 15
+    ds1.PixelRepresentation = 0
+    ds1.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
+    ds1.save_as(str(input_dir / "derived_ct_image.dcm"), write_like_original=False)
+
     ds2 = Fixtures.create_minimal_dicom(
         patient_id="MRN002",
         patient_name="Patient2",
@@ -354,6 +364,7 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
     ds2.Manufacturer = "GE MEDICAL SYSTEMS"
     ds2.ManufacturerModelName = "REVOLUTION CT"
     ds2.SoftwareVersions = "REVO_CT_22BC.50"
+    ds2.ImageType = ["ORIGINAL", "PRIMARY"]
     ds2.Rows = 512
     ds2.Columns = 512
     ds2.SamplesPerPixel = 1
@@ -364,33 +375,33 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
     ds2.PixelRepresentation = 0
     ds2.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
     ds2.save_as(str(input_dir / "ct_image.dcm"), write_like_original=False)
-    
+
     time.sleep(2)
-    
+
     anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
-    
+
     result_without_filter = imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False
+        apply_default_filter_script=False,
     )
-    
+
     assert result_without_filter["num_images_saved"] == 2, "Without default filter, both images should be saved"
     assert result_without_filter["num_images_quarantined"] == 0, "Without default filter, no images should be quarantined"
-    
+
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 2, "Both DICOM files should be in output"
-    
+
     for file in output_dir.rglob("*.dcm"):
         file.unlink()
     for file in (appdata_dir / "quarantine").rglob("*.dcm"):
         file.unlink()
-    
+
     result_with_filter = imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
@@ -398,22 +409,22 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=True
     )
-    
-    assert result_with_filter["num_images_saved"] == 1, "With default filter, only CT should be saved (SR should be quarantined)"
-    assert result_with_filter["num_images_quarantined"] == 1, "With default filter, SR should be quarantined"
-    
+
+    assert result_with_filter["num_images_saved"] == 1, "With default filter, only primary CT should be saved"
+    assert result_with_filter["num_images_quarantined"] == 1, "With default filter, derived CT should be quarantined"
+
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 1, "Only one DICOM file should be in output"
-    
+
     output_ds = pydicom.dcmread(output_files[0])
-    assert output_ds.Modality == "CT", "Output file should be CT"
-    
+    assert "ORIGINAL" in output_ds.ImageType, "Output file should be the primary CT"
+
     quarantine_dir = appdata_dir / "quarantine"
     quarantine_files = list(quarantine_dir.rglob("*.dcm"))
     assert len(quarantine_files) == 1, "One DICOM file should be quarantined"
-    
+
     quarantine_ds = pydicom.dcmread(quarantine_files[0])
-    assert quarantine_ds.Modality == "SR", "Quarantined file should be SR"
+    assert "DERIVED" in quarantine_ds.ImageType, "Quarantined file should be the derived CT"
 
 
 def test_generate_lookup_table_content_single_tag(tmp_path):
@@ -900,3 +911,196 @@ def test_explicit_lookup_table_overrides_mapping_file(tmp_path):
     assert ds.AccessionNumber == "FROM_EXPLICIT", "Explicit lookup_table should override mapping_file_path"
     assert ds.AccessionNumber != "FROM_MAPPING", "Mapping file should be ignored when explicit lookup_table is provided"
 
+
+def test_sc_pdf_filter_routes_to_custom_directory(tmp_path):
+    """Test that SC and PDF files are routed to sc_pdf_output_dir when specified."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    sc_pdf_dir = tmp_path / "sc_pdf_custom"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    sc_pdf_dir.mkdir()
+
+    sc_ds = _create_secondary_capture_dicom()
+    sc_ds.save_as(str(input_dir / "secondary_capture.dcm"))
+
+    pdf_ds = _create_encapsulated_pdf_dicom()
+    pdf_ds.save_as(str(input_dir / "encapsulated_pdf.dcm"))
+
+    ct_ds = Fixtures.create_minimal_dicom(
+        patient_id="CT001",
+        patient_name="Test^CT",
+        accession="ACCCT001",
+        modality="CT"
+    )
+    ct_ds.Rows = 64
+    ct_ds.Columns = 64
+    ct_ds.BitsAllocated = 16
+    ct_ds.BitsStored = 12
+    ct_ds.HighBit = 11
+    ct_ds.SamplesPerPixel = 1
+    ct_ds.PhotometricInterpretation = "MONOCHROME2"
+    ct_ds.PixelRepresentation = 0
+    ct_ds.PixelData = np.zeros((64, 64), dtype=np.uint16).tobytes()
+    ct_ds.save_as(str(input_dir / "ct_image.dcm"), write_like_original=False)
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+
+    result = imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False,
+        sc_pdf_output_dir=str(sc_pdf_dir)
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    assert len(output_files) == 1, f"Expected 1 output file (CT), got {len(output_files)}"
+
+    sc_pdf_files = list(sc_pdf_dir.rglob("*.dcm"))
+    assert len(sc_pdf_files) == 2, f"Expected 2 files in SC/PDF dir (SC, PDF), got {len(sc_pdf_files)}"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    quarantine_files = list(quarantine_dir.rglob("*.dcm")) if quarantine_dir.exists() else []
+    assert len(quarantine_files) == 0, f"Expected 0 files in regular quarantine, got {len(quarantine_files)}"
+
+
+def test_sc_pdf_filter_to_regular_quarantine_when_no_custom_dir(tmp_path):
+    """Test that SC and PDF files go to regular quarantine when sc_pdf_output_dir is not specified."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    sc_ds = _create_secondary_capture_dicom()
+    sc_ds.save_as(str(input_dir / "secondary_capture.dcm"))
+
+    ct_ds = Fixtures.create_minimal_dicom(
+        patient_id="CT001",
+        patient_name="Test^CT",
+        accession="ACCCT001",
+        modality="CT"
+    )
+    ct_ds.Rows = 64
+    ct_ds.Columns = 64
+    ct_ds.BitsAllocated = 16
+    ct_ds.BitsStored = 12
+    ct_ds.HighBit = 11
+    ct_ds.SamplesPerPixel = 1
+    ct_ds.PhotometricInterpretation = "MONOCHROME2"
+    ct_ds.PixelRepresentation = 0
+    ct_ds.PixelData = np.zeros((64, 64), dtype=np.uint16).tobytes()
+    ct_ds.save_as(str(input_dir / "ct_image.dcm"), write_like_original=False)
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+
+    result = imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False,
+        # sc_pdf_output_dir not specified - should use regular quarantine
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    assert len(output_files) == 1, f"Expected 1 output file (CT), got {len(output_files)}"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    quarantine_files = list(quarantine_dir.rglob("*.dcm"))
+    assert len(quarantine_files) == 1, f"Expected 1 file in quarantine (SC), got {len(quarantine_files)}"
+
+
+def test_sc_pdf_filter_multiple_file_types(tmp_path):
+    """Test SC/PDF filter with multiple file types including CT, MR, SC, and PDF."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    sc_pdf_dir = tmp_path / "sc_pdf_custom"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    sc_pdf_dir.mkdir()
+
+    sc_ds = _create_secondary_capture_dicom()
+    sc_ds.save_as(str(input_dir / "secondary_capture.dcm"))
+
+    pdf_ds = _create_encapsulated_pdf_dicom()
+    pdf_ds.save_as(str(input_dir / "encapsulated_pdf.dcm"))
+
+    ct_ds = Fixtures.create_minimal_dicom(
+        patient_id="CT001", patient_name="Test^CT", accession="ACCCT001", modality="CT"
+    )
+    ct_ds.Rows = 64
+    ct_ds.Columns = 64
+    ct_ds.BitsAllocated = 16
+    ct_ds.BitsStored = 12
+    ct_ds.HighBit = 11
+    ct_ds.SamplesPerPixel = 1
+    ct_ds.PhotometricInterpretation = "MONOCHROME2"
+    ct_ds.PixelRepresentation = 0
+    ct_ds.PixelData = np.zeros((64, 64), dtype=np.uint16).tobytes()
+    ct_ds.save_as(str(input_dir / "ct_image.dcm"), write_like_original=False)
+
+    mr_ds = Fixtures.create_minimal_dicom(
+        patient_id="MR001", patient_name="Test^MR", accession="ACCMR001", modality="MR"
+    )
+    mr_ds.file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.4'  # MR Image Storage
+    mr_ds.SOPClassUID = '1.2.840.10008.5.1.4.1.1.4'
+    mr_ds.Rows = 64
+    mr_ds.Columns = 64
+    mr_ds.BitsAllocated = 16
+    mr_ds.BitsStored = 12
+    mr_ds.HighBit = 11
+    mr_ds.SamplesPerPixel = 1
+    mr_ds.PhotometricInterpretation = "MONOCHROME2"
+    mr_ds.PixelRepresentation = 0
+    mr_ds.PixelData = np.zeros((64, 64), dtype=np.uint16).tobytes()
+    mr_ds.save_as(str(input_dir / "mr_image.dcm"), write_like_original=False)
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+
+    result = imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False,
+        sc_pdf_output_dir=str(sc_pdf_dir)
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    assert len(output_files) == 2, f"Expected 2 output files (CT, MR), got {len(output_files)}"
+
+    sc_pdf_files = list(sc_pdf_dir.rglob("*.dcm"))
+    assert len(sc_pdf_files) == 2, f"Expected 2 files in SC/PDF dir (SC, PDF), got {len(sc_pdf_files)}"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    quarantine_files = list(quarantine_dir.rglob("*.dcm")) if quarantine_dir.exists() else []
+    assert len(quarantine_files) == 0, f"Expected 0 files in regular quarantine, got {len(quarantine_files)}"
+
+    assert result["num_images_saved"] == 2, "Should have saved 2 images (CT, MR)"
+    assert result["num_images_quarantined"] == 2, "Should have quarantined 2 images (SC, PDF)"

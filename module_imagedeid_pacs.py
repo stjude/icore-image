@@ -22,11 +22,11 @@ def _log_progress(pipeline):
         logging.info(progress_msg)
 
 
-def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet, 
-                   output_dir, appdata_dir=None, filter_script=None, 
+def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
+                   output_dir, appdata_dir=None, filter_script=None,
                    date_window_days=0, anonymizer_script=None, deid_pixels=False,
                    lookup_table=None, debug=False, run_dirs=None, apply_default_filter_script=True,
-                   mapping_file_path=None):
+                   mapping_file_path=None, sc_pdf_output_dir=None):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -93,7 +93,8 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         lookup_table=lookup_table,
         log_path=run_dirs["ctp_log_path"],
         log_level=ctp_log_level,
-        quarantine_dir=quarantine_dir
+        quarantine_dir=quarantine_dir,
+        sc_pdf_output_dir=sc_pdf_output_dir,
     ) as pipeline:
 
         failed_query_indices = list(set(failed_find_indices + failed_get_indices))

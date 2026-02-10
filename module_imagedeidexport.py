@@ -11,7 +11,8 @@ def imagedeidexport(pacs_list, query_spreadsheet, application_aet,
                     filter_script=None, date_window_days=0,
                     anonymizer_script=None, deid_pixels=False,
                     lookup_table=None, debug=False, run_dirs=None,
-                    apply_default_filter_script=True, mapping_file_path=None):
+                    apply_default_filter_script=True, mapping_file_path=None,
+                    sc_pdf_output_dir=None):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -39,7 +40,8 @@ def imagedeidexport(pacs_list, query_spreadsheet, application_aet,
         debug=debug,
         run_dirs=run_dirs,
         apply_default_filter_script=apply_default_filter_script,
-        mapping_file_path=mapping_file_path
+        mapping_file_path=mapping_file_path,
+        sc_pdf_output_dir=sc_pdf_output_dir,
     )
     
     if deid_result["num_images_saved"] > 0:

@@ -95,7 +95,8 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
         "deid_pixels": config.get("deid_pixels", False),
         "debug": config.get("debug", False),
         "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
-        "run_dirs": run_dirs
+        "run_dirs": run_dirs,
+        "sc_pdf_output_dir": config.get("sc_pdf_output_dir")
     }
 
 
@@ -110,7 +111,8 @@ def build_imagedeid_local_params(config, input_dir, output_dir, run_dirs):
         "deid_pixels": config.get("deid_pixels", False),
         "debug": config.get("debug", False),
         "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
-        "run_dirs": run_dirs
+        "run_dirs": run_dirs,
+        "sc_pdf_output_dir": config.get("sc_pdf_output_dir")
     }
 
 
@@ -178,7 +180,8 @@ def build_imagedeidexport_params(config, input_dir, output_dir, run_dirs):
         "deid_pixels": config.get("deid_pixels", False),
         "debug": config.get("debug", False),
         "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
-        "run_dirs": run_dirs
+        "run_dirs": run_dirs,
+        "sc_pdf_output_dir": config.get("sc_pdf_output_dir")
     }
 
   
@@ -237,7 +240,8 @@ def build_singleclickicore_params(config, input_dir, output_dir, run_dirs):
         "debug": config.get("debug", False),
         "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
         "skip_export": config.get("skip_export", False),
-        "run_dirs": run_dirs
+        "run_dirs": run_dirs,
+        "sc_pdf_output_dir": config.get("sc_pdf_output_dir")
     }
 
 

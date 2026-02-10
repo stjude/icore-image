@@ -11,8 +11,8 @@ import pandas as pd
 import pytest
 import pydicom
 import requests
-from pydicom.dataset import FileDataset, FileMetaDataset
-from pydicom.uid import generate_uid
+from pydicom.dataset import FileDataset, FileMetaDataset, Dataset
+from pydicom.uid import generate_uid, SecondaryCaptureImageStorage, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID
 
 from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, get_studies_from_study_pacs_map, PacsConfiguration
 
@@ -85,6 +85,93 @@ def _upload_dicom_to_orthanc(ds, orthanc):
     os.remove(temp_file)
     # Give time for the DICOM to be uploaded to Orthanc
     time.sleep(2)
+
+
+def _create_secondary_capture_dicom(patient_id="SC001", patient_name="Test^SC", accession="ACCSC001"):
+    """Create a Secondary Capture DICOM file."""
+
+    file_meta = FileMetaDataset()
+    file_meta.FileMetaInformationGroupLength = 0
+    file_meta.FileMetaInformationVersion = b'\x00\x01'
+    file_meta.MediaStorageSOPClassUID = SecondaryCaptureImageStorage
+    file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    file_meta.ImplementationClassUID = PYDICOM_IMPLEMENTATION_UID
+
+    ds = Dataset()
+    ds.file_meta = file_meta
+    ds.preamble = b'\x00' * 128
+    ds.is_little_endian = True
+    ds.is_implicit_VR = False
+
+    ds.SOPClassUID = SecondaryCaptureImageStorage
+    ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    ds.PatientName = patient_name
+    ds.PatientID = patient_id
+    ds.AccessionNumber = accession
+    ds.StudyInstanceUID = generate_uid()
+    ds.SeriesInstanceUID = generate_uid()
+    ds.StudyDate = "20240101"
+    ds.SeriesNumber = "1"
+    ds.InstanceNumber = "1"
+    ds.Modality = "OT"
+
+    ds.Rows = 64
+    ds.Columns = 64
+    ds.BitsAllocated = 8
+    ds.BitsStored = 8
+    ds.HighBit = 7
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.PixelRepresentation = 0
+    ds.PixelData = np.zeros((64, 64), dtype=np.uint8).tobytes()
+
+    return ds
+
+
+def _create_encapsulated_pdf_dicom(patient_id="PDF001", patient_name="Test^PDF", accession="ACCPDF001"):
+    """Create an Encapsulated PDF DICOM file."""
+    from pydicom.uid import EncapsulatedPDFStorage, ExplicitVRLittleEndian, generate_uid, PYDICOM_IMPLEMENTATION_UID
+    from pydicom.dataset import Dataset, FileMetaDataset
+
+    file_meta = FileMetaDataset()
+    file_meta.FileMetaInformationGroupLength = 0
+    file_meta.FileMetaInformationVersion = b'\x00\x01'
+    file_meta.MediaStorageSOPClassUID = EncapsulatedPDFStorage
+    file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    file_meta.ImplementationClassUID = PYDICOM_IMPLEMENTATION_UID
+
+    ds = Dataset()
+    ds.file_meta = file_meta
+    ds.preamble = b'\x00' * 128
+    ds.is_little_endian = True
+    ds.is_implicit_VR = False
+
+    ds.SOPClassUID = EncapsulatedPDFStorage
+    ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    ds.PatientName = patient_name
+    ds.PatientID = patient_id
+    ds.AccessionNumber = accession
+    ds.StudyInstanceUID = generate_uid()
+    ds.SeriesInstanceUID = generate_uid()
+    ds.StudyDate = "20240101"
+    ds.SeriesNumber = "1"
+    ds.InstanceNumber = "1"
+    ds.Modality = "DOC"
+    ds.BurnedInAnnotation = "YES"
+
+    pdf_content = b"""%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >> endobj
+trailer << /Size 4 /Root 1 0 R >>
+%%EOF"""
+
+    ds.EncapsulatedDocument = pdf_content
+    ds.MIMETypeOfEncapsulatedDocument = "application/pdf"
+
+    return ds
 
 
 def test_csv_string_to_xlsx_basic(tmp_path):

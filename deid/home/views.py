@@ -510,6 +510,7 @@ def run_deid(request):
                     'remove_private': data.get('remove_private', False),
                     'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
                     'site_id': data['site_id'],
+                    'sc_pdf_output_dir': data.get('sc_pdf_output_dir', ''),
                 }
             )
             return JsonResponse({
@@ -712,6 +713,7 @@ def run_imagedeidexport(request):
                 'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
                 'site_id': data['site_id'],
                 'sas_url': data['sas_url'],
+                'sc_pdf_output_dir': data.get('sc_pdf_output_dir', ''),
             }
         )
         return JsonResponse({
@@ -777,6 +779,7 @@ def run_singleclickicore(request):
                 'columns_to_deid': data.get('columns_to_deid', ''),
                 'columns_to_drop': data.get('columns_to_drop', ''),
                 'skip_export': not data.get('export_to_azure', True),
+                'sc_pdf_output_dir': data.get('sc_pdf_output_dir', ''),
             }
         )
         return JsonResponse({

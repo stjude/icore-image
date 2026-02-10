@@ -192,10 +192,10 @@ def _process_mapping_file(mapping_file_path, anonymizer_script, lookup_table):
     return lookup_content, modified_script
 
 
-def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None, 
-                   anonymizer_script=None, deid_pixels=False, lookup_table=None, 
-                   debug=False, run_dirs=None, apply_default_filter_script=True, 
-                   mapping_file_path=None):
+def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
+                   anonymizer_script=None, deid_pixels=False, lookup_table=None,
+                   debug=False, run_dirs=None, apply_default_filter_script=True,
+                   mapping_file_path=None, sc_pdf_output_dir=None):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -259,7 +259,8 @@ def imagedeid_local(input_dir, output_dir, appdata_dir=None, filter_script=None,
         lookup_table=lookup_table,
         log_path=run_dirs["ctp_log_path"],
         log_level=ctp_log_level,
-        quarantine_dir=quarantine_dir
+        quarantine_dir=quarantine_dir,
+        sc_pdf_output_dir=sc_pdf_output_dir,
     ) as pipeline:
         time.sleep(3)
         
