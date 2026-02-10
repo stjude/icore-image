@@ -12,7 +12,7 @@ import pytest
 import pydicom
 import requests
 from pydicom.dataset import FileDataset, FileMetaDataset, Dataset
-from pydicom.uid import generate_uid, SecondaryCaptureImageStorage, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID
+from pydicom.uid import generate_uid, SecondaryCaptureImageStorage, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID, EncapsulatedPDFStorage
 
 from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, get_studies_from_study_pacs_map, PacsConfiguration
 
@@ -131,8 +131,6 @@ def _create_secondary_capture_dicom(patient_id="SC001", patient_name="Test^SC", 
 
 def _create_encapsulated_pdf_dicom(patient_id="PDF001", patient_name="Test^PDF", accession="ACCPDF001"):
     """Create an Encapsulated PDF DICOM file."""
-    from pydicom.uid import EncapsulatedPDFStorage, ExplicitVRLittleEndian, generate_uid, PYDICOM_IMPLEMENTATION_UID
-    from pydicom.dataset import Dataset, FileMetaDataset
 
     file_meta = FileMetaDataset()
     file_meta.FileMetaInformationGroupLength = 0
