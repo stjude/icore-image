@@ -594,45 +594,31 @@ def generate_hipaa_safe_harbor_script(site_id, date_shift_days):
     return '\n'.join(script)
 
 
-def generate_hipaa_encapsulated_content_filter():
+def generate_sc_pdf_filter():
     """
-    Generate a CTP filter that quarantines file types that cannot be safely de-identified.
+    Generate a CTP filter that identifies SC, PDF, and other embedded content file types.
+    Files matching this filter contain PHI that cannot be safely de-identified.
 
-    Files with encapsulated content (PDFs, CDA documents, etc.) and burned-in annotations
-    must be quarantined because they may contain PHI that cannot be removed by tag manipulation.
-
-    Returns:
-        str: CTP filter expression that identifies files to quarantine
+    Note: Some malformed DICOM files have mismatched Transfer Syntax (file_meta says Explicit VR
+    but dataset is Implicit VR). For these, CTP may fail to read dataset tags like SOPClassUID.
+    We also check MediaStorageSOPClassUID [0002,0002] from file_meta as a fallback.
     """
-
     filter_parts = []
-
-    # Encapsulated PDF Storage
-    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.1")')
-
-    # Encapsulated CDA Storage
-    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.2")')
-
-    # Secondary Capture (often contains screenshots/scanned documents with burned-in PHI)
-    filter_parts.append('SOPClassUID.startsWith("1.2.840.10008.5.1.4.1.1.7")')
-
-    # Structured Reports (contain text PHI)
-    filter_parts.append('SOPClassUID.startsWith("1.2.840.10008.5.1.4.1.1.88")')
-
-    # Key Object Selection Documents
-    filter_parts.append('SOPClassUID.startsWith("1.2.840.10008.5.1.4.1.1.8")')
-
-    # Presentation States
-    filter_parts.append('SOPClassUID.startsWith("1.2.840.10008.5.1.4.1.1.11")')
-
-    # Files with BurnedInAnnotation flag set to YES
+    # Check SOPClassUID [0008,0016] from dataset
+    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.1")')  # Encapsulated PDF
+    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.2")')  # Encapsulated CDA
+    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.7")')  # Secondary Capture (all variants)
+    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.88")')  # Structured Reports
+    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.8")')  # Key Object Selection
+    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.11")')  # Presentation States
+    # Also check MediaStorageSOPClassUID [0002,0002] from file_meta (fallback for malformed files)
+    filter_parts.append('[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.1")')  # Encapsulated PDF (file_meta)
+    filter_parts.append('[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.2")')  # Encapsulated CDA (file_meta)
+    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.7")')  # Secondary Capture (file_meta)
+    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.88")')  # Structured Reports (file_meta)
+    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.8")')  # Key Object Selection (file_meta)
+    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.11")')  # Presentation States (file_meta)
+    # Other indicators
     filter_parts.append('BurnedInAnnotation.equalsIgnoreCase("YES")')
-
-    # Files with EncapsulatedDocument tag present
-    filter_parts.append('[0042,0011].exists()')
-
-    filter_expression = '\n+ '.join(filter_parts)
-
-    return filter_expression
-
-
+    filter_parts.append('[0042,0011].exists()')  # EncapsulatedDocument tag
+    return '\n+ '.join(filter_parts)
