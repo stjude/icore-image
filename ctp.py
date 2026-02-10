@@ -14,6 +14,8 @@ from threading import Thread, Lock
 import psutil
 import requests
 
+from deid.grammar import generate_sc_pdf_filter
+
 
 def _get_default_ctp_source_dir():
     if getattr(sys, 'frozen', False):
@@ -72,35 +74,6 @@ def ctp_post(url, port, data, timeout=6):
     except Exception:
         return None
 
-
-def _generate_sc_pdf_filter():
-    """
-    Generate a CTP filter that identifies SC, PDF, and other embedded content file types.
-    Files matching this filter contain PHI that cannot be safely de-identified.
-
-    Note: Some malformed DICOM files have mismatched Transfer Syntax (file_meta says Explicit VR
-    but dataset is Implicit VR). For these, CTP may fail to read dataset tags like SOPClassUID.
-    We also check MediaStorageSOPClassUID [0002,0002] from file_meta as a fallback.
-    """
-    filter_parts = []
-    # Check SOPClassUID [0008,0016] from dataset
-    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.1")')  # Encapsulated PDF
-    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.2")')  # Encapsulated CDA
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.7")')  # Secondary Capture (all variants)
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.88")')  # Structured Reports
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.8")')  # Key Object Selection
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.11")')  # Presentation States
-    # Also check MediaStorageSOPClassUID [0002,0002] from file_meta (fallback for malformed files)
-    filter_parts.append('[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.1")')  # Encapsulated PDF (file_meta)
-    filter_parts.append('[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.2")')  # Encapsulated CDA (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.7")')  # Secondary Capture (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.88")')  # Structured Reports (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.8")')  # Key Object Selection (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.11")')  # Presentation States (file_meta)
-    # Other indicators
-    filter_parts.append('BurnedInAnnotation.equalsIgnoreCase("YES")')
-    filter_parts.append('[0042,0011].exists()')  # EncapsulatedDocument tag
-    return '\n+ '.join(filter_parts)
 
 
 def _update_log4j_properties(log4j_path, log_path=None, log_level=None):
@@ -917,7 +890,6 @@ class CTPPipeline:
             sc_pdf_quarantine=os.path.abspath(sc_pdf_quarantine)
         )
 
-        tempdir_abs = os.path.abspath(self._tempdir)
         sc_pdf_quarantine_abs = os.path.abspath(sc_pdf_quarantine)
         config_xml = re.sub(
             rf'quarantine="(?!{re.escape(sc_pdf_quarantine_abs)})[^"]*"',
@@ -935,7 +907,7 @@ class CTPPipeline:
             f.write(self.filter_script)
 
         with open(os.path.join(scripts_dir, "sc-pdf-filter.script"), "w") as f:
-            sc_pdf_filter = _generate_sc_pdf_filter()
+            sc_pdf_filter = generate_sc_pdf_filter()
             f.write(f"!({sc_pdf_filter})")
 
         if self.anonymizer_script:
