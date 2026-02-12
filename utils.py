@@ -39,11 +39,33 @@ class Spreadsheet:
         return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
 
 
-def generate_queries_and_filter(spreadsheet, date_window_days=0):
+def _build_mrn_date_query_and_filter(mrn, study_date, date_window_days):
+    start_date = study_date - timedelta(days=date_window_days)
+    end_date = study_date + timedelta(days=date_window_days)
+    start_date_str = start_date.strftime("%Y%m%d")
+    end_date_str = end_date.strftime("%Y%m%d")
+
+    query_params = {
+        "PatientID": mrn,
+        "StudyDate": f"{start_date_str}-{end_date_str}"
+    }
+
+    start_minus_one = (start_date - timedelta(days=1)).strftime("%Y%m%d")
+    end_plus_one = (end_date + timedelta(days=1)).strftime("%Y%m%d")
+    filter_condition = (
+        f'(PatientID.contains("{mrn}") * '
+        f'StudyDate.isGreaterThan("{start_minus_one}") * '
+        f'StudyDate.isLessThan("{end_plus_one}"))'
+    )
+
+    return query_params, filter_condition
+
+
+def generate_queries_and_filter(spreadsheet, date_window_days=0, use_fallback_query=False):
     query_params_list = []
     expected_values_list = []
     filter_conditions = []
-    
+
     for i, row in spreadsheet.dataframe.iterrows():
         if spreadsheet.acc_col and pd.notna(row.get(spreadsheet.acc_col)):
             acc = str(row[spreadsheet.acc_col]).strip()
@@ -51,34 +73,29 @@ def generate_queries_and_filter(spreadsheet, date_window_days=0):
             query_params_list.append(query_params)
             expected_values_list.append((acc, len(query_params_list) - 1))
             filter_conditions.append(f'AccessionNumber.contains("{acc}")')
-        elif (spreadsheet.mrn_col and spreadsheet.date_col and 
-              pd.notna(row.get(spreadsheet.mrn_col)) and 
+
+            if (use_fallback_query and spreadsheet.mrn_col and spreadsheet.date_col):
+                mrn = row.get(spreadsheet.mrn_col)
+                study_date = row.get(spreadsheet.date_col)
+                if pd.notna(mrn) and pd.notna(study_date) and isinstance(study_date, pd.Timestamp):
+                    _, filter_condition = _build_mrn_date_query_and_filter(str(mrn), study_date, date_window_days)
+                    filter_conditions.append(filter_condition)
+        elif (spreadsheet.mrn_col and spreadsheet.date_col and
+              pd.notna(row.get(spreadsheet.mrn_col)) and
               pd.notna(row.get(spreadsheet.date_col))):
             mrn = str(row[spreadsheet.mrn_col])
             study_date = row[spreadsheet.date_col]
             if not isinstance(study_date, pd.Timestamp):
                 raise ValueError(f"StudyDate must be in Excel date format (pd.Timestamp), got {type(study_date).__name__}: {study_date}")
-            
-            start_date = study_date - timedelta(days=date_window_days)
-            end_date = study_date + timedelta(days=date_window_days)
-            
-            start_date_str = start_date.strftime("%Y%m%d")
-            end_date_str = end_date.strftime("%Y%m%d")
-            
-            query_params = {
-                "PatientID": mrn,
-                "StudyDate": f"{start_date_str}-{end_date_str}"
-            }
+
+            query_params, filter_condition = _build_mrn_date_query_and_filter(mrn, study_date, date_window_days)
             query_params_list.append(query_params)
-            
-            start_minus_one = (start_date - timedelta(days=1)).strftime("%Y%m%d")
-            end_plus_one = (end_date + timedelta(days=1)).strftime("%Y%m%d")
-            filter_conditions.append(f'(PatientID.contains("{mrn}") * StudyDate.isGreaterThan("{start_minus_one}") * StudyDate.isLessThan("{end_plus_one}"))')
+            filter_conditions.append(filter_condition)
         else:
             raise ValueError(f"Row must have either acc_col or both mrn_col and date_col with valid values")
-    
+
     generated_filter = " + ".join(filter_conditions) if filter_conditions else None
-    
+
     return query_params_list, expected_values_list, generated_filter
 
 
@@ -96,14 +113,17 @@ def validate_date_window_days(date_window_days):
         raise ValueError(f"date_window_days must be between 0 and 10, got {date_window_days}")
 
 
-def save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, failure_reasons):
+def save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, failure_reasons,
+                            use_fallback_query=False):
     csv_path = os.path.join(appdata_dir, "failed_queries.csv")
-    
+
     has_accession = query_spreadsheet.acc_col is not None
     has_mrn = query_spreadsheet.mrn_col is not None
     has_date = query_spreadsheet.date_col is not None
-    
-    if has_accession and has_mrn:
+
+    if use_fallback_query and has_accession and has_mrn and has_date:
+        headers = ["Accession Number", "MRN", "Date", "Failure Reason"]
+    elif has_accession and has_mrn:
         headers = ["Accession Number", "MRN", "Failure Reason"]
     elif has_accession:
         headers = ["Accession Number", "Failure Reason"]
@@ -166,12 +186,14 @@ def find_valid_pacs_list(pacs_list, application_aet):
     return valid_pacs_list
 
 
-def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, expected_values_list=None):
+def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet,
+                                expected_values_list=None, fallback_spreadsheet=None,
+                                fallback_date_window_days=0):
     study_pacs_map = {}
     failed_query_indices = []
     failure_details = {}
     total_queries = len(query_params_list)
-    
+
     expected_accessions_map = {}
     if expected_values_list:
         for expected_acc, query_index in expected_values_list:
@@ -183,19 +205,19 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
         for i in failed_query_indices:
             failure_details[i] = "Failed to find images"
         return study_pacs_map, failed_query_indices, failure_details
-    
+
     for pacs in pacs_list:
         logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
-        
+
         for i, query_params in enumerate(query_params_list):
             logging.info(f"Queried {i} / {total_queries} rows")
             logging.debug(f"Processing Excel row {i + 1}")
-            
+
             try:
                 return_tags = ["StudyInstanceUID", "StudyDate"]
                 if i in expected_accessions_map:
                     return_tags.append("AccessionNumber")
-                
+
                 results = find_studies(
                     host=pacs.host,
                     port=pacs.port,
@@ -204,19 +226,19 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
                     query_params=query_params,
                     return_tags=return_tags
                 )
-                
+
                 for result in results:
                     study_uid = result.get("StudyInstanceUID")
                     if not study_uid or study_uid in study_pacs_map:
                         continue
-                    
+
                     if i in expected_accessions_map:
                         result_acc = result.get("AccessionNumber", "").strip()
                         expected_acc = expected_accessions_map[i]
                         if result_acc != expected_acc:
                             logging.debug(f"Rejecting study {study_uid}: AccessionNumber '{result_acc}' does not match expected '{expected_acc}'")
                             continue
-                    
+
                     study_pacs_map[study_uid] = (pacs, i)
                     logging.debug(f"Found study {study_uid} on PACS {pacs.host}:{pacs.port}")
 
@@ -224,7 +246,7 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
                     if i in failed_query_indices:
                         failed_query_indices.remove(i)
                         failure_details.pop(i, None)
-                
+
                 if not results:
                     logging.warning(f"No studies found for query {i + 1}: {query_params}")
             except Exception as e:
@@ -232,18 +254,100 @@ def find_studies_from_pacs_list(pacs_list, query_params_list, application_aet, e
                 if i not in failed_query_indices:
                     failed_query_indices.append(i)
                     failure_details[i] = f"Failed to find images: {str(e)}"
-        
+
         logging.info(f"Queried {total_queries} / {total_queries} rows")
-    
+
     query_indices_with_studies = set(query_index for _, query_index in study_pacs_map.values())
     for i in range(total_queries):
         if i not in query_indices_with_studies and i not in failed_query_indices:
             failed_query_indices.append(i)
             failure_details[i] = "Failed to find images"
-    
+
     logging.info(f"Found {len(study_pacs_map)} unique studies total")
-    
-    return study_pacs_map, failed_query_indices, failure_details
+
+    if fallback_spreadsheet is None or not failed_query_indices:
+        return study_pacs_map, failed_query_indices, failure_details
+
+    return _attempt_fallback_queries(
+        pacs_list, application_aet, study_pacs_map,
+        failed_query_indices, failure_details,
+        fallback_spreadsheet, fallback_date_window_days)
+
+
+def _attempt_fallback_queries(pacs_list, application_aet, study_pacs_map,
+                               failed_indices, failure_details,
+                               spreadsheet, date_window_days):
+    logging.info(f"Fallback: {len(failed_indices)} accession queries failed, checking fallback data (mrn_col='{spreadsheet.mrn_col}', date_col='{spreadsheet.date_col}')")
+
+    if not (spreadsheet.mrn_col and spreadsheet.date_col):
+        logging.warning("Fallback: mrn_col or date_col is empty/None, cannot attempt fallback")
+        for i in failed_indices:
+            failure_details[i] = failure_details.get(i, "Failed to find images") + " (no fallback data available)"
+        return study_pacs_map, failed_indices, failure_details
+
+    df_columns = list(spreadsheet.dataframe.columns)
+    if spreadsheet.mrn_col not in df_columns:
+        logging.warning(f"Fallback: mrn_col '{spreadsheet.mrn_col}' not found in spreadsheet columns: {df_columns}")
+    if spreadsheet.date_col not in df_columns:
+        logging.warning(f"Fallback: date_col '{spreadsheet.date_col}' not found in spreadsheet columns: {df_columns}")
+
+    fallback_queries = []
+    fallback_index_map = {}
+
+    for original_index in failed_indices:
+        if original_index >= len(spreadsheet.dataframe):
+            continue
+        row = spreadsheet.dataframe.iloc[original_index]
+        mrn = row.get(spreadsheet.mrn_col)
+        study_date = row.get(spreadsheet.date_col)
+
+        if pd.notna(mrn) and pd.notna(study_date) and isinstance(study_date, pd.Timestamp):
+            mrn = str(mrn)
+            fallback_query, _ = _build_mrn_date_query_and_filter(mrn, study_date, date_window_days)
+            fallback_index = len(fallback_queries)
+            fallback_queries.append(fallback_query)
+            fallback_index_map[fallback_index] = original_index
+            logging.debug(f"Fallback: row {original_index} → MRN={mrn}, DateRange={fallback_query['StudyDate']}")
+        else:
+            logging.warning(f"Fallback: row {original_index} skipped - mrn={mrn} (notna={pd.notna(mrn)}), date={study_date} (notna={pd.notna(study_date)}, is_timestamp={isinstance(study_date, pd.Timestamp)})")
+            failure_details[original_index] = failure_details.get(original_index, "Failed to find images") + " (no fallback data available)"
+
+    if not fallback_queries:
+        logging.warning("Fallback: no valid fallback queries could be generated from failed rows")
+        return study_pacs_map, failed_indices, failure_details
+
+    logging.info(f"Attempting fallback MRN+date queries for {len(fallback_queries)} failed accession queries")
+
+    fallback_study_map, fallback_failed, fallback_details = find_studies_from_pacs_list(
+        pacs_list, fallback_queries, application_aet
+    )
+
+    for study_uid, (pacs, fallback_idx) in fallback_study_map.items():
+        original_index = fallback_index_map[fallback_idx]
+        if study_uid not in study_pacs_map:
+            study_pacs_map[study_uid] = (pacs, original_index)
+
+    final_failed = []
+    final_details = {}
+
+    recovered_indices = set()
+    for study_uid, (pacs, fallback_idx) in fallback_study_map.items():
+        recovered_indices.add(fallback_index_map[fallback_idx])
+
+    fallback_failed_original = {fallback_index_map[fi] for fi in fallback_failed}
+
+    for original_index in failed_indices:
+        if original_index in recovered_indices:
+            continue
+        final_failed.append(original_index)
+        if original_index in fallback_failed_original:
+            final_details[original_index] = "Accession query failed, fallback MRN+date query also failed"
+        elif original_index not in failure_details or "no fallback data" in failure_details.get(original_index, ""):
+            final_details[original_index] = failure_details.get(original_index, "Failed to find images")
+        else:
+            final_details[original_index] = "Accession query failed, fallback MRN+date query also failed"
+
+    return study_pacs_map, final_failed, final_details
 
 
 def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir):

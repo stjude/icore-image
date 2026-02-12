@@ -58,7 +58,8 @@ def build_imageqr_params(config, input_dir, output_dir, run_dirs):
         "filter_script": config.get("ctp_filters"),
         "date_window_days": config.get("date_window", 0),
         "debug": config.get("debug", False),
-        "run_dirs": run_dirs
+        "run_dirs": run_dirs,
+        "use_fallback_query": config.get("use_fallback_query", False),
     }
 
 
@@ -95,7 +96,8 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
         "deid_pixels": config.get("deid_pixels", False),
         "debug": config.get("debug", False),
         "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
-        "run_dirs": run_dirs
+        "run_dirs": run_dirs,
+        "use_fallback_query": config.get("use_fallback_query", False),
     }
 
 
@@ -178,10 +180,11 @@ def build_imagedeidexport_params(config, input_dir, output_dir, run_dirs):
         "deid_pixels": config.get("deid_pixels", False),
         "debug": config.get("debug", False),
         "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
-        "run_dirs": run_dirs
+        "run_dirs": run_dirs,
+        "use_fallback_query": config.get("use_fallback_query", False),
     }
 
-  
+
 def build_headerextract_local_params(config, input_dir, output_dir, run_dirs):
     return {
         "input_dir": input_dir,
@@ -237,7 +240,8 @@ def build_singleclickicore_params(config, input_dir, output_dir, run_dirs):
         "debug": config.get("debug", False),
         "apply_default_filter_script": config.get("apply_default_ctp_filter_script", True),
         "skip_export": config.get("skip_export", False),
-        "run_dirs": run_dirs
+        "run_dirs": run_dirs,
+        "use_fallback_query": config.get("use_fallback_query", False),
     }
 
 

@@ -163,8 +163,14 @@ def build_image_deid_config(task):
         if task.parameters['acc_col'] != '':
             config.update({
                 'acc_col': task.parameters['acc_col'],
-                'mrn_col': task.parameters['mrn_col']
+                'mrn_col': task.parameters['mrn_col'],
             })
+            if task.parameters.get('use_fallback_query', False):
+                config.update({
+                    'date_col': task.parameters['date_col'],
+                    'date_window': task.parameters.get('date_window', 0),
+                    'use_fallback_query': True
+                })
         elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
             config.update({
                 'mrn_col': task.parameters['mrn_col'],
@@ -260,8 +266,14 @@ def build_image_query_config(task):
     if task.parameters['acc_col'] != '':
         config.update({
             'acc_col': task.parameters['acc_col'],
-            'mrn_col': task.parameters['mrn_col']
+            'mrn_col': task.parameters['mrn_col'],
         })
+        if task.parameters.get('use_fallback_query', False):
+            config.update({
+                'date_col': task.parameters['date_col'],
+                'date_window': task.parameters.get('date_window', 0),
+                'use_fallback_query': True
+            })
     elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
         config.update({
             'mrn_col': task.parameters['mrn_col'],
@@ -271,14 +283,14 @@ def build_image_query_config(task):
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
     expression_string = generate_filters_string(general_filters, modality_filters)
-    if expression_string != '': 
+    if expression_string != '':
         config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
-    
+
     # Write config to file
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
-    
+
     return config
 
 def process_header_query(task):
@@ -321,8 +333,15 @@ def build_header_query_config(task):
         })
     if task.parameters['acc_col'] != '':
         config.update({
-            'acc_col': task.parameters['acc_col']
+            'acc_col': task.parameters['acc_col'],
+            'mrn_col': task.parameters['mrn_col'],
         })
+        if task.parameters.get('use_fallback_query', False):
+            config.update({
+                'date_col': task.parameters['date_col'],
+                'date_window': task.parameters['date_window'],
+                'use_fallback_query': True
+            })
     elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
         config.update({
             'mrn_col': task.parameters['mrn_col'],
@@ -332,16 +351,16 @@ def build_header_query_config(task):
     general_filters = task.parameters['general_filters']
     modality_filters = task.parameters['modality_filters']
     expression_string = generate_filters_string(general_filters, modality_filters)
-    if expression_string != '': 
+    if expression_string != '':
         config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
-    
+
     # Write config to file
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
 
     return config
-    
+
 def process_header_extract(task):
     print('Processing header extract')
     input_folder = task.input_folder
@@ -677,8 +696,14 @@ def build_image_deid_export_config(task):
     if task.parameters['acc_col'] != '':
         config.update({
             'acc_col': task.parameters['acc_col'],
-            'mrn_col': task.parameters['mrn_col']
+            'mrn_col': task.parameters['mrn_col'],
         })
+        if task.parameters.get('use_fallback_query', False):
+            config.update({
+                'date_col': task.parameters.get('date_col', ''),
+                'date_window': task.parameters.get('date_window', 0),
+                'use_fallback_query': True
+            })
     elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
         config.update({
             'mrn_col': task.parameters['mrn_col'],
@@ -714,13 +739,13 @@ def build_image_deid_export_config(task):
         remove_private=task.parameters.get('remove_private', True)
     )
     config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
-    
+
     deid_pixels = task.parameters.get('deid_pixels', False)
     config['deid_pixels'] = deid_pixels
-    
+
     apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
     config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
-    
+
     with open(CONFIG_PATH, 'w') as f:
         yaml = YAML()
         yaml.dump(config, f)
