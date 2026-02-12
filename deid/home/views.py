@@ -406,6 +406,7 @@ def run_header_query(request):
                 'date_window': data.get('date_window', 0),
                 'general_filters': data['general_filters'],
                 'modality_filters': data['modality_filters'],
+                'use_fallback_query': data.get('use_fallback_query', False),
             }
         )
         return JsonResponse({
@@ -510,6 +511,7 @@ def run_deid(request):
                     'remove_private': data.get('remove_private', False),
                     'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
                     'site_id': data['site_id'],
+                    'use_fallback_query': data.get('use_fallback_query', False),
                 }
             )
             return JsonResponse({
@@ -517,7 +519,7 @@ def run_deid(request):
                 'project_id': project.id,
                 'log_path': project.log_path
             })
-            
+
         except OperationalError as e:
             if "database is locked" in str(e):
                 attempt += 1
@@ -574,6 +576,7 @@ def run_query(request):
                 'date_window': data.get('date_window', 0),
                 'general_filters': data['general_filters'],
                 'modality_filters': data['modality_filters'],
+                'use_fallback_query': data.get('use_fallback_query', False),
             }
         )
 
@@ -712,6 +715,7 @@ def run_imagedeidexport(request):
                 'apply_default_ctp_filter_script': data.get('apply_default_ctp_filter_script', True),
                 'site_id': data['site_id'],
                 'sas_url': data['sas_url'],
+                'use_fallback_query': data.get('use_fallback_query', False),
             }
         )
         return JsonResponse({
@@ -777,6 +781,7 @@ def run_singleclickicore(request):
                 'columns_to_deid': data.get('columns_to_deid', ''),
                 'columns_to_drop': data.get('columns_to_drop', ''),
                 'skip_export': not data.get('export_to_azure', True),
+                'use_fallback_query': data.get('use_fallback_query', False),
             }
         )
         return JsonResponse({
