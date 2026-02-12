@@ -336,11 +336,13 @@ def _attempt_fallback_queries(pacs_list, application_aet, study_pacs_map,
     for study_uid, (pacs, fallback_idx) in fallback_study_map.items():
         recovered_indices.add(fallback_index_map[fallback_idx])
 
+    fallback_failed_original = {fallback_index_map[fi] for fi in fallback_failed}
+
     for original_index in failed_indices:
         if original_index in recovered_indices:
             continue
         final_failed.append(original_index)
-        if original_index in [fallback_index_map.get(fi) for fi in fallback_failed]:
+        if original_index in fallback_failed_original:
             final_details[original_index] = "Accession query failed, fallback MRN+date query also failed"
         elif original_index not in failure_details or "no fallback data" in failure_details.get(original_index, ""):
             final_details[original_index] = failure_details.get(original_index, "Failed to find images")
