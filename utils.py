@@ -39,6 +39,28 @@ class Spreadsheet:
         return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
 
 
+def _build_mrn_date_query_and_filter(mrn, study_date, date_window_days):
+    start_date = study_date - timedelta(days=date_window_days)
+    end_date = study_date + timedelta(days=date_window_days)
+    start_date_str = start_date.strftime("%Y%m%d")
+    end_date_str = end_date.strftime("%Y%m%d")
+
+    query_params = {
+        "PatientID": mrn,
+        "StudyDate": f"{start_date_str}-{end_date_str}"
+    }
+
+    start_minus_one = (start_date - timedelta(days=1)).strftime("%Y%m%d")
+    end_plus_one = (end_date + timedelta(days=1)).strftime("%Y%m%d")
+    filter_condition = (
+        f'(PatientID.contains("{mrn}") * '
+        f'StudyDate.isGreaterThan("{start_minus_one}") * '
+        f'StudyDate.isLessThan("{end_plus_one}"))'
+    )
+
+    return query_params, filter_condition
+
+
 def generate_queries_and_filter(spreadsheet, date_window_days=0, use_fallback_query=False):
     query_params_list = []
     expected_values_list = []
@@ -56,12 +78,8 @@ def generate_queries_and_filter(spreadsheet, date_window_days=0, use_fallback_qu
                 mrn = row.get(spreadsheet.mrn_col)
                 study_date = row.get(spreadsheet.date_col)
                 if pd.notna(mrn) and pd.notna(study_date) and isinstance(study_date, pd.Timestamp):
-                    mrn = str(mrn)
-                    start_date = study_date - timedelta(days=date_window_days)
-                    end_date = study_date + timedelta(days=date_window_days)
-                    start_minus_one = (start_date - timedelta(days=1)).strftime("%Y%m%d")
-                    end_plus_one = (end_date + timedelta(days=1)).strftime("%Y%m%d")
-                    filter_conditions.append(f'(PatientID.contains("{mrn}") * StudyDate.isGreaterThan("{start_minus_one}") * StudyDate.isLessThan("{end_plus_one}"))')
+                    _, filter_condition = _build_mrn_date_query_and_filter(str(mrn), study_date, date_window_days)
+                    filter_conditions.append(filter_condition)
         elif (spreadsheet.mrn_col and spreadsheet.date_col and
               pd.notna(row.get(spreadsheet.mrn_col)) and
               pd.notna(row.get(spreadsheet.date_col))):
@@ -70,21 +88,9 @@ def generate_queries_and_filter(spreadsheet, date_window_days=0, use_fallback_qu
             if not isinstance(study_date, pd.Timestamp):
                 raise ValueError(f"StudyDate must be in Excel date format (pd.Timestamp), got {type(study_date).__name__}: {study_date}")
 
-            start_date = study_date - timedelta(days=date_window_days)
-            end_date = study_date + timedelta(days=date_window_days)
-
-            start_date_str = start_date.strftime("%Y%m%d")
-            end_date_str = end_date.strftime("%Y%m%d")
-
-            query_params = {
-                "PatientID": mrn,
-                "StudyDate": f"{start_date_str}-{end_date_str}"
-            }
+            query_params, filter_condition = _build_mrn_date_query_and_filter(mrn, study_date, date_window_days)
             query_params_list.append(query_params)
-
-            start_minus_one = (start_date - timedelta(days=1)).strftime("%Y%m%d")
-            end_plus_one = (end_date + timedelta(days=1)).strftime("%Y%m%d")
-            filter_conditions.append(f'(PatientID.contains("{mrn}") * StudyDate.isGreaterThan("{start_minus_one}") * StudyDate.isLessThan("{end_plus_one}"))')
+            filter_conditions.append(filter_condition)
         else:
             raise ValueError(f"Row must have either acc_col or both mrn_col and date_col with valid values")
 
@@ -297,19 +303,11 @@ def _attempt_fallback_queries(pacs_list, application_aet, study_pacs_map,
 
         if pd.notna(mrn) and pd.notna(study_date) and isinstance(study_date, pd.Timestamp):
             mrn = str(mrn)
-            start_date = study_date - timedelta(days=date_window_days)
-            end_date = study_date + timedelta(days=date_window_days)
-            start_date_str = start_date.strftime("%Y%m%d")
-            end_date_str = end_date.strftime("%Y%m%d")
-
-            fallback_query = {
-                "PatientID": mrn,
-                "StudyDate": f"{start_date_str}-{end_date_str}"
-            }
+            fallback_query, _ = _build_mrn_date_query_and_filter(mrn, study_date, date_window_days)
             fallback_index = len(fallback_queries)
             fallback_queries.append(fallback_query)
             fallback_index_map[fallback_index] = original_index
-            logging.debug(f"Fallback: row {original_index} → MRN={mrn}, DateRange={start_date_str}-{end_date_str}")
+            logging.debug(f"Fallback: row {original_index} → MRN={mrn}, DateRange={fallback_query['StudyDate']}")
         else:
             logging.warning(f"Fallback: row {original_index} skipped - mrn={mrn} (notna={pd.notna(mrn)}), date={study_date} (notna={pd.notna(study_date)}, is_timestamp={isinstance(study_date, pd.Timestamp)})")
             failure_details[original_index] = failure_details.get(original_index, "Failed to find images") + " (no fallback data available)"
