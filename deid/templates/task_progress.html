@@ -20,7 +20,10 @@
                 <div class="mt-2 px-7 py-3">
                     <p id="errorMessage" class="text-sm text-gray-500"></p>
                 </div>
-                <div class="items-center px-4 py-3">
+                <div class="items-center px-4 py-3 flex justify-center gap-3">
+                    <button id="openLogsError" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        Open Logs
+                    </button>
                     <button id="closeError" class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300">
                         Close
                     </button>
@@ -111,9 +114,6 @@
                 document.getElementById('errorPopup').classList.remove('hidden');
                 clearInterval(pollInterval);
                 clearInterval(statusInterval);
-                setTimeout(() => {
-                    window.location.href = '/task_list';
-                }, 3000);
                 return;
             }
             
@@ -260,6 +260,13 @@
             console.error('Error fetching log:', error);
         }
     }
+
+    // Handle opening logs from the error popup
+    document.getElementById('openLogsError').addEventListener('click', async function() {
+        if (logsFolder && window.electronAPI && window.electronAPI.openFolder) {
+            await window.electronAPI.openFolder(logsFolder);
+        }
+    });
 
     // Handle closing the error popup
     document.getElementById('closeError').addEventListener('click', function() {
