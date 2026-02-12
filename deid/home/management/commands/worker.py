@@ -163,10 +163,10 @@ def build_image_deid_config(task):
         if task.parameters['acc_col'] != '':
             config.update({
                 'acc_col': task.parameters['acc_col'],
+                'mrn_col': task.parameters['mrn_col'],
             })
             if task.parameters.get('use_fallback_query', False):
                 config.update({
-                    'mrn_col': task.parameters['mrn_col'],
                     'date_col': task.parameters['date_col'],
                     'date_window': task.parameters.get('date_window', 0),
                     'use_fallback_query': True
@@ -266,10 +266,10 @@ def build_image_query_config(task):
     if task.parameters['acc_col'] != '':
         config.update({
             'acc_col': task.parameters['acc_col'],
+            'mrn_col': task.parameters['mrn_col'],
         })
         if task.parameters.get('use_fallback_query', False):
             config.update({
-                'mrn_col': task.parameters['mrn_col'],
                 'date_col': task.parameters['date_col'],
                 'date_window': task.parameters.get('date_window', 0),
                 'use_fallback_query': True
@@ -333,13 +333,15 @@ def build_header_query_config(task):
         })
     if task.parameters['acc_col'] != '':
         config.update({
-            'acc_col': task.parameters['acc_col']
+            'acc_col': task.parameters['acc_col'],
+            'mrn_col': task.parameters['mrn_col'],
         })
         if task.parameters.get('use_fallback_query', False):
-            config['use_fallback_query'] = True
-            config['mrn_col'] = task.parameters.get('mrn_col', '')
-            config['date_col'] = task.parameters.get('date_col', '')
-            config['date_window'] = task.parameters.get('date_window', 0)
+            config.update({
+                'date_col': task.parameters['date_col'],
+                'date_window': task.parameters['date_window'],
+                'use_fallback_query': True
+            })
     elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
         config.update({
             'mrn_col': task.parameters['mrn_col'],
@@ -613,14 +615,6 @@ def build_singleclickicore_config(task):
     detected_columns = detect_file_type_and_columns(input_file)
     config.update(detected_columns)
 
-    if task.parameters.get('use_fallback_query', False):
-        config.update({
-            'mrn_col': task.parameters.get('mrn_col', ''),
-            'date_col': task.parameters.get('date_col', ''),
-            'date_window': task.parameters.get('date_window', 0),
-            'use_fallback_query': True
-        })
-
     # === HIPAA Safe Harbor Configuration ===
     # Single-click iCore automatically enforces HIPAA Safe Harbor de-identification
 
@@ -702,10 +696,10 @@ def build_image_deid_export_config(task):
     if task.parameters['acc_col'] != '':
         config.update({
             'acc_col': task.parameters['acc_col'],
+            'mrn_col': task.parameters['mrn_col'],
         })
         if task.parameters.get('use_fallback_query', False):
             config.update({
-                'mrn_col': task.parameters.get('mrn_col', ''),
                 'date_col': task.parameters.get('date_col', ''),
                 'date_window': task.parameters.get('date_window', 0),
                 'use_fallback_query': True
