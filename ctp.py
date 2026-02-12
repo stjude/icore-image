@@ -783,20 +783,14 @@ class CTPPipeline:
         return self.pipeline_type in ['imagedeid_pacs', 'imagedeid_pacs_pixel', 'imageqr']
     
     def _find_available_port(self, dicom_port_to_avoid=None):
-        start_port = 50000
-        max_attempts = 10
-        port_increment = 10
-        
-        for attempt in range(max_attempts):
-            port = start_port + (attempt * port_increment)
-            
-            if port == dicom_port_to_avoid:
-                continue
-            
-            if is_port_available(port):
+        for _ in range(10):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('localhost', 0))
+                s.listen(1)
+                port = s.getsockname()[1]
+            if port != dicom_port_to_avoid:
                 return port
-        
-        raise RuntimeError(f"Could not find available port after {max_attempts} attempts (tried ports {start_port} to {start_port + (max_attempts - 1) * port_increment})")
+        raise RuntimeError("Could not find available port that differs from dicom_port_to_avoid")
     
     def _force_kill_by_port(self, port):
         for proc in psutil.process_iter(['pid', 'name']):

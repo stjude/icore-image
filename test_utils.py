@@ -17,41 +17,6 @@ from pydicom.uid import generate_uid
 from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, get_studies_from_study_pacs_map, PacsConfiguration
 
 
-def _cleanup_test_containers():
-    result = subprocess.run(
-        ["docker", "ps", "-a", "--filter", "name=orthanc_test_", "--format", "{{.Names}}"],
-        capture_output=True,
-        text=True
-    )
-    
-    container_names = result.stdout.strip().split('\n')
-    container_names = [name for name in container_names if name]
-    
-    for container_name in container_names:
-        subprocess.run(["docker", "stop", container_name], capture_output=True)
-        subprocess.run(["docker", "rm", container_name], capture_output=True)
-    
-    result = subprocess.run(
-        ["docker", "ps", "-a", "--filter", "name=azurite_test_", "--format", "{{.Names}}"],
-        capture_output=True,
-        text=True
-    )
-    
-    container_names = result.stdout.strip().split('\n')
-    container_names = [name for name in container_names if name]
-    
-    for container_name in container_names:
-        subprocess.run(["docker", "stop", container_name], capture_output=True)
-        subprocess.run(["docker", "rm", container_name], capture_output=True)
-
-
-@pytest.fixture(scope="function", autouse=True)
-def cleanup_docker_containers():
-    _cleanup_test_containers()
-    yield
-    _cleanup_test_containers()
-
-
 def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
     ds = Fixtures.create_minimal_dicom(
         patient_id=patient_id,
