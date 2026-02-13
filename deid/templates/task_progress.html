@@ -21,7 +21,7 @@
                     <p id="errorMessage" class="text-sm text-gray-500"></p>
                 </div>
                 <div class="items-center px-4 py-3 flex justify-center gap-3">
-                    <button id="openLogsError" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    <button id="openLogsError" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 opacity-50 cursor-not-allowed" disabled>
                         Open Logs
                     </button>
                     <button id="closeError" class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300">
@@ -136,13 +136,14 @@
     function updateFolderLinks() {
         const folderLinksDiv = document.getElementById('folderLinks');
         const openLogsBtn = document.getElementById('openLogsFolder');
+        const openLogsErrorBtn = document.getElementById('openLogsError');
         const openOutputBtn = document.getElementById('openOutputFolder');
         const openAppdataBtn = document.getElementById('openAppdataFolder');
-        
+
         if (logsFolder || outputFolder || appdataFolder) {
             folderLinksDiv.classList.remove('hidden');
         }
-        
+
         if (logsFolder) {
             openLogsBtn.onclick = async () => {
                 if (window.electronAPI && window.electronAPI.openFolder) {
@@ -151,9 +152,13 @@
             };
             openLogsBtn.disabled = false;
             openLogsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            openLogsErrorBtn.disabled = false;
+            openLogsErrorBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         } else {
             openLogsBtn.disabled = true;
             openLogsBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            openLogsErrorBtn.disabled = true;
+            openLogsErrorBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
         
         if (outputFolder) {
