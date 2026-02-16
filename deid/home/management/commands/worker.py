@@ -207,8 +207,7 @@ def build_image_deid_config(task):
     apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
     config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
 
-    sc_pdf_output_dir = task.parameters.get('sc_pdf_output_dir', '')
-    if sc_pdf_output_dir:
+    if sc_pdf_output_dir := task.parameters.get('sc_pdf_output_dir', ''):
         sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
         config['sc_pdf_output_dir'] = sc_pdf_full_path
 
@@ -640,8 +639,7 @@ def build_singleclickicore_config(task):
     skip_export = task.parameters.get('skip_export', False)
     config['skip_export'] = skip_export
 
-    sc_pdf_output_dir = task.parameters.get('sc_pdf_output_dir', '')
-    if sc_pdf_output_dir:
+    if sc_pdf_output_dir := task.parameters.get('sc_pdf_output_dir', ''):
         sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
         config['sc_pdf_output_dir'] = sc_pdf_full_path
 
@@ -731,8 +729,7 @@ def build_image_deid_export_config(task):
     apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
     config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
 
-    sc_pdf_output_dir = task.parameters.get('sc_pdf_output_dir', '')
-    if sc_pdf_output_dir:
+    if sc_pdf_output_dir := task.parameters.get('sc_pdf_output_dir', ''):
         sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
         config['sc_pdf_output_dir'] = sc_pdf_full_path
 
