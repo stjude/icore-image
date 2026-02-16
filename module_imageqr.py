@@ -60,15 +60,16 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
     os.makedirs(getscu_output_dir, exist_ok=True)
 
-    ctp_log_level = "DEBUG" if debug else None
-
-    # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-    successful_gets, failed_get_indices, get_failure_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
-
-    # Wait briefly to ensure all files are written
-    time.sleep(2)
-
     try:
+        ctp_log_level = "DEBUG" if debug else None
+    
+        # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
+        successful_gets, failed_get_indices, get_failure_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
+    
+        # Wait briefly to ensure all files are written
+        time.sleep(2)
+
+
         with CTPPipeline(
             pipeline_type="imageqr",
             input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
