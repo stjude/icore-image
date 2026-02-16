@@ -97,14 +97,16 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
                 current_time = time.time()
                 if current_time - last_save_time >= save_interval:
                     _save_metadata_files(pipeline, appdata_dir)
-                    save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, combined_failure_details)
+                    save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
+                                            combined_failure_details, use_fallback_query=use_fallback_query)
                     _log_progress(pipeline)
                     last_save_time = current_time
 
                 time.sleep(1)
 
             _save_metadata_files(pipeline, appdata_dir)
-            save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, combined_failure_details)
+            save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
+                                    combined_failure_details, use_fallback_query=use_fallback_query)
 
             num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
             num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0
