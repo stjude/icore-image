@@ -74,17 +74,17 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
     os.makedirs(getscu_output_dir, exist_ok=True)
 
-    # Choose pipeline type based on whether pixel de-identification is needed
-    pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
-    ctp_log_level = "DEBUG" if debug else None
-
-    # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-    successful_gets, failed_get_indices, failed_get_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
-
-    # Wait briefly to ensure all files are written
-    time.sleep(2)
-
     try:
+        # Choose pipeline type based on whether pixel de-identification is needed
+        pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
+        ctp_log_level = "DEBUG" if debug else None
+    
+        # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
+        successful_gets, failed_get_indices, failed_get_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
+    
+        # Wait briefly to ensure all files are written
+        time.sleep(2)
+
         with CTPPipeline(
             pipeline_type=pipeline_type,
             input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
