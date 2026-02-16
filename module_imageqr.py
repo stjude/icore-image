@@ -114,5 +114,8 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
                 "failed_query_indices": failed_query_indices
             }
     finally:
-        shutil.rmtree(getscu_output_dir, ignore_errors=True)
+        try:
+            shutil.rmtree(getscu_output_dir)
+        except OSError as e:
+            logging.warning("Failed to remove temporary directory '%s': %s", getscu_output_dir, e)
 
