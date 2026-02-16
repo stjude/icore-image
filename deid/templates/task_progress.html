@@ -60,6 +60,7 @@
     let previousContent = '';
     let sameContentCount = 0;
     let pollInterval;
+    let statusInterval;
     let hasError = false;
     let taskStatus = null;
     
@@ -290,6 +291,6 @@
     pollInterval = setInterval(fetchLogContent, 1000);
     
     // Check task status every 5 seconds
-    const statusInterval = setInterval(checkTaskStatus, 5000);
+    statusInterval = setInterval(checkTaskStatus, 5000);
 </script>
 {% endblock %}
