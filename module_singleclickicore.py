@@ -16,7 +16,8 @@ def singleclickicore(pacs_list, query_spreadsheet, application_aet,
                      mapping_file_path=None,
                      to_keep_list=None, to_remove_list=None,
                      columns_to_drop=None, columns_to_deid=None,
-                     debug=False, run_dirs=None, skip_export=False):
+                     debug=False, run_dirs=None, skip_export=False,
+                     use_fallback_query=False):
     """
     Combined module that performs:
     1. Image deidentification from PACS (HIPAA Safe Harbor enforced)
@@ -86,7 +87,8 @@ def singleclickicore(pacs_list, query_spreadsheet, application_aet,
         debug=debug,
         run_dirs=run_dirs,
         apply_default_filter_script=apply_default_filter_script,
-        mapping_file_path=mapping_file_path
+        mapping_file_path=mapping_file_path,
+        use_fallback_query=use_fallback_query
     )
     
     # Step 2: Text deid on input Excel

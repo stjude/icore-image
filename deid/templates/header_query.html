@@ -18,6 +18,13 @@
         <input class="ml-4" type="radio" id="query_accession" name="query_type" value="accession" checked onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">Accession</span>
         <input class="ml-4" type="radio" id="query_mrn_date" name="query_type" value="mrn_date" onchange="toggleQueryTypeInputs()"><span class="text-sm ml-1">MRN + Date</span>
     </div>
+    <div id="fallback_query_option" class="mt-2">
+        <label class="flex items-center cursor-pointer">
+            <input type="checkbox" id="use_fallback_query" onchange="toggleFallbackQueryInputs()" class="mr-2">
+            <span class="text-sm text-gray-600">Enable MRN + Date fallback</span>
+        </label>
+        <div class="text-xs text-gray-400 ml-6">When accession query returns no results, retry using MRN + Study Date</div>
+    </div>
     <div class="flex items-center">
         <div id="accession_input" class="flex items-center mt-4">
             <div class="text-sm text-gray-600">Accession column header</div>
@@ -101,13 +108,33 @@
         const accessionInput = document.getElementById('accession_input');
         const mrnDateInput = document.getElementById('mrn_date_input');
         const queryAccession = document.getElementById('query_accession');
-        
+        const fallbackOption = document.getElementById('fallback_query_option');
+        const fallbackCheckbox = document.getElementById('use_fallback_query');
+
         if (queryAccession.checked) {
             accessionInput.classList.remove('hidden');
             mrnDateInput.classList.add('hidden');
+            fallbackOption.classList.remove('hidden');
         } else {
             accessionInput.classList.add('hidden');
             mrnDateInput.classList.remove('hidden');
+            fallbackOption.classList.add('hidden');
+            fallbackCheckbox.checked = false;
+            toggleFallbackQueryInputs();
+        }
+    }
+
+    function toggleFallbackQueryInputs() {
+        const fallbackCheckbox = document.getElementById('use_fallback_query');
+        const mrnDateInput = document.getElementById('mrn_date_input');
+
+        if (fallbackCheckbox.checked) {
+            mrnDateInput.classList.remove('hidden');
+        } else {
+            const queryAccession = document.getElementById('query_accession');
+            if (queryAccession.checked) {
+                mrnDateInput.classList.add('hidden');
+            }
         }
     }
 
@@ -134,6 +161,12 @@
             data.acc_col = document.querySelector('[name="accession_column"]').value;
             data.mrn_col = '';
             data.date_col = '';
+            const useFallback = document.getElementById('use_fallback_query').checked;
+            if (useFallback) {
+                data.use_fallback_query = true;
+                data.mrn_col = document.querySelector('[name="mrn_column"]').value;
+                data.date_col = document.querySelector('[name="date_column"]').value;
+            }
         } else {
             data.acc_col = '';
             data.mrn_col = document.querySelector('[name="mrn_column"]').value;
