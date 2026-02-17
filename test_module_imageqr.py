@@ -11,7 +11,8 @@ import pydicom
 
 from module_imageqr import imageqr
 from test_utils import OrthancServer, _create_test_dicom, _upload_dicom_to_orthanc, Fixtures
-from utils import Spreadsheet, PacsConfiguration
+from utils import (Spreadsheet, PacsConfiguration, generate_queries_and_filter,
+                   find_studies_from_pacs_list, save_failed_queries_csv)
 from dcmtk import get_study
 
 
@@ -877,3 +878,317 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
 
     finally:
         orthanc.stop()
+
+
+def test_generate_queries_and_filter_with_fallback(tmp_path):
+    """Test that generate_queries_and_filter includes MRN+date filter conditions when fallback is enabled."""
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002"],
+        "PatientID": ["MRN001", "MRN002"],
+        "StudyDate": [pd.Timestamp("2025-01-15"), pd.Timestamp("2025-02-20")]
+    })
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        acc_col="AccessionNumber",
+        mrn_col="PatientID",
+        date_col="StudyDate"
+    )
+
+    # Without fallback - should only have accession conditions
+    query_params, expected_values, generated_filter = generate_queries_and_filter(spreadsheet)
+    assert 'AccessionNumber.contains("ACC001")' in generated_filter
+    assert 'PatientID' not in generated_filter
+
+    # With fallback - should have both accession AND MRN+date conditions
+    query_params, expected_values, generated_filter = generate_queries_and_filter(spreadsheet, use_fallback_query=True)
+    assert 'AccessionNumber.contains("ACC001")' in generated_filter
+    assert 'PatientID.contains("MRN001")' in generated_filter
+    assert 'PatientID.contains("MRN002")' in generated_filter
+
+
+def test_generate_queries_and_filter_fallback_skips_missing_data(tmp_path):
+    """Test that fallback filter conditions are skipped for rows missing MRN or date."""
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002"],
+        "PatientID": ["MRN001", None],
+        "StudyDate": [pd.Timestamp("2025-01-15"), pd.Timestamp("2025-02-20")]
+    })
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        acc_col="AccessionNumber",
+        mrn_col="PatientID",
+        date_col="StudyDate"
+    )
+
+    query_params, expected_values, generated_filter = generate_queries_and_filter(spreadsheet, use_fallback_query=True)
+    assert 'PatientID.contains("MRN001")' in generated_filter
+    # ACC002 has no MRN, so no fallback condition for it
+    assert generated_filter.count('PatientID') == 1
+
+
+def test_find_studies_with_fallback_mock(tmp_path):
+    """Test that find_studies_from_pacs_list retries failed accession queries with MRN+date fallback."""
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC002"],
+        "PatientID": ["MRN001", "MRN002"],
+        "StudyDate": [pd.Timestamp("2025-01-15"), pd.Timestamp("2025-02-20")]
+    })
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        acc_col="AccessionNumber",
+        mrn_col="PatientID",
+        date_col="StudyDate"
+    )
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST")
+
+    def mock_find_studies(host, port, calling_aet, called_aet, query_params, return_tags):
+        if "AccessionNumber" in query_params:
+            if "ACC001" in query_params["AccessionNumber"]:
+                return [{"StudyInstanceUID": "STUDY_UID_1", "AccessionNumber": "ACC001", "StudyDate": "20250115"}]
+            return []
+        elif "PatientID" in query_params:
+            if query_params["PatientID"] == "MRN002":
+                return [{"StudyInstanceUID": "STUDY_UID_2", "StudyDate": "20250220"}]
+            return []
+        return []
+
+    with patch('utils.find_studies', side_effect=mock_find_studies):
+        study_pacs_map, failed_indices, failure_details = find_studies_from_pacs_list(
+            pacs_list=[pacs],
+            query_params_list=[{"AccessionNumber": "*ACC001*"}, {"AccessionNumber": "*ACC002*"}],
+            application_aet="TEST_AET",
+            expected_values_list=[("ACC001", 0), ("ACC002", 1)],
+            fallback_spreadsheet=spreadsheet,
+        )
+
+    assert "STUDY_UID_1" in study_pacs_map
+    assert "STUDY_UID_2" in study_pacs_map
+    assert len(failed_indices) == 0
+
+
+def test_find_studies_with_fallback_both_fail_mock(tmp_path):
+    """Test that failures are reported when both accession and fallback queries fail."""
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001"],
+        "PatientID": ["MRN001"],
+        "StudyDate": [pd.Timestamp("2025-01-15")]
+    })
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        acc_col="AccessionNumber",
+        mrn_col="PatientID",
+        date_col="StudyDate"
+    )
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST")
+
+    def mock_find_studies(host, port, calling_aet, called_aet, query_params, return_tags):
+        return []
+
+    with patch('utils.find_studies', side_effect=mock_find_studies):
+        study_pacs_map, failed_indices, failure_details = find_studies_from_pacs_list(
+            pacs_list=[pacs],
+            query_params_list=[{"AccessionNumber": "*ACC001*"}],
+            application_aet="TEST_AET",
+            expected_values_list=[("ACC001", 0)],
+            fallback_spreadsheet=spreadsheet,
+        )
+
+    assert len(study_pacs_map) == 0
+    assert 0 in failed_indices
+    assert "fallback" in failure_details[0].lower()
+
+
+def test_find_studies_with_fallback_no_mrn_data(tmp_path):
+    """Test that fallback is skipped when spreadsheet lacks MRN/date data."""
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001"],
+    })
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        acc_col="AccessionNumber",
+    )
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST")
+
+    def mock_find_studies(host, port, calling_aet, called_aet, query_params, return_tags):
+        return []
+
+    with patch('utils.find_studies', side_effect=mock_find_studies):
+        study_pacs_map, failed_indices, failure_details = find_studies_from_pacs_list(
+            pacs_list=[pacs],
+            query_params_list=[{"AccessionNumber": "*ACC001*"}],
+            application_aet="TEST_AET",
+            expected_values_list=[("ACC001", 0)],
+            fallback_spreadsheet=spreadsheet,
+        )
+
+    assert 0 in failed_indices
+    assert "no fallback data" in failure_details[0].lower()
+
+
+def test_save_failed_queries_csv_with_fallback(tmp_path):
+    """Test that save_failed_queries_csv includes all 4 columns when fallback enabled."""
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001"],
+        "PatientID": ["MRN001"],
+        "StudyDate": [pd.Timestamp("2025-01-15")]
+    })
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file),
+        acc_col="AccessionNumber",
+        mrn_col="PatientID",
+        date_col="StudyDate"
+    )
+
+    save_failed_queries_csv(
+        [0], spreadsheet, str(tmp_path), {0: "Accession failed, fallback also failed"},
+        use_fallback_query=True
+    )
+
+    csv_path = tmp_path / "failed_queries.csv"
+    assert csv_path.exists()
+
+    df = pd.read_csv(csv_path)
+    assert list(df.columns) == ["Accession Number", "MRN", "Date", "Failure Reason"]
+    assert df.loc[0, "Accession Number"] == "ACC001"
+    assert df.loc[0, "MRN"] == "MRN001"
+    assert df.loc[0, "Date"] == "2025-01-15"
+
+
+def test_imageqr_with_fallback_query(tmp_path):
+    """Integration test: imageqr with fallback recovers studies when accession doesn't match."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    orthanc = OrthancServer()
+    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc.start()
+
+    try:
+        # Upload study with accession ACC001
+        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+        ds.InstanceNumber = 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+
+        # Upload study with accession ACC002
+        ds = _create_test_dicom("ACC002", "MRN002", "Patient2", "CT", "3.0")
+        ds.InstanceNumber = 2
+        _upload_dicom_to_orthanc(ds, orthanc)
+
+        # Query with wrong accession for second study, but correct MRN+date
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001", "WRONG_ACC"],
+            "PatientID": ["MRN001", "MRN002"],
+            "StudyDate": [pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-01")]
+        })
+        query_df.to_excel(query_file, index=False)
+
+        query_spreadsheet = Spreadsheet.from_file(
+            str(query_file),
+            acc_col="AccessionNumber",
+            mrn_col="PatientID",
+            date_col="StudyDate"
+        )
+
+        pacs_config = PacsConfiguration(
+            host="localhost",
+            port=orthanc.dicom_port,
+            aet=orthanc.aet
+        )
+
+        result = imageqr(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            use_fallback_query=True
+        )
+
+        assert result["num_studies_found"] == 2, f"Should find 2 studies (1 by accession, 1 by fallback), found {result['num_studies_found']}"
+        assert result["num_images_saved"] == 2, f"Should save 2 images, saved {result['num_images_saved']}"
+
+    finally:
+        orthanc.stop()
+
+
+def test_imageqr_filter_with_fallback(tmp_path):
+    """Test that CTP filter includes both accession and MRN+date conditions when fallback enabled."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+
+    with patch('module_imageqr.find_studies_from_pacs_list') as mock_find, \
+         patch('module_imageqr.get_studies_from_study_pacs_map') as mock_get, \
+         patch('module_imageqr.CTPPipeline') as mock_pipeline_class:
+
+        mock_find.return_value = ({}, [], {})
+        mock_get.return_value = (0, [], {})
+        mock_pipeline_instance = MagicMock()
+        mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
+        mock_pipeline_instance.is_complete.return_value = True
+        mock_pipeline_instance.metrics = MagicMock(files_saved=0, files_quarantined=0)
+        mock_pipeline_instance.get_audit_log_csv.return_value = None
+
+        query_file = appdata_dir / "query.xlsx"
+        query_df = pd.DataFrame({
+            "AccessionNumber": ["ACC001"],
+            "PatientID": ["MRN001"],
+            "StudyDate": [pd.Timestamp("2025-01-15")]
+        })
+        query_df.to_excel(query_file, index=False)
+
+        query_spreadsheet = Spreadsheet.from_file(
+            str(query_file),
+            acc_col="AccessionNumber",
+            mrn_col="PatientID",
+            date_col="StudyDate"
+        )
+
+        imageqr(
+            pacs_list=[pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            use_fallback_query=True
+        )
+
+        call_kwargs = mock_pipeline_class.call_args[1]
+        filter_script = call_kwargs['filter_script']
+        assert 'AccessionNumber.contains("ACC001")' in filter_script
+        assert 'PatientID.contains("MRN001")' in filter_script

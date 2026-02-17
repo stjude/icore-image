@@ -5,7 +5,8 @@ import time
 from ctp import CTPPipeline
 from utils import (generate_queries_and_filter, combine_filters,
                    validate_date_window_days, find_valid_pacs_list,
-                   find_studies_from_pacs_list, get_studies_from_study_pacs_map,
+                   find_studies_from_pacs_list,
+                   get_studies_from_study_pacs_map,
                    setup_run_directories, configure_run_logging,
                    format_number_with_commas, csv_string_to_xlsx, save_failed_queries_csv)
 
@@ -28,14 +29,15 @@ def _log_progress(pipeline):
         logging.info(progress_msg)
 
 
-def imageqr(pacs_list, query_spreadsheet, application_aet, 
-            output_dir, appdata_dir=None, filter_script=None, date_window_days=0, debug=False, run_dirs=None):
+def imageqr(pacs_list, query_spreadsheet, application_aet,
+            output_dir, appdata_dir=None, filter_script=None, date_window_days=0,
+            debug=False, run_dirs=None, use_fallback_query=False):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
-    logging.info("Running imageqr")
+    logging.info(f"Running imageqr (use_fallback_query={use_fallback_query})")
     
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
@@ -48,12 +50,16 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
     
     validate_date_window_days(date_window_days)
     
-    query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(query_spreadsheet, date_window_days)
+    query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(
+        query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query)
     combined_filter = combine_filters(filter_script, generated_filter)
 
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
-    
-    study_pacs_map, failed_find_indices, find_failure_details = find_studies_from_pacs_list(valid_pacs_list, query_params_list, application_aet, expected_values_list)
+
+    study_pacs_map, failed_find_indices, find_failure_details = find_studies_from_pacs_list(
+        valid_pacs_list, query_params_list, application_aet, expected_values_list,
+        fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
+        fallback_date_window_days=date_window_days)
 
     # Create directory for getscu to write retrieved DICOM files
     getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
@@ -88,14 +94,16 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
             current_time = time.time()
             if current_time - last_save_time >= save_interval:
                 _save_metadata_files(pipeline, appdata_dir)
-                save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, combined_failure_details)
+                save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
+                                        combined_failure_details, use_fallback_query=use_fallback_query)
                 _log_progress(pipeline)
                 last_save_time = current_time
-            
+
             time.sleep(1)
-        
+
         _save_metadata_files(pipeline, appdata_dir)
-        save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir, combined_failure_details)
+        save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
+                                combined_failure_details, use_fallback_query=use_fallback_query)
         
         num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
         num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0
