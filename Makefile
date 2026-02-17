@@ -22,7 +22,11 @@ dev: external-deps
 deps: deps-python deps-deid deps-electron
 
 deps-python:
-	pip install -r requirements.txt
+	if ! command -v uv &> /dev/null; then \
+		echo "uv is not installed. Please install uv and try again."; \
+		exit 1; \
+	fi
+	uv sync
 	python -m spacy download en_core_web_sm
 
 deps-deid:
