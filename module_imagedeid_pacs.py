@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import time
 
 from ctp import CTPPipeline
@@ -79,62 +80,67 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
     getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
     os.makedirs(getscu_output_dir, exist_ok=True)
 
-    # Choose pipeline type based on whether pixel de-identification is needed
-    pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
-    ctp_log_level = "DEBUG" if debug else None
+    try:
+        # Choose pipeline type based on whether pixel de-identification is needed
+        pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
+        ctp_log_level = "DEBUG" if debug else None
+    
+        # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
+        successful_gets, failed_get_indices, failed_get_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
+    
+        # Wait briefly to ensure all files are written
+        time.sleep(2)
 
-    # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-    successful_gets, failed_get_indices, failed_get_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
+        with CTPPipeline(
+            pipeline_type=pipeline_type,
+            input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
+            output_dir=output_dir,
+            application_aet=application_aet,
+            filter_script=combined_filter,
+            anonymizer_script=anonymizer_script,
+            lookup_table=lookup_table,
+            log_path=run_dirs["ctp_log_path"],
+            log_level=ctp_log_level,
+            quarantine_dir=quarantine_dir
+        ) as pipeline:
 
-    # Wait briefly to ensure all files are written
-    time.sleep(2)
+            failed_query_indices = list(set(failed_find_indices + failed_get_indices))
+            combined_failure_details = {**failed_find_details, **failed_get_details}
 
-    with CTPPipeline(
-        pipeline_type=pipeline_type,
-        input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
-        output_dir=output_dir,
-        application_aet=application_aet,
-        filter_script=combined_filter,
-        anonymizer_script=anonymizer_script,
-        lookup_table=lookup_table,
-        log_path=run_dirs["ctp_log_path"],
-        log_level=ctp_log_level,
-        quarantine_dir=quarantine_dir
-    ) as pipeline:
+            save_interval = 5
+            last_save_time = 0
 
-        failed_query_indices = list(set(failed_find_indices + failed_get_indices))
-        combined_failure_details = {**failed_find_details, **failed_get_details}
-        
-        save_interval = 5
-        last_save_time = 0
-        
-        while not pipeline.is_complete():
-            current_time = time.time()
-            if current_time - last_save_time >= save_interval:
-                _save_metadata_files(pipeline, appdata_dir)
-                save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
-                                        combined_failure_details, use_fallback_query=use_fallback_query)
-                _log_progress(pipeline)
-                last_save_time = current_time
+            while not pipeline.is_complete():
+                current_time = time.time()
+                if current_time - last_save_time >= save_interval:
+                    _save_metadata_files(pipeline, appdata_dir)
+                    save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
+                                            combined_failure_details, use_fallback_query=use_fallback_query)
+                    _log_progress(pipeline)
+                    last_save_time = current_time
 
-            time.sleep(1)
+                time.sleep(1)
 
-        _save_metadata_files(pipeline, appdata_dir)
-        save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
-                                combined_failure_details, use_fallback_query=use_fallback_query)
-        
-        num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
-        num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0
-        
-        logging.info("Deidentification complete")
-        logging.info(f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}")
-        logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
-        logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
-        
-        return {
-            "num_studies_found": len(study_pacs_map),
-            "num_images_saved": pipeline.metrics.files_saved if pipeline.metrics else 0,
-            "num_images_quarantined": pipeline.metrics.files_quarantined if pipeline.metrics else 0,
-            "failed_query_indices": failed_query_indices
-        }
+            _save_metadata_files(pipeline, appdata_dir)
+            save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
+                                    combined_failure_details, use_fallback_query=use_fallback_query)
 
+            num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
+            num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0
+
+            logging.info("Deidentification complete")
+            logging.info(f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}")
+            logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
+            logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
+
+            return {
+                "num_studies_found": len(study_pacs_map),
+                "num_images_saved": pipeline.metrics.files_saved if pipeline.metrics else 0,
+                "num_images_quarantined": pipeline.metrics.files_quarantined if pipeline.metrics else 0,
+                "failed_query_indices": failed_query_indices
+            }
+    finally:
+        try:
+            shutil.rmtree(getscu_output_dir)
+        except OSError as e:
+            logging.warning("Failed to remove temporary getscu directory '%s': %s", getscu_output_dir, e)
