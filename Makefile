@@ -27,7 +27,7 @@ deps-python:
 		exit 1; \
 	fi
 	uv sync
-	python -m spacy download en_core_web_sm
+	uv run python -m spacy download en_core_web_sm
 
 deps-deid:
 	cd deid && npm install
@@ -103,12 +103,12 @@ external-deps: jre8 dcmtk rclone
 
 build-icorecli:
 	rm -rf dist
-	pyinstaller --clean -y icorecli.spec
+	uv run pyinstaller --clean -y icorecli.spec
 
 build-django-app:
 	cd deid && \
-		pyinstaller --clean -y manage.spec && \
-		pyinstaller --clean -y initialize_admin_password.spec
+		uv run pyinstaller --clean -y manage.spec && \
+		uv run pyinstaller --clean -y initialize_admin_password.spec
 
 build-binaries: build-icorecli build-django-app
 

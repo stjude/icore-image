@@ -1,7 +1,7 @@
 [project]
 name = "icore-image"
 version = "0.1.0"
-description = "Add your description here"
+description = "iCore de-identification software"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
