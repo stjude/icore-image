@@ -492,7 +492,7 @@ class AzuriteServer:
             "--name", container_name,
             "-p", f"{self.blob_port}:10000",
             "mcr.microsoft.com/azure-storage/azurite:latest",
-            "azurite-blob", "--blobHost", "0.0.0.0"
+            "azurite-blob", "--blobHost", "0.0.0.0", "--skipApiVersionCheck"
         ], check=True, capture_output=True)
         
         self.container = container_name
