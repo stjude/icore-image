@@ -9,7 +9,8 @@ import pytest
 
 from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, AzuriteServer, OrthancServer
 from utils import PacsConfiguration, Spreadsheet
-from deid.grammar import generate_hipaa_safe_harbor_script, generate_sc_pdf_filter
+from deid.grammar import generate_hipaa_safe_harbor_script
+from ctp import generate_sc_pdf_filter
 
 
 logging.basicConfig(level=logging.INFO)

@@ -592,33 +592,3 @@ def generate_hipaa_safe_harbor_script(site_id, date_shift_days):
     ])
 
     return '\n'.join(script)
-
-
-def generate_sc_pdf_filter():
-    """
-    Generate a CTP filter that identifies SC, PDF, and other embedded content file types.
-    Files matching this filter contain PHI that cannot be safely de-identified.
-
-    Note: Some malformed DICOM files have mismatched Transfer Syntax (file_meta says Explicit VR
-    but dataset is Implicit VR). For these, CTP may fail to read dataset tags like SOPClassUID.
-    We also check MediaStorageSOPClassUID [0002,0002] from file_meta as a fallback.
-    """
-    filter_parts = []
-    # Check SOPClassUID [0008,0016] from dataset
-    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.1")')  # Encapsulated PDF
-    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.2")')  # Encapsulated CDA
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.7")')  # Secondary Capture (all variants)
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.88")')  # Structured Reports
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.8")')  # Key Object Selection
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.11")')  # Presentation States
-    # Also check MediaStorageSOPClassUID [0002,0002] from file_meta (fallback for malformed files)
-    filter_parts.append('[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.1")')  # Encapsulated PDF (file_meta)
-    filter_parts.append('[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.2")')  # Encapsulated CDA (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.7")')  # Secondary Capture (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.88")')  # Structured Reports (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.8")')  # Key Object Selection (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.11")')  # Presentation States (file_meta)
-    # Other indicators
-    filter_parts.append('BurnedInAnnotation.equalsIgnoreCase("YES")')
-    filter_parts.append('[0042,0011].exists()')  # EncapsulatedDocument tag
-    return '\n+ '.join(filter_parts)
