@@ -6,7 +6,7 @@
 
 test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
-	pytest -v --reruns 3 --reruns-delay 5
+	uv run pytest -v --reruns 3 --reruns-delay 5
 	cd electron && npm test -- --verbose
 
 dev: external-deps
@@ -22,8 +22,9 @@ dev: external-deps
 deps: deps-python deps-deid deps-electron
 
 deps-python:
-	pip install -r requirements.txt
-	python -m spacy download en_core_web_sm
+	uv --version || (echo "uv is not installed. Please install uv and try again." && exit 1)
+	uv sync
+	uv run python -m spacy download en_core_web_sm
 
 deps-deid:
 	cd deid && npm install
@@ -99,12 +100,12 @@ external-deps: jre8 dcmtk rclone
 
 build-icorecli:
 	rm -rf dist
-	pyinstaller --clean -y icorecli.spec
+	uv run pyinstaller --clean -y icorecli.spec
 
 build-django-app:
 	cd deid && \
-		pyinstaller --clean -y manage.spec && \
-		pyinstaller --clean -y initialize_admin_password.spec
+		uv run pyinstaller --clean -y manage.spec && \
+		uv run pyinstaller --clean -y initialize_admin_password.spec
 
 build-binaries: build-icorecli build-django-app
 
