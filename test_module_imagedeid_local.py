@@ -10,7 +10,7 @@ import pytest
 import pydicom
 
 from module_imagedeid_local import imagedeid_local, _generate_lookup_table_content
-from test_utils import _create_test_dicom, Fixtures
+from test_utils import _create_test_dicom, _create_secondary_capture_dicom, _create_encapsulated_pdf_dicom, Fixtures
 
 
 logging.basicConfig(level=logging.INFO)
@@ -339,11 +339,21 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
         patient_name="Patient1",
         accession="ACC001",
         study_date="20250101",
-        modality="SR"
+        modality="CT"
     )
-    ds1.SOPClassUID = "1.2.840.10008.5.1.4.1.1.88.11"
-    ds1.save_as(str(input_dir / "sr_image.dcm"), write_like_original=False)
-    
+    ds1.Manufacturer = "UNKNOWN VENDOR"
+    ds1.ImageType = ["DERIVED", "SECONDARY"]
+    ds1.Rows = 512
+    ds1.Columns = 512
+    ds1.SamplesPerPixel = 1
+    ds1.PhotometricInterpretation = "MONOCHROME2"
+    ds1.BitsAllocated = 16
+    ds1.BitsStored = 16
+    ds1.HighBit = 15
+    ds1.PixelRepresentation = 0
+    ds1.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
+    ds1.save_as(str(input_dir / "derived_ct_image.dcm"), write_like_original=False)
+
     ds2 = Fixtures.create_minimal_dicom(
         patient_id="MRN002",
         patient_name="Patient2",
@@ -354,6 +364,7 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
     ds2.Manufacturer = "GE MEDICAL SYSTEMS"
     ds2.ManufacturerModelName = "REVOLUTION CT"
     ds2.SoftwareVersions = "REVO_CT_22BC.50"
+    ds2.ImageType = ["ORIGINAL", "PRIMARY"]
     ds2.Rows = 512
     ds2.Columns = 512
     ds2.SamplesPerPixel = 1
@@ -364,33 +375,33 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
     ds2.PixelRepresentation = 0
     ds2.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
     ds2.save_as(str(input_dir / "ct_image.dcm"), write_like_original=False)
-    
+
     time.sleep(2)
-    
+
     anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
-    
+
     result_without_filter = imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False
+        apply_default_filter_script=False,
     )
-    
+
     assert result_without_filter["num_images_saved"] == 2, "Without default filter, both images should be saved"
     assert result_without_filter["num_images_quarantined"] == 0, "Without default filter, no images should be quarantined"
-    
+
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 2, "Both DICOM files should be in output"
-    
+
     for file in output_dir.rglob("*.dcm"):
         file.unlink()
     for file in (appdata_dir / "quarantine").rglob("*.dcm"):
         file.unlink()
-    
+
     result_with_filter = imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
@@ -398,22 +409,22 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=True
     )
-    
-    assert result_with_filter["num_images_saved"] == 1, "With default filter, only CT should be saved (SR should be quarantined)"
-    assert result_with_filter["num_images_quarantined"] == 1, "With default filter, SR should be quarantined"
-    
+
+    assert result_with_filter["num_images_saved"] == 1, "With default filter, only primary CT should be saved"
+    assert result_with_filter["num_images_quarantined"] == 1, "With default filter, derived CT should be quarantined"
+
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 1, "Only one DICOM file should be in output"
-    
+
     output_ds = pydicom.dcmread(output_files[0])
-    assert output_ds.Modality == "CT", "Output file should be CT"
-    
+    assert "ORIGINAL" in output_ds.ImageType, "Output file should be the primary CT"
+
     quarantine_dir = appdata_dir / "quarantine"
     quarantine_files = list(quarantine_dir.rglob("*.dcm"))
     assert len(quarantine_files) == 1, "One DICOM file should be quarantined"
-    
+
     quarantine_ds = pydicom.dcmread(quarantine_files[0])
-    assert quarantine_ds.Modality == "SR", "Quarantined file should be SR"
+    assert "DERIVED" in quarantine_ds.ImageType, "Quarantined file should be the derived CT"
 
 
 def test_generate_lookup_table_content_single_tag(tmp_path):
@@ -899,4 +910,252 @@ def test_explicit_lookup_table_overrides_mapping_file(tmp_path):
     ds = pydicom.dcmread(output_files[0])
     assert ds.AccessionNumber == "FROM_EXPLICIT", "Explicit lookup_table should override mapping_file_path"
     assert ds.AccessionNumber != "FROM_MAPPING", "Mapping file should be ignored when explicit lookup_table is provided"
+
+
+def _create_sc_pdf_ct_dicom(accession, patient_id, patient_name):
+    ds = Fixtures.create_minimal_dicom(
+        patient_id=patient_id,
+        patient_name=patient_name,
+        accession=accession,
+        study_date="20250101",
+        modality="CT"
+    )
+    ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
+    ds.file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
+    ds.Manufacturer = "TestManufacturer"
+    ds.ManufacturerModelName = "TestModel"
+    ds.SliceThickness = "3.0"
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.Rows = 64
+    ds.Columns = 64
+    ds.BitsAllocated = 16
+    ds.BitsStored = 16
+    ds.HighBit = 15
+    ds.PixelRepresentation = 0
+    ds.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
+    return ds
+
+
+def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
+    """SC and PDF files go to quarantine when no custom path provided."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    ct_ds = _create_sc_pdf_ct_dicom("ACC001", "MRN001", "Smith^John")
+    ct_ds.save_as(str(input_dir / "ct.dcm"), write_like_original=False)
+
+    sc_ds = _create_secondary_capture_dicom(patient_id="MRN002", patient_name="Doe^Jane", accession="ACC002")
+    sc_ds.save_as(str(input_dir / "sc.dcm"))
+
+    time.sleep(2)
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+
+    imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    assert len(output_files) == 1, f"Expected 1 CT file in output, found {len(output_files)}"
+
+    for f in output_files:
+        ds = pydicom.dcmread(f)
+        assert not ds.SOPClassUID.startswith("1.2.840.10008.5.1.4.1.1.7"), "SC file should not be in output"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    quarantine_files = list(quarantine_dir.rglob("*.dcm"))
+    assert len(quarantine_files) >= 1, f"Expected SC file in quarantine, found {len(quarantine_files)}"
+
+
+def test_sc_pdf_routed_to_custom_path(tmp_path):
+    """SC and PDF files go to custom path when sc_pdf_output_dir is provided."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    custom_sc_dir = tmp_path / "custom_sc_pdf"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+    custom_sc_dir.mkdir()
+
+    ct_ds = _create_sc_pdf_ct_dicom("ACC001", "MRN001", "Smith^John")
+    ct_ds.save_as(str(input_dir / "ct.dcm"), write_like_original=False)
+
+    sc_ds = _create_secondary_capture_dicom(patient_id="MRN002", patient_name="Doe^Jane", accession="ACC002")
+    sc_ds.save_as(str(input_dir / "sc.dcm"))
+
+    time.sleep(2)
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+
+    imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False,
+        sc_pdf_output_dir=str(custom_sc_dir)
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    assert len(output_files) == 1, f"Expected 1 CT file in output, found {len(output_files)}"
+
+    custom_files = list(custom_sc_dir.rglob("*.dcm"))
+    assert len(custom_files) >= 1, f"Expected SC file in custom dir, found {len(custom_files)}"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    if quarantine_dir.exists():
+        quarantine_files = list(quarantine_dir.rglob("*.dcm"))
+        for f in quarantine_files:
+            ds = pydicom.dcmread(f)
+            assert not ds.SOPClassUID.startswith("1.2.840.10008.5.1.4.1.1.7"), \
+                "SC file should be in custom dir, not regular quarantine"
+
+
+def test_sc_pdf_normal_images_not_affected(tmp_path):
+    """CT/MR images pass through de-identification normally."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    for i in range(3):
+        ct_ds = _create_sc_pdf_ct_dicom(f"ACC00{i}", f"MRN00{i}", f"Smith^John{i}")
+        ct_ds.InstanceNumber = i + 1
+        ct_ds.save_as(str(input_dir / f"ct{i}.dcm"), write_like_original=False)
+
+    time.sleep(2)
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+<e en="T" t="00080060" n="Modality">@keep()</e>
+</script>"""
+
+    imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    assert len(output_files) == 3, f"Expected 3 CT files in output, found {len(output_files)}"
+
+    for f in output_files:
+        ds = pydicom.dcmread(f)
+        assert ds.PatientName == "", "PatientName should be empty"
+        assert ds.PatientID == "", "PatientID should be empty"
+        assert ds.Modality == "CT", "Modality should be kept as CT"
+
+
+def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
+    """Encapsulated PDF files are quarantined."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    ct_ds = _create_sc_pdf_ct_dicom("ACC001", "MRN001", "Smith^John")
+    ct_ds.save_as(str(input_dir / "ct.dcm"), write_like_original=False)
+
+    pdf_ds = _create_encapsulated_pdf_dicom(patient_id="MRN002", patient_name="Doe^Jane", accession="ACC002")
+    pdf_ds.save_as(str(input_dir / "pdf.dcm"))
+
+    time.sleep(2)
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+
+    imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    assert len(output_files) == 1, f"Expected 1 CT file in output, found {len(output_files)}"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    quarantine_files = list(quarantine_dir.rglob("*.dcm"))
+    assert len(quarantine_files) >= 1, f"Expected PDF in quarantine, found {len(quarantine_files)}"
+
+
+def test_sc_pdf_burned_in_annotation_quarantined(tmp_path):
+    """Files with BurnedInAnnotation=YES are quarantined."""
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    ct_ds = _create_sc_pdf_ct_dicom("ACC001", "MRN001", "Smith^John")
+    ct_ds.save_as(str(input_dir / "ct.dcm"), write_like_original=False)
+
+    burned_ds = _create_sc_pdf_ct_dicom("ACC002", "MRN002", "Doe^Jane")
+    burned_ds.BurnedInAnnotation = "YES"
+    burned_ds.save_as(str(input_dir / "burned.dcm"), write_like_original=False)
+
+    time.sleep(2)
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+</script>"""
+
+    imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    assert len(output_files) == 1, f"Expected 1 CT file in output, found {len(output_files)}"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    quarantine_files = list(quarantine_dir.rglob("*.dcm"))
+    assert len(quarantine_files) >= 1, f"Expected burned-in file in quarantine, found {len(quarantine_files)}"
+
 

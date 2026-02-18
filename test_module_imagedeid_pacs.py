@@ -763,11 +763,21 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path):
             patient_name="Patient1",
             accession="ACC001",
             study_date="20250101",
-            modality="SR"
+            modality="CT"
         )
-        ds1.SOPClassUID = "1.2.840.10008.5.1.4.1.1.88.11"
+        ds1.Manufacturer = "UNKNOWN VENDOR"
+        ds1.ImageType = ["DERIVED", "SECONDARY"]
+        ds1.Rows = 512
+        ds1.Columns = 512
+        ds1.SamplesPerPixel = 1
+        ds1.PhotometricInterpretation = "MONOCHROME2"
+        ds1.BitsAllocated = 16
+        ds1.BitsStored = 16
+        ds1.HighBit = 15
+        ds1.PixelRepresentation = 0
+        ds1.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
         _upload_dicom_to_orthanc(ds1, orthanc)
-        
+
         ds2 = Fixtures.create_minimal_dicom(
             patient_id="MRN002",
             patient_name="Patient2",
@@ -778,6 +788,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path):
         ds2.Manufacturer = "GE MEDICAL SYSTEMS"
         ds2.ManufacturerModelName = "REVOLUTION CT"
         ds2.SoftwareVersions = "REVO_CT_22BC.50"
+        ds2.ImageType = ["ORIGINAL", "PRIMARY"]
         ds2.Rows = 512
         ds2.Columns = 512
         ds2.SamplesPerPixel = 1
@@ -788,26 +799,26 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path):
         ds2.PixelRepresentation = 0
         ds2.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
         _upload_dicom_to_orthanc(ds2, orthanc)
-        
+
         time.sleep(2)
-        
+
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
         query_df.to_excel(query_file, index=False)
-        
+
         query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        
+
         pacs_config = PacsConfiguration(
             host="localhost",
             port=orthanc.dicom_port,
             aet=orthanc.aet
         )
-        
+
         anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
-        
+
         result_without_filter = imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
@@ -815,22 +826,22 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False
+            apply_default_filter_script=False,
         )
-        
+
         assert result_without_filter["num_images_saved"] == 2, "Without default filter, both images should be saved"
         assert result_without_filter["num_images_quarantined"] == 0, "Without default filter, no images should be quarantined"
-        
+
         output_files = list(output_dir.rglob("*.dcm"))
         assert len(output_files) == 2, "Both DICOM files should be in output"
-        
+
         for file in output_dir.rglob("*.dcm"):
             file.unlink()
         quarantine_dir = appdata_dir / "quarantine"
         if quarantine_dir.exists():
             for file in quarantine_dir.rglob("*.dcm"):
                 file.unlink()
-        
+
         result_with_filter = imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
@@ -840,21 +851,21 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path):
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=True
         )
-        
-        assert result_with_filter["num_images_saved"] == 1, "With default filter, only CT should be saved (SR should be quarantined)"
-        assert result_with_filter["num_images_quarantined"] == 1, "With default filter, SR should be quarantined"
-        
+
+        assert result_with_filter["num_images_saved"] == 1, "With default filter, only primary CT should be saved"
+        assert result_with_filter["num_images_quarantined"] == 1, "With default filter, derived CT should be quarantined"
+
         output_files = list(output_dir.rglob("*.dcm"))
         assert len(output_files) == 1, "Only one DICOM file should be in output"
-        
+
         output_ds = pydicom.dcmread(output_files[0])
-        assert output_ds.Modality == "CT", "Output file should be CT"
-        
+        assert "ORIGINAL" in output_ds.ImageType, "Output file should be the primary CT"
+
         quarantine_files = list(quarantine_dir.rglob("*.dcm"))
         assert len(quarantine_files) == 1, "One DICOM file should be quarantined"
-        
+
         quarantine_ds = pydicom.dcmread(quarantine_files[0])
-        assert quarantine_ds.Modality == "SR", "Quarantined file should be SR"
+        assert "DERIVED" in quarantine_ds.ImageType, "Quarantined file should be the derived CT"
     
     finally:
         orthanc.stop()

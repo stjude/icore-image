@@ -175,7 +175,24 @@
                     <div class="text-sm text-gray-500 mt-1">Excel file with columns: TagName, New-TagName (e.g., AccessionNumber, New-AccessionNumber)</div>
                 </div>
             </div>
-        </div>    
+            <div class="text-md mb-4 mt-8">Secondary Capture and PDF Handling</div>
+            <div>
+                <div class="text-sm text-gray-500 mb-2">Secondary Capture images, PDFs, and other embedded content files contain unredactable PHI and will be filtered from de-identification output.</div>
+                <div class="ml-2">
+                    <div class="flex items-center mb-2">
+                        <input type="radio" id="sc_pdf_to_quarantine" name="sc_pdf_destination" value="quarantine" checked onchange="toggleScPdfCustomPath()">
+                        <label for="sc_pdf_to_quarantine" class="ml-2">Send to quarantine folder</label>
+                    </div>
+                    <div class="flex items-center mb-2">
+                        <input type="radio" id="sc_pdf_to_custom" name="sc_pdf_destination" value="custom" onchange="toggleScPdfCustomPath()">
+                        <label for="sc_pdf_to_custom" class="ml-2">Send to custom location</label>
+                    </div>
+                    <div id="sc_pdf_custom_path_container" class="hidden mt-2 ml-6">
+                        <input type="text" class="w-full border-2 border-gray-400 p-2" name="sc_pdf_output_dir" placeholder="Drag and drop folder or enter path" />
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 <div class="m-4">
@@ -572,6 +589,12 @@
         mappingFileInputContainer.classList.toggle('hidden', !isChecked);
     }
 
+    function toggleScPdfCustomPath() {
+        const container = document.getElementById('sc_pdf_custom_path_container');
+        const isCustom = document.getElementById('sc_pdf_to_custom').checked;
+        container.classList.toggle('hidden', !isCustom);
+    }
+
     function updateButtonText() {
         const button = document.getElementById('deidexport_button');
         const isScheduled = document.getElementById('schedule_job').checked;
@@ -583,6 +606,9 @@
         const isAccessionQuery = document.getElementById('query_accession').checked;
         const isScheduled = document.getElementById('schedule_job').checked;
         
+        const scPdfCustom = document.getElementById('sc_pdf_to_custom').checked;
+        const scPdfPath = document.querySelector('[name="sc_pdf_output_dir"]').value;
+
         const data = {
             study_name: document.querySelector('[name="study_name"]').value,
             input_file: document.querySelector('[name="input_file"]').value,
@@ -603,6 +629,7 @@
             pacs_configs: settings.pacs_configs || [],
             application_aet: settings.application_aet || '',
             sas_url: adminSettings.imagine_sas_url || '',
+            sc_pdf_output_dir: (scPdfCustom && scPdfPath) ? scPdfPath : '',
             ...filters
         };
 

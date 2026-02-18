@@ -28,7 +28,7 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
                    output_dir, appdata_dir=None, filter_script=None,
                    date_window_days=0, anonymizer_script=None, deid_pixels=False,
                    lookup_table=None, debug=False, run_dirs=None, apply_default_filter_script=True,
-                   mapping_file_path=None, use_fallback_query=False):
+                   mapping_file_path=None, sc_pdf_output_dir=None, use_fallback_query=False):
     if run_dirs is None:
         run_dirs = setup_run_directories()
     
@@ -78,7 +78,16 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
 
     # Create directory for getscu to write retrieved DICOM files
     getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
-    os.makedirs(getscu_output_dir, exist_ok=True)
+
+    # Choose pipeline type based on whether pixel de-identification is needed
+    pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
+    ctp_log_level = "DEBUG" if debug else None
+
+    # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
+    successful_gets, failed_get_indices, failed_get_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
+
+    # Wait briefly to ensure all files are written
+    time.sleep(2)
 
     try:
         # Choose pipeline type based on whether pixel de-identification is needed
@@ -101,7 +110,8 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
             lookup_table=lookup_table,
             log_path=run_dirs["ctp_log_path"],
             log_level=ctp_log_level,
-            quarantine_dir=quarantine_dir
+            quarantine_dir=quarantine_dir,
+            sc_pdf_output_dir=sc_pdf_output_dir,
         ) as pipeline:
 
             failed_query_indices = list(set(failed_find_indices + failed_get_indices))
