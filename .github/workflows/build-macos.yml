@@ -24,10 +24,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.12'
+          version: '0.10.3'
+
+      - name: Set up Python
+        run: uv python install
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
