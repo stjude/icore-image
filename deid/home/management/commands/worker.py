@@ -18,7 +18,6 @@ from grammar import (
     generate_lookup_contents,
     generate_lookup_table,
     generate_hipaa_safe_harbor_script,
-    generate_sc_pdf_filter,
     get_hipaa_safe_harbor_config,
 )
 from home.models import Project
@@ -622,18 +621,12 @@ def build_singleclickicore_config(task):
     # === HIPAA Safe Harbor Configuration ===
     # Single-click iCore automatically enforces HIPAA Safe Harbor de-identification
 
-    hipaa_filter = generate_sc_pdf_filter()
-
     general_filters = task.parameters.get('general_filters', [])
     modality_filters = task.parameters.get('modality_filters', {})
     user_filter_string = generate_filters_string(general_filters, modality_filters)
 
-    # Combine user filter with HIPAA filter (both must pass)
-    if user_filter_string:
-        combined_filter = f"!({hipaa_filter})\n* ({user_filter_string})"
-    else:
-        combined_filter = f"!({hipaa_filter})"
-    config['ctp_filters'] = scalarstring.LiteralScalarString(combined_filter)
+
+    config['ctp_filters'] = scalarstring.LiteralScalarString(user_filter_string)
 
     config['deid_pixels'] = True
 
