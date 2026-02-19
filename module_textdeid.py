@@ -51,7 +51,18 @@ NLM_REDACT_NAMES = {'pine'}
 def create_nlp_engine():
     if getattr(sys, 'frozen', False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
-        model_path = os.path.join(bundle_dir, '_internal', 'en_core_web_sm', 'en_core_web_sm-3.8.0')
+        models_base_dir = os.path.join(bundle_dir, '_internal', 'en_core_web_sm')
+        model_subdir = None
+        if os.path.isdir(models_base_dir):
+            for entry in os.listdir(models_base_dir):
+                full_path = os.path.join(models_base_dir, entry)
+                if entry.startswith('en_core_web_sm-') and os.path.isdir(full_path):
+                    model_subdir = full_path
+                    break
+        if model_subdir is None:
+            # Fallback to the previously hard-coded path to preserve existing behavior
+            model_subdir = os.path.join(models_base_dir, 'en_core_web_sm-3.8.0')
+        model_path = model_subdir
         import spacy
         from presidio_analyzer.nlp_engine import SpacyNlpEngine
         nlp_engine = SpacyNlpEngine(models=[{"lang_code": "en", "model_name": model_path}])
