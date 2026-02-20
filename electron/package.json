@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "electron": "^35.7.5",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^26.8.1",
     "jest": "^29.7.0"
   },
   "build": {
