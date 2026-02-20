@@ -60,8 +60,7 @@ def create_nlp_engine():
                     model_subdir = full_path
                     break
         if model_subdir is None:
-            # Fallback to the previously hard-coded path to preserve existing behavior
-            model_subdir = os.path.join(models_base_dir, 'en_core_web_sm-3.8.0')
+            raise FileNotFoundError(f"en_core_web_sm model not found in {models_base_dir}")
         model_path = model_subdir
         import spacy
         from presidio_analyzer.nlp_engine import SpacyNlpEngine
