@@ -24,7 +24,6 @@ deps: deps-python deps-deid deps-electron
 deps-python:
 	uv --version || (echo "uv is not installed. Please install uv and try again." && exit 1)
 	uv sync
-	uv run python -m spacy download en_core_web_sm
 
 deps-deid:
 	cd deid && npm install
