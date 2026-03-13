@@ -9,12 +9,93 @@ import numpy as np
 import pytest
 import pydicom
 import requests
-from pydicom.dataset import Dataset
-from pydicom.uid import generate_uid
+from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
+from pydicom.encaps import encapsulate
+from pydicom.uid import (
+    ExplicitVRLittleEndian,
+    ImplicitVRLittleEndian,
+    JPEG2000,
+    JPEG2000Lossless,
+    JPEGBaseline8Bit,
+    JPEGLosslessSV1,
+    RLELossless,
+    generate_uid,
+)
 
 from ctp import CTPServer, CTPPipeline, PIPELINE_TEMPLATES
 from dcmtk import get_study
+from module_imagedeid_local import imagedeid_local
 from test_utils import cleanup_docker_containers, Fixtures, OrthancServer
+
+
+CT_SOP_CLASS = "1.2.840.10008.5.1.4.1.1.2"
+
+BASIC_ANONYMIZER_SCRIPT = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+<e en="T" t="00080060" n="Modality">@keep()</e>
+</script>"""
+
+TRANSFER_SYNTAX_CASES = [
+    (ImplicitVRLittleEndian, "Implicit VR Little Endian"),
+    (ExplicitVRLittleEndian, "Explicit VR Little Endian"),
+    (RLELossless, "RLE Lossless"),
+    (JPEG2000Lossless, "JPEG 2000 Lossless"),
+    (JPEG2000, "JPEG 2000"),
+    (JPEGLosslessSV1, "JPEG Lossless SV1"),
+    (JPEGBaseline8Bit, "JPEG Baseline"),
+]
+
+
+def create_dicom_with_transfer_syntax(transfer_syntax_uid, suffix=""):
+    file_meta = FileMetaDataset()
+    file_meta.MediaStorageSOPClassUID = CT_SOP_CLASS
+    file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.TransferSyntaxUID = transfer_syntax_uid
+    file_meta.ImplementationClassUID = generate_uid()
+
+    ds = FileDataset(None, {}, file_meta=file_meta, preamble=b"\0" * 128)
+    ds.is_little_endian = True
+    ds.is_implicit_VR = transfer_syntax_uid == ImplicitVRLittleEndian
+    ds.PatientName = f"Test^{suffix}"
+    ds.PatientID = f"PID{suffix}"
+    ds.AccessionNumber = f"ACC{suffix}"
+    ds.StudyDate = "20240101"
+    ds.StudyTime = "120000"
+    ds.Modality = "CT"
+    ds.StudyInstanceUID = generate_uid()
+    ds.SeriesInstanceUID = generate_uid()
+    ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    ds.SOPClassUID = CT_SOP_CLASS
+    ds.SeriesNumber = 1
+    ds.InstanceNumber = 1
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.Rows = 64
+    ds.Columns = 64
+    ds.BitsAllocated = 16
+    ds.BitsStored = 16
+    ds.HighBit = 15
+    ds.PixelRepresentation = 0
+    ds.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
+
+    if transfer_syntax_uid == RLELossless:
+        ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+        ds.compress(RLELossless)
+    elif transfer_syntax_uid.is_compressed:
+        raw_pixels = ds.PixelData
+        ds.PixelData = encapsulate([raw_pixels])
+        ds["PixelData"].is_undefined_length = True
+
+    return ds
+
+
+def save_dicoms_for_all_transfer_syntaxes(input_dir):
+    for i, (ts_uid, ts_name) in enumerate(TRANSFER_SYNTAX_CASES):
+        suffix = ts_name.replace(" ", "")
+        ds = create_dicom_with_transfer_syntax(ts_uid, suffix=suffix)
+        filepath = input_dir / f"dicom_{i:03d}_{suffix}.dcm"
+        ds.save_as(str(filepath), write_like_original=False)
 
 
 def create_test_dicoms(input_dir, num_files=10):
@@ -1570,4 +1651,69 @@ def test_ctp_server_stall_timeout(tmp_path):
                 if time.time() - start_time > safety_timeout:
                     raise AssertionError(f"Stall timeout did not trigger within {safety_timeout} seconds")
                 time.sleep(1)
+
+
+def test_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    save_dicoms_for_all_transfer_syntaxes(input_dir)
+    time.sleep(2)
+
+    result = imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=BASIC_ANONYMIZER_SCRIPT,
+        deid_pixels=True,
+        apply_default_filter_script=False,
+    )
+
+    total = result["num_images_saved"] + result["num_images_quarantined"]
+    assert total == len(TRANSFER_SYNTAX_CASES), (
+        f"Expected {len(TRANSFER_SYNTAX_CASES)} files processed, got {total} "
+        f"(saved={result['num_images_saved']}, quarantined={result['num_images_quarantined']})"
+    )
+    assert result["num_images_saved"] > 0, "Expected at least some files to be saved"
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    for f in output_files:
+        ds = pydicom.dcmread(f)
+        assert ds.PatientName == "", f"PatientName not anonymized in {f}"
+        assert ds.PatientID == "", f"PatientID not anonymized in {f}"
+
+
+def test_non_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    save_dicoms_for_all_transfer_syntaxes(input_dir)
+    time.sleep(2)
+
+    result = imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=BASIC_ANONYMIZER_SCRIPT,
+        deid_pixels=False,
+        apply_default_filter_script=False,
+    )
+
+    total = result["num_images_saved"] + result["num_images_quarantined"]
+    assert total == len(TRANSFER_SYNTAX_CASES), (
+        f"Expected all {len(TRANSFER_SYNTAX_CASES)} files processed, got {total} "
+        f"(saved={result['num_images_saved']}, quarantined={result['num_images_quarantined']})"
+    )
 
