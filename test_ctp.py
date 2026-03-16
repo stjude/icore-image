@@ -10,14 +10,9 @@ import pytest
 import pydicom
 import requests
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
-from pydicom.encaps import encapsulate
 from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
-    JPEG2000,
-    JPEG2000Lossless,
-    JPEGBaseline8Bit,
-    JPEGLosslessSV1,
     RLELossless,
     generate_uid,
 )
@@ -36,15 +31,16 @@ BASIC_ANONYMIZER_SCRIPT = """<script>
 <e en="T" t="00080060" n="Modality">@keep()</e>
 </script>"""
 
-TRANSFER_SYNTAX_CASES = [
-    (ImplicitVRLittleEndian, "Implicit VR Little Endian"),
-    (ExplicitVRLittleEndian, "Explicit VR Little Endian"),
-    (RLELossless, "RLE Lossless"),
-    (JPEG2000Lossless, "JPEG 2000 Lossless"),
-    (JPEG2000, "JPEG 2000"),
-    (JPEGLosslessSV1, "JPEG Lossless SV1"),
-    (JPEGBaseline8Bit, "JPEG Baseline"),
+TEST_FIXTURES_DIR = Path(__file__).parent / "test_fixtures"
+
+COMPRESSED_FIXTURE_FILES = [
+    "jpeg2000_lossless.dcm",
+    "jpeg2000.dcm",
+    "jpeg_baseline.dcm",
+    "jpeg_lossless.dcm",
 ]
+
+TOTAL_TRANSFER_SYNTAX_FILES = 2 + len(COMPRESSED_FIXTURE_FILES)  # 2 generated + 4 fixtures
 
 
 def create_dicom_with_transfer_syntax(transfer_syntax_uid, suffix=""):
@@ -82,20 +78,18 @@ def create_dicom_with_transfer_syntax(transfer_syntax_uid, suffix=""):
     if transfer_syntax_uid == RLELossless:
         ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
         ds.compress(RLELossless)
-    elif transfer_syntax_uid.is_compressed:
-        raw_pixels = ds.PixelData
-        ds.PixelData = encapsulate([raw_pixels])
-        ds["PixelData"].is_undefined_length = True
 
     return ds
 
 
 def save_dicoms_for_all_transfer_syntaxes(input_dir):
-    for i, (ts_uid, ts_name) in enumerate(TRANSFER_SYNTAX_CASES):
-        suffix = ts_name.replace(" ", "")
-        ds = create_dicom_with_transfer_syntax(ts_uid, suffix=suffix)
-        filepath = input_dir / f"dicom_{i:03d}_{suffix}.dcm"
-        ds.save_as(str(filepath), write_like_original=False)
+    for ts_uid, name in [(ExplicitVRLittleEndian, "explicit_vr_le"),
+                         (RLELossless, "rle_lossless")]:
+        ds = create_dicom_with_transfer_syntax(ts_uid, suffix=name)
+        ds.save_as(str(input_dir / f"{name}.dcm"), write_like_original=False)
+
+    for fixture_file in COMPRESSED_FIXTURE_FILES:
+        shutil.copy2(str(TEST_FIXTURES_DIR / fixture_file), str(input_dir / fixture_file))
 
 
 def create_test_dicoms(input_dir, num_files=10):
@@ -1676,11 +1670,17 @@ def test_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
     )
 
     total = result["num_images_saved"] + result["num_images_quarantined"]
-    assert total == len(TRANSFER_SYNTAX_CASES), (
-        f"Expected {len(TRANSFER_SYNTAX_CASES)} files processed, got {total} "
+    assert total == TOTAL_TRANSFER_SYNTAX_FILES, (
+        f"Expected {TOTAL_TRANSFER_SYNTAX_FILES} files processed, got {total} "
         f"(saved={result['num_images_saved']}, quarantined={result['num_images_quarantined']})"
     )
-    assert result["num_images_saved"] > 0, "Expected at least some files to be saved"
+    assert result["num_images_quarantined"] == 0, (
+         f"Expected no images to be quarantined, got {result['num_images_quarantined']}"
+     )
+    assert result["num_images_saved"] == TOTAL_TRANSFER_SYNTAX_FILES, (
+         f"Expected all {TOTAL_TRANSFER_SYNTAX_FILES} images to be saved, "
+         f"got {result['num_images_saved']}"
+     )
 
     output_files = list(output_dir.rglob("*.dcm"))
     for f in output_files:
@@ -1712,8 +1712,15 @@ def test_non_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
     )
 
     total = result["num_images_saved"] + result["num_images_quarantined"]
-    assert total == len(TRANSFER_SYNTAX_CASES), (
-        f"Expected all {len(TRANSFER_SYNTAX_CASES)} files processed, got {total} "
+    assert total == TOTAL_TRANSFER_SYNTAX_FILES, (
+        f"Expected all {TOTAL_TRANSFER_SYNTAX_FILES} files processed, got {total} "
         f"(saved={result['num_images_saved']}, quarantined={result['num_images_quarantined']})"
+    )
+    assert result["num_images_quarantined"] == 0, (
+         f"Expected no images to be quarantined, got {result['num_images_quarantined']}"
+     )
+    assert result["num_images_saved"] == TOTAL_TRANSFER_SYNTAX_FILES, (
+         f"Expected all {TOTAL_TRANSFER_SYNTAX_FILES} images to be saved, "
+         f"got {result['num_images_saved']}"
     )
 
