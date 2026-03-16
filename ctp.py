@@ -570,7 +570,7 @@ PIPELINE_TEMPLATES = {
             root="{tempdir}/roots/DicomTranscoder"
             skipJPEGBaseline="yes"
             script="scripts/dicom-transcoder.script"
-            quarantine="{tempdir}/quarantine/DicomTranscoder" />
+            quarantine="{tempdir}/quarantine" />
         <DicomPixelAnonymizer
             name="DicomPixelAnonymizer"
             class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
