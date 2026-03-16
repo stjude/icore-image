@@ -218,7 +218,6 @@ def test_ctp_port_avoids_dicom_port(tmp_path):
 
 
 def test_parallel_local_pipelines(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir1 = tmp_path / "input1"
     input_dir2 = tmp_path / "input2"
@@ -297,7 +296,6 @@ def test_pacs_pipeline_with_custom_dicom_port(tmp_path):
 
 @pytest.mark.skip(reason="No longer applicable: imagedeid_pacs now uses ArchiveImportService (file-based) instead of DicomImportService (network-based) after C-MOVE to C-GET migration")
 def test_pacs_pipeline_dicom_port_conflict(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir1 = tmp_path / "output1"
@@ -333,7 +331,6 @@ def test_pacs_pipeline_dicom_port_conflict(tmp_path):
 
 @pytest.mark.skip(reason="No longer applicable: imagedeid_pacs now uses ArchiveImportService (file-based) instead of DicomImportService (network-based) after C-MOVE to C-GET migration")
 def test_pacs_pipeline_force_kill(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir1 = tmp_path / "output1"
@@ -381,7 +378,6 @@ def test_pacs_pipeline_force_kill(tmp_path):
 
 
 def test_archive_import_to_directory_storage(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -443,7 +439,6 @@ def test_archive_import_to_directory_storage(tmp_path):
 
 
 def test_kills_existing_ctp_instance(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -515,7 +510,6 @@ def test_kills_existing_ctp_instance(tmp_path):
 
 
 def test_imagecopy_local_pipeline(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -567,7 +561,6 @@ def test_imagecopy_local_pipeline(tmp_path):
 
 
 def test_imagedeid_local_pipeline(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1690,8 +1683,6 @@ def test_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
 
 
 def test_non_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
     appdata_dir = tmp_path / "appdata"
