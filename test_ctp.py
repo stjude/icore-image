@@ -1640,7 +1640,8 @@ def test_ctp_server_stall_timeout(tmp_path):
                 time.sleep(1)
 
 
-def test_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
+@pytest.mark.parametrize("deid_pixels", [True, False], ids=["pixel_deid", "non_pixel_deid"])
+def test_imagedeid_local_handles_all_transfer_syntaxes(tmp_path, deid_pixels):
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
@@ -1658,7 +1659,7 @@ def test_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=BASIC_ANONYMIZER_SCRIPT,
-        deid_pixels=True,
+        deid_pixels=deid_pixels,
         apply_default_filter_script=False,
     )
 
@@ -1668,50 +1669,16 @@ def test_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
         f"(saved={result['num_images_saved']}, quarantined={result['num_images_quarantined']})"
     )
     assert result["num_images_quarantined"] == 0, (
-         f"Expected no images to be quarantined, got {result['num_images_quarantined']}"
-     )
+        f"Expected no images to be quarantined, got {result['num_images_quarantined']}"
+    )
     assert result["num_images_saved"] == TOTAL_TRANSFER_SYNTAX_FILES, (
-         f"Expected all {TOTAL_TRANSFER_SYNTAX_FILES} images to be saved, "
-         f"got {result['num_images_saved']}"
-     )
+        f"Expected all {TOTAL_TRANSFER_SYNTAX_FILES} images to be saved, "
+        f"got {result['num_images_saved']}"
+    )
 
     output_files = list(output_dir.rglob("*.dcm"))
     for f in output_files:
         ds = pydicom.dcmread(f)
         assert ds.PatientName == "", f"PatientName not anonymized in {f}"
         assert ds.PatientID == "", f"PatientID not anonymized in {f}"
-
-
-def test_non_pixel_deid_handles_all_transfer_syntaxes(tmp_path):
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    save_dicoms_for_all_transfer_syntaxes(input_dir)
-    time.sleep(2)
-
-    result = imagedeid_local(
-        input_dir=str(input_dir),
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        anonymizer_script=BASIC_ANONYMIZER_SCRIPT,
-        deid_pixels=False,
-        apply_default_filter_script=False,
-    )
-
-    total = result["num_images_saved"] + result["num_images_quarantined"]
-    assert total == TOTAL_TRANSFER_SYNTAX_FILES, (
-        f"Expected all {TOTAL_TRANSFER_SYNTAX_FILES} files processed, got {total} "
-        f"(saved={result['num_images_saved']}, quarantined={result['num_images_quarantined']})"
-    )
-    assert result["num_images_quarantined"] == 0, (
-         f"Expected no images to be quarantined, got {result['num_images_quarantined']}"
-     )
-    assert result["num_images_saved"] == TOTAL_TRANSFER_SYNTAX_FILES, (
-         f"Expected all {TOTAL_TRANSFER_SYNTAX_FILES} images to be saved, "
-         f"got {result['num_images_saved']}"
-    )
 
