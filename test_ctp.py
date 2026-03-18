@@ -38,6 +38,7 @@ COMPRESSED_FIXTURE_FILES = [
     "jpeg2000.dcm",
     "jpeg_baseline.dcm",
     "jpeg_lossless.dcm",
+    "jpeg2000_lossless_ybr_rct.dcm"
 ]
 
 TOTAL_TRANSFER_SYNTAX_FILES = 2 + len(COMPRESSED_FIXTURE_FILES)  # 2 generated + 4 fixtures
