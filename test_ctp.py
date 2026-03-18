@@ -9,12 +9,88 @@ import numpy as np
 import pytest
 import pydicom
 import requests
-from pydicom.dataset import Dataset
-from pydicom.uid import generate_uid
+from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
+from pydicom.uid import (
+    ExplicitVRLittleEndian,
+    ImplicitVRLittleEndian,
+    RLELossless,
+    generate_uid,
+)
 
 from ctp import CTPServer, CTPPipeline, PIPELINE_TEMPLATES
 from dcmtk import get_study
+from module_imagedeid_local import imagedeid_local
 from test_utils import cleanup_docker_containers, Fixtures, OrthancServer
+
+
+CT_SOP_CLASS = "1.2.840.10008.5.1.4.1.1.2"
+
+BASIC_ANONYMIZER_SCRIPT = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+<e en="T" t="00100020" n="PatientID">@empty()</e>
+<e en="T" t="00080060" n="Modality">@keep()</e>
+</script>"""
+
+TEST_FIXTURES_DIR = Path(__file__).parent / "test_fixtures"
+
+COMPRESSED_FIXTURE_FILES = [
+    "jpeg2000_lossless.dcm",
+    "jpeg2000.dcm",
+    "jpeg_baseline.dcm",
+    "jpeg_lossless.dcm",
+    "jpeg2000_lossless_ybr_rct.dcm"
+]
+
+TOTAL_TRANSFER_SYNTAX_FILES = 2 + len(COMPRESSED_FIXTURE_FILES)  # 2 generated + 4 fixtures
+
+
+def create_dicom_with_transfer_syntax(transfer_syntax_uid, suffix=""):
+    file_meta = FileMetaDataset()
+    file_meta.MediaStorageSOPClassUID = CT_SOP_CLASS
+    file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.TransferSyntaxUID = transfer_syntax_uid
+    file_meta.ImplementationClassUID = generate_uid()
+
+    ds = FileDataset(None, {}, file_meta=file_meta, preamble=b"\0" * 128)
+    ds.is_little_endian = True
+    ds.is_implicit_VR = transfer_syntax_uid == ImplicitVRLittleEndian
+    ds.PatientName = f"Test^{suffix}"
+    ds.PatientID = f"PID{suffix}"
+    ds.AccessionNumber = f"ACC{suffix}"
+    ds.StudyDate = "20240101"
+    ds.StudyTime = "120000"
+    ds.Modality = "CT"
+    ds.StudyInstanceUID = generate_uid()
+    ds.SeriesInstanceUID = generate_uid()
+    ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    ds.SOPClassUID = CT_SOP_CLASS
+    ds.SeriesNumber = 1
+    ds.InstanceNumber = 1
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.Rows = 64
+    ds.Columns = 64
+    ds.BitsAllocated = 16
+    ds.BitsStored = 16
+    ds.HighBit = 15
+    ds.PixelRepresentation = 0
+    ds.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
+
+    if transfer_syntax_uid == RLELossless:
+        ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+        ds.compress(RLELossless)
+
+    return ds
+
+
+def save_dicoms_for_all_transfer_syntaxes(input_dir):
+    for ts_uid, name in [(ExplicitVRLittleEndian, "explicit_vr_le"),
+                         (RLELossless, "rle_lossless")]:
+        ds = create_dicom_with_transfer_syntax(ts_uid, suffix=name)
+        ds.save_as(str(input_dir / f"{name}.dcm"), write_like_original=False)
+
+    for fixture_file in COMPRESSED_FIXTURE_FILES:
+        shutil.copy2(str(TEST_FIXTURES_DIR / fixture_file), str(input_dir / fixture_file))
 
 
 def create_test_dicoms(input_dir, num_files=10):
@@ -143,7 +219,6 @@ def test_ctp_port_avoids_dicom_port(tmp_path):
 
 
 def test_parallel_local_pipelines(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir1 = tmp_path / "input1"
     input_dir2 = tmp_path / "input2"
@@ -222,7 +297,6 @@ def test_pacs_pipeline_with_custom_dicom_port(tmp_path):
 
 @pytest.mark.skip(reason="No longer applicable: imagedeid_pacs now uses ArchiveImportService (file-based) instead of DicomImportService (network-based) after C-MOVE to C-GET migration")
 def test_pacs_pipeline_dicom_port_conflict(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir1 = tmp_path / "output1"
@@ -258,7 +332,6 @@ def test_pacs_pipeline_dicom_port_conflict(tmp_path):
 
 @pytest.mark.skip(reason="No longer applicable: imagedeid_pacs now uses ArchiveImportService (file-based) instead of DicomImportService (network-based) after C-MOVE to C-GET migration")
 def test_pacs_pipeline_force_kill(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir1 = tmp_path / "output1"
@@ -306,7 +379,6 @@ def test_pacs_pipeline_force_kill(tmp_path):
 
 
 def test_archive_import_to_directory_storage(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -368,7 +440,6 @@ def test_archive_import_to_directory_storage(tmp_path):
 
 
 def test_kills_existing_ctp_instance(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -440,7 +511,6 @@ def test_kills_existing_ctp_instance(tmp_path):
 
 
 def test_imagecopy_local_pipeline(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -492,7 +562,6 @@ def test_imagecopy_local_pipeline(tmp_path):
 
 
 def test_imagedeid_local_pipeline(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1570,4 +1639,47 @@ def test_ctp_server_stall_timeout(tmp_path):
                 if time.time() - start_time > safety_timeout:
                     raise AssertionError(f"Stall timeout did not trigger within {safety_timeout} seconds")
                 time.sleep(1)
+
+
+@pytest.mark.parametrize("deid_pixels", [True, False], ids=["pixel_deid", "non_pixel_deid"])
+def test_imagedeid_local_handles_all_transfer_syntaxes(tmp_path, deid_pixels):
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+    input_dir.mkdir()
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    save_dicoms_for_all_transfer_syntaxes(input_dir)
+    time.sleep(2)
+
+    result = imagedeid_local(
+        input_dir=str(input_dir),
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=BASIC_ANONYMIZER_SCRIPT,
+        deid_pixels=deid_pixels,
+        apply_default_filter_script=False,
+    )
+
+    total = result["num_images_saved"] + result["num_images_quarantined"]
+    assert total == TOTAL_TRANSFER_SYNTAX_FILES, (
+        f"Expected {TOTAL_TRANSFER_SYNTAX_FILES} files processed, got {total} "
+        f"(saved={result['num_images_saved']}, quarantined={result['num_images_quarantined']})"
+    )
+    assert result["num_images_quarantined"] == 0, (
+        f"Expected no images to be quarantined, got {result['num_images_quarantined']}"
+    )
+    assert result["num_images_saved"] == TOTAL_TRANSFER_SYNTAX_FILES, (
+        f"Expected all {TOTAL_TRANSFER_SYNTAX_FILES} images to be saved, "
+        f"got {result['num_images_saved']}"
+    )
+
+    output_files = list(output_dir.rglob("*.dcm"))
+    for f in output_files:
+        ds = pydicom.dcmread(f)
+        assert ds.PatientName == "", f"PatientName not anonymized in {f}"
+        assert ds.PatientID == "", f"PatientID not anonymized in {f}"
 

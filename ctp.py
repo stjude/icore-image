@@ -563,30 +563,23 @@ PIPELINE_TEMPLATES = {
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
             level="study" />
-        <DicomDecompressor
-            class="org.rsna.ctp.stdstages.DicomDecompressor"
-            name="DicomDecompressor"
+        <DicomTranscoder
+            name="DicomTranscoder"
+            class="org.rsna.ctp.stdstages.DicomTranscoder"
+            tsuid="1.2.840.10008.1.2.1"
+            root="{tempdir}/roots/DicomTranscoder"
             skipJPEGBaseline="yes"
-            root="{tempdir}/roots/DicomDecompressor"
-            script="scripts/DicomDecompressor.script"
-            quarantine="{tempdir}/quarantine/DicomDecompressor"/>
+            script="scripts/dicom-transcoder.script"
+            quarantine="{tempdir}/quarantine" />
         <DicomPixelAnonymizer
             name="DicomPixelAnonymizer"
             class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
-            root="{tempdir}/roots/DicomPixelAnonymizer" 
+            root="{tempdir}/roots/DicomPixelAnonymizer"
             log="no"
             script="scripts/DicomPixelAnonymizer.script"
             setBurnedInAnnotation="no"
             test="no"
             quarantine="{tempdir}/quarantine/DicomPixelAnonymizer" />
-        <DicomTranscoder
-            name="DicomTranscoder"
-            class="org.rsna.ctp.stdstages.DicomTranscoder"
-            tsuid="1.2.840.10008.1.2.1"
-            root="{tempdir}/roots/DicomTranscoder" 
-            skipJPEGBaseline="yes"
-            script="scripts/dicom-transcoder.script"
-            quarantine="{tempdir}/quarantine/DicomTranscoder" />
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             id="IDMap"
@@ -663,30 +656,23 @@ PIPELINE_TEMPLATES = {
             auditLogTags="AccessionNumber;StudyInstanceUID;PatientName;PatientID;PatientSex;Manufacturer;ManufacturerModelName;StudyDescription;StudyDate;SeriesInstanceUID;SOPClassUID;Modality;SeriesDescription;Rows;Columns;InstitutionName;StudyTime"
             cacheID="ObjectCache"
             level="study" />
-        <DicomDecompressor
-            class="org.rsna.ctp.stdstages.DicomDecompressor"
-            name="DicomDecompressor"
+        <DicomTranscoder
+            name="DicomTranscoder"
+            class="org.rsna.ctp.stdstages.DicomTranscoder"
+            tsuid="1.2.840.10008.1.2.1"
+            root="{tempdir}/roots/DicomTranscoder"
             skipJPEGBaseline="yes"
-            root="{tempdir}/roots/DicomDecompressor"
-            script="scripts/DicomDecompressor.script"
-            quarantine="{tempdir}/quarantine"/>
+            script="scripts/dicom-transcoder.script"
+            quarantine="{tempdir}/quarantine/DicomTranscoder" />
         <DicomPixelAnonymizer
             name="DicomPixelAnonymizer"
             class="org.rsna.ctp.stdstages.DicomPixelAnonymizer"
-            root="{tempdir}/roots/DicomPixelAnonymizer" 
+            root="{tempdir}/roots/DicomPixelAnonymizer"
             log="no"
             script="scripts/DicomPixelAnonymizer.script"
             setBurnedInAnnotation="no"
             test="no"
             quarantine="{tempdir}/quarantine/DicomPixelAnonymizer" />
-        <DicomTranscoder
-            name="DicomTranscoder"
-            class="org.rsna.ctp.stdstages.DicomTranscoder"
-            tsuid="1.2.840.10008.1.2.1"
-            root="{tempdir}/roots/DicomTranscoder" 
-            skipJPEGBaseline="yes"
-            script="scripts/dicom-transcoder.script"
-            quarantine="{tempdir}/quarantine/DicomTranscoder" />
         <IDMap
             class="org.rsna.ctp.stdstages.IDMap"
             id="IDMap"
