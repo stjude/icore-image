@@ -19,7 +19,7 @@ Then install the dependencies.
 make deps external-deps
 ```
 
-## Run Development Build
+## Running Development Build
 
 ```
 make dev
