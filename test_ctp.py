@@ -14,6 +14,7 @@ from pydicom.uid import (
     ExplicitVRLittleEndian,
     ImplicitVRLittleEndian,
     RLELossless,
+    UID,
     generate_uid,
 )
 
@@ -46,12 +47,12 @@ TOTAL_TRANSFER_SYNTAX_FILES = 2 + len(COMPRESSED_FIXTURE_FILES)  # 2 generated +
 
 def create_dicom_with_transfer_syntax(transfer_syntax_uid, suffix=""):
     file_meta = FileMetaDataset()
-    file_meta.MediaStorageSOPClassUID = CT_SOP_CLASS
+    file_meta.MediaStorageSOPClassUID = UID(CT_SOP_CLASS)
     file_meta.MediaStorageSOPInstanceUID = generate_uid()
     file_meta.TransferSyntaxUID = transfer_syntax_uid
     file_meta.ImplementationClassUID = generate_uid()
 
-    ds = FileDataset(None, {}, file_meta=file_meta, preamble=b"\0" * 128)
+    ds = FileDataset("", {}, file_meta=file_meta, preamble=b"\0" * 128)
     ds.is_little_endian = True
     ds.is_implicit_VR = transfer_syntax_uid == ImplicitVRLittleEndian
     ds.PatientName = f"Test^{suffix}"
@@ -123,8 +124,8 @@ def create_test_dicoms(input_dir, num_files=10):
         
         ds.file_meta = pydicom.dataset.FileMetaDataset()
         ds.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
-        ds.file_meta.MediaStorageSOPClassUID = ds.SOPClassUID
-        ds.file_meta.MediaStorageSOPInstanceUID = ds.SOPInstanceUID
+        ds.file_meta.MediaStorageSOPClassUID = UID(ds.SOPClassUID)
+        ds.file_meta.MediaStorageSOPInstanceUID = UID(ds.SOPInstanceUID)
         ds.is_little_endian = True
         ds.is_implicit_VR = True
         
@@ -354,6 +355,7 @@ def test_pacs_pipeline_force_kill(tmp_path):
 
     try:
         time.sleep(3)
+        assert pipeline1.server is not None and pipeline1.server.process is not None
         assert pipeline1.server.process.poll() is None, "First pipeline should be running"
 
         pipeline2 = CTPPipeline(
@@ -369,12 +371,14 @@ def test_pacs_pipeline_force_kill(tmp_path):
         try:
             time.sleep(3)
             
+            assert pipeline1.server is not None and pipeline1.server.process is not None
             assert pipeline1.server.process.poll() is not None, "First pipeline should be killed"
+            assert pipeline2.server is not None and pipeline2.server.process is not None
             assert pipeline2.server.process.poll() is None, "Second pipeline should be running"
         finally:
             pipeline2.__exit__(None, None, None)
     finally:
-        if pipeline1.server.process and pipeline1.server.process.poll() is None:
+        if pipeline1.server and pipeline1.server.process and pipeline1.server.process.poll() is None:
             pipeline1.__exit__(None, None, None)
 
 
@@ -480,6 +484,7 @@ def test_kills_existing_ctp_instance(tmp_path):
     
     time.sleep(2)
     
+    assert server1.process is not None
     assert server1.process.poll() is None, "Server1 should be running"
     
     response1 = requests.get("http://localhost:50000/status", timeout=2)
@@ -497,8 +502,10 @@ def test_kills_existing_ctp_instance(tmp_path):
         
         time.sleep(2)
         
+        assert server1.process is not None
         assert server1.process.poll() is not None, "Server1 should have been terminated"
-        
+
+        assert server2.process is not None
         assert server2.process.poll() is None, "Server2 should be running"
         
         response2 = requests.get("http://localhost:50000/status", timeout=2)

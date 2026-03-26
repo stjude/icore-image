@@ -195,6 +195,7 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
 
 
 def _return_last_result(retry_state: RetryCallState):
+    assert retry_state.outcome is not None
     return retry_state.outcome.result()
 
 def _log_get_retry(retry_state: RetryCallState):

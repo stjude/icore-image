@@ -103,7 +103,8 @@ def test_find_studies_single_result(tmp_path):
             if arg == "-Xs":
                 xml_path = args[0][i + 1]
                 break
-        
+        assert xml_path is not None
+
         with open(xml_path, 'w') as f:
             f.write(FINDSCU_SINGLE_ACCESSION_XML)
         
@@ -134,7 +135,8 @@ def test_find_studies_multiple_results(tmp_path):
             if arg == "-Xs":
                 xml_path = args[0][i + 1]
                 break
-        
+        assert xml_path is not None
+
         with open(xml_path, 'w') as f:
             f.write(FINDSCU_MULTIPLE_PATIENT_DATE_XML)
         
@@ -165,7 +167,8 @@ def test_find_studies_no_results(tmp_path):
             if arg == "-Xs":
                 xml_path = args[0][i + 1]
                 break
-        
+        assert xml_path is not None
+
         with open(xml_path, 'w') as f:
             f.write(FINDSCU_NO_RESULTS_XML)
         
@@ -251,7 +254,8 @@ def test_invalid_xml_response(tmp_path):
             if arg == "-Xs":
                 xml_path = args[0][i + 1]
                 break
-        
+        assert xml_path is not None
+
         with open(xml_path, 'w') as f:
             f.write("<invalid>xml</that><is>broken")
         
@@ -281,10 +285,11 @@ def test_find_studies_retries_on_failure(tmp_path):
             if arg == "-Xs":
                 xml_path = args[0][i + 1]
                 break
-        
+        assert xml_path is not None
+
         if attempt_count["count"] == 1:
             return mock.Mock(returncode=1, stdout="", stderr="Network timeout")
-        
+
         with open(xml_path, 'w') as f:
             f.write(FINDSCU_SINGLE_ACCESSION_XML)
         

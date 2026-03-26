@@ -146,7 +146,8 @@ class CommonContextMixin:
         }
     
     def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+        # ty can't resolve get_context_data through Django's MRO (CommonContextMixin + CreateView)
+        context = super().get_context_data(**kwargs)  # ty: ignore[unresolved-attribute]
         context.update(self.get_common_context())
         return context
 
@@ -984,7 +985,8 @@ def test_pacs_connection(request):
     from pynetdicom import AE, sop_class
 
     ae = AE(ae_title=application_aet)
-    ae.add_requested_context(sop_class.Verification)
+    # pynetdicom dynamically generates sop_class.Verification; no type stub available
+    ae.add_requested_context(sop_class.Verification)  # ty: ignore[unresolved-attribute]
     pacs_port = int(pacs_port)
     try:
         assoc = ae.associate(pacs_ip, pacs_port, ae_title=pacs_aet)

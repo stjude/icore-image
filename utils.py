@@ -23,9 +23,9 @@ class PacsConfiguration:
 @dataclass
 class Spreadsheet:
     dataframe: pd.DataFrame
-    acc_col: str = None
-    mrn_col: str = None
-    date_col: str = None
+    acc_col: str | None = None
+    mrn_col: str | None = None
+    date_col: str | None = None
     
     @classmethod
     def from_file(cls, path, acc_col=None, mrn_col=None, date_col=None):

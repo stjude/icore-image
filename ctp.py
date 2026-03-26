@@ -166,6 +166,8 @@ class CTPServer:
         root = tree.getroot()
         
         server_elem = root.find("Server")
+        if server_elem is None:
+            raise ValueError("config.xml missing <Server> element")
         self.port = int(server_elem.get("port", "50000"))
         
         quarantine_set = set()
@@ -969,6 +971,7 @@ class CTPPipeline:
         return response.text if response else None
     
     def _find_stage_index_by_id(self, stage_id):
+        assert self.server is not None
         config_path = os.path.join(self.server.ctp_dir, "config.xml")
         tree = ET.parse(config_path)
         root = tree.getroot()

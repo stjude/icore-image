@@ -62,7 +62,7 @@ def build_tag_dict():
     """
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
-        bundle_dir = sys._MEIPASS
+        bundle_dir = getattr(sys, '_MEIPASS')
         dict_path = Path(bundle_dir) / 'resources' / 'dictionary.xml'
         mapping_path = Path(bundle_dir) / 'resources' / 'pydicom_ctp_tag_dictionary.xml'
     else:
@@ -353,15 +353,15 @@ def generate_lookup_contents_legacy(lookup_file):
                 f"({', '.join(trigger_tags)}). CTP supports only one per tag."
             )
         trigger_tag = trigger_tags[0]
-        keytype = tag_keyword(output_tag)
+        keytype = tag_keyword(str(output_tag))
 
         for _, row in chunk.iterrows():
             trig_val = str(row["OriginalValue"]).strip()
             out_val = str(row["NewValue"]).strip()
             lookup_lines.append(f"{keytype}/{trig_val} = {out_val}")
         
-        trigger_name = trigger_tag.strip()
-        output_name = output_tag.strip()
+        trigger_name = str(trigger_tag).strip()
+        output_name = str(output_tag).strip()
         try:
             trigger_tag = tag_dict[trigger_name].replace('(', '').replace(',', '').replace(')', '')
         except KeyError:

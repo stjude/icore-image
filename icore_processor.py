@@ -254,6 +254,8 @@ def get_dcmtk_binary(binary_name):
         return binary_path
     else:
         dcmtk_home = os.environ.get('DCMTK_HOME')
+        if dcmtk_home is None:
+            raise ValueError("DCMTK_HOME environment variable must be set")
         return os.path.join(dcmtk_home, 'bin', binary_name)
 
 
@@ -263,6 +265,8 @@ def get_dcmtk_dict_path():
         return os.path.join(bundle_dir, '_internal', 'dcmtk', 'share', 'dcmtk-3.6.9', 'dicom.dic')
     else:
         dcmtk_home = os.environ.get('DCMTK_HOME')
+        if dcmtk_home is None:
+            raise ValueError("DCMTK_HOME environment variable must be set")
         return os.path.join(dcmtk_home, 'share', 'dcmtk-3.6.9', 'dicom.dic')
 
 
@@ -383,7 +387,10 @@ def ctp_post(url, data):
     return response.text
 
 def ctp_get_status(key):
-    return int(re.search(re.compile(rf"{key}:\s*<\/td><td>(\d+)"), ctp_get("status")).group(1))
+    match = re.search(re.compile(rf"{key}:\s*<\/td><td>(\d+)"), ctp_get("status"))
+    if match is None:
+        raise ValueError(f"Could not find status key: {key}")
+    return int(match.group(1))
 
 def count_files(path, exclude_files):
     return sum(len([f for f in files if not f.startswith('.') and f not in exclude_files]) for _, _, files in os.walk(path))
@@ -432,7 +439,9 @@ def start_ctp_run(tick_func, tick_data, logf, ctp_dir):
             java_home = os.path.join(bundle_dir, '_internal', 'jre8')
     else:
         java_home = os.environ.get('JAVA_HOME')
-    
+        if java_home is None:
+            raise ValueError("JAVA_HOME environment variable must be set")
+
     java_executable = os.path.join(java_home, "bin", "java")
     env = {'JAVA_HOME': java_home}
     
@@ -503,7 +512,7 @@ def ctp_workspace(func, data, config_setup_func=None):
 
 def setup_ctp_directory():
     if hasattr(sys, '_MEIPASS'):
-        source_ctp_dir = os.path.join(sys._MEIPASS, 'ctp')
+        source_ctp_dir = os.path.join(getattr(sys, '_MEIPASS'), 'ctp')
     else:
         source_ctp_dir = "ctp"
     
@@ -631,8 +640,8 @@ def cmove_queries(**config):
     else:
         mrn_dates = list(df[[config.get("mrn_col"), config.get("date_col")]].itertuples(index=False, name=None))
         for i, (mrn, dt) in enumerate(mrn_dates, 1):
-            dts = datetime.strftime((dt - timedelta(days=config.get("date_window"))), "%Y%m%d")
-            dte = datetime.strftime((dt + timedelta(days=config.get("date_window"))), "%Y%m%d")
+            dts = datetime.strftime((dt - timedelta(days=config.get("date_window", 0))), "%Y%m%d")
+            dte = datetime.strftime((dt + timedelta(days=config.get("date_window", 0))), "%Y%m%d")
             query = f"-k QueryRetrieveLevel=STUDY -k PatientID={str(mrn)} -k StudyDate={dts}-{dte}"
             queries.append(query)
             logging.info(f"Row {i}: MRN={mrn}, TargetDate={dt.strftime('%Y-%m-%d')}, Window={config.get('date_window')} days")
@@ -649,10 +658,10 @@ def cmove_images(logf, **config):
     
     queries, accession_numbers = cmove_queries(**config)
     
-    for pacs in config.get("pacs"):
+    for pacs in config.get("pacs", []):
         study_uids = set()
-        ip, port, aec = pacs.get("ip"), pacs.get("port"), pacs.get("ae")
-        aet, aem = config.get("application_aet"), config.get("application_aet")
+        ip, port, aec = pacs.get("ip", ""), pacs.get("port", ""), pacs.get("ae", "")
+        aet, aem = config.get("application_aet", ""), config.get("application_aet", "")
         logging.info(f"Querying PACS: {ip}:{port} (AE: {aec})")
         
         queries, accession_numbers = cmove_queries(**config)
@@ -1440,7 +1449,7 @@ def validate_config(config):
                 error_and_exit("pacs_ip, pacs_port, and pacs_aet have been deprecated. Please use the pacs list instead.")
             if not config.get("pacs"):
                 error_and_exit("Pacs details missing in config file.")
-            for pacs in config.get("pacs"):
+            for pacs in config.get("pacs", []):
                 if not all([pacs.get("ip"), pacs.get("port"), pacs.get("ae")]):
                     error_and_exit("Pacs details missing in config file.")
             if config.get("application_aet") is None or config.get("application_aet") == "":
@@ -1563,8 +1572,9 @@ def run_module(**config):
     logging.info("FULL CONFIG:")
     logging.info(yaml.dump(config, default_flow_style=False, sort_keys=False))
     logging.info("="*80)
-    if config.get("module") in ["imageqr", "imagedeid", "imageexport", "headerextract", "textdeid"]:
-        globals()[config.get("module")](**config)
+    module_name = config.get("module")
+    if module_name in ["imageqr", "imagedeid", "imageexport", "headerextract", "textdeid"]:
+        globals()[module_name](**config)
     else:
         generalmodule(**config)
 
@@ -1575,8 +1585,8 @@ if __name__ == "__main__":
     CONFIG_PATH = sys.argv[1]
     INPUT_DIR = sys.argv[2]
     OUTPUT_DIR = sys.argv[3]
-    APPDATA_DIR = os.environ.get('ICORE_APPDATA_DIR')
-    MODULES_DIR = os.environ.get('ICORE_MODULES_DIR')
+    APPDATA_DIR = os.environ.get('ICORE_APPDATA_DIR', "")
+    MODULES_DIR = os.environ.get('ICORE_MODULES_DIR', "")
 
     if not APPDATA_DIR:
         APPDATA_DIR = os.path.abspath(os.path.join(os.getcwd(), "appdata"))

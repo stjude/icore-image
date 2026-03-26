@@ -368,12 +368,12 @@ class Fixtures:
                             accession="ACC001", study_date="20240101", 
                             modality="CT", **extra_tags):
         file_meta = FileMetaDataset()
-        file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
+        file_meta.MediaStorageSOPClassUID = pydicom.uid.UID('1.2.840.10008.5.1.4.1.1.2')
         file_meta.MediaStorageSOPInstanceUID = generate_uid()
-        file_meta.TransferSyntaxUID = '1.2.840.10008.1.2.1'
+        file_meta.TransferSyntaxUID = pydicom.uid.UID('1.2.840.10008.1.2.1')
         file_meta.ImplementationClassUID = generate_uid()
         
-        ds = FileDataset(None, {}, file_meta=file_meta, preamble=b"\0" * 128)
+        ds = FileDataset("", {}, file_meta=file_meta, preamble=b"\0" * 128)
         
         ds.PatientName = patient_name
         ds.PatientID = patient_id
