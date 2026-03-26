@@ -162,7 +162,7 @@ def test_continuous_audit_log_saving(tmp_path):
         monitor_thread = threading.Thread(target=monitor_files, daemon=True)
         monitor_thread.start()
 
-        result = imageqr(
+        imageqr(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",

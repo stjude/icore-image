@@ -36,7 +36,7 @@ def test_image_export_single_file(tmp_path, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
     
-    result = image_export(
+    image_export(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,
@@ -78,7 +78,7 @@ def test_image_export_preserves_folder_structure(tmp_path, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
     
-    result = image_export(
+    image_export(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,
@@ -168,7 +168,7 @@ def test_image_export_multiple_file_types(tmp_path, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
     
-    result = image_export(
+    image_export(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,

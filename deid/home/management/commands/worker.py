@@ -41,7 +41,6 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
     task.process_pid = process.pid
     task.save()
     
-    log_path_captured = False
     stdout_lines = []
     stderr_lines = []
     
@@ -54,7 +53,7 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
                 if 'log_path' in log_data:
                     task.log_path = log_data['log_path']
                     task.save()
-                    log_path_captured = True
+
                     print(f"Captured log path: {task.log_path}")
             except json.JSONDecodeError:
                 pass

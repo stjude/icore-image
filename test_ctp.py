@@ -317,7 +317,7 @@ def test_pacs_pipeline_dicom_port_conflict(tmp_path):
         application_aet="TEST",
         dicom_port=11112,
         source_ctp_dir=str(source_ctp)
-    ) as pipeline1:
+    ) as _pipeline1:
         time.sleep(3)
 
         with pytest.raises(DicomPortInUseError, match="DICOM port 11112"):
@@ -327,7 +327,7 @@ def test_pacs_pipeline_dicom_port_conflict(tmp_path):
                 application_aet="TEST",
                 dicom_port=11112,
                 source_ctp_dir=str(source_ctp)
-            ) as pipeline2:
+            ) as _pipeline2:
                 pass
 
 

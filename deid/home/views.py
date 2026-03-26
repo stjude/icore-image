@@ -90,7 +90,7 @@ def _validate_sas_url(sas_url):
                 return {"valid": False, "error": "Invalid expiry date format in SAS token"}
         
         try:
-            account_name = parsed.netloc.split('.')[0]
+
             container_name = parsed.path.lstrip('/').split('/')[0]
             if not container_name:
                 return {"valid": False, "error": "Container name not found in URL"}

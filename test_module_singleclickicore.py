@@ -283,8 +283,8 @@ def test_singleclickicore_with_text_deid_columns(tmp_path):
         project_name = "ColumnTest"
         
         from module_singleclickicore import singleclickicore
-        
-        result = singleclickicore(
+
+        singleclickicore(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -524,8 +524,8 @@ def test_singleclickicore_skip_export_option(tmp_path):
         assert result["num_studies_found"] == 1
         assert result["num_images_exported"] == 1
         assert result["num_rows_processed"] == 1
-        assert result["export_performed"] == False
-        
+        assert not result["export_performed"]
+
         dcm_files = list(output_dir.rglob("*.dcm"))
         assert len(dcm_files) == 1, "Local DICOM file should exist"
         
@@ -598,7 +598,7 @@ def test_singleclickicore_export_enabled_by_default(tmp_path):
             apply_default_filter_script=False
         )
         
-        assert result["export_performed"] == True
+        assert result["export_performed"]
         
         blobs = azurite.list_blobs(container_name)
         dcm_blobs = [b for b in blobs if b.endswith('.dcm')]
@@ -669,11 +669,11 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path):
         
         assert result["num_studies_found"] == 1
         assert result["num_images_exported"] == 1
-        assert result["export_performed"] == False
-        
+        assert not result["export_performed"]
+
         dcm_files = list(output_dir.rglob("*.dcm"))
         assert len(dcm_files) == 1
-        
+
         output_xlsx = output_dir / "output.xlsx"
         assert output_xlsx.exists()
     

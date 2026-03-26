@@ -275,7 +275,7 @@ def test_continuous_audit_log_saving(tmp_path):
     monitor_thread = threading.Thread(target=monitor_files, daemon=True)
     monitor_thread.start()
     
-    result = imagedeid_local(
+    imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
@@ -509,7 +509,7 @@ def test_imagedeid_local_with_mapping_file_basic(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@keep()</e>
 </script>"""
     
-    result = imagedeid_local(
+    imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
@@ -573,7 +573,7 @@ def test_imagedeid_local_with_mapping_file_multiple_tags(tmp_path):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
     
-    result = imagedeid_local(
+    imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
@@ -643,7 +643,7 @@ def test_imagedeid_local_date_format_conversion(tmp_path):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
     
-    result = imagedeid_local(
+    imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
@@ -736,7 +736,7 @@ def test_imagedeid_local_fallback_to_simple_action(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@empty()</e>
 </script>"""
     
-    result = imagedeid_local(
+    imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
@@ -789,7 +789,7 @@ def test_imagedeid_local_complex_function_quarantines(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
 </script>"""
     
-    result = imagedeid_local(
+    imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
@@ -840,7 +840,7 @@ def test_imagedeid_local_tag_not_in_script(tmp_path):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
     
-    result = imagedeid_local(
+    imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
@@ -894,7 +894,7 @@ def test_explicit_lookup_table_overrides_mapping_file(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@lookup(this,AccessionNumber,keep)</e>
 </script>"""
     
-    result = imagedeid_local(
+    imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),

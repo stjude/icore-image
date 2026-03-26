@@ -190,7 +190,7 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
     finally:
         try:
             shutil.rmtree(temp_dir)
-        except:
+        except Exception:
             pass
 
 

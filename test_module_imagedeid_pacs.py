@@ -223,7 +223,7 @@ def test_continuous_audit_log_saving(tmp_path):
         monitor_thread = threading.Thread(target=monitor_files, daemon=True)
         monitor_thread.start()
         
-        result = imagedeid_pacs(
+        imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -917,7 +917,7 @@ def test_imagedeid_pacs_with_mapping_file_basic(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@keep()</e>
 </script>"""
         
-        result = imagedeid_pacs(
+        imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -1001,7 +1001,7 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
         
-        result = imagedeid_pacs(
+        imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -1091,7 +1091,7 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
         
-        result = imagedeid_pacs(
+        imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -1168,7 +1168,7 @@ def test_imagedeid_pacs_fallback_to_simple_action(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@empty()</e>
 </script>"""
         
-        result = imagedeid_pacs(
+        imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -1241,7 +1241,7 @@ def test_imagedeid_pacs_complex_function_quarantines(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
 </script>"""
         
-        result = imagedeid_pacs(
+        imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -1312,7 +1312,7 @@ def test_imagedeid_pacs_tag_not_in_script(tmp_path):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
         
-        result = imagedeid_pacs(
+        imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -1386,7 +1386,7 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@lookup(this,AccessionNumber,keep)</e>
 </script>"""
         
-        result = imagedeid_pacs(
+        imagedeid_pacs(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",

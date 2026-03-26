@@ -106,26 +106,26 @@ def test_imagedeidexport_basic_workflow(tmp_path):
 def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
+
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
     output_dir = tmp_path / "output"
     output_dir.mkdir()
-    
+
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
-    
+
     azurite = AzuriteServer()
     azurite.start()
-    
+
     try:
         ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
         ds.InstanceNumber = 1
         _upload_dicom_to_orthanc(ds, orthanc)
-        
+
         time.sleep(2)
-        
+
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
         query_df.to_excel(query_file, index=False)
@@ -150,7 +150,7 @@ def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path):
         
         from module_imagedeidexport import imagedeidexport
         
-        result = imagedeidexport(
+        imagedeidexport(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",

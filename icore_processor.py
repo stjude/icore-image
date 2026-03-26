@@ -403,7 +403,7 @@ def count_dicom_files(path):
                     file.seek(128)
                     if file.read(4) == b'DICM':
                         dicom_count += 1
-            except:
+            except Exception:
                 continue
     return dicom_count
 
@@ -1359,18 +1359,6 @@ def textdeid_main(**config):
         print_and_log("PROGRESS: COMPLETE")
     except Exception as e:
         error_and_exit(f"Error: {e}")
-
-def validate_config(input_dir, output_dir, config):
-    if config is None:
-        error_and_exit("Config file unable to load or invalid.")
-    if not os.path.exists(input_dir):
-        error_and_exit("Input directory not found.")
-    if os.listdir(output_dir) != []:
-        error_and_exit("Output directory must be empty.")
-    if config.get("to_keep_list") is None or config.get("to_remove_list") is None:
-        error_and_exit("to_keep_list and to_remove_list must be provided.")
-    if config.get("date_shift_by") is None:
-        error_and_exit("Date shift by must be provided.")
 
 def validate_ctp_filters(filters):
     grammar = r"""start: expr

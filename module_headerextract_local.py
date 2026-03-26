@@ -24,7 +24,7 @@ def _extract_header_value(ds, header_name):
         if value is None:
             return ""
         return str(value)
-    except:
+    except Exception:
         return ""
 
 
@@ -115,7 +115,7 @@ def headerextract_local(input_dir, output_dir, headers_to_extract=None,
                             value = getattr(ds, attr_name, None)
                             if value is not None:
                                 header_data[attr_name] = str(value)
-                    except:
+                    except Exception:
                         pass
                 if header_data:
                     all_headers.append(header_data)

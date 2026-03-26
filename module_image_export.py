@@ -132,7 +132,7 @@ def image_export(input_dir, sas_url, project_name, appdata_dir=None, debug=False
             
             
             try:
-                result = subprocess.run(
+                subprocess.run(
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,

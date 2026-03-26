@@ -468,7 +468,7 @@ class OrthancServer:
                 response = requests.get(f"{self.base_url}/system", timeout=1)
                 if response.status_code == 200:
                     break
-            except:
+            except Exception:
                 pass
             time.sleep(1)
         else:
