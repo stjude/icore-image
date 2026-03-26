@@ -7,7 +7,7 @@ import sys
 import tempfile
 import time
 import socket
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlparse, parse_qs
 
 import bcrypt
@@ -85,7 +85,7 @@ def _validate_sas_url(sas_url):
             expiry_str = query_params['se'][0]
             try:
                 expiry_time = datetime.strptime(expiry_str, '%Y-%m-%dT%H:%M:%SZ')
-                current_time = datetime.utcnow()
+                current_time = datetime.now(dt_timezone.utc)
                 
                 if current_time >= expiry_time:
                     return {"valid": False, "error": "SAS token has expired"}

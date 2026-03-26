@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import pydicom
+from pydicom.filebase import DicomBytesIO
 
 from module_image_export import image_export
 from test_utils import _create_test_dicom, AzuriteServer
@@ -49,7 +50,7 @@ def test_image_export_single_file(tmp_path, azurite):
     assert blobs[0] == f"{project_name}/test001.dcm"
     
     blob_content = azurite.get_blob_content(container_name, blobs[0])
-    downloaded_ds = pydicom.dcmread(pydicom.filebase.DicomBytesIO(blob_content))
+    downloaded_ds = pydicom.dcmread(DicomBytesIO(blob_content))
     assert downloaded_ds.AccessionNumber == "ACC001"
     assert downloaded_ds.PatientID == "MRN001"
 

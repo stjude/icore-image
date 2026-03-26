@@ -122,8 +122,8 @@ def create_test_dicoms(input_dir, num_files=10):
         ds.PixelRepresentation = 0
         ds.PixelData = np.random.randint(0, 1000, (64, 64), dtype=np.uint16).tobytes()
         
-        ds.file_meta = pydicom.dataset.FileMetaDataset()
-        ds.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
+        ds.file_meta = FileMetaDataset()
+        ds.file_meta.TransferSyntaxUID = ImplicitVRLittleEndian
         ds.file_meta.MediaStorageSOPClassUID = UID(ds.SOPClassUID)
         ds.file_meta.MediaStorageSOPInstanceUID = UID(ds.SOPInstanceUID)
         ds.is_little_endian = True
@@ -918,10 +918,9 @@ def test_imageqr_pipeline(tmp_path):
             ds.SeriesNumber = (i % 2) + 1
             ds.InstanceNumber = i + 1
 
-            temp_file = tempfile.mktemp(suffix=".dcm")
-            ds.save_as(temp_file)
-            orthanc.upload_dicom(temp_file)
-            os.remove(temp_file)
+            with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+                ds.save_as(tmp.name)
+                orthanc.upload_dicom(tmp.name)
 
         source_ctp = Path(__file__).parent / "ctp"
 
@@ -998,10 +997,9 @@ def test_imageqr_with_filter(tmp_path):
             ds.SeriesNumber = 1
             ds.InstanceNumber = i + 1
             
-            temp_file = tempfile.mktemp(suffix=".dcm")
-            ds.save_as(temp_file)
-            orthanc.upload_dicom(temp_file)
-            os.remove(temp_file)
+            with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+                ds.save_as(tmp.name)
+                orthanc.upload_dicom(tmp.name)
         
         source_ctp = Path(__file__).parent / "ctp"
 
@@ -1081,10 +1079,9 @@ def test_imagedeid_pacs_pipeline(tmp_path):
             ds.SeriesNumber = (i % 2) + 1
             ds.InstanceNumber = i + 1
             
-            temp_file = tempfile.mktemp(suffix=".dcm")
-            ds.save_as(temp_file)
-            orthanc.upload_dicom(temp_file)
-            os.remove(temp_file)
+            with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+                ds.save_as(tmp.name)
+                orthanc.upload_dicom(tmp.name)
         
         source_ctp = Path(__file__).parent / "ctp"
 
@@ -1162,10 +1159,9 @@ def test_imagedeid_pacs_with_filter(tmp_path):
             ds.SeriesNumber = 1
             ds.InstanceNumber = i + 1
             
-            temp_file = tempfile.mktemp(suffix=".dcm")
-            ds.save_as(temp_file)
-            orthanc.upload_dicom(temp_file)
-            os.remove(temp_file)
+            with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+                ds.save_as(tmp.name)
+                orthanc.upload_dicom(tmp.name)
         
         source_ctp = Path(__file__).parent / "ctp"
 
@@ -1256,10 +1252,9 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
             ds.SeriesNumber = (i % 2) + 1
             ds.InstanceNumber = i + 1
             
-            temp_file = tempfile.mktemp(suffix=".dcm")
-            ds.save_as(temp_file)
-            orthanc.upload_dicom(temp_file)
-            os.remove(temp_file)
+            with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+                ds.save_as(tmp.name)
+                orthanc.upload_dicom(tmp.name)
         
         source_ctp = Path(__file__).parent / "ctp"
 
@@ -1353,10 +1348,9 @@ def test_id_map_audit_log_extraction(tmp_path):
             ds.SeriesNumber = 1
             ds.InstanceNumber = i + 1
             
-            temp_file = tempfile.mktemp(suffix=".dcm")
-            ds.save_as(temp_file)
-            orthanc.upload_dicom(temp_file)
-            os.remove(temp_file)
+            with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+                ds.save_as(tmp.name)
+                orthanc.upload_dicom(tmp.name)
         
         source_ctp = Path(__file__).parent / "ctp"
 
@@ -1547,10 +1541,9 @@ def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path):
             ds.PixelRepresentation = 0
             ds.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
             
-            temp_file = tempfile.mktemp(suffix=".dcm")
-            ds.save_as(temp_file, write_like_original=False)
-            orthanc.upload_dicom(temp_file)
-            os.remove(temp_file)
+            with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+                ds.save_as(tmp.name, write_like_original=False)
+                orthanc.upload_dicom(tmp.name)
         
         source_ctp = Path(__file__).parent / "ctp"
         

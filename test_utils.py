@@ -12,7 +12,7 @@ import pytest
 import pydicom
 import requests
 from pydicom.dataset import FileDataset, FileMetaDataset, Dataset
-from pydicom.uid import generate_uid, SecondaryCaptureImageStorage, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID, EncapsulatedPDFStorage
+from pydicom.uid import generate_uid, SecondaryCaptureImageStorage, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID, EncapsulatedPDFStorage, UID
 
 from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, get_studies_from_study_pacs_map, PacsConfiguration
 
@@ -79,10 +79,9 @@ def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thic
 
 
 def _upload_dicom_to_orthanc(ds, orthanc):
-    temp_file = tempfile.mktemp(suffix=".dcm")
-    ds.save_as(temp_file)
-    orthanc.upload_dicom(temp_file)
-    os.remove(temp_file)
+    with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+        ds.save_as(tmp.name)
+        orthanc.upload_dicom(tmp.name)
     # Give time for the DICOM to be uploaded to Orthanc
     time.sleep(2)
 
@@ -368,9 +367,9 @@ class Fixtures:
                             accession="ACC001", study_date="20240101", 
                             modality="CT", **extra_tags):
         file_meta = FileMetaDataset()
-        file_meta.MediaStorageSOPClassUID = pydicom.uid.UID('1.2.840.10008.5.1.4.1.1.2')
+        file_meta.MediaStorageSOPClassUID = UID('1.2.840.10008.5.1.4.1.1.2')
         file_meta.MediaStorageSOPInstanceUID = generate_uid()
-        file_meta.TransferSyntaxUID = pydicom.uid.UID('1.2.840.10008.1.2.1')
+        file_meta.TransferSyntaxUID = UID('1.2.840.10008.1.2.1')
         file_meta.ImplementationClassUID = generate_uid()
         
         ds = FileDataset("", {}, file_meta=file_meta, preamble=b"\0" * 128)
@@ -516,10 +515,9 @@ class OrthancServer:
                 if series_date:
                     ds.SeriesDate = series_date
                 
-                temp_file = tempfile.mktemp(suffix=".dcm")
-                ds.save_as(temp_file)
-                self.upload_dicom(temp_file)
-                os.remove(temp_file)
+                with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
+                    ds.save_as(tmp.name)
+                    self.upload_dicom(tmp.name)
     
     def get_study_count(self):
         response = requests.get(f"{self.base_url}/studies")
@@ -600,7 +598,7 @@ class AzuriteServer:
     def get_sas_url(self, container_name):
         """Generate a SAS URL for a container"""
         from azure.storage.blob import BlobServiceClient, generate_container_sas, ContainerSasPermissions
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         
         # Create container if it doesn't exist
         client = BlobServiceClient.from_connection_string(self.connection_string)
@@ -615,7 +613,7 @@ class AzuriteServer:
             container_name=container_name,
             account_key=self.account_key,
             permission=ContainerSasPermissions(read=True, write=True, delete=True, list=True),
-            expiry=datetime.utcnow() + timedelta(hours=1)
+            expiry=datetime.now(timezone.utc) + timedelta(hours=1)
         )
         
         # Return the container URL (not including container name in path, it's implicit)

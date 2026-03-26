@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pydicom
 import pytest
+from pydicom.filebase import DicomBytesIO
 
 from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, AzuriteServer, OrthancServer
 from utils import PacsConfiguration, Spreadsheet
@@ -451,7 +452,7 @@ def test_imagedeidexport_with_mapping_file(tmp_path):
         
         for blob in blobs:
             blob_content = azurite.get_blob_content(container_name, blob)
-            ds = pydicom.dcmread(pydicom.filebase.DicomBytesIO(blob_content))
+            ds = pydicom.dcmread(DicomBytesIO(blob_content))
             assert ds.AccessionNumber in ["MAPPED001", "MAPPED002"]
     
     finally:
