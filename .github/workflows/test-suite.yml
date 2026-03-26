@@ -37,7 +37,7 @@ jobs:
       - name: Run tests
         run: make test
 
-    type-check:
+    linting:
       runs-on: ubuntu-latest
       steps:
         - name: Checkout code
@@ -56,3 +56,6 @@ jobs:
 
         - name: Run ty
           run: uv run ty check
+
+        - name: Run ruff
+          run: uv run ruff check
