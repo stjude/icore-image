@@ -3,7 +3,6 @@ import os
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 from urllib.parse import urlparse
 
 from utils import configure_run_logging, setup_run_directories

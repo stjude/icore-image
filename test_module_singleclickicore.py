@@ -4,7 +4,6 @@ import time
 from pathlib import Path
 
 import pandas as pd
-import pydicom
 import pytest
 
 from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, AzuriteServer, OrthancServer

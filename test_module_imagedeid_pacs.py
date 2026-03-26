@@ -9,9 +9,8 @@ import pandas as pd
 import pytest
 import pydicom
 
-from module_imagedeid_local import _generate_lookup_table_content
 from module_imagedeid_pacs import imagedeid_pacs
-from test_utils import cleanup_docker_containers, _create_test_dicom, _upload_dicom_to_orthanc, Fixtures, OrthancServer
+from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, Fixtures, OrthancServer
 from utils import PacsConfiguration, Spreadsheet
 
 

@@ -2,11 +2,8 @@ import logging
 import json
 import os
 import shutil
-import subprocess
 import sys
-import tempfile
 import time
-import socket
 from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlparse, parse_qs
 
@@ -65,7 +62,7 @@ def validate_sas_url_endpoint(request):
         if result.get('error') is not None:
             return JsonResponse({'valid': False, 'error': 'Validation error during SAS URL check'}, status=400)
         return JsonResponse({'valid': True, 'error': None}, status=200)
-    except Exception as e:
+    except Exception:
         return JsonResponse({'valid': False, 'error': 'Validation error during SAS URL check'}, status=500)
 
 

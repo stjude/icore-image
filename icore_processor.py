@@ -274,7 +274,6 @@ def create_analyzer_engine():
     if getattr(sys, 'frozen', False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
         model_path = os.path.join(bundle_dir, '_internal', 'en_core_web_sm', 'en_core_web_sm-3.7.1')
-        import spacy
         from presidio_analyzer.nlp_engine import SpacyNlpEngine
         nlp_engine = SpacyNlpEngine(models=[{"lang_code": "en", "model_name": model_path}])
     else:
@@ -543,16 +542,16 @@ def save_config(config, ctp_dir):
 
 def parse_dicom_tag_dict(output):
     tags = {}
-    expr = rf".*\[(.+)\].+\#.+\,.+ (.+)"
+    expr = r".*\[(.+)\].+\#.+\,.+ (.+)"
     for value, tag in re.findall(expr, output):
         tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
-    expr = rf".*=(.+).+\#.+\,.+ (.+)"
+    expr = r".*=(.+).+\#.+\,.+ (.+)"
     for value, tag in re.findall(expr, output):
         tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
-    expr = rf".*FD (.+).+\#.+\,.+ (.+)"
+    expr = r".*FD (.+).+\#.+\,.+ (.+)"
     for value, tag in re.findall(expr, output):
         tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
-    expr = rf".*US (.+).+\#.+\,.+ (.+)"
+    expr = r".*US (.+).+\#.+\,.+ (.+)"
     for value, tag in re.findall(expr, output):
         tags[tag.strip("\x00").strip()] = value.strip("\x00").strip()
     return tags
@@ -694,7 +693,7 @@ def cmove_images(logf, **config):
                     logging.info(f"  Found StudyInstanceUID: {study_uid}, StudyDate: {study_date}")
             
             if studies_found_this_query == 0:
-                logging.info(f"  No studies found for this query")
+                logging.info("  No studies found for this query")
             else:
                 logging.info(f"  Total studies found for this query: {studies_found_this_query}")
             
@@ -1159,7 +1158,7 @@ def header_extract_main(**config):
         return
     
     try:
-        logging.info(f"Converting CSV to Excel format in batches...")
+        logging.info("Converting CSV to Excel format in batches...")
         
         chunk_size = 1000  # Process 1000 rows at a time
         all_chunks = []

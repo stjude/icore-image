@@ -21,7 +21,7 @@ from pydicom.uid import (
 from ctp import CTPServer, CTPPipeline, PIPELINE_TEMPLATES
 from dcmtk import get_study
 from module_imagedeid_local import imagedeid_local
-from test_utils import cleanup_docker_containers, Fixtures, OrthancServer
+from test_utils import Fixtures, OrthancServer
 
 
 CT_SOP_CLASS = "1.2.840.10008.5.1.4.1.1.2"
@@ -656,7 +656,7 @@ ptid/P006=P106
         for file in output_files:
             ds = pydicom.dcmread(file)
             
-            assert ds.PatientName == "", f"PatientName should be empty"
+            assert ds.PatientName == "", "PatientName should be empty"
             
             found_patient_ids.add(ds.PatientID)
             found_accessions.add(ds.AccessionNumber)
@@ -747,10 +747,10 @@ def test_imagedeid_local_with_filter(tmp_path):
         for file in output_files:
             ds = pydicom.dcmread(file)
             assert ds.Modality == "CT", f"Only CT files should be in output, found {ds.Modality}"
-            assert ds.PatientName == "", f"PatientName should be anonymized"
+            assert ds.PatientName == "", "PatientName should be anonymized"
         
-        assert pipeline.metrics.files_saved == 3, f"Expected 3 CT files saved"
-        assert pipeline.metrics.files_quarantined == 3, f"Expected 3 MR files quarantined"
+        assert pipeline.metrics.files_saved == 3, "Expected 3 CT files saved"
+        assert pipeline.metrics.files_quarantined == 3, "Expected 3 MR files quarantined"
         
         quarantined_files = list(custom_quarantine_dir.rglob("*.dcm"))
         assert len(quarantined_files) == 3, f"Expected 3 quarantined files in custom directory, got {len(quarantined_files)}"
@@ -1214,9 +1214,9 @@ def test_imagedeid_pacs_with_filter(tmp_path):
                 assert ds.Modality == "CT", f"Only CT files should be in output, found {ds.Modality}"
                 assert ds.PatientName == "", f"PatientName should be anonymized, got '{ds.PatientName}'"
             
-            assert pipeline.metrics.files_saved == 3, f"Expected 3 CT files saved"
-            assert pipeline.metrics.files_quarantined == 3, f"Expected 3 MR files quarantined"
-            assert pipeline.metrics.files_received == 6, f"Expected 6 files received"
+            assert pipeline.metrics.files_saved == 3, "Expected 3 CT files saved"
+            assert pipeline.metrics.files_quarantined == 3, "Expected 3 MR files quarantined"
+            assert pipeline.metrics.files_received == 6, "Expected 6 files received"
     
     finally:
         orthanc.stop()
@@ -1596,7 +1596,7 @@ def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path):
             output_files = list(output_dir.rglob("*.dcm"))
             
             assert pipeline.metrics.files_received >= 9, f"Expected at least 9 files received, got {pipeline.metrics.files_received}"
-            assert pipeline.metrics.files_saved + pipeline.metrics.files_quarantined >= 9, f"Expected at least 9 files processed"
+            assert pipeline.metrics.files_saved + pipeline.metrics.files_quarantined >= 9, "Expected at least 9 files processed"
             assert len(output_files) >= 9, f"Expected at least 9 output files, got {len(output_files)}"
             
             for file in output_files:

@@ -8,7 +8,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 
-from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result, RetryCallState, before_sleep_log
+from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result, RetryCallState
 
 
 class DCMTKError(Exception):

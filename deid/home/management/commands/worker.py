@@ -6,7 +6,6 @@ import sys
 import time
 import traceback
 from datetime import datetime
-from shutil import which
 
 import pandas as pd
 import pytz
@@ -15,8 +14,6 @@ from django.db import models, transaction
 from grammar import (
     generate_anonymizer_script,
     generate_filters_string,
-    generate_lookup_contents,
-    generate_lookup_table,
     generate_hipaa_safe_harbor_script,
     get_hipaa_safe_harbor_config,
 )
@@ -85,7 +82,7 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
         
         return stdout_output
     
-    except Exception as e:
+    except Exception:
         process.kill()
         raise
 

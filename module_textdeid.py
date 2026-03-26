@@ -62,7 +62,6 @@ def create_nlp_engine():
         if model_subdir is None:
             raise FileNotFoundError(f"en_core_web_sm model not found in {models_base_dir}")
         model_path = model_subdir
-        import spacy
         from presidio_analyzer.nlp_engine import SpacyNlpEngine
         nlp_engine = SpacyNlpEngine(models=[{"lang_code": "en", "model_name": model_path}])
     else:

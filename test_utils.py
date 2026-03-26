@@ -9,7 +9,6 @@ import uuid
 import numpy as np
 import pandas as pd
 import pytest
-import pydicom
 import requests
 from pydicom.dataset import FileDataset, FileMetaDataset, Dataset
 from pydicom.uid import generate_uid, SecondaryCaptureImageStorage, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID, EncapsulatedPDFStorage, UID
@@ -893,7 +892,7 @@ def test_find_studies_returns_failure_details(tmp_path):
 
 def test_get_studies_returns_failure_details(tmp_path):
     """Test that get_studies_from_study_pacs_map returns failure details as 3rd value"""
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {

@@ -92,7 +92,7 @@ def generate_queries_and_filter(spreadsheet, date_window_days=0, use_fallback_qu
             query_params_list.append(query_params)
             filter_conditions.append(filter_condition)
         else:
-            raise ValueError(f"Row must have either acc_col or both mrn_col and date_col with valid values")
+            raise ValueError("Row must have either acc_col or both mrn_col and date_col with valid values")
 
     generated_filter = " + ".join(filter_conditions) if filter_conditions else None
 

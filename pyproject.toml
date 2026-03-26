@@ -47,6 +47,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "django-types>=0.23.0",
+    "ruff>=0.15.7",
     "ty>=0.0.25",
 ]
 
