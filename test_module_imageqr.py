@@ -833,7 +833,7 @@ def test_imageqr_continues_despite_move_failures(tmp_path, capsys):
         def mock_move_study(*args, **kwargs):
             call_count["count"] += 1
             if call_count["count"] == 1:
-                # First call: simulate zero files retrieved
+                # First call: simulate move failure
                 return {
                     "success": False,
                     "num_completed": 0,

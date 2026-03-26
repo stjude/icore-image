@@ -974,7 +974,7 @@ def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
         assert len(failed_query_indices) == 2, "Should have 2 failed query indices"
         assert 0 in failed_query_indices, "Query index 0 should have failed (exception)"
         assert 2 in failed_query_indices, "Query index 2 should have failed (normal failure)"
-        assert "Exception during retrieval" in failure_details[0], "Should record exception"
+        assert "Exception during move" in failure_details[0], "Should record exception"
         assert "Network timeout" in failure_details[0], "Should include exception message"
 
         assert any("Exception while moving" in record.message for record in caplog.records)

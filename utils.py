@@ -375,8 +375,21 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet, destinatio
             processed += 1
 
             if result["success"]:
-                successful_moves += 1
-                logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
+                num_failed = result.get("num_failed", 0)
+                num_warning = result.get("num_warning", 0)
+                if num_failed > 0:
+                    logging.warning(
+                        f"C-MOVE for query {query_index + 1} (study {study_uid}) reported success "
+                        f"but had {num_failed} failed sub-operations from {pacs.host}:{pacs.port}. Moving on."
+                    )
+                    if query_index not in failed_query_indices:
+                        failed_query_indices.append(query_index)
+                        failure_details[query_index] = (
+                            f"C-MOVE succeeded but had {num_failed} failed sub-operations"
+                        )
+                else:
+                    successful_moves += 1
+                    logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
             else:
                 logging.error(
                     f"Failed to move study for query {query_index + 1}: {result['message']}. Moving on."
@@ -393,7 +406,7 @@ def move_studies_from_study_pacs_map(study_pacs_map, application_aet, destinatio
             processed += 1
             if query_index not in failed_query_indices:
                 failed_query_indices.append(query_index)
-                failure_details[query_index] = f"Exception during retrieval: {str(e)}"
+                failure_details[query_index] = f"Exception during move: {str(e)}"
 
     logging.info(f"Moved {processed} / {total_studies} studies")
 
