@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from openpyxl import Workbook
 
-from dcmtk import find_studies, get_study, echo_pacs
+from dcmtk import find_studies, move_study, echo_pacs
 
 
 @dataclass
@@ -350,57 +350,36 @@ def _attempt_fallback_queries(pacs_list, application_aet, study_pacs_map,
     return study_pacs_map, final_failed, final_details
 
 
-def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir):
-    """Retrieve multiple studies from PACS using C-GET based on a study-to-PACS mapping."""
-    successful_gets = 0
+def move_studies_from_study_pacs_map(study_pacs_map, application_aet, destination_aet):
+    """Retrieve multiple studies from PACS using C-MOVE based on a study-to-PACS mapping."""
+    successful_moves = 0
     failed_query_indices = []
     failure_details = {}
     total_studies = len(study_pacs_map)
     processed = 0
 
     for study_uid, (pacs, query_index) in study_pacs_map.items():
-        logging.info(f"Retrieved {processed} / {total_studies} studies")
+        logging.info(f"Moved {processed} / {total_studies} studies")
         logging.debug(f"Processing study from Excel row {query_index + 1}")
 
         try:
-            result = get_study(
+            result = move_study(
                 host=pacs.host,
                 port=pacs.port,
                 calling_aet=application_aet,
                 called_aet=pacs.aet,
-                output_dir=output_dir,
+                destination_aet=destination_aet,
                 study_uid=study_uid
             )
 
             processed += 1
 
             if result["success"]:
-                # Check if any files were actually retrieved
-                if result["num_completed"] == 0:
-                    num_failed = result.get("num_failed", 0)
-                    num_warning = result.get("num_warning", 0)
-                    logging.warning(
-                        f"C-GET for query {query_index + 1} (study {study_uid}) reported success "
-                        f"but retrieved 0 files from {pacs.host}:{pacs.port}. "
-                        f"Failed: {num_failed}, Warning: {num_warning}. Moving on."
-                    )
-                    if query_index not in failed_query_indices:
-                        failed_query_indices.append(query_index)
-                        if num_failed > 0 or num_warning > 0:
-                            failure_details[query_index] = (
-                                f"C-GET succeeded but retrieved 0 files (failed: {num_failed}, warning: {num_warning})"
-                            )
-                        else:
-                            failure_details[query_index] = "C-GET succeeded but retrieved 0 files (no sub-operations)"
-                else:
-                    successful_gets += 1
-                    logging.debug(
-                        f"Successfully retrieved study {study_uid} from {pacs.host}:{pacs.port} "
-                        f"({result['num_completed']} files)"
-                    )
+                successful_moves += 1
+                logging.debug(f"Successfully moved study {study_uid} from {pacs.host}:{pacs.port}")
             else:
                 logging.error(
-                    f"Failed to retrieve study for query {query_index + 1}: {result['message']}. Moving on."
+                    f"Failed to move study for query {query_index + 1}: {result['message']}. Moving on."
                 )
                 if query_index not in failed_query_indices:
                     failed_query_indices.append(query_index)
@@ -408,7 +387,7 @@ def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir)
 
         except Exception as e:
             logging.exception(
-                f"Exception while retrieving study for query {query_index + 1} "
+                f"Exception while moving study for query {query_index + 1} "
                 f"(study {study_uid}): {str(e)}. Moving on."
             )
             processed += 1
@@ -416,9 +395,9 @@ def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir)
                 failed_query_indices.append(query_index)
                 failure_details[query_index] = f"Exception during retrieval: {str(e)}"
 
-    logging.info(f"Retrieved {processed} / {total_studies} studies")
+    logging.info(f"Moved {processed} / {total_studies} studies")
 
-    return successful_gets, failed_query_indices, failure_details
+    return successful_moves, failed_query_indices, failure_details
 
 
 def setup_run_directories():

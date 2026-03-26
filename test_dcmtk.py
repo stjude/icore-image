@@ -1,9 +1,8 @@
-import os
 from unittest import mock
-import pytest
-import time
 
-from dcmtk import find_studies, get_study, echo_pacs, DCMTKCommandError, DCMTKParseError
+import pytest
+
+from dcmtk import find_studies, move_study, echo_pacs, DCMTKCommandError, DCMTKParseError
 
 FINDSCU_SINGLE_ACCESSION_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <responses type="C-FIND">
@@ -63,9 +62,9 @@ FINDSCU_SERIES_LEVEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 </data-set>
 </responses>'''
 
-GETSCU_SUCCESS_STDERR = '''I: Requesting Association
+MOVESCU_SUCCESS_STDERR = '''I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
-I: Sending Get Request (MsgID 1)
+I: Sending Move Request (MsgID 1)
 I: Request Identifiers:
 I:
 I: # Dicom-Data-Set
@@ -73,17 +72,17 @@ I: # Used TransferSyntax: Little Endian Explicit
 I: (0008,0052) CS [STUDY]                                  #   6, 1 QueryRetrieveLevel
 I: (0020,000d) UI [1.2.826.0.1.3680043.8.498.12345]       #  64, 1 StudyInstanceUID
 I:
-I: Get Response 1 (Pending)
+I: Move Response 1 (Pending)
 I: Sub-Operations Remaining: 10, Completed: 0, Failed: 0, Warning: 0
-I: Get Response 2 (Pending)
+I: Move Response 2 (Pending)
 I: Sub-Operations Remaining: 5, Completed: 5, Failed: 0, Warning: 0
-I: Received Final Get Response (Success)
+I: Received Final Move Response (Success)
 I: Sub-Operations Complete: 10, Failed: 0, Warning: 0
 I: Releasing Association'''
 
-GETSCU_FAILURE_STDERR = '''I: Requesting Association
+MOVESCU_FAILURE_STDERR = '''I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
-I: Sending Get Request (MsgID 1)
+I: Sending Move Request (MsgID 1)
 I: Request Identifiers:
 I:
 I: # Dicom-Data-Set
@@ -91,8 +90,8 @@ I: # Used TransferSyntax: Little Endian Explicit
 I: (0008,0052) CS [STUDY]                                  #   6, 1 QueryRetrieveLevel
 I: (0020,000d) UI [9.9.9.9.9.9.9.9]                        #  16, 1 StudyInstanceUID
 I:
-W: Get response with error status (Failed: UnableToProcess)
-I: Received Final Get Response (Failed: UnableToProcess)
+W: Move response with error status (Failed: UnableToProcess)
+I: Received Final Move Response (Failed: UnableToProcess)
 I: Releasing Association'''
 
 
@@ -204,18 +203,23 @@ def test_find_studies_command_error(tmp_path):
                     )
 
 
-def test_get_study_success(tmp_path):
+def test_move_study_success():
     def mock_run(*args, **kwargs):
-        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
+        cmd = args[0]
+        assert 'movescu' in cmd[0]
+        assert '-aem' in cmd
+        aem_idx = cmd.index('-aem')
+        assert cmd[aem_idx + 1] == 'DEST_AET'
+        return mock.Mock(returncode=0, stdout="", stderr=MOVESCU_SUCCESS_STDERR)
 
     with mock.patch('subprocess.run', side_effect=mock_run):
         with mock.patch('time.sleep'):
-            result = get_study(
+            result = move_study(
                 host="localhost",
                 port=11112,
                 calling_aet="TEST_SCU",
                 called_aet="ORTHANC_TEST",
-                output_dir=str(tmp_path / "output"),
+                destination_aet="DEST_AET",
                 study_uid="1.2.826.0.1.3680043.8.498.12345",
             )
 
@@ -225,18 +229,18 @@ def test_get_study_success(tmp_path):
     assert result["num_warning"] == 0
 
 
-def test_get_study_failure(tmp_path):
+def test_move_study_failure():
     def mock_run(*args, **kwargs):
-        return mock.Mock(returncode=69, stdout="", stderr=GETSCU_FAILURE_STDERR)
+        return mock.Mock(returncode=69, stdout="", stderr=MOVESCU_FAILURE_STDERR)
 
     with mock.patch('subprocess.run', side_effect=mock_run):
         with mock.patch('time.sleep'):
-            result = get_study(
+            result = move_study(
                 host="localhost",
                 port=11112,
                 calling_aet="TEST_SCU",
                 called_aet="ORTHANC_TEST",
-                output_dir=str(tmp_path / "output"),
+                destination_aet="DEST_AET",
                 study_uid="9.9.9.9.9.9.9.9",
             )
 
@@ -306,25 +310,25 @@ def test_find_studies_retries_on_failure(tmp_path):
     assert attempt_count["count"] == 2
 
 
-def test_get_study_retries_on_failure(tmp_path):
+def test_move_study_retries_on_failure():
     attempt_count = {"count": 0}
 
     def mock_run(*args, **kwargs):
         attempt_count["count"] += 1
 
         if attempt_count["count"] == 1:
-            return mock.Mock(returncode=69, stdout="", stderr=GETSCU_FAILURE_STDERR)
+            return mock.Mock(returncode=69, stdout="", stderr=MOVESCU_FAILURE_STDERR)
 
-        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
+        return mock.Mock(returncode=0, stdout="", stderr=MOVESCU_SUCCESS_STDERR)
 
     with mock.patch('subprocess.run', side_effect=mock_run):
         with mock.patch('time.sleep'):
-            result = get_study(
+            result = move_study(
                 host="localhost",
                 port=11112,
                 calling_aet="TEST_SCU",
                 called_aet="ORTHANC_TEST",
-                output_dir=str(tmp_path / "output"),
+                destination_aet="DEST_AET",
                 study_uid="1.2.826.0.1.3680043.8.498.12345",
             )
 
@@ -361,47 +365,11 @@ def test_echo_pacs_failure():
     assert "Association Rejected" in result["message"]
 
 
-def test_get_study_only_renames_new_files(tmp_path):
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
-    
-    existing_file = output_dir / "existing_file.txt"
-    existing_file.write_text("existing content")
-    existing_file_with_dcm = output_dir / "existing.dcm"
-    existing_file_with_dcm.write_text("existing dcm")
-    
-    def mock_run(*args, **kwargs):
-        time.sleep(0.1)
-        new_file = output_dir / "new_dicom_file"
-        new_file.write_text("new dicom content")
-        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
-
-    with mock.patch('subprocess.run', side_effect=mock_run):
-        result = get_study(
-            host="localhost",
-            port=11112,
-            calling_aet="TEST_SCU",
-            called_aet="ORTHANC_TEST",
-            output_dir=str(output_dir),
-            study_uid="1.2.826.0.1.3680043.8.498.12345",
-        )
-
-    assert result["success"] is True
-    
-    assert existing_file.exists()
-    assert not (output_dir / "existing_file.txt.dcm").exists()
-    
-    assert existing_file_with_dcm.exists()
-    
-    assert not (output_dir / "new_dicom_file").exists()
-    assert (output_dir / "new_dicom_file.dcm").exists()
-
-
-def test_get_study_zero_files_retrieved(tmp_path, caplog):
-    """Test that zero completed gets are logged as warnings."""
-    GETSCU_ZERO_FILES_STDERR = '''I: Requesting Association
+def test_move_study_zero_files_retrieved(caplog):
+    """Test that zero completed moves are logged as warnings."""
+    MOVESCU_ZERO_FILES_STDERR = '''I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
-I: Sending Get Request (MsgID 1)
+I: Sending Move Request (MsgID 1)
 I: Request Identifiers:
 I:
 I: # Dicom-Data-Set
@@ -409,59 +377,57 @@ I: # Used TransferSyntax: Little Endian Explicit
 I: (0008,0052) CS [STUDY]                                  #   6, 1 QueryRetrieveLevel
 I: (0020,000d) UI [1.2.826.0.1.3680043.8.498.12345]       #  64, 1 StudyInstanceUID
 I:
-I: Received Final Get Response (Success)
+I: Received Final Move Response (Success)
 I: Sub-Operations Complete: 0, Failed: 0, Warning: 0
 I: Releasing Association'''
 
     def mock_run(*args, **kwargs):
-        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_ZERO_FILES_STDERR)
+        return mock.Mock(returncode=0, stdout="", stderr=MOVESCU_ZERO_FILES_STDERR)
 
     with mock.patch('subprocess.run', side_effect=mock_run):
         with mock.patch('time.sleep'):
-            result = get_study(
+            result = move_study(
                 host="localhost",
                 port=11112,
                 calling_aet="TEST_SCU",
                 called_aet="ORTHANC_TEST",
-                output_dir=str(tmp_path / "output"),
+                destination_aet="DEST_AET",
                 study_uid="1.2.826.0.1.3680043.8.498.12345",
             )
 
-    # Should still report success (PACS responded successfully)
     assert result["success"] is True
     assert result["num_completed"] == 0
     assert result["num_failed"] == 0
     assert result["num_warning"] == 0
     assert "no sub-operations" in result["message"].lower()
 
-    # Check that warning was logged
-    assert any("retrieved 0 files" in record.message for record in caplog.records)
+    assert any("moved 0 files" in record.message for record in caplog.records)
 
 
-def test_get_study_zero_files_with_failed(tmp_path, caplog):
+def test_move_study_zero_files_with_failed(caplog):
     """Test that zero completed with failures are logged properly."""
-    GETSCU_ZERO_SUCCESS_WITH_FAILURES_STDERR = '''I: Requesting Association
+    MOVESCU_ZERO_SUCCESS_WITH_FAILURES_STDERR = '''I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
-I: Sending Get Request (MsgID 1)
-I: Get Response 1 (Pending)
+I: Sending Move Request (MsgID 1)
+I: Move Response 1 (Pending)
 I: Sub-Operations Remaining: 5, Completed: 0, Failed: 0, Warning: 0
-I: Get Response 2 (Pending)
+I: Move Response 2 (Pending)
 I: Sub-Operations Remaining: 0, Completed: 0, Failed: 5, Warning: 0
-I: Received Final Get Response (Success)
+I: Received Final Move Response (Success)
 I: Sub-Operations Complete: 0, Failed: 5, Warning: 0
 I: Releasing Association'''
 
     def mock_run(*args, **kwargs):
-        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_ZERO_SUCCESS_WITH_FAILURES_STDERR)
+        return mock.Mock(returncode=0, stdout="", stderr=MOVESCU_ZERO_SUCCESS_WITH_FAILURES_STDERR)
 
     with mock.patch('subprocess.run', side_effect=mock_run):
         with mock.patch('time.sleep'):
-            result = get_study(
+            result = move_study(
                 host="localhost",
                 port=11112,
                 calling_aet="TEST_SCU",
                 called_aet="ORTHANC_TEST",
-                output_dir=str(tmp_path / "output"),
+                destination_aet="DEST_AET",
                 study_uid="1.2.826.0.1.3680043.8.498.12345",
             )
 
@@ -470,6 +436,5 @@ I: Releasing Association'''
     assert result["num_failed"] == 5
     assert result["num_warning"] == 0
 
-    # Check that warning was logged about zero files
     assert any("0 files" in record.message for record in caplog.records)
 

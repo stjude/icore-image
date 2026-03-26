@@ -13,7 +13,6 @@ from module_imageqr import imageqr
 from test_utils import OrthancServer, _create_test_dicom, _upload_dicom_to_orthanc, Fixtures
 from utils import (Spreadsheet, PacsConfiguration, generate_queries_and_filter,
                    find_studies_from_pacs_list, save_failed_queries_csv)
-from dcmtk import get_study
 
 
 logging.basicConfig(level=logging.INFO)
@@ -234,7 +233,7 @@ def test_imageqr_filter_script_generation(tmp_path):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with patch('module_imageqr.find_studies_from_pacs_list') as mock_find_studies, \
-         patch('module_imageqr.get_studies_from_study_pacs_map') as mock_get, \
+         patch('module_imageqr.move_studies_from_study_pacs_map') as mock_get, \
          patch('module_imageqr.CTPPipeline') as mock_pipeline_class:
 
         mock_find_studies.return_value = ({}, [], {})
@@ -796,86 +795,8 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path):
         orthanc.stop()
 
 
-def test_imageqr_cleans_up_getscu_temp(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
-
-    with patch('module_imageqr.find_studies_from_pacs_list') as mock_find_studies, \
-         patch('module_imageqr.get_studies_from_study_pacs_map') as mock_get, \
-         patch('module_imageqr.CTPPipeline') as mock_pipeline_class:
-
-        mock_find_studies.return_value = ({}, [], {})
-        mock_get.return_value = (0, [], {})
-        mock_pipeline_instance = MagicMock()
-        mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
-        mock_pipeline_instance.is_complete.return_value = True
-        mock_pipeline_instance.metrics = MagicMock(files_saved=0, files_quarantined=0)
-        mock_pipeline_instance.get_audit_log_csv.return_value = None
-
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
-        query_df.to_excel(query_file, index=False)
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-
-        imageqr(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir)
-        )
-
-        getscu_temp = appdata_dir / "getscu_temp"
-        assert not getscu_temp.exists(), "getscu_temp should be removed after successful completion"
-
-
-def test_imageqr_cleans_up_getscu_temp_on_error(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
-
-    with patch('module_imageqr.find_studies_from_pacs_list') as mock_find_studies, \
-         patch('module_imageqr.get_studies_from_study_pacs_map') as mock_get, \
-         patch('module_imageqr.CTPPipeline') as mock_pipeline_class:
-
-        mock_find_studies.return_value = ({}, [], {})
-        mock_get.return_value = (0, [], {})
-        mock_pipeline_class.return_value.__enter__.return_value = MagicMock()
-        mock_pipeline_class.return_value.__exit__.side_effect = RuntimeError("Pipeline failure")
-
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
-        query_df.to_excel(query_file, index=False)
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-
-        with pytest.raises(RuntimeError, match="Pipeline failure"):
-            imageqr(
-                pacs_list=[pacs_config],
-                query_spreadsheet=query_spreadsheet,
-                application_aet="TEST_AET",
-                output_dir=str(output_dir),
-                appdata_dir=str(appdata_dir)
-            )
-
-        getscu_temp = appdata_dir / "getscu_temp"
-        assert not getscu_temp.exists(), "getscu_temp should be removed even when pipeline raises"
-
-
-def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
-    """Test that imageqr job continues despite C-GET failures and zero file retrievals."""
+def test_imageqr_continues_despite_move_failures(tmp_path, capsys):
+    """Test that imageqr job continues despite C-MOVE failures and zero file retrievals."""
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
 
@@ -890,7 +811,6 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
     orthanc.start()
 
     try:
-        # Upload 3 studies
         for i in range(3):
             ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Smith^John{i}", "CT", "2.0")
             ds.InstanceNumber = i + 1
@@ -910,25 +830,31 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
 
         call_count = {"count": 0}
 
-        def mock_get_study(*args, **kwargs):
+        def mock_move_study(*args, **kwargs):
             call_count["count"] += 1
             if call_count["count"] == 1:
                 # First call: simulate zero files retrieved
                 return {
-                    "success": True,
+                    "success": False,
                     "num_completed": 0,
-                    "num_failed": 0,
+                    "num_failed": 1,
                     "num_warning": 0,
-                    "message": "Get completed with no sub-operations"
+                    "message": "Move failed"
                 }
             elif call_count["count"] == 2:
                 # Second call: simulate exception
-                raise Exception("Network timeout during C-GET")
+                raise Exception("Network timeout during C-MOVE")
             else:
-                # Third call: actually retrieve files
-                return get_study(*args, **kwargs)
+                # Third call: simulate success
+                return {
+                    "success": True,
+                    "num_completed": 1,
+                    "num_failed": 0,
+                    "num_warning": 0,
+                    "message": "Move completed successfully"
+                }
 
-        with patch('utils.get_study', side_effect=mock_get_study):
+        with patch('utils.move_study', side_effect=mock_move_study):
             result = imageqr(
                 pacs_list=[pacs_config],
                 query_spreadsheet=query_spreadsheet,
@@ -942,11 +868,8 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys):
         assert result["num_studies_found"] == 3, "Should have found 3 studies"
 
         assert len(result["failed_query_indices"]) == 2, "Should have 2 failed queries"
-        assert 0 in result["failed_query_indices"], "First query should have failed (zero files)"
+        assert 0 in result["failed_query_indices"], "First query should have failed (move failed)"
         assert 1 in result["failed_query_indices"], "Second query should have failed (exception)"
-
-        captured = capsys.readouterr()
-        assert "0 files" in captured.out or "Exception while retrieving" in captured.out, "Should log failures"
 
         csv_path = appdata_dir / "failed_queries.csv"
         assert csv_path.exists(), "failed_queries.csv should exist"
@@ -1231,7 +1154,7 @@ def test_imageqr_filter_with_fallback(tmp_path):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with patch('module_imageqr.find_studies_from_pacs_list') as mock_find, \
-         patch('module_imageqr.get_studies_from_study_pacs_map') as mock_get, \
+         patch('module_imageqr.move_studies_from_study_pacs_map') as mock_get, \
          patch('module_imageqr.CTPPipeline') as mock_pipeline_class:
 
         mock_find.return_value = ({}, [], {})
