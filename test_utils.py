@@ -14,7 +14,7 @@ import requests
 from pydicom.dataset import FileDataset, FileMetaDataset, Dataset
 from pydicom.uid import generate_uid, SecondaryCaptureImageStorage, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID, EncapsulatedPDFStorage
 
-from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, get_studies_from_study_pacs_map, PacsConfiguration
+from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, move_studies_from_study_pacs_map, PacsConfiguration
 
 
 def _cleanup_test_containers():
@@ -424,7 +424,7 @@ class OrthancServer:
         container_name = f"orthanc_test_{uuid.uuid4().hex[:8]}"
         network_name = f"orthanc_net_{uuid.uuid4().hex[:8]}"
 
-        # Create Docker network for C-GET support
+        # Create Docker network for C-MOVE support
         subprocess.run(["docker", "network", "create", network_name],
                       check=True, capture_output=True)
         self.network = network_name
@@ -893,8 +893,8 @@ def test_find_studies_returns_failure_details(tmp_path):
         orthanc.stop()
 
 
-def test_get_studies_returns_failure_details(tmp_path):
-    """Test that get_studies_from_study_pacs_map returns failure details as 3rd value"""
+def test_move_studies_returns_failure_details(tmp_path):
+    """Test that move_studies_from_study_pacs_map returns failure details as 3rd value"""
     from unittest.mock import patch, MagicMock
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
@@ -903,33 +903,27 @@ def test_get_studies_returns_failure_details(tmp_path):
         "study_uid_2": (pacs, 1)
     }
 
-    output_dir = str(tmp_path / "output")
-
-    # Mock get_study to simulate one success and one failure
-    with patch('utils.get_study') as mock_get:
-        mock_get.side_effect = [
-            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Get successful"},
-            {"success": False, "num_completed": 0, "num_failed": 0, "num_warning": 0, "message": "Get failed"}
+    with patch('utils.move_study') as mock_move:
+        mock_move.side_effect = [
+            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Move successful"},
+            {"success": False, "num_completed": 0, "num_failed": 0, "num_warning": 0, "message": "Move failed"}
         ]
 
-        successful_gets, failed_query_indices, failure_details = get_studies_from_study_pacs_map(
-            study_pacs_map, "TEST_AET", output_dir
+        successful_moves, failed_query_indices, failure_details = move_studies_from_study_pacs_map(
+            study_pacs_map, "TEST_AET", "DEST_AET"
         )
 
-        assert successful_gets == 1, "Should have 1 successful get"
+        assert successful_moves == 1, "Should have 1 successful move"
         assert len(failed_query_indices) == 1, "Should have 1 failed query index"
         assert 1 in failed_query_indices, "Query index 1 should have failed"
         assert len(failure_details) == 1, "Should have 1 failure detail entry"
         assert 1 in failure_details, "Failure details should contain query index 1"
-        assert failure_details[1] == "Failed to retrieve images: Get failed"
+        assert failure_details[1] == "Failed to retrieve images: Move failed"
 
 
-def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
-    """Test that zero file retrievals are logged and treated as failures."""
+def test_move_studies_from_study_pacs_map_move_failure(tmp_path):
+    """Test that failed C-MOVE is treated as failure."""
     from unittest.mock import patch
-
-    output_dir = str(tmp_path / "output")
-    os.makedirs(output_dir, exist_ok=True)
 
     pacs = PacsConfiguration("localhost", 11112, "ORTHANC")
     study_pacs_map = {
@@ -937,32 +931,26 @@ def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
         "1.2.3.4.6": (pacs, 1),
     }
 
-    # Mock get_study to simulate failure with 0 files completed
-    with patch('utils.get_study') as mock_get:
-        mock_get.side_effect = [
-            {"success": False, "num_completed": 0, "num_failed": 0, "num_warning": 0, "message": "Get completed with no sub-operations (no files retrieved)"},
-            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Get completed successfully"},
+    with patch('utils.move_study') as mock_move:
+        mock_move.side_effect = [
+            {"success": False, "num_completed": 0, "num_failed": 0, "num_warning": 0, "message": "Move failed"},
+            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Move completed successfully"},
         ]
 
-        successful_gets, failed_query_indices, failure_details = get_studies_from_study_pacs_map(
-            study_pacs_map, "TEST_AET", output_dir
+        successful_moves, failed_query_indices, failure_details = move_studies_from_study_pacs_map(
+            study_pacs_map, "TEST_AET", "DEST_AET"
         )
 
-        # Zero file retrieval should be treated as failure
-        assert successful_gets == 1, "Should have 1 successful get (only the one with files)"
+        assert successful_moves == 1, "Should have 1 successful move"
         assert len(failed_query_indices) == 1, "Should have 1 failed query index"
-        assert 0 in failed_query_indices, "Query index 0 should have failed (zero files)"
+        assert 0 in failed_query_indices, "Query index 0 should have failed"
         assert len(failure_details) == 1, "Should have 1 failure detail entry"
         assert 0 in failure_details, "Failure details should contain query index 0"
-        assert "no files" in failure_details[0].lower(), "Failure message should mention no files"
 
 
-def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
-    """Test that exceptions during get_study don't crash the entire job."""
+def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
+    """Test that exceptions during move_study don't crash the entire job."""
     from unittest.mock import patch
-
-    output_dir = str(tmp_path / "output")
-    os.makedirs(output_dir, exist_ok=True)
 
     pacs = PacsConfiguration("localhost", 11112, "ORTHANC")
     study_pacs_map = {
@@ -971,28 +959,25 @@ def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
         "1.2.3.4.7": (pacs, 2),
     }
 
-    # Mock get_study to simulate various failures including exception
-    with patch('utils.get_study') as mock_get:
-        mock_get.side_effect = [
-            Exception("Network timeout"),  # First call raises exception
-            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Get completed"},  # Second succeeds
-            {"success": False, "message": "PACS refused connection"},  # Third fails normally
+    with patch('utils.move_study') as mock_move:
+        mock_move.side_effect = [
+            Exception("Network timeout"),
+            {"success": True, "num_completed": 5, "num_failed": 0, "num_warning": 0, "message": "Move completed"},
+            {"success": False, "message": "PACS refused connection"},
         ]
 
-        successful_gets, failed_query_indices, failure_details = get_studies_from_study_pacs_map(
-            study_pacs_map, "TEST_AET", output_dir
+        successful_moves, failed_query_indices, failure_details = move_studies_from_study_pacs_map(
+            study_pacs_map, "TEST_AET", "DEST_AET"
         )
 
-        # Job should continue despite exception
-        assert successful_gets == 1, "Should have 1 successful get"
+        assert successful_moves == 1, "Should have 1 successful move"
         assert len(failed_query_indices) == 2, "Should have 2 failed query indices"
         assert 0 in failed_query_indices, "Query index 0 should have failed (exception)"
         assert 2 in failed_query_indices, "Query index 2 should have failed (normal failure)"
-        assert "Exception during retrieval" in failure_details[0], "Should record exception"
+        assert "Exception during move" in failure_details[0], "Should record exception"
         assert "Network timeout" in failure_details[0], "Should include exception message"
 
-        # Check that exception was logged but didn't crash
-        assert any("Exception while retrieving" in record.message for record in caplog.records)
+        assert any("Exception while moving" in record.message for record in caplog.records)
 
 
 def test_find_studies_from_pacs_list_exception_handling(tmp_path, caplog):

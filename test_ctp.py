@@ -18,7 +18,7 @@ from pydicom.uid import (
 )
 
 from ctp import CTPServer, CTPPipeline, PIPELINE_TEMPLATES
-from dcmtk import get_study
+from dcmtk import move_study
 from module_imagedeid_local import imagedeid_local
 from test_utils import cleanup_docker_containers, Fixtures, OrthancServer
 
@@ -91,6 +91,27 @@ def save_dicoms_for_all_transfer_syntaxes(input_dir):
 
     for fixture_file in COMPRESSED_FIXTURE_FILES:
         shutil.copy2(str(TEST_FIXTURES_DIR / fixture_file), str(input_dir / fixture_file))
+
+
+def move_all_studies_from_orthanc(orthanc, calling_aet, destination_aet):
+    studies = requests.get(f"{orthanc.base_url}/studies").json()
+    for study_id in studies:
+        study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
+        study_uid = study_info['MainDicomTags']['StudyInstanceUID']
+        move_study(
+            host="localhost", port=orthanc.dicom_port,
+            calling_aet=calling_aet, called_aet=orthanc.aet,
+            destination_aet=destination_aet, study_uid=study_uid
+        )
+
+
+def move_all_studies_from_study_pacs_map(study_pacs_map, application_aet, destination_aet):
+    for study_uid, (pacs, query_index) in study_pacs_map.items():
+        move_study(
+            host=pacs.host, port=pacs.port,
+            calling_aet=application_aet, called_aet=pacs.aet,
+            destination_aet=destination_aet, study_uid=study_uid
+        )
 
 
 def create_test_dicoms(input_dir, num_files=10):
@@ -272,7 +293,6 @@ def test_parallel_local_pipelines(tmp_path):
                 assert pipeline3.metrics.files_saved == 3
 
 
-@pytest.mark.skip(reason="No longer applicable: imagedeid_pacs now uses ArchiveImportService (file-based) instead of DicomImportService (network-based) after C-MOVE to C-GET migration")
 def test_pacs_pipeline_with_custom_dicom_port(tmp_path):
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -295,7 +315,6 @@ def test_pacs_pipeline_with_custom_dicom_port(tmp_path):
     assert pipeline.port >= 50000, "CTP port should be in expected range"
 
 
-@pytest.mark.skip(reason="No longer applicable: imagedeid_pacs now uses ArchiveImportService (file-based) instead of DicomImportService (network-based) after C-MOVE to C-GET migration")
 def test_pacs_pipeline_dicom_port_conflict(tmp_path):
     
     input_dir = tmp_path / "input"
@@ -330,7 +349,6 @@ def test_pacs_pipeline_dicom_port_conflict(tmp_path):
                 pass
 
 
-@pytest.mark.skip(reason="No longer applicable: imagedeid_pacs now uses ArchiveImportService (file-based) instead of DicomImportService (network-based) after C-MOVE to C-GET migration")
 def test_pacs_pipeline_force_kill(tmp_path):
     
     input_dir = tmp_path / "input"
@@ -890,10 +908,7 @@ def test_imageqr_pipeline(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
 
-    input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
-
-    input_dir.mkdir()
     output_dir.mkdir()
 
     orthanc = OrthancServer()
@@ -918,36 +933,15 @@ def test_imageqr_pipeline(tmp_path):
 
         source_ctp = Path(__file__).parent / "ctp"
 
-        studies_response = requests.get(f"{orthanc.base_url}/studies")
-        studies = studies_response.json()
-
-        for study_id in studies:
-            study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
-            study_uid = study_info['MainDicomTags']['StudyInstanceUID']
-
-            result = get_study(
-                host="localhost",
-                port=orthanc.dicom_port,
-                calling_aet="TEST_AET",
-                called_aet=orthanc.aet,
-                output_dir=str(input_dir),
-                study_uid=study_uid
-            )
-            if not result["success"]:
-                print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
-
-        input_files = list(Path(input_dir).glob("*.dcm"))
-        print(f"Files retrieved to input_dir (*.dcm): {len(input_files)}")
-
-        time.sleep(2)
-
         with CTPPipeline(
             pipeline_type="imageqr",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             source_ctp_dir=str(source_ctp)
         ) as pipeline:
+
+            move_all_studies_from_orthanc(orthanc, "TEST_AET", "TEST_AET")
+
             start_time = time.time()
             timeout = 60
 
@@ -960,7 +954,7 @@ def test_imageqr_pipeline(tmp_path):
             output_files = list(images_dir.rglob("*.dcm"))
             print(f"Files in output images_dir: {len(output_files)}")
             assert len(output_files) >= 9
-    
+
     finally:
         orthanc.stop()
 
@@ -968,17 +962,14 @@ def test_imageqr_pipeline(tmp_path):
 def test_imageqr_with_filter(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
-    input_dir = tmp_path / "input"
+
     output_dir = tmp_path / "output"
-    
-    input_dir.mkdir()
     output_dir.mkdir()
-    
+
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
-    
+
     try:
         for i in range(6):
             modality = "CT" if i < 3 else "MR"
@@ -990,42 +981,24 @@ def test_imageqr_with_filter(tmp_path):
             )
             ds.SeriesNumber = 1
             ds.InstanceNumber = i + 1
-            
+
             temp_file = tempfile.mktemp(suffix=".dcm")
             ds.save_as(temp_file)
             orthanc.upload_dicom(temp_file)
             os.remove(temp_file)
-        
+
         source_ctp = Path(__file__).parent / "ctp"
-
-        studies_response = requests.get(f"{orthanc.base_url}/studies")
-        studies = studies_response.json()
-
-        for study_id in studies:
-            study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
-            study_uid = study_info['MainDicomTags']['StudyInstanceUID']
-
-            result = get_study(
-                host="localhost",
-                port=orthanc.dicom_port,
-                calling_aet="TEST_AET",
-                called_aet=orthanc.aet,
-                output_dir=str(input_dir),
-                study_uid=study_uid
-            )
-            if not result["success"]:
-                print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
-
-        time.sleep(2)
 
         with CTPPipeline(
             pipeline_type="imageqr",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             filter_script='Modality.contains("CT")',
             source_ctp_dir=str(source_ctp)
         ) as pipeline:
+
+            move_all_studies_from_orthanc(orthanc, "TEST_AET", "TEST_AET")
+
             start_time = time.time()
             timeout = 60
 
@@ -1033,17 +1006,17 @@ def test_imageqr_with_filter(tmp_path):
                 if time.time() - start_time > timeout:
                     raise TimeoutError("Pipeline did not complete")
                 time.sleep(1)
-            
+
             images_dir = Path(output_dir) / "images"
             output_files = list(images_dir.rglob("*.dcm"))
             assert len(output_files) == 3, f"Expected 3 CT files in output, got {len(output_files)}"
-            
+
             for file in output_files:
                 ds = pydicom.dcmread(file)
                 assert ds.Modality == "CT", f"Expected CT modality, got {ds.Modality}"
-            
+
             assert pipeline.metrics.files_quarantined == 3, f"Expected 3 MR files quarantined, got {pipeline.metrics.files_quarantined}"
-    
+
     finally:
         orthanc.stop()
 
@@ -1051,17 +1024,14 @@ def test_imageqr_with_filter(tmp_path):
 def test_imagedeid_pacs_pipeline(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
-    input_dir = tmp_path / "input"
+
     output_dir = tmp_path / "output"
-    
-    input_dir.mkdir()
     output_dir.mkdir()
-    
+
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
-    
+
     try:
         for i in range(10):
             ds = Fixtures.create_minimal_dicom(
@@ -1073,46 +1043,28 @@ def test_imagedeid_pacs_pipeline(tmp_path):
             )
             ds.SeriesNumber = (i % 2) + 1
             ds.InstanceNumber = i + 1
-            
+
             temp_file = tempfile.mktemp(suffix=".dcm")
             ds.save_as(temp_file)
             orthanc.upload_dicom(temp_file)
             os.remove(temp_file)
-        
+
         source_ctp = Path(__file__).parent / "ctp"
 
         anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
 
-        studies_response = requests.get(f"{orthanc.base_url}/studies")
-        studies = studies_response.json()
-
-        for study_id in studies:
-            study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
-            study_uid = study_info['MainDicomTags']['StudyInstanceUID']
-
-            result = get_study(
-                host="localhost",
-                port=orthanc.dicom_port,
-                calling_aet="TEST_AET",
-                called_aet=orthanc.aet,
-                output_dir=str(input_dir),
-                study_uid=study_uid
-            )
-            if not result["success"]:
-                print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
-
-        time.sleep(2)
-
         with CTPPipeline(
             pipeline_type="imagedeid_pacs",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
             source_ctp_dir=str(source_ctp)
         ) as pipeline:
+
+            move_all_studies_from_orthanc(orthanc, "TEST_AET", "TEST_AET")
+
             start_time = time.time()
             timeout = 60
 
@@ -1120,10 +1072,10 @@ def test_imagedeid_pacs_pipeline(tmp_path):
                 if time.time() - start_time > timeout:
                     raise TimeoutError("Pipeline did not complete")
                 time.sleep(1)
-            
+
             output_files = list(output_dir.rglob("*.dcm"))
             assert len(output_files) >= 9
-    
+
     finally:
         orthanc.stop()
 
@@ -1131,17 +1083,14 @@ def test_imagedeid_pacs_pipeline(tmp_path):
 def test_imagedeid_pacs_with_filter(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
-    input_dir = tmp_path / "input"
+
     output_dir = tmp_path / "output"
-    
-    input_dir.mkdir()
     output_dir.mkdir()
-    
+
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
-    
+
     try:
         for i in range(6):
             modality = "CT" if i < 3 else "MR"
@@ -1154,47 +1103,29 @@ def test_imagedeid_pacs_with_filter(tmp_path):
             )
             ds.SeriesNumber = 1
             ds.InstanceNumber = i + 1
-            
+
             temp_file = tempfile.mktemp(suffix=".dcm")
             ds.save_as(temp_file)
             orthanc.upload_dicom(temp_file)
             os.remove(temp_file)
-        
+
         source_ctp = Path(__file__).parent / "ctp"
 
         anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
 
-        studies_response = requests.get(f"{orthanc.base_url}/studies")
-        studies = studies_response.json()
-
-        for study_id in studies:
-            study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
-            study_uid = study_info['MainDicomTags']['StudyInstanceUID']
-
-            result = get_study(
-                host="localhost",
-                port=orthanc.dicom_port,
-                calling_aet="TEST_AET",
-                called_aet=orthanc.aet,
-                output_dir=str(input_dir),
-                study_uid=study_uid
-            )
-            if not result["success"]:
-                print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
-
-        time.sleep(2)
-
         with CTPPipeline(
             pipeline_type="imagedeid_pacs",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
             filter_script='Modality.contains("CT")',
             source_ctp_dir=str(source_ctp)
         ) as pipeline:
+
+            move_all_studies_from_orthanc(orthanc, "TEST_AET", "TEST_AET")
+
             start_time = time.time()
             timeout = 120
 
@@ -1202,19 +1133,19 @@ def test_imagedeid_pacs_with_filter(tmp_path):
                 if time.time() - start_time > timeout:
                     raise TimeoutError("Pipeline did not complete")
                 time.sleep(1)
-            
+
             output_files = list(output_dir.rglob("*.dcm"))
             assert len(output_files) == 3, f"Expected 3 CT files in output, got {len(output_files)}"
-            
+
             for file in output_files:
                 ds = pydicom.dcmread(file)
                 assert ds.Modality == "CT", f"Only CT files should be in output, found {ds.Modality}"
                 assert ds.PatientName == "", f"PatientName should be anonymized, got '{ds.PatientName}'"
-            
+
             assert pipeline.metrics.files_saved == 3, f"Expected 3 CT files saved"
             assert pipeline.metrics.files_quarantined == 3, f"Expected 3 MR files quarantined"
             assert pipeline.metrics.files_received == 6, f"Expected 6 files received"
-    
+
     finally:
         orthanc.stop()
 
@@ -1222,17 +1153,14 @@ def test_imagedeid_pacs_with_filter(tmp_path):
 def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
-    input_dir = tmp_path / "input"
+
     output_dir = tmp_path / "output"
-    
-    input_dir.mkdir()
     output_dir.mkdir()
-    
+
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
-    
+
     try:
         for i in range(10):
             ds = Fixtures.create_minimal_dicom(
@@ -1248,12 +1176,12 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
             ds.ManufacturerModelName = "TestModel"
             ds.SeriesNumber = (i % 2) + 1
             ds.InstanceNumber = i + 1
-            
+
             temp_file = tempfile.mktemp(suffix=".dcm")
             ds.save_as(temp_file)
             orthanc.upload_dicom(temp_file)
             os.remove(temp_file)
-        
+
         source_ctp = Path(__file__).parent / "ctp"
 
         anonymizer_script = """<script>
@@ -1266,34 +1194,16 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
 <e en="T" t="00080060" n="Modality">@keep()</e>
 </script>"""
 
-        studies_response = requests.get(f"{orthanc.base_url}/studies")
-        studies = studies_response.json()
-
-        for study_id in studies:
-            study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
-            study_uid = study_info['MainDicomTags']['StudyInstanceUID']
-
-            result = get_study(
-                host="localhost",
-                port=orthanc.dicom_port,
-                calling_aet="TEST_AET",
-                called_aet=orthanc.aet,
-                output_dir=str(input_dir),
-                study_uid=study_uid
-            )
-            if not result["success"]:
-                print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
-
-        time.sleep(2)
-
         with CTPPipeline(
             pipeline_type="imagedeid_pacs",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
             source_ctp_dir=str(source_ctp)
         ) as pipeline:
+
+            move_all_studies_from_orthanc(orthanc, "TEST_AET", "TEST_AET")
+
             start_time = time.time()
             timeout = 60
 
@@ -1301,13 +1211,13 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
                 if time.time() - start_time > timeout:
                     raise TimeoutError("Pipeline did not complete")
                 time.sleep(1)
-            
+
             output_files = list(output_dir.rglob("*.dcm"))
             assert len(output_files) >= 9
-            
+
             for file in output_files:
                 ds = pydicom.dcmread(file)
-                
+
                 assert ds.PatientName == "", "PatientName should be empty"
                 assert ds.PatientID == "", "PatientID should be empty"
                 assert not hasattr(ds, 'InstitutionName') or ds.InstitutionName == "", "InstitutionName should be removed"
@@ -1315,7 +1225,7 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
                 assert ds.Manufacturer == "TestManufacturer", "Manufacturer should be kept"
                 assert ds.ManufacturerModelName == "TestModel", "ManufacturerModelName should be kept"
                 assert ds.Modality == "CT", "Modality should be kept"
-    
+
     finally:
         orthanc.stop()
 
@@ -1323,17 +1233,14 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path):
 def test_id_map_audit_log_extraction(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
-    input_dir = tmp_path / "input"
+
     output_dir = tmp_path / "output"
-    
-    input_dir.mkdir()
     output_dir.mkdir()
-    
+
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
-    
+
     try:
         for i in range(5):
             ds = Fixtures.create_minimal_dicom(
@@ -1345,12 +1252,12 @@ def test_id_map_audit_log_extraction(tmp_path):
             )
             ds.SeriesNumber = 1
             ds.InstanceNumber = i + 1
-            
+
             temp_file = tempfile.mktemp(suffix=".dcm")
             ds.save_as(temp_file)
             orthanc.upload_dicom(temp_file)
             os.remove(temp_file)
-        
+
         source_ctp = Path(__file__).parent / "ctp"
 
         anonymizer_script = """<script>
@@ -1359,34 +1266,16 @@ def test_id_map_audit_log_extraction(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
 </script>"""
 
-        studies_response = requests.get(f"{orthanc.base_url}/studies")
-        studies = studies_response.json()
-
-        for study_id in studies:
-            study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
-            study_uid = study_info['MainDicomTags']['StudyInstanceUID']
-
-            result = get_study(
-                host="localhost",
-                port=orthanc.dicom_port,
-                calling_aet="TEST_AET",
-                called_aet=orthanc.aet,
-                output_dir=str(input_dir),
-                study_uid=study_uid
-            )
-            if not result["success"]:
-                print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
-
-        time.sleep(2)
-
         with CTPPipeline(
             pipeline_type="imagedeid_pacs",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
             source_ctp_dir=str(source_ctp)
         ) as pipeline:
+
+            move_all_studies_from_orthanc(orthanc, "TEST_AET", "TEST_AET")
+
             start_time = time.time()
             timeout = 60
 
@@ -1394,29 +1283,29 @@ def test_id_map_audit_log_extraction(tmp_path):
                 if time.time() - start_time > timeout:
                     raise TimeoutError("Pipeline did not complete")
                 time.sleep(1)
-            
+
             audit_log_csv = pipeline.get_audit_log_csv("AuditLog")
             assert audit_log_csv is not None, "AuditLog CSV should be retrieved"
             assert len(audit_log_csv.split('\n')) > 1, "AuditLog should have data rows"
-            
+
             deid_audit_log_csv = pipeline.get_audit_log_csv("DeidAuditLog")
             assert deid_audit_log_csv is not None, "DeidAuditLog CSV should be retrieved"
             assert len(deid_audit_log_csv.split('\n')) > 1, "DeidAuditLog should have data rows"
-            
+
             linker_csv = pipeline.get_idmap_csv()
             assert linker_csv is not None, "IDMap linker CSV should be retrieved"
             assert len(linker_csv.split('\n')) > 1, "Linker CSV should have data rows"
-            
+
             audit_lines = [line for line in audit_log_csv.split('\n') if line.strip()]
             deid_audit_lines = [line for line in deid_audit_log_csv.split('\n') if line.strip()]
             linker_lines = [line for line in linker_csv.split('\n') if line.strip()]
-            
+
             assert len(audit_lines) >= 2, "AuditLog should have header + data rows"
             assert len(deid_audit_lines) >= 2, "DeidAuditLog should have header + data rows"
             assert len(linker_lines) >= 2, "Linker should have header + data rows"
-            
+
             assert 'ACC' in audit_log_csv, "Original accession numbers should be in AuditLog"
-    
+
     finally:
         orthanc.stop()
 
@@ -1504,17 +1393,14 @@ def test_imagedeid_local_pixel_with_anonymizer_script(tmp_path):
 def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
-    input_dir = tmp_path / "input"
+
     output_dir = tmp_path / "output"
-    
-    input_dir.mkdir()
     output_dir.mkdir()
-    
+
     orthanc = OrthancServer()
     orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     orthanc.start()
-    
+
     try:
         for i in range(10):
             ds = Fixtures.create_minimal_dicom(
@@ -1539,14 +1425,14 @@ def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path):
             ds.HighBit = 15
             ds.PixelRepresentation = 0
             ds.PixelData = np.random.randint(0, 4096, (512, 512), dtype=np.uint16).tobytes()
-            
+
             temp_file = tempfile.mktemp(suffix=".dcm")
             ds.save_as(temp_file, write_like_original=False)
             orthanc.upload_dicom(temp_file)
             os.remove(temp_file)
-        
+
         source_ctp = Path(__file__).parent / "ctp"
-        
+
         anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 <e en="T" t="00100020" n="PatientID">@empty()</e>
@@ -1556,52 +1442,34 @@ def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path):
 <e en="T" t="00081090" n="ManufacturerModelName">@keep()</e>
 <e en="T" t="00080060" n="Modality">@keep()</e>
 </script>"""
-        
-        studies_response = requests.get(f"{orthanc.base_url}/studies")
-        studies = studies_response.json()
-        
-        for study_id in studies:
-            study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
-            study_uid = study_info['MainDicomTags']['StudyInstanceUID']
-            
-            result = get_study(
-                host="localhost",
-                port=orthanc.dicom_port,
-                calling_aet="TEST_AET",
-                called_aet=orthanc.aet,
-                output_dir=str(input_dir),
-                study_uid=study_uid
-            )
-            if not result["success"]:
-                print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
-        
-        time.sleep(2)
-        
+
         with CTPPipeline(
             pipeline_type="imagedeid_pacs_pixel",
-            input_dir=str(input_dir),
             output_dir=str(output_dir),
             application_aet="TEST_AET",
             anonymizer_script=anonymizer_script,
             source_ctp_dir=str(source_ctp)
         ) as pipeline:
+
+            move_all_studies_from_orthanc(orthanc, "TEST_AET", "TEST_AET")
+
             start_time = time.time()
             timeout = 60
-            
+
             while not pipeline.is_complete():
                 if time.time() - start_time > timeout:
                     raise TimeoutError("Pipeline did not complete")
                 time.sleep(1)
-            
+
             output_files = list(output_dir.rglob("*.dcm"))
-            
+
             assert pipeline.metrics.files_received >= 9, f"Expected at least 9 files received, got {pipeline.metrics.files_received}"
             assert pipeline.metrics.files_saved + pipeline.metrics.files_quarantined >= 9, f"Expected at least 9 files processed"
             assert len(output_files) >= 9, f"Expected at least 9 output files, got {len(output_files)}"
-            
+
             for file in output_files:
                 ds = pydicom.dcmread(file)
-                
+
                 assert ds.PatientName == "", "PatientName should be empty"
                 assert ds.PatientID == "", "PatientID should be empty"
                 assert not hasattr(ds, 'InstitutionName') or ds.InstitutionName == "", "InstitutionName should be removed"
@@ -1609,7 +1477,7 @@ def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path):
                 assert ds.Manufacturer == "TestManufacturer", "Manufacturer should be kept"
                 assert ds.ManufacturerModelName == "TestModel", "ManufacturerModelName should be kept"
                 assert ds.Modality == "CT", "Modality should be kept"
-    
+
     finally:
         orthanc.stop()
 
