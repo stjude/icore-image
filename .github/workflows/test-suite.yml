@@ -37,3 +37,22 @@ jobs:
       - name: Run tests
         run: make test
 
+    type-check:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+        
+        - name: Setup uv
+          uses: astral-sh/setup-uv@v7
+          with:
+            version: '0.10.3'
+
+        - name: Set up Python
+          run: uv python install
+
+        - name: Install dependencies
+          run: uv sync
+
+        - name: Run ty
+          run: uv run ty check
