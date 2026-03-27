@@ -5,19 +5,10 @@ import pydicom
 from pydicom.filebase import DicomBytesIO
 
 from module_image_export import image_export
-from test_utils import _create_test_dicom, AzuriteServer
+from test_utils import _create_test_dicom
 
 
 logging.basicConfig(level=logging.INFO)
-
-
-@pytest.fixture(scope="function")
-def azurite():
-    """Fixture to start and stop Azurite for each test"""
-    server = AzuriteServer()
-    server.start()
-    yield server
-    server.stop()
 
 
 def test_image_export_single_file(tmp_path, azurite):

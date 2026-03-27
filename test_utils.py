@@ -8,47 +8,11 @@ import uuid
 
 import numpy as np
 import pandas as pd
-import pytest
 import requests
 from pydicom.dataset import FileDataset, FileMetaDataset, Dataset
 from pydicom.uid import generate_uid, SecondaryCaptureImageStorage, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID, EncapsulatedPDFStorage, UID
 
 from utils import csv_string_to_xlsx, Spreadsheet, generate_queries_and_filter, save_failed_queries_csv, find_studies_from_pacs_list, get_studies_from_study_pacs_map, PacsConfiguration
-
-
-def _cleanup_test_containers():
-    result = subprocess.run(
-        ["docker", "ps", "-a", "--filter", "name=orthanc_test_", "--format", "{{.Names}}"],
-        capture_output=True,
-        text=True
-    )
-    
-    container_names = result.stdout.strip().split('\n')
-    container_names = [name for name in container_names if name]
-    
-    for container_name in container_names:
-        subprocess.run(["docker", "stop", container_name], capture_output=True)
-        subprocess.run(["docker", "rm", container_name], capture_output=True)
-    
-    result = subprocess.run(
-        ["docker", "ps", "-a", "--filter", "name=azurite_test_", "--format", "{{.Names}}"],
-        capture_output=True,
-        text=True
-    )
-    
-    container_names = result.stdout.strip().split('\n')
-    container_names = [name for name in container_names if name]
-    
-    for container_name in container_names:
-        subprocess.run(["docker", "stop", container_name], capture_output=True)
-        subprocess.run(["docker", "rm", container_name], capture_output=True)
-
-
-@pytest.fixture(scope="function", autouse=True)
-def cleanup_docker_containers():
-    _cleanup_test_containers()
-    yield
-    _cleanup_test_containers()
 
 
 def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
@@ -522,6 +486,12 @@ class OrthancServer:
         response = requests.get(f"{self.base_url}/studies")
         return len(response.json())
     
+    def clear_data(self):
+        """Delete all patients (and their studies/series/instances) from Orthanc."""
+        response = requests.get(f"{self.base_url}/patients")
+        for patient_id in response.json():
+            requests.delete(f"{self.base_url}/patients/{patient_id}")
+
     def get_pacs_config(self):
         """Get a PacsConfiguration object for this Orthanc instance."""
         from utils import PacsConfiguration
@@ -639,6 +609,14 @@ class AzuriteServer:
         
         return blob_client.download_blob().readall()
     
+    def clear_data(self):
+        """Delete all containers in the Azurite storage account."""
+        from azure.storage.blob import BlobServiceClient
+
+        client = BlobServiceClient.from_connection_string(self.connection_string)
+        for container in client.list_containers():
+            client.delete_container(container['name'])
+
     def stop(self):
         """Stop and remove the Azurite Docker container"""
         if self.container:
@@ -853,41 +831,34 @@ def test_save_failed_queries_csv_empty_failures(tmp_path):
     assert list(df.columns) == ["Accession Number", "Failure Reason"]
 
 
-def test_find_studies_returns_failure_details(tmp_path):
-    orthanc = OrthancServer(aet="ORTHANC")
-    try:
-        orthanc.start()
-        
-        orthanc.upload_study(
-            patient_id="MRN001",
-            accession="ACC001",
-            study_date="20250115"
-        )
-        
-        query_file = tmp_path / "query.xlsx"
-        query_df = pd.DataFrame({
-            "AccessionNumber": ["ACC001", "ACC999"]
-        })
-        query_df.to_excel(query_file, index=False)
-        
-        spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        query_params_list, expected_values_list, _ = generate_queries_and_filter(spreadsheet)
-        
-        pacs_list = [PacsConfiguration(host="localhost", port=orthanc.dicom_port, aet=orthanc.aet)]
-        application_aet = "TEST_AET"
-        
-        study_pacs_map, failed_query_indices, failure_details = find_studies_from_pacs_list(
-            pacs_list, query_params_list, application_aet, expected_values_list
-        )
-        
-        assert len(study_pacs_map) == 1
-        assert len(failed_query_indices) == 1
-        assert 1 in failed_query_indices
-        assert 1 in failure_details
-        assert failure_details[1] == "Failed to find images"
-        
-    finally:
-        orthanc.stop()
+def test_find_studies_returns_failure_details(tmp_path, orthanc):
+    orthanc.upload_study(
+        patient_id="MRN001",
+        accession="ACC001",
+        study_date="20250115"
+    )
+
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({
+        "AccessionNumber": ["ACC001", "ACC999"]
+    })
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_params_list, expected_values_list, _ = generate_queries_and_filter(spreadsheet)
+
+    pacs_list = [PacsConfiguration(host="localhost", port=orthanc.dicom_port, aet=orthanc.aet)]
+    application_aet = "TEST_AET"
+
+    study_pacs_map, failed_query_indices, failure_details = find_studies_from_pacs_list(
+        pacs_list, query_params_list, application_aet, expected_values_list
+    )
+
+    assert len(study_pacs_map) == 1
+    assert len(failed_query_indices) == 1
+    assert 1 in failed_query_indices
+    assert 1 in failure_details
+    assert failure_details[1] == "Failed to find images"
 
 
 def test_get_studies_returns_failure_details(tmp_path):
