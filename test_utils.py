@@ -382,14 +382,33 @@ class OrthancServer:
     def add_modality(self, name, aet, ip, port):
         self.modalities[name] = [aet, ip, port]
     
+    _shared_network = "orthanc_test_shared_net"
+
+    @classmethod
+    def _ensure_shared_network(cls):
+        # Check if network already exists (fast path, no error on missing)
+        result = subprocess.run(
+            ["docker", "network", "inspect", cls._shared_network],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return
+        # Create the network; another xdist worker may race us, so ignore "already exists"
+        result = subprocess.run(
+            ["docker", "network", "create", cls._shared_network],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0 and "already exists" not in result.stderr:
+            raise RuntimeError(
+                f"Failed to create Docker network '{cls._shared_network}': {result.stderr.strip()}"
+            )
+
     def start(self):
         container_name = f"orthanc_test_{uuid.uuid4().hex[:8]}"
-        network_name = f"orthanc_net_{uuid.uuid4().hex[:8]}"
 
-        # Create Docker network for C-GET support
-        subprocess.run(["docker", "network", "create", network_name],
-                      check=True, capture_output=True)
-        self.network = network_name
+        # Reuse a single Docker network across all test OrthancServer instances
+        self._ensure_shared_network()
+        self.network = None  # not owned by this instance
 
         self.config_dir = tempfile.mkdtemp()
         self.storage_dir = tempfile.mkdtemp()
@@ -417,7 +436,7 @@ class OrthancServer:
         subprocess.run([
             "docker", "run", "-d",
             "--name", container_name,
-            "--network", network_name,
+            "--network", self._shared_network,
             "-p", f"{self.http_port}:8042",
             "-p", f"{self.dicom_port}:4242",
             "-v", f"{self.config_dir}:/etc/orthanc:ro",
@@ -506,8 +525,6 @@ class OrthancServer:
             subprocess.run(["docker", "stop", self.container], capture_output=True, timeout=10)
             subprocess.run(["docker", "rm", self.container], capture_output=True, timeout=10)
             time.sleep(0.5)  # Brief wait to ensure cleanup completes
-        if self.network:
-            subprocess.run(["docker", "network", "rm", self.network], capture_output=True, timeout=10)
 
 
 class AzuriteServer:
