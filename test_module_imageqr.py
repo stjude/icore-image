@@ -23,7 +23,6 @@ from utils import (
     find_studies_from_pacs_list,
     save_failed_queries_csv,
 )
-from dcmtk import get_study
 
 
 logging.basicConfig(level=logging.INFO)
@@ -82,6 +81,7 @@ def test_imageqr_pacs_with_accession_filter(tmp_path, orthanc):
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         filter_script=filter_script,
+        storescp_port=orthanc.storescp_port,
     )
 
     images_dir = output_dir / "images"
@@ -182,6 +182,7 @@ def test_continuous_audit_log_saving(tmp_path, orthanc):
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        storescp_port=orthanc.storescp_port,
     )
 
     stop_monitoring.set()
@@ -225,6 +226,7 @@ def test_imageqr_failures_reported(tmp_path):
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        storescp_port=50001,
     )
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
@@ -250,7 +252,7 @@ def test_imageqr_filter_script_generation(tmp_path):
 
     with (
         patch("module_imageqr.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imageqr.get_studies_from_study_pacs_map") as mock_get,
+        patch("module_imageqr.move_studies_from_study_pacs_map") as mock_get,
         patch("module_imageqr.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
@@ -387,6 +389,7 @@ def test_imageqr_multiple_pacs(tmp_path):
             application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
+            storescp_port=50001,
         )
 
         assert result["num_studies_found"] == 4, (
@@ -460,6 +463,7 @@ def test_imageqr_pacs_mrn_study_date_fallback(tmp_path, orthanc):
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 3, (
@@ -501,6 +505,7 @@ def test_imageqr_pacs_mrn_study_date_fallback(tmp_path, orthanc):
             application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
+            storescp_port=orthanc.storescp_port,
         )
 
 
@@ -605,6 +610,7 @@ def test_imageqr_pacs_date_window(tmp_path, orthanc):
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         date_window_days=2,
+        storescp_port=orthanc.storescp_port,
     )
 
     images_dir = output_dir / "images"
@@ -674,6 +680,7 @@ def test_imageqr_accession_wildcard_filtering(tmp_path, orthanc):
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        storescp_port=orthanc.storescp_port,
     )
 
     images_dir = output_dir / "images"
@@ -727,6 +734,7 @@ def test_imageqr_saves_failed_queries_csv_on_find_failure(tmp_path, orthanc):
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1
@@ -800,6 +808,7 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path, orthanc):
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1
@@ -816,7 +825,7 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path, orthanc):
     assert df.loc[0, "Failure Reason"] == "Failed to find images"
 
 
-def test_imageqr_cleans_up_getscu_temp(tmp_path):
+def test_imageqr_cleans_up_dicom_retrieval(tmp_path):
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -829,7 +838,7 @@ def test_imageqr_cleans_up_getscu_temp(tmp_path):
 
     with (
         patch("module_imageqr.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imageqr.get_studies_from_study_pacs_map") as mock_get,
+        patch("module_imageqr.move_studies_from_study_pacs_map") as mock_get,
         patch("module_imageqr.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
@@ -855,13 +864,13 @@ def test_imageqr_cleans_up_getscu_temp(tmp_path):
             appdata_dir=str(appdata_dir),
         )
 
-        getscu_temp = appdata_dir / "getscu_temp"
-        assert not getscu_temp.exists(), (
-            "getscu_temp should be removed after successful completion"
+        dicom_retrieval = appdata_dir / "dicom_retrieval"
+        assert not dicom_retrieval.exists(), (
+            "dicom_retrieval should be removed after successful completion"
         )
 
 
-def test_imageqr_cleans_up_getscu_temp_on_error(tmp_path):
+def test_imageqr_cleans_up_dicom_retrieval_on_error(tmp_path):
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -874,7 +883,7 @@ def test_imageqr_cleans_up_getscu_temp_on_error(tmp_path):
 
     with (
         patch("module_imageqr.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imageqr.get_studies_from_study_pacs_map") as mock_get,
+        patch("module_imageqr.move_studies_from_study_pacs_map") as mock_get,
         patch("module_imageqr.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
@@ -900,14 +909,14 @@ def test_imageqr_cleans_up_getscu_temp_on_error(tmp_path):
                 appdata_dir=str(appdata_dir),
             )
 
-        getscu_temp = appdata_dir / "getscu_temp"
-        assert not getscu_temp.exists(), (
-            "getscu_temp should be removed even when pipeline raises"
+        dicom_retrieval = appdata_dir / "dicom_retrieval"
+        assert not dicom_retrieval.exists(), (
+            "dicom_retrieval should be removed even when pipeline raises"
         )
 
 
-def test_imageqr_continues_despite_get_failures(tmp_path, capsys, orthanc):
-    """Test that imageqr job continues despite C-GET failures and zero file retrievals."""
+def test_imageqr_continues_despite_move_failures(tmp_path, capsys, orthanc):
+    """Test that imageqr job continues despite C-MOVE failures and zero file retrievals."""
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -939,7 +948,7 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys, orthanc):
 
     call_count = {"count": 0}
 
-    def mock_get_study(*args, **kwargs):
+    def mock_move_study(*args, **kwargs):
         call_count["count"] += 1
         if call_count["count"] == 1:
             # First call: simulate zero files retrieved
@@ -948,22 +957,29 @@ def test_imageqr_continues_despite_get_failures(tmp_path, capsys, orthanc):
                 "num_completed": 0,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get completed with no sub-operations",
+                "message": "Move completed with no sub-operations",
             }
         elif call_count["count"] == 2:
             # Second call: simulate exception
-            raise Exception("Network timeout during C-GET")
+            raise Exception("Network timeout during C-MOVE")
         else:
-            # Third call: actually retrieve files
-            return get_study(*args, **kwargs)
+            # Third call: simulate successful retrieval
+            return {
+                "success": True,
+                "num_completed": 1,
+                "num_failed": 0,
+                "num_warning": 0,
+                "message": "Move completed successfully",
+            }
 
-    with patch("utils.get_study", side_effect=mock_get_study):
+    with patch("utils.move_study", side_effect=mock_move_study):
         result = imageqr(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
+            storescp_port=orthanc.storescp_port,
         )
 
     assert result is not None, "imageqr should return a result"
@@ -1271,6 +1287,7 @@ def test_imageqr_with_fallback_query(tmp_path, orthanc):
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         use_fallback_query=True,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 2, (
@@ -1296,7 +1313,7 @@ def test_imageqr_filter_with_fallback(tmp_path):
 
     with (
         patch("module_imageqr.find_studies_from_pacs_list") as mock_find,
-        patch("module_imageqr.get_studies_from_study_pacs_map") as mock_get,
+        patch("module_imageqr.move_studies_from_study_pacs_map") as mock_get,
         patch("module_imageqr.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find.return_value = ({}, [], {})

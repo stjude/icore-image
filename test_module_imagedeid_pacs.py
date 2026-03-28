@@ -89,6 +89,7 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
         filter_script=filter_script,
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -273,6 +274,7 @@ def test_continuous_audit_log_saving(tmp_path, orthanc):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     stop_monitoring.set()
@@ -324,6 +326,7 @@ def test_imagedeid_failures_reported(tmp_path, orthanc):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
@@ -347,7 +350,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
 
     with (
         patch("module_imagedeid_pacs.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imagedeid_pacs.get_studies_from_study_pacs_map") as mock_get,
+        patch("module_imagedeid_pacs.move_studies_from_study_pacs_map") as mock_get,
         patch("module_imagedeid_pacs.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
@@ -500,6 +503,7 @@ def test_imagedeid_multiple_pacs(tmp_path):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
+            storescp_port=50001,
         )
 
         assert result["num_studies_found"] == 4, (
@@ -574,6 +578,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 3, (
@@ -614,6 +619,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
             application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
+            storescp_port=orthanc.storescp_port,
         )
 
 
@@ -735,6 +741,7 @@ def test_imagedeid_pacs_date_window(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         date_window_days=2,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -794,6 +801,7 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
         appdata_dir=str(appdata_dir),
         deid_pixels=True,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1, (
@@ -892,6 +900,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result_without_filter["num_images_saved"] == 2, (
@@ -919,6 +928,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=True,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result_with_filter["num_images_saved"] == 1, (
@@ -996,6 +1006,7 @@ def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1076,6 +1087,7 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1168,6 +1180,7 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1241,6 +1254,7 @@ def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1311,6 +1325,7 @@ def test_imagedeid_pacs_complex_function_quarantines(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1380,6 +1395,7 @@ def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1448,6 +1464,7 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, o
         lookup_table=explicit_lookup_table,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1462,7 +1479,7 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, o
     )
 
 
-def test_imagedeid_pacs_cleans_up_getscu_temp(tmp_path, orthanc):
+def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -1475,7 +1492,7 @@ def test_imagedeid_pacs_cleans_up_getscu_temp(tmp_path, orthanc):
 
     with (
         patch("module_imagedeid_pacs.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imagedeid_pacs.get_studies_from_study_pacs_map") as mock_get,
+        patch("module_imagedeid_pacs.move_studies_from_study_pacs_map") as mock_get,
         patch("module_imagedeid_pacs.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
@@ -1503,13 +1520,13 @@ def test_imagedeid_pacs_cleans_up_getscu_temp(tmp_path, orthanc):
             apply_default_filter_script=False,
         )
 
-        getscu_temp = appdata_dir / "getscu_temp"
-        assert not getscu_temp.exists(), (
-            "getscu_temp should be removed after successful completion"
+        dicom_retrieval = appdata_dir / "dicom_retrieval"
+        assert not dicom_retrieval.exists(), (
+            "dicom_retrieval should be removed after successful completion"
         )
 
 
-def test_imagedeid_pacs_cleans_up_getscu_temp_on_error(tmp_path, orthanc):
+def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -1522,7 +1539,7 @@ def test_imagedeid_pacs_cleans_up_getscu_temp_on_error(tmp_path, orthanc):
 
     with (
         patch("module_imagedeid_pacs.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imagedeid_pacs.get_studies_from_study_pacs_map") as mock_get,
+        patch("module_imagedeid_pacs.move_studies_from_study_pacs_map") as mock_get,
         patch("module_imagedeid_pacs.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
@@ -1549,9 +1566,9 @@ def test_imagedeid_pacs_cleans_up_getscu_temp_on_error(tmp_path, orthanc):
                 apply_default_filter_script=False,
             )
 
-        getscu_temp = appdata_dir / "getscu_temp"
-        assert not getscu_temp.exists(), (
-            "getscu_temp should be removed even when pipeline raises"
+        dicom_retrieval = appdata_dir / "dicom_retrieval"
+        assert not dicom_retrieval.exists(), (
+            "dicom_retrieval should be removed even when pipeline raises"
         )
 
 
@@ -1598,6 +1615,7 @@ def test_imagedeid_pacs_saves_failed_queries_csv(tmp_path, orthanc):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1

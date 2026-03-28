@@ -73,6 +73,7 @@ def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 2
@@ -147,6 +148,7 @@ def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurit
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     metadata_files = ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]
@@ -213,6 +215,7 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=50001,
     )
 
     assert result["num_studies_found"] == 0
@@ -272,6 +275,7 @@ def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
         )
 
     error_msg = str(exc_info.value).lower()
@@ -331,6 +335,7 @@ def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
         anonymizer_script=anonymizer_script,
         filter_script=filter_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 3
@@ -400,6 +405,7 @@ def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 2
@@ -488,6 +494,7 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False,
+            storescp_port=50001,
         )
 
         assert result["num_studies_found"] == 4
@@ -555,6 +562,7 @@ def test_imagedeidexport_saves_failed_queries_csv(tmp_path, orthanc, azurite):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1

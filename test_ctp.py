@@ -19,7 +19,7 @@ from pydicom.uid import (
 )
 
 from ctp import CTPServer, CTPPipeline, PIPELINE_TEMPLATES
-from dcmtk import get_study
+from dcmtk import move_study, start_storescp, stop_storescp
 from module_imagedeid_local import imagedeid_local
 from test_utils import Fixtures
 
@@ -965,16 +965,26 @@ def test_imageqr_pipeline(tmp_path, orthanc):
         study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
         study_uid = study_info["MainDicomTags"]["StudyInstanceUID"]
 
-        result = get_study(
-            host="localhost",
-            port=orthanc.dicom_port,
-            calling_aet="TEST_AET",
-            called_aet=orthanc.aet,
-            output_dir=str(input_dir),
-            study_uid=study_uid,
+        storescp_process = start_storescp(
+            orthanc.storescp_port, str(input_dir), calling_aet="TEST_AET"
         )
-        if not result["success"]:
-            print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
+        time.sleep(2)
+        try:
+            result = move_study(
+                host="localhost",
+                port=orthanc.dicom_port,
+                calling_aet="TEST_AET",
+                called_aet=orthanc.aet,
+                move_dest_aet="TEST_AET",
+                study_uid=study_uid,
+            )
+            if not result["success"]:
+                print(
+                    f"Warning: Failed to retrieve study {study_uid}: {result['message']}"
+                )
+        finally:
+            time.sleep(2)
+            stop_storescp(storescp_process)
 
     input_files = list(Path(input_dir).glob("*.dcm"))
     print(f"Files retrieved to input_dir (*.dcm): {len(input_files)}")
@@ -1036,16 +1046,26 @@ def test_imageqr_with_filter(tmp_path, orthanc):
         study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
         study_uid = study_info["MainDicomTags"]["StudyInstanceUID"]
 
-        result = get_study(
-            host="localhost",
-            port=orthanc.dicom_port,
-            calling_aet="TEST_AET",
-            called_aet=orthanc.aet,
-            output_dir=str(input_dir),
-            study_uid=study_uid,
+        storescp_process = start_storescp(
+            orthanc.storescp_port, str(input_dir), calling_aet="TEST_AET"
         )
-        if not result["success"]:
-            print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
+        time.sleep(2)
+        try:
+            result = move_study(
+                host="localhost",
+                port=orthanc.dicom_port,
+                calling_aet="TEST_AET",
+                called_aet=orthanc.aet,
+                move_dest_aet="TEST_AET",
+                study_uid=study_uid,
+            )
+            if not result["success"]:
+                print(
+                    f"Warning: Failed to retrieve study {study_uid}: {result['message']}"
+                )
+        finally:
+            time.sleep(2)
+            stop_storescp(storescp_process)
 
     time.sleep(2)
 
@@ -1118,16 +1138,26 @@ def test_imagedeid_pacs_pipeline(tmp_path, orthanc):
         study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
         study_uid = study_info["MainDicomTags"]["StudyInstanceUID"]
 
-        result = get_study(
-            host="localhost",
-            port=orthanc.dicom_port,
-            calling_aet="TEST_AET",
-            called_aet=orthanc.aet,
-            output_dir=str(input_dir),
-            study_uid=study_uid,
+        storescp_process = start_storescp(
+            orthanc.storescp_port, str(input_dir), calling_aet="TEST_AET"
         )
-        if not result["success"]:
-            print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
+        time.sleep(2)
+        try:
+            result = move_study(
+                host="localhost",
+                port=orthanc.dicom_port,
+                calling_aet="TEST_AET",
+                called_aet=orthanc.aet,
+                move_dest_aet="TEST_AET",
+                study_uid=study_uid,
+            )
+            if not result["success"]:
+                print(
+                    f"Warning: Failed to retrieve study {study_uid}: {result['message']}"
+                )
+        finally:
+            time.sleep(2)
+            stop_storescp(storescp_process)
 
     time.sleep(2)
 
@@ -1190,16 +1220,26 @@ def test_imagedeid_pacs_with_filter(tmp_path, orthanc):
         study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
         study_uid = study_info["MainDicomTags"]["StudyInstanceUID"]
 
-        result = get_study(
-            host="localhost",
-            port=orthanc.dicom_port,
-            calling_aet="TEST_AET",
-            called_aet=orthanc.aet,
-            output_dir=str(input_dir),
-            study_uid=study_uid,
+        storescp_process = start_storescp(
+            orthanc.storescp_port, str(input_dir), calling_aet="TEST_AET"
         )
-        if not result["success"]:
-            print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
+        time.sleep(2)
+        try:
+            result = move_study(
+                host="localhost",
+                port=orthanc.dicom_port,
+                calling_aet="TEST_AET",
+                called_aet=orthanc.aet,
+                move_dest_aet="TEST_AET",
+                study_uid=study_uid,
+            )
+            if not result["success"]:
+                print(
+                    f"Warning: Failed to retrieve study {study_uid}: {result['message']}"
+                )
+        finally:
+            time.sleep(2)
+            stop_storescp(storescp_process)
 
     time.sleep(2)
 
@@ -1289,16 +1329,26 @@ def test_imagedeid_pacs_with_anonymizer_script(tmp_path, orthanc):
         study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
         study_uid = study_info["MainDicomTags"]["StudyInstanceUID"]
 
-        result = get_study(
-            host="localhost",
-            port=orthanc.dicom_port,
-            calling_aet="TEST_AET",
-            called_aet=orthanc.aet,
-            output_dir=str(input_dir),
-            study_uid=study_uid,
+        storescp_process = start_storescp(
+            orthanc.storescp_port, str(input_dir), calling_aet="TEST_AET"
         )
-        if not result["success"]:
-            print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
+        time.sleep(2)
+        try:
+            result = move_study(
+                host="localhost",
+                port=orthanc.dicom_port,
+                calling_aet="TEST_AET",
+                called_aet=orthanc.aet,
+                move_dest_aet="TEST_AET",
+                study_uid=study_uid,
+            )
+            if not result["success"]:
+                print(
+                    f"Warning: Failed to retrieve study {study_uid}: {result['message']}"
+                )
+        finally:
+            time.sleep(2)
+            stop_storescp(storescp_process)
 
     time.sleep(2)
 
@@ -1380,16 +1430,26 @@ def test_id_map_audit_log_extraction(tmp_path, orthanc):
         study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
         study_uid = study_info["MainDicomTags"]["StudyInstanceUID"]
 
-        result = get_study(
-            host="localhost",
-            port=orthanc.dicom_port,
-            calling_aet="TEST_AET",
-            called_aet=orthanc.aet,
-            output_dir=str(input_dir),
-            study_uid=study_uid,
+        storescp_process = start_storescp(
+            orthanc.storescp_port, str(input_dir), calling_aet="TEST_AET"
         )
-        if not result["success"]:
-            print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
+        time.sleep(2)
+        try:
+            result = move_study(
+                host="localhost",
+                port=orthanc.dicom_port,
+                calling_aet="TEST_AET",
+                called_aet=orthanc.aet,
+                move_dest_aet="TEST_AET",
+                study_uid=study_uid,
+            )
+            if not result["success"]:
+                print(
+                    f"Warning: Failed to retrieve study {study_uid}: {result['message']}"
+                )
+        finally:
+            time.sleep(2)
+            stop_storescp(storescp_process)
 
     time.sleep(2)
 
@@ -1584,16 +1644,26 @@ def test_imagedeid_pacs_pixel_with_anonymizer_script(tmp_path, orthanc):
         study_info = requests.get(f"{orthanc.base_url}/studies/{study_id}").json()
         study_uid = study_info["MainDicomTags"]["StudyInstanceUID"]
 
-        result = get_study(
-            host="localhost",
-            port=orthanc.dicom_port,
-            calling_aet="TEST_AET",
-            called_aet=orthanc.aet,
-            output_dir=str(input_dir),
-            study_uid=study_uid,
+        storescp_process = start_storescp(
+            orthanc.storescp_port, str(input_dir), calling_aet="TEST_AET"
         )
-        if not result["success"]:
-            print(f"Warning: Failed to retrieve study {study_uid}: {result['message']}")
+        time.sleep(2)
+        try:
+            result = move_study(
+                host="localhost",
+                port=orthanc.dicom_port,
+                calling_aet="TEST_AET",
+                called_aet=orthanc.aet,
+                move_dest_aet="TEST_AET",
+                study_uid=study_uid,
+            )
+            if not result["success"]:
+                print(
+                    f"Warning: Failed to retrieve study {study_uid}: {result['message']}"
+                )
+        finally:
+            time.sleep(2)
+            stop_storescp(storescp_process)
 
     time.sleep(2)
 
