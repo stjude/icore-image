@@ -1,0 +1,7 @@
+lua << EOF
+
+-- LSP configuration for Python
+vim.lsp.enable('ty')
+vim.lsp.enable('ruff-lsp')
+
+EOF
