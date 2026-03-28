@@ -42,6 +42,7 @@ def singleclickicore(
     storescp_port: int = 50001,
     deferred_delivery: bool = False,
     deferred_delivery_timeout: int = 172800,
+    deid_engine: str = "ctp",
 ) -> SingleClickResult:
     """
     Combined module that performs:
@@ -118,6 +119,7 @@ def singleclickicore(
         storescp_port=storescp_port,
         deferred_delivery=deferred_delivery,
         deferred_delivery_timeout=deferred_delivery_timeout,
+        deid_engine=deid_engine,
     )
 
     # Step 2: Text deid on input Excel

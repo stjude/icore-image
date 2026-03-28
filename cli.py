@@ -97,6 +97,7 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
         "use_fallback_query": config.get("use_fallback_query", False),
         "deferred_delivery": config.get("deferred_delivery", False),
         "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
+        "deid_engine": config.get("deid_engine", "ctp"),
     }
 
 
@@ -115,6 +116,7 @@ def build_imagedeid_local_params(config, input_dir, output_dir, run_dirs):
         ),
         "run_dirs": run_dirs,
         "sc_pdf_output_dir": config.get("sc_pdf_output_dir"),
+        "deid_engine": config.get("deid_engine", "ctp"),
     }
 
 
@@ -185,6 +187,7 @@ def build_imagedeidexport_params(config, input_dir, output_dir, run_dirs):
         "use_fallback_query": config.get("use_fallback_query", False),
         "deferred_delivery": config.get("deferred_delivery", False),
         "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
+        "deid_engine": config.get("deid_engine", "ctp"),
     }
 
 
@@ -246,6 +249,7 @@ def build_singleclickicore_params(config, input_dir, output_dir, run_dirs):
         "use_fallback_query": config.get("use_fallback_query", False),
         "deferred_delivery": config.get("deferred_delivery", False),
         "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
+        "deid_engine": config.get("deid_engine", "ctp"),
     }
 
 

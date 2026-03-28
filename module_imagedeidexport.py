@@ -35,6 +35,7 @@ def imagedeidexport(
     storescp_port: int = 50001,
     deferred_delivery: bool = False,
     deferred_delivery_timeout: int = 172800,
+    deid_engine: str = "ctp",
 ) -> DeidExportResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
@@ -69,6 +70,7 @@ def imagedeidexport(
         storescp_port=storescp_port,
         deferred_delivery=deferred_delivery,
         deferred_delivery_timeout=deferred_delivery_timeout,
+        deid_engine=deid_engine,
     )
 
     if deid_result["num_images_saved"] > 0:

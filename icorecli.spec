@@ -27,6 +27,11 @@ rclone_path = os.path.join(project_path, 'rclone')
 if os.path.exists(rclone_path):
     datas.append((rclone_path, 'rclone'))
 
+binaries = []
+deid_rs_path = os.path.join(project_path, 'dicom-deid-rs', 'target', 'release', 'dicom-deid-rs')
+if os.path.exists(deid_rs_path):
+    binaries.append((deid_rs_path, '.'))
+
 try:
     openpyxl_datas = collect_data_files('openpyxl')
     datas.extend(openpyxl_datas)
@@ -83,7 +88,7 @@ except:
 a = Analysis(
     [os.path.join(project_path, 'cli.py')],
     pathex=[project_path],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=[
         'openpyxl',
