@@ -234,6 +234,7 @@ def imagedeid_local(
     apply_default_filter_script: bool = True,
     mapping_file_path: str | None = None,
     sc_pdf_output_dir: str | None = None,
+    deid_engine: str = "ctp",
 ) -> ImageDeidLocalResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
@@ -241,7 +242,8 @@ def imagedeid_local(
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
 
-    logging.info("Starting image deidentification")
+    engine_label = "dicom-deid-rs (Rust)" if deid_engine == "rust" else "CTP (Java)"
+    logging.info(f"Starting image deidentification using {engine_label} engine")
     logging.info(f"Input directory: {input_dir}")
     logging.info(f"Output directory: {output_dir}")
     if filter_script:
@@ -291,6 +293,36 @@ def imagedeid_local(
     final_filter_script = _apply_default_filter_script(
         filter_script, apply_default_filter_script
     )
+
+    if deid_engine == "rust":
+        from audit_extraction import save_audit_files
+        from deid_rs import DeidRsPipeline
+
+        rs_pipeline = DeidRsPipeline(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            anonymizer_script=anonymizer_script,
+            filter_script=final_filter_script,
+            deid_pixels=deid_pixels,
+            lookup_table=lookup_table,
+            quarantine_dir=quarantine_dir,
+        )
+        result = rs_pipeline.run()
+
+        save_audit_files(input_dir, output_dir, appdata_dir)
+
+        num_saved = result["num_images_saved"]
+        num_quarantined = result["num_images_quarantined"]
+        logging.info("Deidentification complete")
+        logging.info(
+            f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
+        )
+        logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
+        logging.info(
+            f"Files quarantined: {format_number_with_commas(num_quarantined)}"
+        )
+
+        return result
 
     pipeline_type = "imagedeid_local_pixel" if deid_pixels else "imagedeid_local"
     ctp_log_level = "DEBUG" if debug else None

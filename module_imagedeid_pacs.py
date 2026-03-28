@@ -58,13 +58,18 @@ def imagedeid_pacs(
     mapping_file_path: str | None = None,
     sc_pdf_output_dir: str | None = None,
     use_fallback_query: bool = False,
+    deid_engine: str = "ctp",
 ) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
 
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
-    logging.info(f"Running imagedeid_pacs (use_fallback_query={use_fallback_query})")
+    engine_label = "dicom-deid-rs (Rust)" if deid_engine == "rust" else "CTP (Java)"
+    logging.info(
+        f"Running imagedeid_pacs using {engine_label} engine "
+        f"(use_fallback_query={use_fallback_query})"
+    )
 
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
@@ -139,6 +144,51 @@ def imagedeid_pacs(
     time.sleep(2)
 
     try:
+        if deid_engine == "rust":
+            from audit_extraction import save_audit_files
+            from deid_rs import DeidRsPipeline
+
+            rs_pipeline = DeidRsPipeline(
+                input_dir=getscu_output_dir,
+                output_dir=output_dir,
+                anonymizer_script=anonymizer_script,
+                filter_script=combined_filter,
+                deid_pixels=deid_pixels,
+                lookup_table=lookup_table,
+                quarantine_dir=quarantine_dir,
+            )
+            result = rs_pipeline.run()
+
+            save_audit_files(getscu_output_dir, output_dir, appdata_dir)
+
+            failed_query_indices = list(set(failed_find_indices + failed_get_indices))
+            combined_failure_details = {**failed_find_details, **failed_get_details}
+            save_failed_queries_csv(
+                failed_query_indices,
+                query_spreadsheet,
+                appdata_dir,
+                combined_failure_details,
+                use_fallback_query=use_fallback_query,
+            )
+
+            num_saved = result["num_images_saved"]
+            num_quarantined = result["num_images_quarantined"]
+            logging.info("Deidentification complete")
+            logging.info(
+                f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
+            )
+            logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
+            logging.info(
+                f"Files quarantined: {format_number_with_commas(num_quarantined)}"
+            )
+
+            return {
+                "num_studies_found": len(study_pacs_map),
+                "num_images_saved": num_saved,
+                "num_images_quarantined": num_quarantined,
+                "failed_query_indices": failed_query_indices,
+            }
+
         # Choose pipeline type based on whether pixel de-identification is needed
         pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
         ctp_log_level = "DEBUG" if debug else None

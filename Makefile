@@ -1,6 +1,6 @@
 .PHONY: all signed clean deps deps-python deps-deid deps-electron test dev
 .PHONY: external-deps jre8 dcmtk rclone build-binaries build-icorecli build-django-app
-.PHONY: prepare-assets build-dmg build-dmg-signed
+.PHONY: prepare-assets build-dmg build-dmg-signed dicom-deid-rs
 
 .DEFAULT_GOAL := all
 
@@ -93,6 +93,14 @@ rclone:
 		fi; \
 	else \
 		echo "rclone already exists"; \
+	fi
+
+dicom-deid-rs:
+	@if command -v cargo > /dev/null 2>&1; then \
+		echo "Building dicom-deid-rs..."; \
+		cd dicom-deid-rs && cargo build --release; \
+	else \
+		echo "Rust/cargo not installed, skipping dicom-deid-rs build"; \
 	fi
 
 external-deps: jre8 dcmtk rclone
