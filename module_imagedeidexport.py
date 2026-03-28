@@ -3,20 +3,36 @@ import os
 
 from module_imagedeid_pacs import imagedeid_pacs
 from module_image_export import image_export
-from utils import DeidExportResult, PacsConfiguration, RunDirs, Spreadsheet, setup_run_directories, configure_run_logging
+from utils import (
+    DeidExportResult,
+    PacsConfiguration,
+    RunDirs,
+    Spreadsheet,
+    setup_run_directories,
+    configure_run_logging,
+)
 
 
-def imagedeidexport(pacs_list: list[PacsConfiguration], query_spreadsheet: Spreadsheet,
-                    application_aet: str, sas_url: str, project_name: str,
-                    output_dir: str, appdata_dir: str | None = None,
-                    filter_script: str | None = None, date_window_days: int = 0,
-                    anonymizer_script: str | None = None, deid_pixels: bool = False,
-                    lookup_table: str | None = None, debug: bool = False,
-                    run_dirs: RunDirs | None = None,
-                    apply_default_filter_script: bool = True,
-                    mapping_file_path: str | None = None,
-                    sc_pdf_output_dir: str | None = None,
-                    use_fallback_query: bool = False) -> DeidExportResult:
+def imagedeidexport(
+    pacs_list: list[PacsConfiguration],
+    query_spreadsheet: Spreadsheet,
+    application_aet: str,
+    sas_url: str,
+    project_name: str,
+    output_dir: str,
+    appdata_dir: str | None = None,
+    filter_script: str | None = None,
+    date_window_days: int = 0,
+    anonymizer_script: str | None = None,
+    deid_pixels: bool = False,
+    lookup_table: str | None = None,
+    debug: bool = False,
+    run_dirs: RunDirs | None = None,
+    apply_default_filter_script: bool = True,
+    mapping_file_path: str | None = None,
+    sc_pdf_output_dir: str | None = None,
+    use_fallback_query: bool = False,
+) -> DeidExportResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
 
@@ -46,7 +62,7 @@ def imagedeidexport(pacs_list: list[PacsConfiguration], query_spreadsheet: Sprea
         apply_default_filter_script=apply_default_filter_script,
         mapping_file_path=mapping_file_path,
         sc_pdf_output_dir=sc_pdf_output_dir,
-        use_fallback_query=use_fallback_query
+        use_fallback_query=use_fallback_query,
     )
 
     if deid_result["num_images_saved"] > 0:
@@ -56,7 +72,7 @@ def imagedeidexport(pacs_list: list[PacsConfiguration], query_spreadsheet: Sprea
             project_name=project_name,
             appdata_dir=appdata_dir,
             debug=debug,
-            run_dirs=run_dirs
+            run_dirs=run_dirs,
         )
 
     logging.info("Deidentification and export complete")
@@ -66,5 +82,5 @@ def imagedeidexport(pacs_list: list[PacsConfiguration], query_spreadsheet: Sprea
         "num_studies_found": deid_result["num_studies_found"],
         "num_images_exported": deid_result["num_images_saved"],
         "num_images_quarantined": deid_result["num_images_quarantined"],
-        "failed_query_indices": deid_result["failed_query_indices"]
+        "failed_query_indices": deid_result["failed_query_indices"],
     }

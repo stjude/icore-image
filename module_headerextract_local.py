@@ -6,14 +6,20 @@ import pandas as pd
 import pydicom
 from pydicom.dataset import Dataset
 
-from utils import HeaderExtractResult, RunDirs, configure_run_logging, format_number_with_commas, setup_run_directories
+from utils import (
+    HeaderExtractResult,
+    RunDirs,
+    configure_run_logging,
+    format_number_with_commas,
+    setup_run_directories,
+)
 
 
 def _find_dicom_files(input_dir: str) -> list[str]:
     dicom_files = []
     for root, dirs, files in os.walk(input_dir):
         for file in files:
-            if file.lower().endswith('.dcm'):
+            if file.lower().endswith(".dcm"):
                 file_path = os.path.join(root, file)
                 dicom_files.append(file_path)
     return dicom_files
@@ -29,7 +35,9 @@ def _extract_header_value(ds: Dataset, header_name: str) -> str:
         return ""
 
 
-def _extract_headers_from_file(file_path: str, headers_to_extract: list[str]) -> dict[str, str] | None:
+def _extract_headers_from_file(
+    file_path: str, headers_to_extract: list[str]
+) -> dict[str, str] | None:
     try:
         ds = pydicom.dcmread(file_path, stop_before_pixels=True)
 
@@ -71,9 +79,14 @@ def _aggregate_by_study(all_headers: list[dict[str, str]]) -> pd.DataFrame:
     return pd.DataFrame(aggregated_data)
 
 
-def headerextract_local(input_dir: str, output_dir: str, headers_to_extract: list[str] | None = None,
-                     extract_all_headers: bool = False, debug: bool = False,
-                     run_dirs: RunDirs | None = None) -> HeaderExtractResult:
+def headerextract_local(
+    input_dir: str,
+    output_dir: str,
+    headers_to_extract: list[str] | None = None,
+    extract_all_headers: bool = False,
+    debug: bool = False,
+    run_dirs: RunDirs | None = None,
+) -> HeaderExtractResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
 
@@ -98,7 +111,9 @@ def headerextract_local(input_dir: str, output_dir: str, headers_to_extract: lis
         logging.info("Extracting all headers")
         headers_to_extract = None
     else:
-        raise ValueError("Must provide either headers_to_extract or set extract_all_headers=True")
+        raise ValueError(
+            "Must provide either headers_to_extract or set extract_all_headers=True"
+        )
 
     if headers_to_extract and "StudyInstanceUID" not in headers_to_extract:
         headers_to_extract.append("StudyInstanceUID")
@@ -113,7 +128,7 @@ def headerextract_local(input_dir: str, output_dir: str, headers_to_extract: lis
                 header_data = {}
                 for attr_name in ds.dir():
                     try:
-                        if not attr_name.startswith('_'):
+                        if not attr_name.startswith("_"):
                             value = getattr(ds, attr_name, None)
                             if value is not None:
                                 header_data[attr_name] = str(value)
@@ -132,20 +147,19 @@ def headerextract_local(input_dir: str, output_dir: str, headers_to_extract: lis
                 files_processed += 1
 
         if (i + 1) % 100 == 0:
-            logging.info(f"Processed {format_number_with_commas(i + 1)} / {format_number_with_commas(total_files)} files")
+            logging.info(
+                f"Processed {format_number_with_commas(i + 1)} / {format_number_with_commas(total_files)} files"
+            )
 
     logging.info("Aggregating headers by study...")
     df = _aggregate_by_study(all_headers)
 
     metadata_path = os.path.join(output_dir, "metadata.xlsx")
-    df.to_excel(metadata_path, index=False, engine='openpyxl')
+    df.to_excel(metadata_path, index=False, engine="openpyxl")
     logging.info(f"Saved metadata to {metadata_path}")
 
     logging.info("Header extraction complete")
     logging.info(f"Total files processed: {format_number_with_commas(files_processed)}")
     logging.info(f"Total studies: {len(df)}")
 
-    return {
-        "num_files_processed": files_processed,
-        "num_studies": len(df)
-    }
+    return {"num_files_processed": files_processed, "num_studies": len(df)}

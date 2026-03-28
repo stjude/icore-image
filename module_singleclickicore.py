@@ -4,26 +4,42 @@ import os
 from module_imagedeid_pacs import imagedeid_pacs
 from module_textdeid import textdeid
 from module_image_export import image_export
-from utils import PacsConfiguration, RunDirs, SingleClickResult, Spreadsheet, setup_run_directories, configure_run_logging
+from utils import (
+    PacsConfiguration,
+    RunDirs,
+    SingleClickResult,
+    Spreadsheet,
+    setup_run_directories,
+    configure_run_logging,
+)
 
 
-def singleclickicore(pacs_list: list[PacsConfiguration], query_spreadsheet: Spreadsheet,
-                     application_aet: str, sas_url: str | None, project_name: str,
-                     output_dir: str, input_file: str,
-                     appdata_dir: str | None = None,
-                     filter_script: str | None = None, date_window_days: int = 0,
-                     anonymizer_script: str | None = None, deid_pixels: bool = False,
-                     lookup_table: str | None = None,
-                     apply_default_filter_script: bool = True,
-                     mapping_file_path: str | None = None,
-                     to_keep_list: list[str] | None = None,
-                     to_remove_list: list[str] | None = None,
-                     columns_to_drop: list[str] | None = None,
-                     columns_to_deid: list[str] | None = None,
-                     debug: bool = False, run_dirs: RunDirs | None = None,
-                     skip_export: bool = False,
-                     sc_pdf_output_dir: str | None = None,
-                     use_fallback_query: bool = False) -> SingleClickResult:
+def singleclickicore(
+    pacs_list: list[PacsConfiguration],
+    query_spreadsheet: Spreadsheet,
+    application_aet: str,
+    sas_url: str | None,
+    project_name: str,
+    output_dir: str,
+    input_file: str,
+    appdata_dir: str | None = None,
+    filter_script: str | None = None,
+    date_window_days: int = 0,
+    anonymizer_script: str | None = None,
+    deid_pixels: bool = False,
+    lookup_table: str | None = None,
+    apply_default_filter_script: bool = True,
+    mapping_file_path: str | None = None,
+    to_keep_list: list[str] | None = None,
+    to_remove_list: list[str] | None = None,
+    columns_to_drop: list[str] | None = None,
+    columns_to_deid: list[str] | None = None,
+    debug: bool = False,
+    run_dirs: RunDirs | None = None,
+    skip_export: bool = False,
+    sc_pdf_output_dir: str | None = None,
+    use_fallback_query: bool = False,
+) -> SingleClickResult:
     """
     Combined module that performs:
     1. Image deidentification from PACS (HIPAA Safe Harbor enforced)
@@ -75,9 +91,9 @@ def singleclickicore(pacs_list: list[PacsConfiguration], query_spreadsheet: Spre
     os.makedirs(output_dir, exist_ok=True)
 
     # Step 1: Image deid from PACS
-    logging.info("="*80)
+    logging.info("=" * 80)
     logging.info("STEP 1: Image Deidentification from PACS")
-    logging.info("="*80)
+    logging.info("=" * 80)
 
     deid_result = imagedeid_pacs(
         pacs_list=pacs_list,
@@ -95,13 +111,13 @@ def singleclickicore(pacs_list: list[PacsConfiguration], query_spreadsheet: Spre
         apply_default_filter_script=apply_default_filter_script,
         mapping_file_path=mapping_file_path,
         sc_pdf_output_dir=sc_pdf_output_dir,
-        use_fallback_query=use_fallback_query
+        use_fallback_query=use_fallback_query,
     )
 
     # Step 2: Text deid on input Excel
-    logging.info("="*80)
+    logging.info("=" * 80)
     logging.info("STEP 2: Text Deidentification on Input File")
-    logging.info("="*80)
+    logging.info("=" * 80)
 
     text_result = textdeid(
         input_file=input_file,
@@ -111,14 +127,14 @@ def singleclickicore(pacs_list: list[PacsConfiguration], query_spreadsheet: Spre
         columns_to_drop=columns_to_drop,
         columns_to_deid=columns_to_deid,
         debug=debug,
-        run_dirs=run_dirs
+        run_dirs=run_dirs,
     )
 
     # Step 3: Export to Azure (only if we have content to export and not skipped)
     if not skip_export:
-        logging.info("="*80)
+        logging.info("=" * 80)
         logging.info("STEP 3: Export to Azure Blob Storage")
-        logging.info("="*80)
+        logging.info("=" * 80)
 
         if sas_url is None:
             raise ValueError("sas_url is required when skip_export is False")
@@ -130,19 +146,19 @@ def singleclickicore(pacs_list: list[PacsConfiguration], query_spreadsheet: Spre
                 project_name=project_name,
                 appdata_dir=appdata_dir,
                 debug=debug,
-                run_dirs=run_dirs
+                run_dirs=run_dirs,
             )
         else:
             logging.info("No content to export - skipping Azure upload")
     else:
-        logging.info("="*80)
+        logging.info("=" * 80)
         logging.info("STEP 3: Export to Azure Blob Storage - SKIPPED")
-        logging.info("="*80)
+        logging.info("=" * 80)
 
-    logging.info("="*80)
+    logging.info("=" * 80)
     logging.info("singleclickicore complete")
     logging.info(f"Deidentified files preserved at: {output_dir}")
-    logging.info("="*80)
+    logging.info("=" * 80)
 
     return {
         "num_studies_found": deid_result["num_studies_found"],
@@ -151,5 +167,5 @@ def singleclickicore(pacs_list: list[PacsConfiguration], query_spreadsheet: Spre
         "failed_query_indices": deid_result["failed_query_indices"],
         "num_rows_processed": text_result["num_rows_processed"],
         "output_file": text_result["output_file"],
-        "export_performed": not skip_export
+        "export_performed": not skip_export,
     }

@@ -16,25 +16,27 @@ import requests
 
 
 def _get_default_ctp_source_dir():
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
-        source_ctp_dir = os.path.join(bundle_dir, '_internal', 'ctp')
+        source_ctp_dir = os.path.join(bundle_dir, "_internal", "ctp")
     else:
-        source_ctp_dir = os.path.join(os.path.dirname(__file__), 'ctp')
+        source_ctp_dir = os.path.join(os.path.dirname(__file__), "ctp")
     return source_ctp_dir
 
 
 def _get_default_java_home():
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
-        if platform.system() == 'Darwin':
-            java_home = os.path.join(bundle_dir, '_internal', 'jre8', 'Contents', 'Home')
+        if platform.system() == "Darwin":
+            java_home = os.path.join(
+                bundle_dir, "_internal", "jre8", "Contents", "Home"
+            )
         else:
-            java_home = os.path.join(bundle_dir, '_internal', 'jre8')
+            java_home = os.path.join(bundle_dir, "_internal", "jre8")
     else:
-        base_jre_path = os.path.join(os.path.dirname(__file__), 'jre8')
-        if platform.system() == 'Darwin':
-            java_home = os.path.join(base_jre_path, 'Contents', 'Home')
+        base_jre_path = os.path.join(os.path.dirname(__file__), "jre8")
+        if platform.system() == "Darwin":
+            java_home = os.path.join(base_jre_path, "Contents", "Home")
         else:
             java_home = base_jre_path
     return java_home
@@ -43,7 +45,7 @@ def _get_default_java_home():
 def is_port_available(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind(('localhost', port))
+            s.bind(("localhost", port))
             return True
         except OSError:
             return False
@@ -54,7 +56,7 @@ def ctp_get(url, port, timeout=3):
         return requests.get(
             f"http://localhost:{port}/{url}",
             auth=("admin", "password"),
-            timeout=timeout
+            timeout=timeout,
         )
     except Exception:
         return None
@@ -67,36 +69,35 @@ def ctp_post(url, port, data, timeout=6):
             auth=("admin", "password"),
             data=data,
             headers={"Referer": f"http://localhost:{port}/{url}"},
-            timeout=timeout
+            timeout=timeout,
         )
     except Exception:
         return None
 
 
-
 def _update_log4j_properties(log4j_path, log_path=None, log_level=None):
     if not log_path and not log_level:
         return
-    
+
     with open(log4j_path) as f:
         content = f.read()
-    
+
     if log_path:
         if not os.path.isabs(log_path):
             raise ValueError(f"log_path must be an absolute path, got: {log_path}")
         content = re.sub(
-            r'log4j\.appender\.RootAppender\.File\s*=.*',
-            f'log4j.appender.RootAppender.File = {log_path}',
-            content
+            r"log4j\.appender\.RootAppender\.File\s*=.*",
+            f"log4j.appender.RootAppender.File = {log_path}",
+            content,
         )
-    
+
     if log_level:
         content = re.sub(
-            r'log4j\.logger\.org\.rsna\s*=.*',
-            f'log4j.logger.org.rsna = {log_level}',
-            content
+            r"log4j\.logger\.org\.rsna\s*=.*",
+            f"log4j.logger.org.rsna = {log_level}",
+            content,
         )
-    
+
     with open(log4j_path, "w") as f:
         f.write(content)
 
@@ -111,40 +112,46 @@ class CTPMetrics:
         self.last_change_time = time.time()
         self.archive_traversal_complete = False
         self._lock = Lock()
-    
+
     def is_stable(self):
         with self._lock:
-            return (self.archive_traversal_complete and 
-                    self.queue_size == 0 and
-                    self.files_received == (self.files_saved + self.files_quarantined))
-    
-    def update(self, received, saved, quarantined, queue_size, archive_traversal_complete):
+            return (
+                self.archive_traversal_complete
+                and self.queue_size == 0
+                and self.files_received == (self.files_saved + self.files_quarantined)
+            )
+
+    def update(
+        self, received, saved, quarantined, queue_size, archive_traversal_complete
+    ):
         with self._lock:
             file_metrics_changed = (
-                received != self.files_received or
-                saved != self.files_saved or
-                quarantined != self.files_quarantined or
-                queue_size != self.queue_size
+                received != self.files_received
+                or saved != self.files_saved
+                or quarantined != self.files_quarantined
+                or queue_size != self.queue_size
             )
-            
+
             if file_metrics_changed:
                 self.last_change_time = time.time()
-            
+
             self.files_received = received
             self.files_saved = saved
             self.files_quarantined = quarantined
             self.queue_size = queue_size
             self.archive_traversal_complete = archive_traversal_complete
-            
-            is_stable = (self.archive_traversal_complete and 
-                        self.queue_size == 0 and
-                        self.files_received == (self.files_saved + self.files_quarantined))
-            
+
+            is_stable = (
+                self.archive_traversal_complete
+                and self.queue_size == 0
+                and self.files_received == (self.files_saved + self.files_quarantined)
+            )
+
             if is_stable:
                 self.stable_count += 1
             else:
                 self.stable_count = 0
-    
+
     def time_since_last_change(self):
         with self._lock:
             return time.time() - self.last_change_time
@@ -160,29 +167,29 @@ class CTPServer:
         self._monitor_running = False
         self._monitor_exception = None
         self.stall_timeout = stall_timeout
-        
+
         config_path = os.path.join(ctp_dir, "config.xml")
         tree = ET.parse(config_path)
         root = tree.getroot()
-        
+
         server_elem = root.find("Server")
         if server_elem is None:
             raise ValueError("config.xml missing <Server> element")
         self.port = int(server_elem.get("port", "50000"))
-        
+
         quarantine_set = set()
         for elem in root.iter():
             quarantine = elem.get("quarantine")
             if quarantine:
                 quarantine_set.add(quarantine)
         self.quarantine_dirs = list(quarantine_set)
-    
+
     def start(self):
         self._cleanup_existing_server()
-        
+
         java_home = _get_default_java_home()
         java_executable = os.path.join(java_home, "bin", "java")
-        
+
         cmd = [
             java_executable,
             "-Djava.awt.headless=true",
@@ -190,12 +197,14 @@ class CTPServer:
             "-Xms2048m",
             "-Xmx16384m",
             "-jar",
-            "libraries/CTP.jar"
+            "libraries/CTP.jar",
         ]
-        
-        env = {'JAVA_HOME': java_home}
-        
-        self._stderr_file = tempfile.NamedTemporaryFile(delete=False, prefix="ctp_stderr_", suffix=".log")
+
+        env = {"JAVA_HOME": java_home}
+
+        self._stderr_file = tempfile.NamedTemporaryFile(
+            delete=False, prefix="ctp_stderr_", suffix=".log"
+        )
         self._stderr_path = self._stderr_file.name
 
         self.process = subprocess.Popen(
@@ -203,7 +212,7 @@ class CTPServer:
             cwd=self.ctp_dir,
             stdout=subprocess.DEVNULL,
             stderr=self._stderr_file,
-            env=env
+            env=env,
         )
 
         self._running = True
@@ -219,11 +228,11 @@ class CTPServer:
                 f"CTP process failed to start (port {self.port})."
                 f"{' stderr: ' + stderr_output.decode('utf8').strip() if stderr_output.strip() else ''}"
             )
-        
+
         self._monitor_running = True
         self.monitor_thread = Thread(target=self._monitor_loop, daemon=True)
         self.monitor_thread.start()
-    
+
     def stop(self):
         self._monitor_running = False
 
@@ -234,61 +243,65 @@ class CTPServer:
             self._shutdown_process(self.process)
             self._running = False
 
-        if hasattr(self, '_stderr_file') and self._stderr_file and not self._stderr_file.closed:
+        if (
+            hasattr(self, "_stderr_file")
+            and self._stderr_file
+            and not self._stderr_file.closed
+        ):
             self._stderr_file.close()
-        if hasattr(self, '_stderr_path') and os.path.exists(self._stderr_path):
+        if hasattr(self, "_stderr_path") and os.path.exists(self._stderr_path):
             os.unlink(self._stderr_path)
-    
+
     def is_complete(self):
         if self._monitor_exception:
             raise self._monitor_exception
         return self.metrics.stable_count > 3
-    
+
     def _send_shutdown_request(self):
         try:
             requests.get(
                 f"http://localhost:{self.port}/shutdown",
                 headers={"servicemanager": "shutdown"},
-                timeout=5
+                timeout=5,
             )
         except Exception:
             pass
-    
+
     def _shutdown_process(self, process):
         self._send_shutdown_request()
         if self._wait_for_process(process, 30):
             return
-        
+
         process.send_signal(signal.SIGINT)
         if self._wait_for_process(process, 30):
             return
-        
+
         process.terminate()
         if self._wait_for_process(process, 10):
             return
-        
+
         process.kill()
         process.wait()
-    
+
     def _wait_for_process(self, process, timeout):
         try:
             process.wait(timeout=timeout)
             return True
         except subprocess.TimeoutExpired:
             return False
-    
+
     def _cleanup_existing_server(self):
         response = ctp_get("status", self.port, timeout=2)
         if response and response.status_code == 200:
             self._send_shutdown_request()
             time.sleep(3)
-            
+
             check_response = ctp_get("status", self.port, timeout=2)
             if check_response and check_response.status_code == 200:
                 self._force_kill_by_port()
-    
+
     def _force_kill_by_port(self):
-        for proc in psutil.process_iter(['pid', 'name']):
+        for proc in psutil.process_iter(["pid", "name"]):
             try:
                 for conn in proc.net_connections():
                     if conn.laddr.port == self.port:
@@ -298,53 +311,65 @@ class CTPServer:
                         return
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
-    
+
     def _update_metrics(self):
         response = ctp_get("status", self.port)
         if not response:
             return
-        
+
         html = response.text
-        
+
         saved_match = re.search(r"Files actually stored:\s*</td><td>(\d+)", html)
         saved = int(saved_match.group(1)) if saved_match else 0
-        
-        archive_received_match = re.search(r"Archive files supplied:\s*</td><td>(\d+)", html)
+
+        archive_received_match = re.search(
+            r"Archive files supplied:\s*</td><td>(\d+)", html
+        )
         dicom_received_match = re.search(r"Files received:\s*</td><td>(\d+)", html)
-        
+
         received = 0
         if archive_received_match:
             received = int(archive_received_match.group(1))
         elif dicom_received_match:
             received = int(dicom_received_match.group(1))
-        
+
         queue_match = re.search(r"Queue size:\s*</td><td>(\d+)", html)
         queue_size = int(queue_match.group(1)) if queue_match else 0
-        
+
         traversal_match = re.search(r"Archive traversal:\s*</td><td>(\w+)", html)
         if traversal_match:
-            archive_traversal_complete = (traversal_match.group(1) == "complete")
+            archive_traversal_complete = traversal_match.group(1) == "complete"
         else:
             archive_traversal_complete = True
-        
+
         quarantined = 0
         exclude_files = {".", "..", "QuarantineIndex.db", "QuarantineIndex.lg"}
-        
+
         for quarantine_dir in self.quarantine_dirs:
             if os.path.exists(quarantine_dir):
                 for root, _, files in os.walk(quarantine_dir):
-                    quarantined += len([f for f in files if not f.startswith('.') and f not in exclude_files])
-        
-        self.metrics.update(received, saved, quarantined, queue_size, archive_traversal_complete)
-    
+                    quarantined += len(
+                        [
+                            f
+                            for f in files
+                            if not f.startswith(".") and f not in exclude_files
+                        ]
+                    )
+
+        self.metrics.update(
+            received, saved, quarantined, queue_size, archive_traversal_complete
+        )
+
     def _monitor_loop(self):
         try:
             while self._monitor_running:
                 time.sleep(3)
                 self._update_metrics()
-                
+
                 if self.metrics.time_since_last_change() > self.stall_timeout:
-                    raise TimeoutError(f"CTP metrics have not changed for {self.stall_timeout} seconds")
+                    raise TimeoutError(
+                        f"CTP metrics have not changed for {self.stall_timeout} seconds"
+                    )
         except Exception as e:
             self._monitor_exception = e
 
@@ -385,7 +410,6 @@ PIPELINE_TEMPLATES = {
         </Pipeline>
     </Configuration>
     """,
-
     "imagedeid_local": """
     <Configuration>
         <Server maxThreads="20" port="{port}">
@@ -461,7 +485,6 @@ PIPELINE_TEMPLATES = {
         </Pipeline>
     </Configuration>
     """,
-
     "imagedeid_pacs": """
     <Configuration>
         <Server maxThreads="20" port="{port}">
@@ -537,7 +560,6 @@ PIPELINE_TEMPLATES = {
         </Pipeline>
     </Configuration>
     """,
-
     "imagedeid_local_pixel": """
     <Configuration>
         <Server maxThreads="20" port="{port}">
@@ -630,7 +652,6 @@ PIPELINE_TEMPLATES = {
         </Pipeline>
     </Configuration>
     """,
-
     "imagedeid_pacs_pixel": """
     <Configuration>
         <Server maxThreads="20" port="{port}">
@@ -723,7 +744,6 @@ PIPELINE_TEMPLATES = {
         </Pipeline>
     </Configuration>
     """,
-
     "imageqr": """
     <Configuration>
         <Server maxThreads="20" port="{port}">
@@ -791,35 +811,78 @@ def generate_sc_pdf_filter():
     """
     filter_parts = []
     # Check SOPClassUID [0008,0016] from dataset
-    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.1")')  # Encapsulated PDF
-    filter_parts.append('[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.2")')  # Encapsulated CDA
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.7")')  # Secondary Capture (all variants)
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.88")')  # Structured Reports
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.8")')  # Key Object Selection
-    filter_parts.append('[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.11")')  # Presentation States
+    filter_parts.append(
+        '[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.1")'
+    )  # Encapsulated PDF
+    filter_parts.append(
+        '[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.2")'
+    )  # Encapsulated CDA
+    filter_parts.append(
+        '[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.7")'
+    )  # Secondary Capture (all variants)
+    filter_parts.append(
+        '[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.88")'
+    )  # Structured Reports
+    filter_parts.append(
+        '[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.8")'
+    )  # Key Object Selection
+    filter_parts.append(
+        '[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.11")'
+    )  # Presentation States
     # Also check MediaStorageSOPClassUID [0002,0002] from file_meta (fallback for malformed files)
-    filter_parts.append('[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.1")')  # Encapsulated PDF (file_meta)
-    filter_parts.append('[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.2")')  # Encapsulated CDA (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.7")')  # Secondary Capture (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.88")')  # Structured Reports (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.8")')  # Key Object Selection (file_meta)
-    filter_parts.append('[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.11")')  # Presentation States (file_meta)
+    filter_parts.append(
+        '[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.1")'
+    )  # Encapsulated PDF (file_meta)
+    filter_parts.append(
+        '[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.2")'
+    )  # Encapsulated CDA (file_meta)
+    filter_parts.append(
+        '[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.7")'
+    )  # Secondary Capture (file_meta)
+    filter_parts.append(
+        '[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.88")'
+    )  # Structured Reports (file_meta)
+    filter_parts.append(
+        '[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.8")'
+    )  # Key Object Selection (file_meta)
+    filter_parts.append(
+        '[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.11")'
+    )  # Presentation States (file_meta)
     # Other indicators
     filter_parts.append('BurnedInAnnotation.equalsIgnoreCase("YES")')
-    filter_parts.append('[0042,0011].exists()')  # EncapsulatedDocument tag
-    return '\n+ '.join(filter_parts)
+    filter_parts.append("[0042,0011].exists()")  # EncapsulatedDocument tag
+    return "\n+ ".join(filter_parts)
 
 
 class CTPPipeline:
-    def __init__(self, pipeline_type, output_dir, input_dir=None,
-                 filter_script=None, anonymizer_script=None, lookup_table=None,
-                 application_aet=None, source_ctp_dir=None, stall_timeout=300, log_path=None, log_level=None,
-                 quarantine_dir=None, dicom_port=None, force_kill_dicom_pipeline=False,
-                 sc_pdf_output_dir=None):
+    def __init__(
+        self,
+        pipeline_type,
+        output_dir,
+        input_dir=None,
+        filter_script=None,
+        anonymizer_script=None,
+        lookup_table=None,
+        application_aet=None,
+        source_ctp_dir=None,
+        stall_timeout=300,
+        log_path=None,
+        log_level=None,
+        quarantine_dir=None,
+        dicom_port=None,
+        force_kill_dicom_pipeline=False,
+        sc_pdf_output_dir=None,
+    ):
         if pipeline_type not in PIPELINE_TEMPLATES:
-            raise ValueError(f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}")
-        
-        self.source_ctp_dir = source_ctp_dir if source_ctp_dir is not None else _get_default_ctp_source_dir()
+            raise ValueError(
+                f"Unknown pipeline_type: {pipeline_type}. Must be one of {list(PIPELINE_TEMPLATES.keys())}"
+            )
+
+        self.source_ctp_dir = (
+            source_ctp_dir
+            if source_ctp_dir is not None
+            else _get_default_ctp_source_dir()
+        )
         self.pipeline_type = pipeline_type
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -840,26 +903,30 @@ class CTPPipeline:
             self._dicom_port = 50001
         else:
             self._dicom_port = None
-        
+
         self.port = self._find_available_port(self._dicom_port)
-        self._tempdir = tempfile.mkdtemp(prefix='ctp_')
+        self._tempdir = tempfile.mkdtemp(prefix="ctp_")
         self.server = None
-    
+
     def _pipeline_needs_dicom_port(self):
-        return self.pipeline_type in ['imagedeid_pacs', 'imagedeid_pacs_pixel', 'imageqr']
-    
+        return self.pipeline_type in [
+            "imagedeid_pacs",
+            "imagedeid_pacs_pixel",
+            "imageqr",
+        ]
+
     def _find_available_port(self, dicom_port_to_avoid=None):
         # Use OS-assigned ephemeral port to avoid races between parallel workers
         for _ in range(10):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('localhost', 0))
+                s.bind(("localhost", 0))
                 port = s.getsockname()[1]
             if port != dicom_port_to_avoid:
                 return port
         raise RuntimeError("Could not find available port that differs from DICOM port")
-    
+
     def _force_kill_by_port(self, port):
-        for proc in psutil.process_iter(['pid', 'name']):
+        for proc in psutil.process_iter(["pid", "name"]):
             try:
                 for conn in proc.net_connections():
                     if conn.laddr.port == port:
@@ -868,7 +935,7 @@ class CTPPipeline:
                         return
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
-    
+
     def __enter__(self):
         if self._pipeline_needs_dicom_port() and self._dicom_port:
             if not is_port_available(self._dicom_port):
@@ -876,18 +943,20 @@ class CTPPipeline:
                     self._force_kill_by_port(self._dicom_port)
                     time.sleep(2)
                 else:
-                    raise DicomPortInUseError(f"DICOM port {self._dicom_port} is already in use. Use force_kill_dicom_pipeline=True to kill existing pipeline.")
-        
+                    raise DicomPortInUseError(
+                        f"DICOM port {self._dicom_port} is already in use. Use force_kill_dicom_pipeline=True to kill existing pipeline."
+                    )
+
         os.makedirs(os.path.join(self._tempdir, "roots"), exist_ok=True)
         os.makedirs(os.path.join(self._tempdir, "quarantine"), exist_ok=True)
-        
+
         if self.quarantine_dir is None:
             self.quarantine_dir = os.path.join(self._tempdir, "quarantine")
         os.makedirs(self.quarantine_dir, exist_ok=True)
-        
+
         ctp_workspace = os.path.join(self._tempdir, "ctp")
         source_ctp = self.source_ctp_dir
-        
+
         for item in os.listdir(source_ctp):
             src_path = os.path.join(source_ctp, item)
             dst_path = os.path.join(ctp_workspace, item)
@@ -896,11 +965,13 @@ class CTPPipeline:
             else:
                 os.makedirs(ctp_workspace, exist_ok=True)
                 shutil.copy(src_path, dst_path)
-        
+
         log4j_path = os.path.join(ctp_workspace, "log4j.properties")
         _update_log4j_properties(log4j_path, self.log_path, self.log_level)
 
-        sc_pdf_quarantine = self.sc_pdf_output_dir if self.sc_pdf_output_dir else self.quarantine_dir
+        sc_pdf_quarantine = (
+            self.sc_pdf_output_dir if self.sc_pdf_output_dir else self.quarantine_dir
+        )
         if self.sc_pdf_output_dir:
             os.makedirs(self.sc_pdf_output_dir, exist_ok=True)
 
@@ -912,14 +983,14 @@ class CTPPipeline:
             port=self.port,
             dicom_port=self._dicom_port,
             application_aet=self.application_aet if self.application_aet else "",
-            sc_pdf_quarantine=os.path.abspath(sc_pdf_quarantine)
+            sc_pdf_quarantine=os.path.abspath(sc_pdf_quarantine),
         )
 
         sc_pdf_quarantine_abs = os.path.abspath(sc_pdf_quarantine)
         config_xml = re.sub(
             rf'quarantine="(?!{re.escape(sc_pdf_quarantine_abs)})[^"]*"',
             f'quarantine="{os.path.abspath(self.quarantine_dir)}"',
-            config_xml
+            config_xml,
         )
 
         with open(os.path.join(ctp_workspace, "config.xml"), "w") as f:
@@ -938,65 +1009,73 @@ class CTPPipeline:
         if self.anonymizer_script:
             with open(os.path.join(scripts_dir, "DicomAnonymizer.script"), "w") as f:
                 f.write(self.anonymizer_script)
-        
+
         if self.lookup_table:
             with open(os.path.join(scripts_dir, "LookupTable.properties"), "w") as f:
                 f.write(self.lookup_table)
         else:
             with open(os.path.join(scripts_dir, "LookupTable.properties"), "w") as f:
                 f.write("")
-        
+
         self.server = CTPServer(ctp_workspace, stall_timeout=self.stall_timeout)
         self.server.start()
-        
+
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.server:
             self.server.stop()
-        
+
         shutil.rmtree(self._tempdir, ignore_errors=True)
-        
+
         return False
-    
+
     def is_complete(self):
         return self.server.is_complete() if self.server else False
-    
+
     @property
     def metrics(self):
         return self.server.metrics if self.server else None
-    
+
     def get_audit_log_csv(self, plugin_id):
         response = ctp_get(f"{plugin_id}?export&csv&suppress", self.port)
         return response.text if response else None
-    
+
     def get_idmap_csv(self, stage_id="IDMap"):
         stage_index = self._find_stage_index_by_id(stage_id)
         if stage_index is None:
             return None
-        response = ctp_post("idmap", self.port, 
-                           {"p": 0, "s": stage_index, "keytype": "trialAN", 
-                            "keys": "", "format": "csv"})
+        response = ctp_post(
+            "idmap",
+            self.port,
+            {
+                "p": 0,
+                "s": stage_index,
+                "keytype": "trialAN",
+                "keys": "",
+                "format": "csv",
+            },
+        )
         return response.text if response else None
-    
+
     def _find_stage_index_by_id(self, stage_id):
         assert self.server is not None
         config_path = os.path.join(self.server.ctp_dir, "config.xml")
         tree = ET.parse(config_path)
         root = tree.getroot()
-        
+
         pipeline = root.find("Pipeline")
         if pipeline is None:
             return None
-        
+
         stage_index = 0
         for child in pipeline:
             if child.tag in ["Plugin", "Server"]:
                 continue
-            
+
             if child.get("id") == stage_id:
                 return stage_index
-            
+
             stage_index += 1
-        
+
         return None

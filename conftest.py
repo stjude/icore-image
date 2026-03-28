@@ -19,6 +19,7 @@ from test_utils import OrthancServer, AzuriteServer
 # Module-scoped containers (started once per test file, reused across tests)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def shared_orthanc():
     """A single Orthanc container shared across all tests in a module."""
@@ -41,6 +42,7 @@ def shared_azurite():
 # ---------------------------------------------------------------------------
 # Function-scoped wrappers (clear data between tests)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="function")
 def orthanc(shared_orthanc):
