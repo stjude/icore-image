@@ -25,7 +25,7 @@ from utils import (
     generate_queries_and_filter,
     save_failed_queries_csv,
     find_studies_from_pacs_list,
-    get_studies_from_study_pacs_map,
+    move_studies_from_study_pacs_map,
     PacsConfiguration,
 )
 
@@ -397,6 +397,7 @@ class OrthancServer:
         self.modalities = {}
         self.storage_dir = None
         self.config_dir = None
+        self.storescp_port: int = 50001
 
     def _get_free_port(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -950,35 +951,43 @@ def test_find_studies_returns_failure_details(tmp_path, orthanc):
 
 
 def test_get_studies_returns_failure_details(tmp_path):
-    """Test that get_studies_from_study_pacs_map returns failure details as 3rd value"""
-    from unittest.mock import patch
+    """Test that move_studies_from_study_pacs_map returns failure details as 3rd value"""
+    from unittest.mock import patch, Mock
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0), "study_uid_2": (pacs, 1)}
 
     output_dir = str(tmp_path / "output")
 
-    # Mock get_study to simulate one success and one failure
-    with patch("utils.get_study") as mock_get:
-        mock_get.side_effect = [
+    # Mock move_study to simulate one success and one failure
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock()
+        mock_move.side_effect = [
             {
                 "success": True,
                 "num_completed": 5,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get successful",
+                "message": "Move successful",
             },
             {
                 "success": False,
                 "num_completed": 0,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get failed",
+                "message": "Move failed",
             },
         ]
 
         successful_gets, failed_query_indices, failure_details = (
-            get_studies_from_study_pacs_map(study_pacs_map, "TEST_AET", output_dir)
+            move_studies_from_study_pacs_map(
+                study_pacs_map, "TEST_AET", output_dir, storescp_port=50001
+            )
         )
 
         assert successful_gets == 1, "Should have 1 successful get"
@@ -986,12 +995,12 @@ def test_get_studies_returns_failure_details(tmp_path):
         assert 1 in failed_query_indices, "Query index 1 should have failed"
         assert len(failure_details) == 1, "Should have 1 failure detail entry"
         assert 1 in failure_details, "Failure details should contain query index 1"
-        assert failure_details[1] == "Failed to retrieve images: Get failed"
+        assert failure_details[1] == "Failed to retrieve images: Move failed"
 
 
-def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
+def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
     """Test that zero file retrievals are logged and treated as failures."""
-    from unittest.mock import patch
+    from unittest.mock import patch, Mock
 
     output_dir = str(tmp_path / "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -1002,27 +1011,35 @@ def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
         "1.2.3.4.6": (pacs, 1),
     }
 
-    # Mock get_study to simulate failure with 0 files completed
-    with patch("utils.get_study") as mock_get:
-        mock_get.side_effect = [
+    # Mock move_study to simulate failure with 0 files completed
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock()
+        mock_move.side_effect = [
             {
                 "success": False,
                 "num_completed": 0,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get completed with no sub-operations (no files retrieved)",
+                "message": "Move completed with no sub-operations (no files retrieved)",
             },
             {
                 "success": True,
                 "num_completed": 5,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get completed successfully",
+                "message": "Move completed successfully",
             },
         ]
 
         successful_gets, failed_query_indices, failure_details = (
-            get_studies_from_study_pacs_map(study_pacs_map, "TEST_AET", output_dir)
+            move_studies_from_study_pacs_map(
+                study_pacs_map, "TEST_AET", output_dir, storescp_port=50001
+            )
         )
 
         # Zero file retrieval should be treated as failure
@@ -1040,9 +1057,9 @@ def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
         )
 
 
-def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
-    """Test that exceptions during get_study don't crash the entire job."""
-    from unittest.mock import patch
+def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
+    """Test that exceptions during move_study don't crash the entire job."""
+    from unittest.mock import patch, Mock
 
     output_dir = str(tmp_path / "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -1054,16 +1071,22 @@ def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
         "1.2.3.4.7": (pacs, 2),
     }
 
-    # Mock get_study to simulate various failures including exception
-    with patch("utils.get_study") as mock_get:
-        mock_get.side_effect = [
+    # Mock move_study to simulate various failures including exception
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock()
+        mock_move.side_effect = [
             Exception("Network timeout"),  # First call raises exception
             {
                 "success": True,
                 "num_completed": 5,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get completed",
+                "message": "Move completed",
             },  # Second succeeds
             {
                 "success": False,
@@ -1072,7 +1095,9 @@ def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
         ]
 
         successful_gets, failed_query_indices, failure_details = (
-            get_studies_from_study_pacs_map(study_pacs_map, "TEST_AET", output_dir)
+            move_studies_from_study_pacs_map(
+                study_pacs_map, "TEST_AET", output_dir, storescp_port=50001
+            )
         )
 
         # Job should continue despite exception

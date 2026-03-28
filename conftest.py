@@ -10,6 +10,8 @@ each run entire modules — get independent containers on independent random
 ports with no cross-worker conflicts.
 """
 
+import socket
+
 import pytest
 
 from test_utils import OrthancServer, AzuriteServer
@@ -23,8 +25,14 @@ from test_utils import OrthancServer, AzuriteServer
 @pytest.fixture(scope="module")
 def shared_orthanc():
     """A single Orthanc container shared across all tests in a module."""
+    # Allocate a free port for storescp so parallel xdist workers don't collide
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        storescp_port = s.getsockname()[1]
+
     server = OrthancServer()
-    server.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    server.storescp_port = storescp_port
+    server.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
     server.start()
     yield server
     server.stop()

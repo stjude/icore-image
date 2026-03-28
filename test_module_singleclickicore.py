@@ -102,6 +102,7 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
         filter_script=hipaa_config["filter_script"],
         deid_pixels=hipaa_config["deid_pixels"],
         apply_default_filter_script=hipaa_config["apply_default_filter_script"],
+        storescp_port=orthanc.storescp_port,
     )
 
     # Verify image deid results
@@ -209,6 +210,7 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
         anonymizer_script=anonymizer_script,
         filter_script=filter_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     # Only 1 image should pass filter (3.0 slice thickness)
@@ -282,6 +284,7 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
         columns_to_deid=["SensitiveColumn"],
         columns_to_drop=["DropMe"],
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_xlsx = output_dir / "output.xlsx"
@@ -344,6 +347,7 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=50001,
     )
 
     # PACS queries should fail
@@ -415,6 +419,7 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
             input_file=str(query_file),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
         )
 
     # Should raise an rclone error
@@ -475,6 +480,7 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         skip_export=True,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1
@@ -538,6 +544,7 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["export_performed"]
@@ -595,6 +602,7 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         skip_export=True,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1
@@ -659,6 +667,7 @@ def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
         columns_to_drop=["PatientName"],
         apply_default_filter_script=False,
         skip_export=True,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1
