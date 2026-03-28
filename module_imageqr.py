@@ -4,7 +4,8 @@ import shutil
 import time
 
 from ctp import CTPPipeline
-from utils import (generate_queries_and_filter, combine_filters,
+from utils import (PacsConfiguration, PacsQueryResult, RunDirs, Spreadsheet,
+                   generate_queries_and_filter, combine_filters,
                    validate_date_window_days, find_valid_pacs_list,
                    find_studies_from_pacs_list,
                    get_studies_from_study_pacs_map,
@@ -12,45 +13,48 @@ from utils import (generate_queries_and_filter, combine_filters,
                    format_number_with_commas, csv_string_to_xlsx, save_failed_queries_csv)
 
 
-def _save_metadata_files(pipeline, appdata_dir):
+def _save_metadata_files(pipeline: CTPPipeline, appdata_dir: str) -> None:
     audit_log_csv = pipeline.get_audit_log_csv("AuditLog")
     if audit_log_csv:
         csv_string_to_xlsx(audit_log_csv, os.path.join(appdata_dir, "metadata.xlsx"))
 
 
-def _log_progress(pipeline):
+def _log_progress(pipeline: CTPPipeline) -> None:
     if pipeline.metrics:
         files_received = pipeline.metrics.files_received
         files_quarantined = pipeline.metrics.files_quarantined
-        
+
         progress_msg = f"Processed {format_number_with_commas(files_received)} files"
         if files_quarantined > 0:
             progress_msg += f" ({format_number_with_commas(files_quarantined)} quarantined)"
-        
+
         logging.info(progress_msg)
 
 
-def imageqr(pacs_list, query_spreadsheet, application_aet,
-            output_dir, appdata_dir=None, filter_script=None, date_window_days=0,
-            debug=False, run_dirs=None, use_fallback_query=False):
+def imageqr(pacs_list: list[PacsConfiguration], query_spreadsheet: Spreadsheet,
+            application_aet: str, output_dir: str,
+            appdata_dir: str | None = None, filter_script: str | None = None,
+            date_window_days: int = 0, debug: bool = False,
+            run_dirs: RunDirs | None = None,
+            use_fallback_query: bool = False) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
-    
+
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
     logging.info(f"Running imageqr (use_fallback_query={use_fallback_query})")
-    
+
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
-    
+
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
-    
+
     quarantine_dir = os.path.join(appdata_dir, "quarantine")
     os.makedirs(quarantine_dir, exist_ok=True)
-    
+
     validate_date_window_days(date_window_days)
-    
+
     query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(
         query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query)
     combined_filter = combine_filters(filter_script, generated_filter)
@@ -68,10 +72,10 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
 
     try:
         ctp_log_level = "DEBUG" if debug else None
-    
+
         # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
         successful_gets, failed_get_indices, get_failure_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
-    
+
         # Wait briefly to ensure all files are written
         time.sleep(2)
 
@@ -127,4 +131,3 @@ def imageqr(pacs_list, query_spreadsheet, application_aet,
             shutil.rmtree(getscu_output_dir)
         except OSError as e:
             logging.warning("Failed to remove temporary getscu directory '%s': %s", getscu_output_dir, e)
-

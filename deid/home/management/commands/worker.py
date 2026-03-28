@@ -6,7 +6,6 @@ import sys
 import time
 import traceback
 from datetime import datetime
-from shutil import which
 
 import pandas as pd
 import pytz
@@ -15,8 +14,6 @@ from django.db import models, transaction
 from grammar import (
     generate_anonymizer_script,
     generate_filters_string,
-    generate_lookup_contents,
-    generate_lookup_table,
     generate_hipaa_safe_harbor_script,
     get_hipaa_safe_harbor_config,
 )
@@ -37,11 +34,13 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
         text=True,
         bufsize=1
     )
-    
+
+    assert process.stdout is not None
+    assert process.stderr is not None
+
     task.process_pid = process.pid
     task.save()
     
-    log_path_captured = False
     stdout_lines = []
     stderr_lines = []
     
@@ -54,7 +53,7 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
                 if 'log_path' in log_data:
                     task.log_path = log_data['log_path']
                     task.save()
-                    log_path_captured = True
+
                     print(f"Captured log path: {task.log_path}")
             except json.JSONDecodeError:
                 pass
@@ -82,7 +81,7 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
         
         return stdout_output
     
-    except Exception as e:
+    except Exception:
         process.kill()
         raise
 
@@ -148,12 +147,12 @@ def process_image_deid(task):
 
 def build_image_deid_config(task):
     """Build the configuration for image deidentification"""
-    config = {'module': 'imagedeid'}
-    
+    config: dict[str, object] = {'module': 'imagedeid'}
+
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled
-    
+
     if task.image_source == 'PACS':
         config.update({
             'pacs': task.pacs_configs,
@@ -256,12 +255,12 @@ def process_image_query(task):
 
 def build_image_query_config(task):
     """Build the configuration for image query"""
-    config = {'module': 'imageqr'}
-    
+    config: dict[str, object] = {'module': 'imageqr'}
+
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled
-    
+
     config.update({
             'pacs': task.pacs_configs,
             'application_aet': task.application_aet,
@@ -324,12 +323,12 @@ def process_header_query(task):
 
 def build_header_query_config(task):
     """Build the configuration for header query"""
-    config = {'module': 'headerqr'}
-    
+    config: dict[str, object] = {'module': 'headerqr'}
+
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled
-    
+
     config.update({
             'pacs': task.pacs_configs,
             'application_aet': task.application_aet,
@@ -389,12 +388,12 @@ def process_header_extract(task):
 
 def build_header_extract_config(task):
     """Build the configuration for header extract"""
-    config = {'module': 'headerextract'}
-    
+    config: dict[str, object] = {'module': 'headerextract'}
+
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled
-    
+
     extract_all_headers = task.parameters.get('extract_all_headers', False)
     config['extract_all_headers'] = extract_all_headers
     
@@ -442,8 +441,8 @@ def process_text_deid(task):
 
 def build_text_deid_config(task):
     """Build the configuration for text deidentification"""
-    config = {'module': 'textdeid'}
-    
+    config: dict[str, object] = {'module': 'textdeid'}
+
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled
@@ -503,12 +502,12 @@ def build_image_export_config(task):
     """Build the configuration for image export"""
     settings = json.load(open(SETTINGS_PATH))
     
-    config = {
+    config: dict[str, object] = {
         'module': 'imageexport',
         'sas_url': task.parameters['sas_url'],
         'project_name': task.name,
     }
-    
+
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled
     
@@ -601,8 +600,8 @@ def detect_file_type_and_columns(input_file_path):
 
 def build_singleclickicore_config(task):
     """Build the configuration for singleclickicore (image deid + text deid + export)"""
-    config = {'module': 'singleclickicore'}
-    
+    config: dict[str, object] = {'module': 'singleclickicore'}
+
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled
@@ -681,8 +680,8 @@ def build_singleclickicore_config(task):
 
 def build_image_deid_export_config(task):
     """Build the configuration for image deidentification and export"""
-    config = {'module': 'imagedeidexport'}
-    
+    config: dict[str, object] = {'module': 'imagedeidexport'}
+
     settings = json.load(open(SETTINGS_PATH))
     debug_enabled = settings.get('debug_logging', False)
     config['debug'] = debug_enabled

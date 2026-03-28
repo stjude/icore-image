@@ -1,8 +1,6 @@
 import os
-import tempfile
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from cli import (
     determine_module,
@@ -15,7 +13,7 @@ from cli import (
     build_imagedeidexport_params,
     run
 )
-from utils import PacsConfiguration, Spreadsheet
+from utils import PacsConfiguration
 
 
 def test_determine_module_imageqr(tmp_path):

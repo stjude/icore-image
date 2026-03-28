@@ -166,6 +166,8 @@ class CTPServer:
         root = tree.getroot()
         
         server_elem = root.find("Server")
+        if server_elem is None:
+            raise ValueError("config.xml missing <Server> element")
         self.port = int(server_elem.get("port", "50000"))
         
         quarantine_set = set()
@@ -193,20 +195,30 @@ class CTPServer:
         
         env = {'JAVA_HOME': java_home}
         
+        self._stderr_file = tempfile.NamedTemporaryFile(delete=False, prefix="ctp_stderr_", suffix=".log")
+        self._stderr_path = self._stderr_file.name
+
         self.process = subprocess.Popen(
             cmd,
             cwd=self.ctp_dir,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=self._stderr_file,
             env=env
         )
-        
+
         self._running = True
-        
+
         time.sleep(3)
-        
+
         if self.process.poll() is not None:
-            raise RuntimeError("CTP process failed to start")
+            self._stderr_file.seek(0)
+            stderr_output = self._stderr_file.read()
+            self._stderr_file.close()
+            os.unlink(self._stderr_path)
+            raise RuntimeError(
+                f"CTP process failed to start (port {self.port})."
+                f"{' stderr: ' + stderr_output.decode('utf8').strip() if stderr_output.strip() else ''}"
+            )
         
         self._monitor_running = True
         self.monitor_thread = Thread(target=self._monitor_loop, daemon=True)
@@ -214,13 +226,18 @@ class CTPServer:
     
     def stop(self):
         self._monitor_running = False
-        
+
         if self.monitor_thread:
             self.monitor_thread.join(timeout=5)
-        
+
         if self.process:
             self._shutdown_process(self.process)
             self._running = False
+
+        if hasattr(self, '_stderr_file') and self._stderr_file and not self._stderr_file.closed:
+            self._stderr_file.close()
+        if hasattr(self, '_stderr_path') and os.path.exists(self._stderr_path):
+            os.unlink(self._stderr_path)
     
     def is_complete(self):
         if self._monitor_exception:
@@ -271,7 +288,7 @@ class CTPServer:
                 self._force_kill_by_port()
     
     def _force_kill_by_port(self):
-        for proc in psutil.process_iter(['pid', 'name', 'connections']):
+        for proc in psutil.process_iter(['pid', 'name']):
             try:
                 for conn in proc.net_connections():
                     if conn.laddr.port == self.port:
@@ -832,20 +849,14 @@ class CTPPipeline:
         return self.pipeline_type in ['imagedeid_pacs', 'imagedeid_pacs_pixel', 'imageqr']
     
     def _find_available_port(self, dicom_port_to_avoid=None):
-        start_port = 50000
-        max_attempts = 10
-        port_increment = 10
-        
-        for attempt in range(max_attempts):
-            port = start_port + (attempt * port_increment)
-            
-            if port == dicom_port_to_avoid:
-                continue
-            
-            if is_port_available(port):
+        # Use OS-assigned ephemeral port to avoid races between parallel workers
+        for _ in range(10):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('localhost', 0))
+                port = s.getsockname()[1]
+            if port != dicom_port_to_avoid:
                 return port
-        
-        raise RuntimeError(f"Could not find available port after {max_attempts} attempts (tried ports {start_port} to {start_port + (max_attempts - 1) * port_increment})")
+        raise RuntimeError("Could not find available port that differs from DICOM port")
     
     def _force_kill_by_port(self, port):
         for proc in psutil.process_iter(['pid', 'name']):
@@ -969,6 +980,7 @@ class CTPPipeline:
         return response.text if response else None
     
     def _find_stage_index_by_id(self, stage_id):
+        assert self.server is not None
         config_path = os.path.join(self.server.ctp_dir, "config.xml")
         tree = ET.parse(config_path)
         root = tree.getroot()

@@ -1,6 +1,5 @@
 import os
 import tempfile
-import pytest
 import pandas as pd
 from module_textdeid import textdeid
 

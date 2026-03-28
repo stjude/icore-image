@@ -4,11 +4,12 @@ import string
 import sys
 import pandas as pd
 import logging
+from typing import Any
 from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
-from presidio_analyzer.nlp_engine import NlpEngineProvider
+from presidio_analyzer.nlp_engine import NlpEngineProvider, NlpEngine
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
-from utils import setup_run_directories, configure_run_logging
+from utils import RunDirs, TextDeidResult, setup_run_directories, configure_run_logging
 
 logging.getLogger("presidio-analyzer").setLevel(logging.ERROR)
 logging.getLogger("presidio-anonymizer").setLevel(logging.ERROR)
@@ -48,7 +49,7 @@ NLM_PRESERVE_MEDICAL = {
 
 NLM_REDACT_NAMES = {'pine'}
 
-def create_nlp_engine():
+def create_nlp_engine() -> NlpEngine:
     if getattr(sys, 'frozen', False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
         models_base_dir = os.path.join(bundle_dir, '_internal', 'en_core_web_sm')
@@ -62,7 +63,6 @@ def create_nlp_engine():
         if model_subdir is None:
             raise FileNotFoundError(f"en_core_web_sm model not found in {models_base_dir}")
         model_path = model_subdir
-        import spacy
         from presidio_analyzer.nlp_engine import SpacyNlpEngine
         nlp_engine = SpacyNlpEngine(models=[{"lang_code": "en", "model_name": model_path}])
     else:
@@ -74,7 +74,7 @@ def create_nlp_engine():
         nlp_engine = provider.create_engine()
     return nlp_engine
 
-def create_analyzer_engine():
+def create_analyzer_engine() -> AnalyzerEngine:
     nlp_engine = create_nlp_engine()
     analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
     
@@ -186,7 +186,7 @@ def create_analyzer_engine():
     
     return analyzer
 
-def scrub(data, whitelist, blacklist):
+def scrub(data: list[Any], whitelist: list[str], blacklist: list[str]) -> list[str]:
     analyzer = create_analyzer_engine()
     anonymizer = AnonymizerEngine()
     
@@ -332,8 +332,11 @@ def scrub(data, whitelist, blacklist):
     
     return results
 
-def textdeid(input_file, output_dir, to_keep_list=None, to_remove_list=None,
-             columns_to_drop=None, columns_to_deid=None, debug=False, run_dirs=None):
+def textdeid(input_file: str, output_dir: str, to_keep_list: list[str] | None = None,
+             to_remove_list: list[str] | None = None,
+             columns_to_drop: list[str] | None = None,
+             columns_to_deid: list[str] | None = None, debug: bool = False,
+             run_dirs: RunDirs | None = None) -> TextDeidResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
     

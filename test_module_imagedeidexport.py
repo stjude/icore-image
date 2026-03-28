@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pydicom
 import pytest
+from pydicom.filebase import DicomBytesIO
 
 from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, AzuriteServer, OrthancServer
 from utils import PacsConfiguration, Spreadsheet
@@ -14,449 +15,386 @@ from utils import PacsConfiguration, Spreadsheet
 logging.basicConfig(level=logging.INFO)
 
 
-def test_imagedeidexport_basic_workflow(tmp_path):
+def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
+
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
     output_dir = tmp_path / "output"
     output_dir.mkdir()
-    
-    orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
-    orthanc.start()
-    
-    azurite = AzuriteServer()
-    azurite.start()
-    
-    try:
-        ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
-        ds1.InstanceNumber = 1
-        _upload_dicom_to_orthanc(ds1, orthanc)
-        
-        ds2 = _create_test_dicom("ACC002", "MRN002", "Patient2", "CT", "3.0")
-        ds2.InstanceNumber = 2
-        _upload_dicom_to_orthanc(ds2, orthanc)
-        
-        time.sleep(2)
-        
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
-        query_df.to_excel(query_file, index=False)
-        
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        
-        pacs_config = PacsConfiguration(
-            host="localhost",
-            port=orthanc.dicom_port,
-            aet=orthanc.aet
-        )
-        
-        anonymizer_script = """<script>
+
+    ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+    ds1.InstanceNumber = 1
+    _upload_dicom_to_orthanc(ds1, orthanc)
+
+    ds2 = _create_test_dicom("ACC002", "MRN002", "Patient2", "CT", "3.0")
+    ds2.InstanceNumber = 2
+    _upload_dicom_to_orthanc(ds2, orthanc)
+
+    time.sleep(2)
+
+    query_file = appdata_dir / "query.xlsx"
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    pacs_config = PacsConfiguration(
+        host="localhost",
+        port=orthanc.dicom_port,
+        aet=orthanc.aet
+    )
+
+    anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 <e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
 </script>"""
-        
-        container_name = "testcontainer"
-        sas_url = azurite.get_sas_url(container_name)
-        project_name = "TestProject"
-        
-        from module_imagedeidexport import imagedeidexport
-        
-        result = imagedeidexport(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            sas_url=sas_url,
-            project_name=project_name,
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False
-        )
-        
-        assert result["num_studies_found"] == 2
-        assert result["num_images_exported"] == 2
-        
-        blobs = azurite.list_blobs(container_name)
-        assert len(blobs) == 2
-        for blob in blobs:
-            assert blob.startswith(f"{project_name}/")
-            assert blob.endswith(".dcm")
-        
-        metadata_files = ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]
-        for metadata_file in metadata_files:
-            metadata_path = appdata_dir / metadata_file
-            assert metadata_path.exists(), f"{metadata_file} should exist in appdata"
-        
-        quarantine_dir = appdata_dir / "quarantine"
-        assert quarantine_dir.exists()
-        
-        dcm_files_in_output = list(output_dir.rglob("*.dcm"))
-        assert len(dcm_files_in_output) == 2, "Deidentified DICOM files should be preserved in output_dir"
-    
-    finally:
-        orthanc.stop()
-        azurite.stop()
+
+    container_name = "testcontainer"
+    sas_url = azurite.get_sas_url(container_name)
+    project_name = "TestProject"
+
+    from module_imagedeidexport import imagedeidexport
+
+    result = imagedeidexport(
+        pacs_list=[pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        sas_url=sas_url,
+        project_name=project_name,
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
+    )
+
+    assert result["num_studies_found"] == 2
+    assert result["num_images_exported"] == 2
+
+    blobs = azurite.list_blobs(container_name)
+    assert len(blobs) == 2
+    for blob in blobs:
+        assert blob.startswith(f"{project_name}/")
+        assert blob.endswith(".dcm")
+
+    metadata_files = ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]
+    for metadata_file in metadata_files:
+        metadata_path = appdata_dir / metadata_file
+        assert metadata_path.exists(), f"{metadata_file} should exist in appdata"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    assert quarantine_dir.exists()
+
+    dcm_files_in_output = list(output_dir.rglob("*.dcm"))
+    assert len(dcm_files_in_output) == 2, "Deidentified DICOM files should be preserved in output_dir"
 
 
-def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path):
+def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurite):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
+
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
     output_dir = tmp_path / "output"
     output_dir.mkdir()
-    
-    orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
-    orthanc.start()
-    
-    azurite = AzuriteServer()
-    azurite.start()
-    
-    try:
-        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
-        ds.InstanceNumber = 1
-        _upload_dicom_to_orthanc(ds, orthanc)
-        
-        time.sleep(2)
-        
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
-        query_df.to_excel(query_file, index=False)
-        
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        
-        pacs_config = PacsConfiguration(
-            host="localhost",
-            port=orthanc.dicom_port,
-            aet=orthanc.aet
-        )
-        
-        anonymizer_script = """<script>
+
+    ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+    ds.InstanceNumber = 1
+    _upload_dicom_to_orthanc(ds, orthanc)
+
+    time.sleep(2)
+
+    query_file = appdata_dir / "query.xlsx"
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    pacs_config = PacsConfiguration(
+        host="localhost",
+        port=orthanc.dicom_port,
+        aet=orthanc.aet
+    )
+
+    anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 <e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
 </script>"""
-        
-        container_name = "testcontainer"
-        sas_url = azurite.get_sas_url(container_name)
-        project_name = "TestProject"
-        
-        from module_imagedeidexport import imagedeidexport
-        
-        result = imagedeidexport(
+
+    container_name = "testcontainer"
+    sas_url = azurite.get_sas_url(container_name)
+    project_name = "TestProject"
+
+    from module_imagedeidexport import imagedeidexport
+
+    imagedeidexport(
+        pacs_list=[pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        sas_url=sas_url,
+        project_name=project_name,
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
+    )
+
+    metadata_files = ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]
+    for metadata_file in metadata_files:
+        metadata_path = appdata_dir / metadata_file
+        assert metadata_path.exists(), f"{metadata_file} should be preserved in appdata"
+        assert metadata_path.stat().st_size > 0, f"{metadata_file} should not be empty"
+
+    dcm_files_in_output = list(output_dir.rglob("*.dcm"))
+    assert len(dcm_files_in_output) == 1, "Deidentified DICOM files should be preserved in output_dir"
+
+    quarantine_dir = appdata_dir / "quarantine"
+    if quarantine_dir.exists():
+        quarantine_files = list(quarantine_dir.rglob("*.dcm"))
+        for qfile in quarantine_files:
+            assert "quarantine" in str(qfile), "Quarantined files should be in quarantine subdirectory"
+
+    blobs = azurite.list_blobs(container_name)
+    assert len(blobs) == 1, "Exactly 1 DICOM file should be uploaded to Azure"
+
+
+def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+
+    appdata_dir = tmp_path / "appdata"
+    appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    query_file = appdata_dir / "query.xlsx"
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    invalid_pacs_config = PacsConfiguration(
+        host="invalid-host.local",
+        port=99999,
+        aet="INVALID"
+    )
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+</script>"""
+
+    container_name = "testcontainer"
+    sas_url = azurite.get_sas_url(container_name)
+    project_name = "TestProject"
+
+    from module_imagedeidexport import imagedeidexport
+
+    result = imagedeidexport(
+        pacs_list=[invalid_pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        sas_url=sas_url,
+        project_name=project_name,
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
+    )
+
+    assert result["num_studies_found"] == 0
+    assert result["num_images_exported"] == 0
+    assert len(result["failed_query_indices"]) == 2
+
+    blobs = azurite.list_blobs(container_name)
+    assert len(blobs) == 0, "No files should be uploaded when PACS queries fail"
+
+
+def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
+    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+
+    appdata_dir = tmp_path / "appdata"
+    appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+    ds.InstanceNumber = 1
+    _upload_dicom_to_orthanc(ds, orthanc)
+
+    time.sleep(2)
+
+    query_file = appdata_dir / "query.xlsx"
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    pacs_config = PacsConfiguration(
+        host="localhost",
+        port=orthanc.dicom_port,
+        aet=orthanc.aet
+    )
+
+    anonymizer_script = """<script>
+<e en="T" t="00100010" n="PatientName">@empty()</e>
+</script>"""
+
+    invalid_sas_url = "http://invalid-storage.blob.core.windows.net/container?invalidtoken"
+    project_name = "TestProject"
+
+    from module_imagedeidexport import imagedeidexport
+
+    with pytest.raises(Exception) as exc_info:
+        imagedeidexport(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
-            sas_url=sas_url,
+            sas_url=invalid_sas_url,
             project_name=project_name,
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False
         )
-        
-        metadata_files = ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]
-        for metadata_file in metadata_files:
-            metadata_path = appdata_dir / metadata_file
-            assert metadata_path.exists(), f"{metadata_file} should be preserved in appdata"
-            assert metadata_path.stat().st_size > 0, f"{metadata_file} should not be empty"
-        
-        dcm_files_in_output = list(output_dir.rglob("*.dcm"))
-        assert len(dcm_files_in_output) == 1, "Deidentified DICOM files should be preserved in output_dir"
-        
-        quarantine_dir = appdata_dir / "quarantine"
-        if quarantine_dir.exists():
-            quarantine_files = list(quarantine_dir.rglob("*.dcm"))
-            for qfile in quarantine_files:
-                assert "quarantine" in str(qfile), "Quarantined files should be in quarantine subdirectory"
-        
-        blobs = azurite.list_blobs(container_name)
-        assert len(blobs) == 1, "Exactly 1 DICOM file should be uploaded to Azure"
-    
-    finally:
-        orthanc.stop()
-        azurite.stop()
+
+    error_msg = str(exc_info.value).lower()
+    assert "rclone" in error_msg or "error" in error_msg
 
 
-def test_imagedeidexport_handles_pacs_failures(tmp_path):
+def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
+
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
     output_dir = tmp_path / "output"
     output_dir.mkdir()
-    
-    azurite = AzuriteServer()
-    azurite.start()
-    
-    try:
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
-        query_df.to_excel(query_file, index=False)
-        
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        
-        invalid_pacs_config = PacsConfiguration(
-            host="invalid-host.local",
-            port=99999,
-            aet="INVALID"
-        )
-        
-        anonymizer_script = """<script>
-<e en="T" t="00100010" n="PatientName">@empty()</e>
-</script>"""
-        
-        container_name = "testcontainer"
-        sas_url = azurite.get_sas_url(container_name)
-        project_name = "TestProject"
-        
-        from module_imagedeidexport import imagedeidexport
-        
-        result = imagedeidexport(
-            pacs_list=[invalid_pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            sas_url=sas_url,
-            project_name=project_name,
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False
-        )
-        
-        assert result["num_studies_found"] == 0
-        assert result["num_images_exported"] == 0
-        assert len(result["failed_query_indices"]) == 2
-        
-        blobs = azurite.list_blobs(container_name)
-        assert len(blobs) == 0, "No files should be uploaded when PACS queries fail"
-    
-    finally:
-        azurite.stop()
 
-
-def test_imagedeidexport_handles_export_failures(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
-    
-    orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
-    orthanc.start()
-    
-    try:
-        ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
-        ds.InstanceNumber = 1
+    for i, slice_thickness in enumerate(["0.5", "3.0", "5.0"]):
+        ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", slice_thickness)
+        ds.InstanceNumber = i + 1
         _upload_dicom_to_orthanc(ds, orthanc)
-        
-        time.sleep(2)
-        
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
-        query_df.to_excel(query_file, index=False)
-        
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        
-        pacs_config = PacsConfiguration(
-            host="localhost",
-            port=orthanc.dicom_port,
-            aet=orthanc.aet
-        )
-        
-        anonymizer_script = """<script>
+
+    time.sleep(2)
+
+    query_file = appdata_dir / "query.xlsx"
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC000", "ACC001", "ACC002"]})
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    pacs_config = PacsConfiguration(
+        host="localhost",
+        port=orthanc.dicom_port,
+        aet=orthanc.aet
+    )
+
+    anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
-        
-        invalid_sas_url = "http://invalid-storage.blob.core.windows.net/container?invalidtoken"
-        project_name = "TestProject"
-        
-        from module_imagedeidexport import imagedeidexport
-        
-        with pytest.raises(Exception) as exc_info:
-            imagedeidexport(
-                pacs_list=[pacs_config],
-                query_spreadsheet=query_spreadsheet,
-                application_aet="TEST_AET",
-                sas_url=invalid_sas_url,
-                project_name=project_name,
-                output_dir=str(output_dir),
-                appdata_dir=str(appdata_dir),
-                anonymizer_script=anonymizer_script,
-                apply_default_filter_script=False
-            )
-        
-        error_msg = str(exc_info.value).lower()
-        assert "rclone" in error_msg or "error" in error_msg
-    
-    finally:
-        orthanc.stop()
+
+    filter_script = 'SliceThickness.isGreaterThan("1") * SliceThickness.isLessThan("5")'
+
+    container_name = "testcontainer"
+    sas_url = azurite.get_sas_url(container_name)
+    project_name = "TestProject"
+
+    from module_imagedeidexport import imagedeidexport
+
+    result = imagedeidexport(
+        pacs_list=[pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        sas_url=sas_url,
+        project_name=project_name,
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        filter_script=filter_script,
+        apply_default_filter_script=False
+    )
+
+    assert result["num_studies_found"] == 3
+    assert result["num_images_exported"] == 1
+    assert result["num_images_quarantined"] == 2
+
+    blobs = azurite.list_blobs(container_name)
+    assert len(blobs) == 1, "Only 1 file matching filter should be exported"
 
 
-def test_imagedeidexport_with_filter_script(tmp_path):
+def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
-    
-    orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
-    orthanc.start()
-    
-    azurite = AzuriteServer()
-    azurite.start()
-    
-    try:
-        for i, slice_thickness in enumerate(["0.5", "3.0", "5.0"]):
-            ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", slice_thickness)
-            ds.InstanceNumber = i + 1
-            _upload_dicom_to_orthanc(ds, orthanc)
-        
-        time.sleep(2)
-        
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC000", "ACC001", "ACC002"]})
-        query_df.to_excel(query_file, index=False)
-        
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        
-        pacs_config = PacsConfiguration(
-            host="localhost",
-            port=orthanc.dicom_port,
-            aet=orthanc.aet
-        )
-        
-        anonymizer_script = """<script>
-<e en="T" t="00100010" n="PatientName">@empty()</e>
-</script>"""
-        
-        filter_script = 'SliceThickness.isGreaterThan("1") * SliceThickness.isLessThan("5")'
-        
-        container_name = "testcontainer"
-        sas_url = azurite.get_sas_url(container_name)
-        project_name = "TestProject"
-        
-        from module_imagedeidexport import imagedeidexport
-        
-        result = imagedeidexport(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            sas_url=sas_url,
-            project_name=project_name,
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script,
-            filter_script=filter_script,
-            apply_default_filter_script=False
-        )
-        
-        assert result["num_studies_found"] == 3
-        assert result["num_images_exported"] == 1
-        assert result["num_images_quarantined"] == 2
-        
-        blobs = azurite.list_blobs(container_name)
-        assert len(blobs) == 1, "Only 1 file matching filter should be exported"
-    
-    finally:
-        orthanc.stop()
-        azurite.stop()
 
-
-def test_imagedeidexport_with_mapping_file(tmp_path):
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
     output_dir = tmp_path / "output"
     output_dir.mkdir()
     mapping_file = tmp_path / "mapping.xlsx"
-    
+
     df_mapping = pd.DataFrame({
         "AccessionNumber": ["ACC001", "ACC002"],
         "New-AccessionNumber": ["MAPPED001", "MAPPED002"]
     })
     df_mapping.to_excel(mapping_file, index=False)
-    
-    orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
-    orthanc.start()
-    
-    azurite = AzuriteServer()
-    azurite.start()
-    
-    try:
-        for i, acc in enumerate(["ACC001", "ACC002"]):
-            ds = _create_test_dicom(acc, f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
-            ds.InstanceNumber = i + 1
-            _upload_dicom_to_orthanc(ds, orthanc)
-        
-        time.sleep(2)
-        
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
-        query_df.to_excel(query_file, index=False)
-        
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        
-        pacs_config = PacsConfiguration(
-            host="localhost",
-            port=orthanc.dicom_port,
-            aet=orthanc.aet
-        )
-        
-        anonymizer_script = """<script>
+
+    for i, acc in enumerate(["ACC001", "ACC002"]):
+        ds = _create_test_dicom(acc, f"MRN{i:04d}", f"Patient{i}", "CT", "3.0")
+        ds.InstanceNumber = i + 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+
+    time.sleep(2)
+
+    query_file = appdata_dir / "query.xlsx"
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    pacs_config = PacsConfiguration(
+        host="localhost",
+        port=orthanc.dicom_port,
+        aet=orthanc.aet
+    )
+
+    anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 <e en="T" t="00080050" n="AccessionNumber">@keep()</e>
 </script>"""
-        
-        container_name = "testcontainer"
-        sas_url = azurite.get_sas_url(container_name)
-        project_name = "TestProject"
-        
-        from module_imagedeidexport import imagedeidexport
-        
-        result = imagedeidexport(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            sas_url=sas_url,
-            project_name=project_name,
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script,
-            mapping_file_path=str(mapping_file),
-            apply_default_filter_script=False
-        )
-        
-        assert result["num_studies_found"] == 2
-        assert result["num_images_exported"] == 2
-        
-        blobs = azurite.list_blobs(container_name)
-        assert len(blobs) == 2
-        
-        for blob in blobs:
-            blob_content = azurite.get_blob_content(container_name, blob)
-            ds = pydicom.dcmread(pydicom.filebase.DicomBytesIO(blob_content))
-            assert ds.AccessionNumber in ["MAPPED001", "MAPPED002"]
-    
-    finally:
-        orthanc.stop()
-        azurite.stop()
+
+    container_name = "testcontainer"
+    sas_url = azurite.get_sas_url(container_name)
+    project_name = "TestProject"
+
+    from module_imagedeidexport import imagedeidexport
+
+    result = imagedeidexport(
+        pacs_list=[pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        sas_url=sas_url,
+        project_name=project_name,
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        mapping_file_path=str(mapping_file),
+        apply_default_filter_script=False
+    )
+
+    assert result["num_studies_found"] == 2
+    assert result["num_images_exported"] == 2
+
+    blobs = azurite.list_blobs(container_name)
+    assert len(blobs) == 2
+
+    for blob in blobs:
+        blob_content = azurite.get_blob_content(container_name, blob)
+        ds = pydicom.dcmread(DicomBytesIO(blob_content))
+        assert ds.AccessionNumber in ["MAPPED001", "MAPPED002"]
 
 
 def test_imagedeidexport_with_multiple_pacs(tmp_path):
@@ -540,77 +478,65 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
         azurite.stop()
 
 
-def test_imagedeidexport_saves_failed_queries_csv(tmp_path):
+def test_imagedeidexport_saves_failed_queries_csv(tmp_path, orthanc, azurite):
     os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
-    
+
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
     output_dir = tmp_path / "output"
     output_dir.mkdir()
-    
-    orthanc = OrthancServer()
-    orthanc.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
-    orthanc.start()
-    
-    azurite = AzuriteServer()
-    azurite.start()
-    
-    try:
-        ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
-        ds1.InstanceNumber = 1
-        _upload_dicom_to_orthanc(ds1, orthanc)
-        
-        time.sleep(2)
-        
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC999"]})
-        query_df.to_excel(query_file, index=False)
-        
-        query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
-        
-        pacs_config = PacsConfiguration(
-            host="localhost",
-            port=orthanc.dicom_port,
-            aet=orthanc.aet
-        )
-        
-        anonymizer_script = """<script>
+
+    ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
+    ds1.InstanceNumber = 1
+    _upload_dicom_to_orthanc(ds1, orthanc)
+
+    time.sleep(2)
+
+    query_file = appdata_dir / "query.xlsx"
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC999"]})
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    pacs_config = PacsConfiguration(
+        host="localhost",
+        port=orthanc.dicom_port,
+        aet=orthanc.aet
+    )
+
+    anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
-        
-        container_name = "testcontainer"
-        sas_url = azurite.get_sas_url(container_name)
-        project_name = "TestProject"
-        
-        from module_imagedeidexport import imagedeidexport
-        
-        result = imagedeidexport(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            sas_url=sas_url,
-            project_name=project_name,
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False
-        )
-        
-        assert result["num_studies_found"] == 1
-        assert len(result["failed_query_indices"]) == 1
-        
-        csv_path = appdata_dir / "failed_queries.csv"
-        assert csv_path.exists(), "failed_queries.csv should be created by imagedeid_pacs"
-        
-        df = pd.read_csv(csv_path)
-        assert len(df) == 1
-        assert df.loc[0, "Accession Number"] == "ACC999"
-        assert df.loc[0, "Failure Reason"] == "Failed to find images"
-    
-    finally:
-        orthanc.stop()
-        azurite.stop()
+
+    container_name = "testcontainer"
+    sas_url = azurite.get_sas_url(container_name)
+    project_name = "TestProject"
+
+    from module_imagedeidexport import imagedeidexport
+
+    result = imagedeidexport(
+        pacs_list=[pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        sas_url=sas_url,
+        project_name=project_name,
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        anonymizer_script=anonymizer_script,
+        apply_default_filter_script=False
+    )
+
+    assert result["num_studies_found"] == 1
+    assert len(result["failed_query_indices"]) == 1
+
+    csv_path = appdata_dir / "failed_queries.csv"
+    assert csv_path.exists(), "failed_queries.csv should be created by imagedeid_pacs"
+
+    df = pd.read_csv(csv_path)
+    assert len(df) == 1
+    assert df.loc[0, "Accession Number"] == "ACC999"
+    assert df.loc[0, "Failure Reason"] == "Failed to find images"
 
 

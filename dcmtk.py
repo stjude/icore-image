@@ -8,7 +8,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 
-from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result, RetryCallState, before_sleep_log
+from tenacity import retry, stop_after_attempt, wait_chain, wait_fixed, retry_if_exception_type, retry_if_result, RetryCallState
 
 
 class DCMTKError(Exception):
@@ -190,11 +190,12 @@ def find_studies(host, port, calling_aet, called_aet, query_params, query_level=
     finally:
         try:
             shutil.rmtree(temp_dir)
-        except:
+        except Exception:
             pass
 
 
 def _return_last_result(retry_state: RetryCallState):
+    assert retry_state.outcome is not None
     return retry_state.outcome.result()
 
 def _log_get_retry(retry_state: RetryCallState):

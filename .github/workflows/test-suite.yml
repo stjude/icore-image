@@ -7,6 +7,9 @@ on:
       - main
       - dev
 
+permissions:
+  contents: read
+
 jobs:
   full-test:
     # Running on ubuntu because the docker tests are less flakey here
@@ -37,3 +40,25 @@ jobs:
       - name: Run tests
         run: make test
 
+  linting:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.10.3'
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run ty
+        run: uv run ty check
+
+      - name: Run ruff
+        run: uv run ruff check

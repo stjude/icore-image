@@ -5,48 +5,54 @@ import time
 
 from ctp import CTPPipeline
 from module_imagedeid_local import _save_metadata_files, _apply_default_filter_script, _process_mapping_file
-from utils import (generate_queries_and_filter,
+from utils import (PacsConfiguration, PacsQueryResult, RunDirs, Spreadsheet,
+                   generate_queries_and_filter,
                    combine_filters, validate_date_window_days, find_valid_pacs_list,
                    find_studies_from_pacs_list,
                    get_studies_from_study_pacs_map, setup_run_directories, configure_run_logging,
                    format_number_with_commas, save_failed_queries_csv)
 
 
-def _log_progress(pipeline):
+def _log_progress(pipeline: CTPPipeline) -> None:
     if pipeline.metrics:
         files_received = pipeline.metrics.files_received
         files_quarantined = pipeline.metrics.files_quarantined
-        
+
         progress_msg = f"Processed {format_number_with_commas(files_received)} files"
         if files_quarantined > 0:
             progress_msg += f" ({format_number_with_commas(files_quarantined)} quarantined)"
-        
+
         logging.info(progress_msg)
 
 
-def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
-                   output_dir, appdata_dir=None, filter_script=None,
-                   date_window_days=0, anonymizer_script=None, deid_pixels=False,
-                   lookup_table=None, debug=False, run_dirs=None, apply_default_filter_script=True,
-                   mapping_file_path=None, sc_pdf_output_dir=None, use_fallback_query=False):
+def imagedeid_pacs(pacs_list: list[PacsConfiguration], query_spreadsheet: Spreadsheet,
+                   application_aet: str, output_dir: str,
+                   appdata_dir: str | None = None, filter_script: str | None = None,
+                   date_window_days: int = 0, anonymizer_script: str | None = None,
+                   deid_pixels: bool = False, lookup_table: str | None = None,
+                   debug: bool = False, run_dirs: RunDirs | None = None,
+                   apply_default_filter_script: bool = True,
+                   mapping_file_path: str | None = None,
+                   sc_pdf_output_dir: str | None = None,
+                   use_fallback_query: bool = False) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
-    
+
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
     logging.info(f"Running imagedeid_pacs (use_fallback_query={use_fallback_query})")
-    
+
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
-    
+
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
-    
+
     quarantine_dir = os.path.join(appdata_dir, "quarantine")
     os.makedirs(quarantine_dir, exist_ok=True)
-    
+
     validate_date_window_days(date_window_days)
-    
+
     if anonymizer_script is None and mapping_file_path:
         default_script_path = os.path.join(os.path.dirname(__file__), "ctp", "scripts", "DicomAnonymizer.script")
         if os.path.exists(default_script_path):
@@ -54,16 +60,16 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
                 anonymizer_script = f.read()
         else:
             raise ValueError(f"Default anonymizer script not found at {default_script_path}")
-    
+
     processed_lookup_table, processed_anonymizer_script = _process_mapping_file(
         mapping_file_path, anonymizer_script, lookup_table
     )
-    
+
     if processed_lookup_table is not None:
         lookup_table = processed_lookup_table
     if processed_anonymizer_script is not None:
         anonymizer_script = processed_anonymizer_script
-    
+
     query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(
         query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query)
     combined_filter = combine_filters(filter_script, generated_filter)
@@ -93,10 +99,10 @@ def imagedeid_pacs(pacs_list, query_spreadsheet, application_aet,
         # Choose pipeline type based on whether pixel de-identification is needed
         pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
         ctp_log_level = "DEBUG" if debug else None
-    
+
         # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
         successful_gets, failed_get_indices, failed_get_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
-    
+
         # Wait briefly to ensure all files are written
         time.sleep(2)
 

@@ -44,3 +44,11 @@ dependencies = [
     "zipp>=3.23.0",
 ]
 
+[dependency-groups]
+dev = [
+    "django-types>=0.23.0",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.15.7",
+    "ty>=0.0.25",
+]
+

@@ -2,12 +2,9 @@ import logging
 import json
 import os
 import shutil
-import subprocess
 import sys
-import tempfile
 import time
-import socket
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlparse, parse_qs
 
 import bcrypt
@@ -65,7 +62,7 @@ def validate_sas_url_endpoint(request):
         if result.get('error') is not None:
             return JsonResponse({'valid': False, 'error': 'Validation error during SAS URL check'}, status=400)
         return JsonResponse({'valid': True, 'error': None}, status=200)
-    except Exception as e:
+    except Exception:
         return JsonResponse({'valid': False, 'error': 'Validation error during SAS URL check'}, status=500)
 
 
@@ -85,7 +82,7 @@ def _validate_sas_url(sas_url):
             expiry_str = query_params['se'][0]
             try:
                 expiry_time = datetime.strptime(expiry_str, '%Y-%m-%dT%H:%M:%SZ')
-                current_time = datetime.utcnow()
+                current_time = datetime.now(dt_timezone.utc)
                 
                 if current_time >= expiry_time:
                     return {"valid": False, "error": "SAS token has expired"}
@@ -93,7 +90,7 @@ def _validate_sas_url(sas_url):
                 return {"valid": False, "error": "Invalid expiry date format in SAS token"}
         
         try:
-            account_name = parsed.netloc.split('.')[0]
+
             container_name = parsed.path.lstrip('/').split('/')[0]
             if not container_name:
                 return {"valid": False, "error": "Container name not found in URL"}
@@ -146,7 +143,8 @@ class CommonContextMixin:
         }
     
     def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+        # ty can't resolve get_context_data through Django's MRO (CommonContextMixin + CreateView)
+        context = super().get_context_data(**kwargs)  # ty: ignore[unresolved-attribute]
         context.update(self.get_common_context())
         return context
 
@@ -984,7 +982,8 @@ def test_pacs_connection(request):
     from pynetdicom import AE, sop_class
 
     ae = AE(ae_title=application_aet)
-    ae.add_requested_context(sop_class.Verification)
+    # pynetdicom dynamically generates sop_class.Verification; no type stub available
+    ae.add_requested_context(sop_class.Verification)  # ty: ignore[unresolved-attribute]
     pacs_port = int(pacs_port)
     try:
         assoc = ae.associate(pacs_ip, pacs_port, ae_title=pacs_aet)
