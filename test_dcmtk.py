@@ -4,7 +4,7 @@ import time
 
 from dcmtk import find_studies, get_study, echo_pacs, DCMTKCommandError, DCMTKParseError
 
-FINDSCU_SINGLE_ACCESSION_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+FINDSCU_SINGLE_ACCESSION_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <responses type="C-FIND">
 <data-set xfer="1.2.840.10008.1.2.1" name="Little Endian Explicit">
 <element tag="0008,0005" vr="CS" vm="1" len="10" name="SpecificCharacterSet">ISO_IR 192</element>
@@ -13,13 +13,13 @@ FINDSCU_SINGLE_ACCESSION_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <element tag="0008,0054" vr="AE" vm="1" len="12" name="RetrieveAETitle">ORTHANC_TEST</element>
 <element tag="0020,000d" vr="UI" vm="1" len="64" name="StudyInstanceUID">1.2.826.0.1.3680043.8.498.19219017759098709637263425563099910928</element>
 </data-set>
-</responses>'''
+</responses>"""
 
-FINDSCU_NO_RESULTS_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+FINDSCU_NO_RESULTS_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <responses type="C-FIND">
-</responses>'''
+</responses>"""
 
-FINDSCU_MULTIPLE_PATIENT_DATE_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+FINDSCU_MULTIPLE_PATIENT_DATE_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <responses type="C-FIND">
 <data-set xfer="1.2.840.10008.1.2.1" name="Little Endian Explicit">
 <element tag="0008,0005" vr="CS" vm="1" len="10" name="SpecificCharacterSet">ISO_IR 192</element>
@@ -37,9 +37,9 @@ FINDSCU_MULTIPLE_PATIENT_DATE_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <element tag="0010,0020" vr="LO" vm="1" len="6" name="PatientID">PAT001</element>
 <element tag="0020,000d" vr="UI" vm="1" len="64" name="StudyInstanceUID">1.2.826.0.1.3680043.8.498.19219017759098709637263425563099910928</element>
 </data-set>
-</responses>'''
+</responses>"""
 
-FINDSCU_PATIENT_EXACT_DATE_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+FINDSCU_PATIENT_EXACT_DATE_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <responses type="C-FIND">
 <data-set xfer="1.2.840.10008.1.2.1" name="Little Endian Explicit">
 <element tag="0008,0005" vr="CS" vm="1" len="10" name="SpecificCharacterSet">ISO_IR 192</element>
@@ -49,9 +49,9 @@ FINDSCU_PATIENT_EXACT_DATE_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <element tag="0010,0020" vr="LO" vm="1" len="6" name="PatientID">PAT001</element>
 <element tag="0020,000d" vr="UI" vm="1" len="64" name="StudyInstanceUID">1.2.826.0.1.3680043.8.498.19219017759098709637263425563099910928</element>
 </data-set>
-</responses>'''
+</responses>"""
 
-FINDSCU_SERIES_LEVEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+FINDSCU_SERIES_LEVEL_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <responses type="C-FIND">
 <data-set xfer="1.2.840.10008.1.2.1" name="Little Endian Explicit">
 <element tag="0008,0005" vr="CS" vm="1" len="10" name="SpecificCharacterSet">ISO_IR 192</element>
@@ -60,9 +60,9 @@ FINDSCU_SERIES_LEVEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <element tag="0020,000d" vr="UI" vm="1" len="64" name="StudyInstanceUID">1.2.826.0.1.3680043.8.498.19219017759098709637263425563099910928</element>
 <element tag="0020,000e" vr="UI" vm="1" len="64" name="SeriesInstanceUID">1.2.826.0.1.3680043.8.498.38702350352998616920101262660579778889</element>
 </data-set>
-</responses>'''
+</responses>"""
 
-GETSCU_SUCCESS_STDERR = '''I: Requesting Association
+GETSCU_SUCCESS_STDERR = """I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
 I: Sending Get Request (MsgID 1)
 I: Request Identifiers:
@@ -78,9 +78,9 @@ I: Get Response 2 (Pending)
 I: Sub-Operations Remaining: 5, Completed: 5, Failed: 0, Warning: 0
 I: Received Final Get Response (Success)
 I: Sub-Operations Complete: 10, Failed: 0, Warning: 0
-I: Releasing Association'''
+I: Releasing Association"""
 
-GETSCU_FAILURE_STDERR = '''I: Requesting Association
+GETSCU_FAILURE_STDERR = """I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
 I: Sending Get Request (MsgID 1)
 I: Request Identifiers:
@@ -92,7 +92,7 @@ I: (0020,000d) UI [9.9.9.9.9.9.9.9]                        #  16, 1 StudyInstanc
 I:
 W: Get response with error status (Failed: UnableToProcess)
 I: Received Final Get Response (Failed: UnableToProcess)
-I: Releasing Association'''
+I: Releasing Association"""
 
 
 def test_find_studies_single_result(tmp_path):
@@ -104,15 +104,17 @@ def test_find_studies_single_result(tmp_path):
                 break
         assert xml_path is not None
 
-        with open(xml_path, 'w') as f:
+        with open(xml_path, "w") as f:
             f.write(FINDSCU_SINGLE_ACCESSION_XML)
-        
+
         return mock.Mock(returncode=0, stdout="", stderr="")
-    
-    with mock.patch('tempfile.NamedTemporaryFile') as mock_temp:
-        mock_temp.return_value.__enter__.return_value.name = str(tmp_path / "response.xml")
-        with mock.patch('subprocess.run', side_effect=mock_run):
-            with mock.patch('time.sleep'):
+
+    with mock.patch("tempfile.NamedTemporaryFile") as mock_temp:
+        mock_temp.return_value.__enter__.return_value.name = str(
+            tmp_path / "response.xml"
+        )
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("time.sleep"):
                 results = find_studies(
                     host="localhost",
                     port=11112,
@@ -120,10 +122,13 @@ def test_find_studies_single_result(tmp_path):
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "ACC12345"},
                 )
-    
+
     assert len(results) == 1
     assert results[0]["AccessionNumber"] == "ACC12345"
-    assert results[0]["StudyInstanceUID"] == "1.2.826.0.1.3680043.8.498.19219017759098709637263425563099910928"
+    assert (
+        results[0]["StudyInstanceUID"]
+        == "1.2.826.0.1.3680043.8.498.19219017759098709637263425563099910928"
+    )
     assert results[0]["QueryRetrieveLevel"] == "STUDY"
 
 
@@ -136,23 +141,28 @@ def test_find_studies_multiple_results(tmp_path):
                 break
         assert xml_path is not None
 
-        with open(xml_path, 'w') as f:
+        with open(xml_path, "w") as f:
             f.write(FINDSCU_MULTIPLE_PATIENT_DATE_XML)
-        
+
         return mock.Mock(returncode=0, stdout="", stderr="")
-    
-    with mock.patch('tempfile.NamedTemporaryFile') as mock_temp:
-        mock_temp.return_value.__enter__.return_value.name = str(tmp_path / "response.xml")
-        with mock.patch('subprocess.run', side_effect=mock_run):
-            with mock.patch('time.sleep'):
+
+    with mock.patch("tempfile.NamedTemporaryFile") as mock_temp:
+        mock_temp.return_value.__enter__.return_value.name = str(
+            tmp_path / "response.xml"
+        )
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("time.sleep"):
                 results = find_studies(
                     host="localhost",
                     port=11112,
                     calling_aet="TEST_SCU",
                     called_aet="ORTHANC_TEST",
-                    query_params={"PatientID": "PAT001", "StudyDate": "20240101-20240131"},
+                    query_params={
+                        "PatientID": "PAT001",
+                        "StudyDate": "20240101-20240131",
+                    },
                 )
-    
+
     assert len(results) == 2
     assert results[0]["PatientID"] == "PAT001"
     assert results[0]["StudyDate"] == "20240120"
@@ -168,15 +178,17 @@ def test_find_studies_no_results(tmp_path):
                 break
         assert xml_path is not None
 
-        with open(xml_path, 'w') as f:
+        with open(xml_path, "w") as f:
             f.write(FINDSCU_NO_RESULTS_XML)
-        
+
         return mock.Mock(returncode=0, stdout="", stderr="")
-    
-    with mock.patch('tempfile.NamedTemporaryFile') as mock_temp:
-        mock_temp.return_value.__enter__.return_value.name = str(tmp_path / "response.xml")
-        with mock.patch('subprocess.run', side_effect=mock_run):
-            with mock.patch('time.sleep'):
+
+    with mock.patch("tempfile.NamedTemporaryFile") as mock_temp:
+        mock_temp.return_value.__enter__.return_value.name = str(
+            tmp_path / "response.xml"
+        )
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("time.sleep"):
                 results = find_studies(
                     host="localhost",
                     port=11112,
@@ -184,18 +196,20 @@ def test_find_studies_no_results(tmp_path):
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "NONEXISTENT"},
                 )
-    
+
     assert len(results) == 0
 
 
 def test_find_studies_command_error(tmp_path):
     def mock_run(*args, **kwargs):
         return mock.Mock(returncode=1, stdout="", stderr="Error: command failed")
-    
-    with mock.patch('tempfile.NamedTemporaryFile') as mock_temp:
-        mock_temp.return_value.__enter__.return_value.name = str(tmp_path / "response.xml")
-        with mock.patch('subprocess.run', side_effect=mock_run):
-            with mock.patch('time.sleep'):
+
+    with mock.patch("tempfile.NamedTemporaryFile") as mock_temp:
+        mock_temp.return_value.__enter__.return_value.name = str(
+            tmp_path / "response.xml"
+        )
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("time.sleep"):
                 with pytest.raises(DCMTKCommandError, match="findscu command failed"):
                     find_studies(
                         host="localhost",
@@ -210,8 +224,8 @@ def test_get_study_success(tmp_path):
     def mock_run(*args, **kwargs):
         return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
 
-    with mock.patch('subprocess.run', side_effect=mock_run):
-        with mock.patch('time.sleep'):
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("time.sleep"):
             result = get_study(
                 host="localhost",
                 port=11112,
@@ -231,8 +245,8 @@ def test_get_study_failure(tmp_path):
     def mock_run(*args, **kwargs):
         return mock.Mock(returncode=69, stdout="", stderr=GETSCU_FAILURE_STDERR)
 
-    with mock.patch('subprocess.run', side_effect=mock_run):
-        with mock.patch('time.sleep'):
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("time.sleep"):
             result = get_study(
                 host="localhost",
                 port=11112,
@@ -255,15 +269,17 @@ def test_invalid_xml_response(tmp_path):
                 break
         assert xml_path is not None
 
-        with open(xml_path, 'w') as f:
+        with open(xml_path, "w") as f:
             f.write("<invalid>xml</that><is>broken")
-        
+
         return mock.Mock(returncode=0, stdout="", stderr="")
-    
-    with mock.patch('tempfile.NamedTemporaryFile') as mock_temp:
-        mock_temp.return_value.__enter__.return_value.name = str(tmp_path / "response.xml")
-        with mock.patch('subprocess.run', side_effect=mock_run):
-            with mock.patch('time.sleep'):
+
+    with mock.patch("tempfile.NamedTemporaryFile") as mock_temp:
+        mock_temp.return_value.__enter__.return_value.name = str(
+            tmp_path / "response.xml"
+        )
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("time.sleep"):
                 with pytest.raises(DCMTKParseError, match="Failed to parse"):
                     find_studies(
                         host="localhost",
@@ -276,7 +292,7 @@ def test_invalid_xml_response(tmp_path):
 
 def test_find_studies_retries_on_failure(tmp_path):
     attempt_count = {"count": 0}
-    
+
     def mock_run(*args, **kwargs):
         attempt_count["count"] += 1
         xml_path = None
@@ -289,15 +305,17 @@ def test_find_studies_retries_on_failure(tmp_path):
         if attempt_count["count"] == 1:
             return mock.Mock(returncode=1, stdout="", stderr="Network timeout")
 
-        with open(xml_path, 'w') as f:
+        with open(xml_path, "w") as f:
             f.write(FINDSCU_SINGLE_ACCESSION_XML)
-        
+
         return mock.Mock(returncode=0, stdout="", stderr="")
-    
-    with mock.patch('tempfile.NamedTemporaryFile') as mock_temp:
-        mock_temp.return_value.__enter__.return_value.name = str(tmp_path / "response.xml")
-        with mock.patch('subprocess.run', side_effect=mock_run):
-            with mock.patch('time.sleep'):
+
+    with mock.patch("tempfile.NamedTemporaryFile") as mock_temp:
+        mock_temp.return_value.__enter__.return_value.name = str(
+            tmp_path / "response.xml"
+        )
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("time.sleep"):
                 results = find_studies(
                     host="localhost",
                     port=11112,
@@ -305,7 +323,7 @@ def test_find_studies_retries_on_failure(tmp_path):
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "ACC12345"},
                 )
-    
+
     assert len(results) == 1
     assert attempt_count["count"] == 2
 
@@ -321,8 +339,8 @@ def test_get_study_retries_on_failure(tmp_path):
 
         return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
 
-    with mock.patch('subprocess.run', side_effect=mock_run):
-        with mock.patch('time.sleep'):
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("time.sleep"):
             result = get_study(
                 host="localhost",
                 port=11112,
@@ -339,8 +357,8 @@ def test_get_study_retries_on_failure(tmp_path):
 def test_echo_pacs_success():
     def mock_run(*args, **kwargs):
         return mock.Mock(returncode=0, stdout="", stderr="")
-    
-    with mock.patch('subprocess.run', side_effect=mock_run):
+
+    with mock.patch("subprocess.run", side_effect=mock_run):
         result = echo_pacs(
             host="localhost",
             port=11112,
@@ -353,8 +371,8 @@ def test_echo_pacs_success():
 def test_echo_pacs_failure():
     def mock_run(*args, **kwargs):
         return mock.Mock(returncode=1, stdout="", stderr="Association Rejected")
-    
-    with mock.patch('subprocess.run', side_effect=mock_run):
+
+    with mock.patch("subprocess.run", side_effect=mock_run):
         result = echo_pacs(
             host="localhost",
             port=11112,
@@ -368,19 +386,19 @@ def test_echo_pacs_failure():
 def test_get_study_only_renames_new_files(tmp_path):
     output_dir = tmp_path / "output"
     output_dir.mkdir()
-    
+
     existing_file = output_dir / "existing_file.txt"
     existing_file.write_text("existing content")
     existing_file_with_dcm = output_dir / "existing.dcm"
     existing_file_with_dcm.write_text("existing dcm")
-    
+
     def mock_run(*args, **kwargs):
         time.sleep(0.1)
         new_file = output_dir / "new_dicom_file"
         new_file.write_text("new dicom content")
         return mock.Mock(returncode=0, stdout="", stderr=GETSCU_SUCCESS_STDERR)
 
-    with mock.patch('subprocess.run', side_effect=mock_run):
+    with mock.patch("subprocess.run", side_effect=mock_run):
         result = get_study(
             host="localhost",
             port=11112,
@@ -391,19 +409,19 @@ def test_get_study_only_renames_new_files(tmp_path):
         )
 
     assert result["success"] is True
-    
+
     assert existing_file.exists()
     assert not (output_dir / "existing_file.txt.dcm").exists()
-    
+
     assert existing_file_with_dcm.exists()
-    
+
     assert not (output_dir / "new_dicom_file").exists()
     assert (output_dir / "new_dicom_file.dcm").exists()
 
 
 def test_get_study_zero_files_retrieved(tmp_path, caplog):
     """Test that zero completed gets are logged as warnings."""
-    GETSCU_ZERO_FILES_STDERR = '''I: Requesting Association
+    GETSCU_ZERO_FILES_STDERR = """I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
 I: Sending Get Request (MsgID 1)
 I: Request Identifiers:
@@ -415,13 +433,13 @@ I: (0020,000d) UI [1.2.826.0.1.3680043.8.498.12345]       #  64, 1 StudyInstance
 I:
 I: Received Final Get Response (Success)
 I: Sub-Operations Complete: 0, Failed: 0, Warning: 0
-I: Releasing Association'''
+I: Releasing Association"""
 
     def mock_run(*args, **kwargs):
         return mock.Mock(returncode=0, stdout="", stderr=GETSCU_ZERO_FILES_STDERR)
 
-    with mock.patch('subprocess.run', side_effect=mock_run):
-        with mock.patch('time.sleep'):
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("time.sleep"):
             result = get_study(
                 host="localhost",
                 port=11112,
@@ -444,7 +462,7 @@ I: Releasing Association'''
 
 def test_get_study_zero_files_with_failed(tmp_path, caplog):
     """Test that zero completed with failures are logged properly."""
-    GETSCU_ZERO_SUCCESS_WITH_FAILURES_STDERR = '''I: Requesting Association
+    GETSCU_ZERO_SUCCESS_WITH_FAILURES_STDERR = """I: Requesting Association
 I: Association Accepted (Max Send PDV: 16372)
 I: Sending Get Request (MsgID 1)
 I: Get Response 1 (Pending)
@@ -453,13 +471,15 @@ I: Get Response 2 (Pending)
 I: Sub-Operations Remaining: 0, Completed: 0, Failed: 5, Warning: 0
 I: Received Final Get Response (Success)
 I: Sub-Operations Complete: 0, Failed: 5, Warning: 0
-I: Releasing Association'''
+I: Releasing Association"""
 
     def mock_run(*args, **kwargs):
-        return mock.Mock(returncode=0, stdout="", stderr=GETSCU_ZERO_SUCCESS_WITH_FAILURES_STDERR)
+        return mock.Mock(
+            returncode=0, stdout="", stderr=GETSCU_ZERO_SUCCESS_WITH_FAILURES_STDERR
+        )
 
-    with mock.patch('subprocess.run', side_effect=mock_run):
-        with mock.patch('time.sleep'):
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("time.sleep"):
             result = get_study(
                 host="localhost",
                 port=11112,
@@ -476,4 +496,3 @@ I: Releasing Association'''
 
     # Check that warning was logged about zero files
     assert any("0 files" in record.message for record in caplog.records)
-

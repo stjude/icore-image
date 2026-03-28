@@ -20,7 +20,7 @@ def get_hipaa_test_config(user_filter_script=None):
     Helper function to generate HIPAA Safe Harbor configuration for tests.
     Mimics what the config builder (worker.py) does.
     """
-    site_id = 'TEST_SITE'
+    site_id = "TEST_SITE"
     date_shift_days = -730
     anonymizer_script = generate_hipaa_safe_harbor_script(site_id, date_shift_days)
     hipaa_filter = generate_sc_pdf_filter()
@@ -29,19 +29,19 @@ def get_hipaa_test_config(user_filter_script=None):
     else:
         combined_filter = f"!({hipaa_filter})"
     return {
-        'anonymizer_script': anonymizer_script,
-        'filter_script': combined_filter,
-        'deid_pixels': True,
-        'apply_default_filter_script': False,
-        'site_id': site_id,
-        'date_shift_days': date_shift_days
+        "anonymizer_script": anonymizer_script,
+        "filter_script": combined_filter,
+        "deid_pixels": True,
+        "apply_default_filter_script": False,
+        "site_id": site_id,
+        "date_shift_days": date_shift_days,
     }
 
 
 def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
     """Test basic workflow: image deid from PACS + text deid + export to Azure"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -61,19 +61,24 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
 
     # Create input Excel file with PHI in text columns
     query_file = appdata_dir / "input.xlsx"
-    query_df = pd.DataFrame({
-        "AccessionNumber": ["ACC001", "ACC002"],
-        "PatientName": ["John Smith was seen on January 5th, 2024", "Jane Doe at (555) 123-4567"],
-        "Notes": ["Contact john.smith@example.com", "MRN 1234567 on file"]
-    })
+    query_df = pd.DataFrame(
+        {
+            "AccessionNumber": ["ACC001", "ACC002"],
+            "PatientName": [
+                "John Smith was seen on January 5th, 2024",
+                "Jane Doe at (555) 123-4567",
+            ],
+            "Notes": ["Contact john.smith@example.com", "MRN 1234567 on file"],
+        }
+    )
     query_df.to_excel(query_file, index=False)
 
-    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
 
     pacs_config = PacsConfiguration(
-        host="localhost",
-        port=orthanc.dicom_port,
-        aet=orthanc.aet
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
     hipaa_config = get_hipaa_test_config()
@@ -93,10 +98,10 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         input_file=str(query_file),
-        anonymizer_script=hipaa_config['anonymizer_script'],
-        filter_script=hipaa_config['filter_script'],
-        deid_pixels=hipaa_config['deid_pixels'],
-        apply_default_filter_script=hipaa_config['apply_default_filter_script'],
+        anonymizer_script=hipaa_config["anonymizer_script"],
+        filter_script=hipaa_config["filter_script"],
+        deid_pixels=hipaa_config["deid_pixels"],
+        apply_default_filter_script=hipaa_config["apply_default_filter_script"],
     )
 
     # Verify image deid results
@@ -108,7 +113,9 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
 
     # Verify output files exist locally
     dcm_files_in_output = list(output_dir.rglob("*.dcm"))
-    assert len(dcm_files_in_output) == 2, "Deidentified DICOM files should be in output_dir"
+    assert len(dcm_files_in_output) == 2, (
+        "Deidentified DICOM files should be in output_dir"
+    )
 
     output_xlsx = output_dir / "output.xlsx"
     assert output_xlsx.exists(), "Deidentified Excel should be in output_dir"
@@ -121,25 +128,29 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
     assert "john.smith@example.com" not in all_text, "Email should be removed"
     assert "1234567" not in all_text, "MRN should be removed"
     # Verify redaction markers are present
-    assert "[PERSONALNAME]" in all_text or "[ALPHANUMERICID]" in all_text, "Should have redaction markers"
+    assert "[PERSONALNAME]" in all_text or "[ALPHANUMERICID]" in all_text, (
+        "Should have redaction markers"
+    )
 
     # Verify blobs were uploaded to Azure
     blobs = azurite.list_blobs(container_name)
     # Should have 2 DICOM files + 1 Excel file
-    dcm_blobs = [b for b in blobs if b.endswith('.dcm')]
-    xlsx_blobs = [b for b in blobs if b.endswith('.xlsx')]
+    dcm_blobs = [b for b in blobs if b.endswith(".dcm")]
+    xlsx_blobs = [b for b in blobs if b.endswith(".xlsx")]
     assert len(dcm_blobs) == 2, "2 DICOM files should be uploaded"
     assert len(xlsx_blobs) == 1, "1 Excel file should be uploaded"
 
     # Verify all blobs are under project name
     for blob in blobs:
-        assert blob.startswith(f"{project_name}/"), f"Blob {blob} should be under project folder"
+        assert blob.startswith(f"{project_name}/"), (
+            f"Blob {blob} should be under project folder"
+        )
 
 
 def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
     """Test that filter scripts work for image deid"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -148,25 +159,29 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
 
     # Upload DICOMs with different slice thicknesses
     for i, slice_thickness in enumerate(["0.5", "3.0", "5.0"]):
-        ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", slice_thickness)
+        ds = _create_test_dicom(
+            f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", slice_thickness
+        )
         ds.InstanceNumber = i + 1
         _upload_dicom_to_orthanc(ds, orthanc)
 
     time.sleep(2)
 
     query_file = appdata_dir / "input.xlsx"
-    query_df = pd.DataFrame({
-        "AccessionNumber": ["ACC000", "ACC001", "ACC002"],
-        "Notes": ["Test note 1", "Test note 2", "Test note 3"]
-    })
+    query_df = pd.DataFrame(
+        {
+            "AccessionNumber": ["ACC000", "ACC001", "ACC002"],
+            "Notes": ["Test note 1", "Test note 2", "Test note 3"],
+        }
+    )
     query_df.to_excel(query_file, index=False)
 
-    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
 
     pacs_config = PacsConfiguration(
-        host="localhost",
-        port=orthanc.dicom_port,
-        aet=orthanc.aet
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
     anonymizer_script = """<script>
@@ -193,7 +208,7 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
         filter_script=filter_script,
-        apply_default_filter_script=False
+        apply_default_filter_script=False,
     )
 
     # Only 1 image should pass filter (3.0 slice thickness)
@@ -205,14 +220,14 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
     assert result["num_rows_processed"] == 3
 
     blobs = azurite.list_blobs(container_name)
-    dcm_blobs = [b for b in blobs if b.endswith('.dcm')]
+    dcm_blobs = [b for b in blobs if b.endswith(".dcm")]
     assert len(dcm_blobs) == 1, "Only 1 filtered DICOM should be exported"
 
 
 def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
     """Test that columns_to_deid and columns_to_drop work"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -226,20 +241,22 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
     time.sleep(2)
 
     query_file = appdata_dir / "input.xlsx"
-    query_df = pd.DataFrame({
-        "AccessionNumber": ["ACC001"],
-        "SensitiveColumn": ["This has John Smith PHI"],
-        "DropMe": ["Should be dropped"],
-        "KeepAsIs": ["No PHI here, keep unchanged"]
-    })
+    query_df = pd.DataFrame(
+        {
+            "AccessionNumber": ["ACC001"],
+            "SensitiveColumn": ["This has John Smith PHI"],
+            "DropMe": ["Should be dropped"],
+            "KeepAsIs": ["No PHI here, keep unchanged"],
+        }
+    )
     query_df.to_excel(query_file, index=False)
 
-    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
 
     pacs_config = PacsConfiguration(
-        host="localhost",
-        port=orthanc.dicom_port,
-        aet=orthanc.aet
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
     anonymizer_script = """<script>
@@ -264,7 +281,7 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
         anonymizer_script=anonymizer_script,
         columns_to_deid=["SensitiveColumn"],
         columns_to_drop=["DropMe"],
-        apply_default_filter_script=False
+        apply_default_filter_script=False,
     )
 
     output_xlsx = output_dir / "output.xlsx"
@@ -283,8 +300,8 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
 
 def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
     """Test that PACS failures are handled gracefully"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -292,19 +309,18 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
     output_dir.mkdir()
 
     query_file = appdata_dir / "input.xlsx"
-    query_df = pd.DataFrame({
-        "AccessionNumber": ["ACC001", "ACC002"],
-        "Notes": ["Note 1", "Note 2"]
-    })
+    query_df = pd.DataFrame(
+        {"AccessionNumber": ["ACC001", "ACC002"], "Notes": ["Note 1", "Note 2"]}
+    )
     query_df.to_excel(query_file, index=False)
 
-    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
 
     # Invalid PACS config - will fail to connect
     invalid_pacs_config = PacsConfiguration(
-        host="invalid-host.local",
-        port=99999,
-        aet="INVALID"
+        host="invalid-host.local", port=99999, aet="INVALID"
     )
 
     anonymizer_script = """<script>
@@ -327,7 +343,7 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
         appdata_dir=str(appdata_dir),
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False
+        apply_default_filter_script=False,
     )
 
     # PACS queries should fail
@@ -343,14 +359,14 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
 
     # Export should still work for the text file
     blobs = azurite.list_blobs(container_name)
-    xlsx_blobs = [b for b in blobs if b.endswith('.xlsx')]
+    xlsx_blobs = [b for b in blobs if b.endswith(".xlsx")]
     assert len(xlsx_blobs) == 1, "Excel file should still be exported"
 
 
 def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
     """Test that export failures raise appropriate errors"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -364,18 +380,15 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
     time.sleep(2)
 
     query_file = appdata_dir / "input.xlsx"
-    query_df = pd.DataFrame({
-        "AccessionNumber": ["ACC001"],
-        "Notes": ["Test note"]
-    })
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001"], "Notes": ["Test note"]})
     query_df.to_excel(query_file, index=False)
 
-    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
 
     pacs_config = PacsConfiguration(
-        host="localhost",
-        port=orthanc.dicom_port,
-        aet=orthanc.aet
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
     anonymizer_script = """<script>
@@ -383,7 +396,9 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
 </script>"""
 
     # Invalid SAS URL - export will fail
-    invalid_sas_url = "http://invalid-storage.blob.core.windows.net/container?invalidtoken"
+    invalid_sas_url = (
+        "http://invalid-storage.blob.core.windows.net/container?invalidtoken"
+    )
     project_name = "ExportFail"
 
     from module_singleclickicore import singleclickicore
@@ -399,7 +414,7 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
             appdata_dir=str(appdata_dir),
             input_file=str(query_file),
             anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False
+            apply_default_filter_script=False,
         )
 
     # Should raise an rclone error
@@ -416,8 +431,8 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
 
 def test_singleclickicore_skip_export_option(tmp_path, orthanc):
     """Test that skip_export=True prevents Azure upload but preserves local files"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -431,18 +446,15 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
     time.sleep(2)
 
     query_file = appdata_dir / "input.xlsx"
-    query_df = pd.DataFrame({
-        "AccessionNumber": ["ACC001"],
-        "Notes": ["Test note"]
-    })
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001"], "Notes": ["Test note"]})
     query_df.to_excel(query_file, index=False)
 
-    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
 
     pacs_config = PacsConfiguration(
-        host="localhost",
-        port=orthanc.dicom_port,
-        aet=orthanc.aet
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
     anonymizer_script = """<script>
@@ -462,7 +474,7 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-        skip_export=True
+        skip_export=True,
     )
 
     assert result["num_studies_found"] == 1
@@ -479,8 +491,8 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
 
 def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
     """Test that export happens by default when skip_export is not specified"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -494,18 +506,15 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
     time.sleep(2)
 
     query_file = appdata_dir / "input.xlsx"
-    query_df = pd.DataFrame({
-        "AccessionNumber": ["ACC001"],
-        "Notes": ["Test note"]
-    })
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001"], "Notes": ["Test note"]})
     query_df.to_excel(query_file, index=False)
 
-    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
 
     pacs_config = PacsConfiguration(
-        host="localhost",
-        port=orthanc.dicom_port,
-        aet=orthanc.aet
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
     anonymizer_script = """<script>
@@ -528,22 +537,22 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
         appdata_dir=str(appdata_dir),
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False
+        apply_default_filter_script=False,
     )
 
     assert result["export_performed"]
 
     blobs = azurite.list_blobs(container_name)
-    dcm_blobs = [b for b in blobs if b.endswith('.dcm')]
-    xlsx_blobs = [b for b in blobs if b.endswith('.xlsx')]
+    dcm_blobs = [b for b in blobs if b.endswith(".dcm")]
+    xlsx_blobs = [b for b in blobs if b.endswith(".xlsx")]
     assert len(dcm_blobs) == 1, "DICOM should be uploaded to Azure"
     assert len(xlsx_blobs) == 1, "Excel should be uploaded to Azure"
 
 
 def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
     """Test that SAS URL is not required when skip_export=True"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -557,18 +566,15 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
     time.sleep(2)
 
     query_file = appdata_dir / "input.xlsx"
-    query_df = pd.DataFrame({
-        "AccessionNumber": ["ACC001"],
-        "Notes": ["Test note"]
-    })
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC001"], "Notes": ["Test note"]})
     query_df.to_excel(query_file, index=False)
 
-    query_spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
 
     pacs_config = PacsConfiguration(
-        host="localhost",
-        port=orthanc.dicom_port,
-        aet=orthanc.aet
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
     anonymizer_script = """<script>
@@ -588,7 +594,7 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-        skip_export=True
+        skip_export=True,
     )
 
     assert result["num_studies_found"] == 1
@@ -604,8 +610,8 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
 
 def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
     """Test that failed_queries.csv is created via imagedeid_pacs"""
-    os.environ['JAVA_HOME'] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ['DCMTK_HOME'] = str(Path(__file__).parent / "dcmtk")
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
     appdata_dir.mkdir()
@@ -619,16 +625,16 @@ def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
     time.sleep(2)
 
     input_file = appdata_dir / "input.xlsx"
-    input_df = pd.DataFrame({
-        "AccessionNumber": ["ACC001", "ACC999"],
-        "PatientName": ["Test Patient", "Missing Patient"]
-    })
+    input_df = pd.DataFrame(
+        {
+            "AccessionNumber": ["ACC001", "ACC999"],
+            "PatientName": ["Test Patient", "Missing Patient"],
+        }
+    )
     input_df.to_excel(input_file, index=False)
 
     pacs_config = PacsConfiguration(
-        host="localhost",
-        port=orthanc.dicom_port,
-        aet=orthanc.aet
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
     anonymizer_script = """<script>
@@ -640,7 +646,9 @@ def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
 
     result = singleclickicore(
         pacs_list=[pacs_config],
-        query_spreadsheet=Spreadsheet.from_file(str(input_file), acc_col="AccessionNumber"),
+        query_spreadsheet=Spreadsheet.from_file(
+            str(input_file), acc_col="AccessionNumber"
+        ),
         application_aet="TEST_AET",
         sas_url="https://dummy.blob.core.windows.net/container?sas",
         project_name="TestProject",
@@ -650,7 +658,7 @@ def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         columns_to_drop=["PatientName"],
         apply_default_filter_script=False,
-        skip_export=True
+        skip_export=True,
     )
 
     assert result["num_studies_found"] == 1

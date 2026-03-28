@@ -22,17 +22,17 @@ from ruamel.yaml import YAML, scalarstring
 
 
 def run_subprocess_and_capture_log_path(cmd, env, task):
-    shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
+    shell_cmd = " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd)
     print("Copy and run this command to test:")
     print(shell_cmd)
-    
+
     process = subprocess.Popen(
         cmd,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        bufsize=1
+        bufsize=1,
     )
 
     assert process.stdout is not None
@@ -40,101 +40,115 @@ def run_subprocess_and_capture_log_path(cmd, env, task):
 
     task.process_pid = process.pid
     task.save()
-    
+
     stdout_lines = []
     stderr_lines = []
-    
+
     try:
         first_line = process.stdout.readline()
         if first_line:
             stdout_lines.append(first_line)
             try:
                 log_data = json.loads(first_line.strip())
-                if 'log_path' in log_data:
-                    task.log_path = log_data['log_path']
+                if "log_path" in log_data:
+                    task.log_path = log_data["log_path"]
                     task.save()
 
                     print(f"Captured log path: {task.log_path}")
             except json.JSONDecodeError:
                 pass
-        
+
         for line in process.stdout:
             stdout_lines.append(line)
-            print(line, end='')
-        
+            print(line, end="")
+
         for line in process.stderr:
             stderr_lines.append(line)
-            print(line, end='', file=sys.stderr)
-        
+            print(line, end="", file=sys.stderr)
+
         process.wait()
-        
-        stdout_output = ''.join(stdout_lines)
-        stderr_output = ''.join(stderr_lines)
-        
+
+        stdout_output = "".join(stdout_lines)
+        stderr_output = "".join(stderr_lines)
+
         if process.returncode != 0:
             raise subprocess.CalledProcessError(
-                process.returncode,
-                cmd,
-                stdout_output,
-                stderr_output
+                process.returncode, cmd, stdout_output, stderr_output
             )
-        
+
         return stdout_output
-    
+
     except Exception:
         process.kill()
         raise
 
-PACS_IP = 'host.docker.internal'
+
+PACS_IP = "host.docker.internal"
 PACS_PORT = 4242
-PACS_AET = 'ORTHANC'
+PACS_AET = "ORTHANC"
 
-HOME_DIR = os.path.expanduser('~')
-ICORE_BASE_DIR = os.path.join(HOME_DIR, 'Documents', 'iCore')
-CONFIG_DIR = os.path.join(ICORE_BASE_DIR, 'config')
-CONFIG_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'config.yml'))
-SETTINGS_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'settings.json'))
-RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'rclone.conf'))
-MODULES_PATH = os.path.abspath(os.path.join(CONFIG_DIR, 'modules'))
-APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'app_data'))
-TMP_INPUT_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, 'temp_input'))
+HOME_DIR = os.path.expanduser("~")
+ICORE_BASE_DIR = os.path.join(HOME_DIR, "Documents", "iCore")
+CONFIG_DIR = os.path.join(ICORE_BASE_DIR, "config")
+CONFIG_PATH = os.path.abspath(os.path.join(CONFIG_DIR, "config.yml"))
+SETTINGS_PATH = os.path.abspath(os.path.join(CONFIG_DIR, "settings.json"))
+RCLONE_CONFIG_PATH = os.path.abspath(os.path.join(CONFIG_DIR, "rclone.conf"))
+MODULES_PATH = os.path.abspath(os.path.join(CONFIG_DIR, "modules"))
+APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, "app_data"))
+TMP_INPUT_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, "temp_input"))
 
-IS_DEV = os.environ.get('ICORE_DEV') == '1'
+IS_DEV = os.environ.get("ICORE_DEV") == "1"
 
 if IS_DEV:
-    ICORE_PROCESSOR_PATH = 'python'
+    ICORE_PROCESSOR_PATH = "python"
     ICORE_CLI_SCRIPT = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'cli.py')
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "cli.py")
     )
 else:
     ICORE_PROCESSOR_PATH = os.path.abspath(
-        os.path.join(os.path.dirname(sys.executable), '..', 'icorecli', 'icorecli')
+        os.path.join(os.path.dirname(sys.executable), "..", "icorecli", "icorecli")
     )
     ICORE_CLI_SCRIPT = None
+
 
 def process_image_deid(task):
     output_folder = task.output_folder
     build_image_deid_config(task)
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
+    output_full_path = os.path.abspath(
+        os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}")
+    )
 
-    if task.image_source == 'PACS':
+    if task.image_source == "PACS":
         os.makedirs(TMP_INPUT_PATH, exist_ok=True)
-        temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
-        shutil.copy2(task.parameters['input_file'], temp_input)
+        temp_input = os.path.join(TMP_INPUT_PATH, "input.xlsx")
+        shutil.copy2(task.parameters["input_file"], temp_input)
         input_folder = TMP_INPUT_PATH
     else:
         input_folder = task.input_folder
-    
+
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
-    
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
+
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
         print("Output:", output)
@@ -145,104 +159,137 @@ def process_image_deid(task):
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
 
+
 def build_image_deid_config(task):
     """Build the configuration for image deidentification"""
-    config: dict[str, object] = {'module': 'imagedeid'}
+    config: dict[str, object] = {"module": "imagedeid"}
 
     settings = json.load(open(SETTINGS_PATH))
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
 
-    if task.image_source == 'PACS':
-        config.update({
-            'pacs': task.pacs_configs,
-            'application_aet': task.application_aet,
-        })
-        if task.parameters['acc_col'] != '':
-            config.update({
-                'acc_col': task.parameters['acc_col'],
-                'mrn_col': task.parameters['mrn_col'],
-            })
-            if task.parameters.get('use_fallback_query', False):
-                config.update({
-                    'date_col': task.parameters['date_col'],
-                    'date_window': task.parameters.get('date_window', 0),
-                    'use_fallback_query': True
-                })
-        elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
-            config.update({
-                'mrn_col': task.parameters['mrn_col'],
-                'date_col': task.parameters['date_col'],
-                'date_window': task.parameters.get('date_window', 0)
-            })
+    if task.image_source == "PACS":
+        config.update(
+            {
+                "pacs": task.pacs_configs,
+                "application_aet": task.application_aet,
+            }
+        )
+        if task.parameters["acc_col"] != "":
+            config.update(
+                {
+                    "acc_col": task.parameters["acc_col"],
+                    "mrn_col": task.parameters["mrn_col"],
+                }
+            )
+            if task.parameters.get("use_fallback_query", False):
+                config.update(
+                    {
+                        "date_col": task.parameters["date_col"],
+                        "date_window": task.parameters.get("date_window", 0),
+                        "use_fallback_query": True,
+                    }
+                )
+        elif task.parameters["mrn_col"] != "" and task.parameters["date_col"] != "":
+            config.update(
+                {
+                    "mrn_col": task.parameters["mrn_col"],
+                    "date_col": task.parameters["date_col"],
+                    "date_window": task.parameters.get("date_window", 0),
+                }
+            )
 
-    general_filters = task.parameters['general_filters']
-    modality_filters = task.parameters['modality_filters']
+    general_filters = task.parameters["general_filters"]
+    modality_filters = task.parameters["modality_filters"]
     expression_string = generate_filters_string(general_filters, modality_filters)
-    if expression_string != '': 
-        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+    if expression_string != "":
+        config["ctp_filters"] = scalarstring.LiteralScalarString(expression_string)
 
-    tags_to_keep = task.parameters['tags_to_keep']
-    tags_to_dateshift = task.parameters['tags_to_dateshift']
-    tags_to_randomize = task.parameters['tags_to_randomize']
-    date_shift_days = task.parameters['date_shift_days']
+    tags_to_keep = task.parameters["tags_to_keep"]
+    tags_to_dateshift = task.parameters["tags_to_dateshift"]
+    tags_to_randomize = task.parameters["tags_to_randomize"]
+    date_shift_days = task.parameters["date_shift_days"]
 
-    mapping_file_path = task.parameters.get('mapping_file_path', '') if task.parameters.get('use_mapping_file', False) else None
+    mapping_file_path = (
+        task.parameters.get("mapping_file_path", "")
+        if task.parameters.get("use_mapping_file", False)
+        else None
+    )
     if mapping_file_path:
-        config['mapping_file_path'] = mapping_file_path
+        config["mapping_file_path"] = mapping_file_path
 
     anonymizer_script = generate_anonymizer_script(
         tags_to_keep,
         tags_to_dateshift,
         tags_to_randomize,
         date_shift_days,
-        task.parameters['site_id'],
+        task.parameters["site_id"],
         None,
-        remove_unspecified=task.parameters.get('remove_unspecified', True),
-        remove_overlays=task.parameters.get('remove_overlays', True),
-        remove_curves=task.parameters.get('remove_curves', True),
-        remove_private=task.parameters.get('remove_private', True)
+        remove_unspecified=task.parameters.get("remove_unspecified", True),
+        remove_overlays=task.parameters.get("remove_overlays", True),
+        remove_curves=task.parameters.get("remove_curves", True),
+        remove_private=task.parameters.get("remove_private", True),
     )
-    config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
-    
-    deid_pixels = task.parameters.get('deid_pixels', False)
-    config['deid_pixels'] = deid_pixels
-    
-    apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
-    config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
+    config["ctp_anonymizer"] = scalarstring.LiteralScalarString(anonymizer_script)
 
-    if sc_pdf_output_dir := task.parameters.get('sc_pdf_output_dir', ''):
-        sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
-        config['sc_pdf_output_dir'] = sc_pdf_full_path
+    deid_pixels = task.parameters.get("deid_pixels", False)
+    config["deid_pixels"] = deid_pixels
+
+    apply_default_ctp_filter_script = task.parameters.get(
+        "apply_default_ctp_filter_script", True
+    )
+    config["apply_default_ctp_filter_script"] = apply_default_ctp_filter_script
+
+    if sc_pdf_output_dir := task.parameters.get("sc_pdf_output_dir", ""):
+        sc_pdf_full_path = os.path.abspath(
+            os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}")
+        )
+        config["sc_pdf_output_dir"] = sc_pdf_full_path
 
     print(config)
     # Write config to file
-    with open(CONFIG_PATH, 'w') as f:
+    with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
     return config
 
+
 def process_image_query(task):
-    print('Processing image query')
+    print("Processing image query")
     output_folder = task.output_folder
     build_image_query_config(task)
 
     os.makedirs(TMP_INPUT_PATH, exist_ok=True)
-    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
-    shutil.copy2(task.parameters['input_file'], temp_input)
+    temp_input = os.path.join(TMP_INPUT_PATH, "input.xlsx")
+    shutil.copy2(task.parameters["input_file"], temp_input)
     input_folder = TMP_INPUT_PATH
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
+    output_full_path = os.path.abspath(
+        os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}")
+    )
 
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
-    
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
+
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
         print("Output:", output)
@@ -253,66 +300,91 @@ def process_image_query(task):
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
 
+
 def build_image_query_config(task):
     """Build the configuration for image query"""
-    config: dict[str, object] = {'module': 'imageqr'}
+    config: dict[str, object] = {"module": "imageqr"}
 
     settings = json.load(open(SETTINGS_PATH))
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
 
-    config.update({
-            'pacs': task.pacs_configs,
-            'application_aet': task.application_aet,
-        })
-    if task.parameters['acc_col'] != '':
-        config.update({
-            'acc_col': task.parameters['acc_col'],
-            'mrn_col': task.parameters['mrn_col'],
-        })
-        if task.parameters.get('use_fallback_query', False):
-            config.update({
-                'date_col': task.parameters['date_col'],
-                'date_window': task.parameters.get('date_window', 0),
-                'use_fallback_query': True
-            })
-    elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
-        config.update({
-            'mrn_col': task.parameters['mrn_col'],
-            'date_col': task.parameters['date_col'],
-            'date_window': task.parameters.get('date_window', 0)
-        })
-    general_filters = task.parameters['general_filters']
-    modality_filters = task.parameters['modality_filters']
+    config.update(
+        {
+            "pacs": task.pacs_configs,
+            "application_aet": task.application_aet,
+        }
+    )
+    if task.parameters["acc_col"] != "":
+        config.update(
+            {
+                "acc_col": task.parameters["acc_col"],
+                "mrn_col": task.parameters["mrn_col"],
+            }
+        )
+        if task.parameters.get("use_fallback_query", False):
+            config.update(
+                {
+                    "date_col": task.parameters["date_col"],
+                    "date_window": task.parameters.get("date_window", 0),
+                    "use_fallback_query": True,
+                }
+            )
+    elif task.parameters["mrn_col"] != "" and task.parameters["date_col"] != "":
+        config.update(
+            {
+                "mrn_col": task.parameters["mrn_col"],
+                "date_col": task.parameters["date_col"],
+                "date_window": task.parameters.get("date_window", 0),
+            }
+        )
+    general_filters = task.parameters["general_filters"]
+    modality_filters = task.parameters["modality_filters"]
     expression_string = generate_filters_string(general_filters, modality_filters)
-    if expression_string != '':
-        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+    if expression_string != "":
+        config["ctp_filters"] = scalarstring.LiteralScalarString(expression_string)
 
     # Write config to file
-    with open(CONFIG_PATH, 'w') as f:
+    with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
 
     return config
 
+
 def process_header_query(task):
-    print('Processing header query')
+    print("Processing header query")
     output_folder = task.output_folder
     build_header_query_config(task)
 
-    input_folder = os.path.dirname(task.parameters['input_file'])
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}"))
-    
+    input_folder = os.path.dirname(task.parameters["input_file"])
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
+    output_full_path = os.path.abspath(
+        os.path.join(output_folder, f"PHI_{task.name}_{task.timestamp}")
+    )
+
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
-    
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
+
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
         print("Output:", output)
@@ -323,62 +395,86 @@ def process_header_query(task):
 
 def build_header_query_config(task):
     """Build the configuration for header query"""
-    config: dict[str, object] = {'module': 'headerqr'}
+    config: dict[str, object] = {"module": "headerqr"}
 
     settings = json.load(open(SETTINGS_PATH))
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
 
-    config.update({
-            'pacs': task.pacs_configs,
-            'application_aet': task.application_aet,
-        })
-    if task.parameters['acc_col'] != '':
-        config.update({
-            'acc_col': task.parameters['acc_col'],
-            'mrn_col': task.parameters['mrn_col'],
-        })
-        if task.parameters.get('use_fallback_query', False):
-            config.update({
-                'date_col': task.parameters['date_col'],
-                'date_window': task.parameters['date_window'],
-                'use_fallback_query': True
-            })
-    elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
-        config.update({
-            'mrn_col': task.parameters['mrn_col'],
-            'date_col': task.parameters['date_col'],
-            'date_window': task.parameters.get('date_window', 0)
-        })
-    general_filters = task.parameters['general_filters']
-    modality_filters = task.parameters['modality_filters']
+    config.update(
+        {
+            "pacs": task.pacs_configs,
+            "application_aet": task.application_aet,
+        }
+    )
+    if task.parameters["acc_col"] != "":
+        config.update(
+            {
+                "acc_col": task.parameters["acc_col"],
+                "mrn_col": task.parameters["mrn_col"],
+            }
+        )
+        if task.parameters.get("use_fallback_query", False):
+            config.update(
+                {
+                    "date_col": task.parameters["date_col"],
+                    "date_window": task.parameters["date_window"],
+                    "use_fallback_query": True,
+                }
+            )
+    elif task.parameters["mrn_col"] != "" and task.parameters["date_col"] != "":
+        config.update(
+            {
+                "mrn_col": task.parameters["mrn_col"],
+                "date_col": task.parameters["date_col"],
+                "date_window": task.parameters.get("date_window", 0),
+            }
+        )
+    general_filters = task.parameters["general_filters"]
+    modality_filters = task.parameters["modality_filters"]
     expression_string = generate_filters_string(general_filters, modality_filters)
-    if expression_string != '':
-        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+    if expression_string != "":
+        config["ctp_filters"] = scalarstring.LiteralScalarString(expression_string)
 
     # Write config to file
-    with open(CONFIG_PATH, 'w') as f:
+    with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
 
     return config
 
+
 def process_header_extract(task):
-    print('Processing header extract')
+    print("Processing header extract")
     input_folder = task.input_folder
     build_header_extract_config(task)
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
-    
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
+    output_full_path = os.path.abspath(
+        os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}")
+    )
+
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
-    
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
+
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
         print("Output:", output)
@@ -386,48 +482,65 @@ def process_header_extract(task):
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
 
+
 def build_header_extract_config(task):
     """Build the configuration for header extract"""
-    config: dict[str, object] = {'module': 'headerextract'}
+    config: dict[str, object] = {"module": "headerextract"}
 
     settings = json.load(open(SETTINGS_PATH))
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
 
-    extract_all_headers = task.parameters.get('extract_all_headers', False)
-    config['extract_all_headers'] = extract_all_headers
-    
-    headers_to_extract = task.parameters.get('headers_to_extract')
+    extract_all_headers = task.parameters.get("extract_all_headers", False)
+    config["extract_all_headers"] = extract_all_headers
+
+    headers_to_extract = task.parameters.get("headers_to_extract")
     if headers_to_extract:
-        config['headers_to_extract'] = headers_to_extract
-    
-    with open(CONFIG_PATH, 'w') as f:
+        config["headers_to_extract"] = headers_to_extract
+
+    with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
 
     return config
 
+
 def process_text_deid(task):
-    print('Processing text deid')
+    print("Processing text deid")
     build_text_deid_config(task)
 
     output_folder = task.output_folder
 
     os.makedirs(TMP_INPUT_PATH, exist_ok=True)
-    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
-    shutil.copy2(task.parameters['input_file'], temp_input)
+    temp_input = os.path.join(TMP_INPUT_PATH, "input.xlsx")
+    shutil.copy2(task.parameters["input_file"], temp_input)
     input_folder = TMP_INPUT_PATH
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
+    output_full_path = os.path.abspath(
+        os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}")
+    )
 
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
 
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
@@ -439,58 +552,93 @@ def process_text_deid(task):
         if os.path.exists(TMP_INPUT_PATH):
             shutil.rmtree(TMP_INPUT_PATH)
 
+
 def build_text_deid_config(task):
     """Build the configuration for text deidentification"""
-    config: dict[str, object] = {'module': 'textdeid'}
+    config: dict[str, object] = {"module": "textdeid"}
 
     settings = json.load(open(SETTINGS_PATH))
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
-    
-    to_keep_list = task.parameters['text_to_keep'].split('\n') if task.parameters.get('text_to_keep') else []
-    to_remove_list = task.parameters['text_to_remove'].split('\n') if task.parameters.get('text_to_remove') else []
-    date_shift_by = int(task.parameters['date_shift_days'])
-    
-    columns_to_deid = task.parameters.get('columns_to_deid', '')
-    columns_to_drop = task.parameters.get('columns_to_drop', '')
-    
-    columns_to_deid_list = [col.strip() for col in columns_to_deid.split('\n') if col.strip()] if columns_to_deid else None
-    columns_to_drop_list = [col.strip() for col in columns_to_drop.split('\n') if col.strip()] if columns_to_drop else None
-    
-    config.update({
-        'to_keep_list': to_keep_list,
-        'to_remove_list': to_remove_list,
-        'date_shift_by': date_shift_by
-    })
-    
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
+
+    to_keep_list = (
+        task.parameters["text_to_keep"].split("\n")
+        if task.parameters.get("text_to_keep")
+        else []
+    )
+    to_remove_list = (
+        task.parameters["text_to_remove"].split("\n")
+        if task.parameters.get("text_to_remove")
+        else []
+    )
+    date_shift_by = int(task.parameters["date_shift_days"])
+
+    columns_to_deid = task.parameters.get("columns_to_deid", "")
+    columns_to_drop = task.parameters.get("columns_to_drop", "")
+
+    columns_to_deid_list = (
+        [col.strip() for col in columns_to_deid.split("\n") if col.strip()]
+        if columns_to_deid
+        else None
+    )
+    columns_to_drop_list = (
+        [col.strip() for col in columns_to_drop.split("\n") if col.strip()]
+        if columns_to_drop
+        else None
+    )
+
+    config.update(
+        {
+            "to_keep_list": to_keep_list,
+            "to_remove_list": to_remove_list,
+            "date_shift_by": date_shift_by,
+        }
+    )
+
     if columns_to_deid_list:
-        config['columns_to_deid'] = columns_to_deid_list
+        config["columns_to_deid"] = columns_to_deid_list
     if columns_to_drop_list:
-        config['columns_to_drop'] = columns_to_drop_list
-    
-    with open(CONFIG_PATH, 'w') as f:
+        config["columns_to_drop"] = columns_to_drop_list
+
+    with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
 
     return config
 
+
 def process_image_export(task):
-    print('Processing image export')
+    print("Processing image export")
     input_folder = task.input_folder
     build_image_export_config(task)
 
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
+    output_full_path = os.path.abspath(
+        os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}")
+    )
 
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), os.path.abspath(output_full_path)]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            os.path.abspath(output_full_path),
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
-    
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
+
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
         print("Output:", output)
@@ -498,20 +646,21 @@ def process_image_export(task):
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
 
+
 def build_image_export_config(task):
     """Build the configuration for image export"""
     settings = json.load(open(SETTINGS_PATH))
-    
+
     config: dict[str, object] = {
-        'module': 'imageexport',
-        'sas_url': task.parameters['sas_url'],
-        'project_name': task.name,
+        "module": "imageexport",
+        "sas_url": task.parameters["sas_url"],
+        "project_name": task.name,
     }
 
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
-    
-    with open(CONFIG_PATH, 'w') as f:
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
+
+    with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
     return config
@@ -520,23 +669,38 @@ def build_image_export_config(task):
 def process_image_deid_export(task):
     output_folder = task.output_folder
     build_image_deid_export_config(task)
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
+    output_full_path = os.path.abspath(
+        os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}")
+    )
 
     os.makedirs(TMP_INPUT_PATH, exist_ok=True)
-    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
-    shutil.copy2(task.parameters['input_file'], temp_input)
+    temp_input = os.path.join(TMP_INPUT_PATH, "input.xlsx")
+    shutil.copy2(task.parameters["input_file"], temp_input)
     input_folder = TMP_INPUT_PATH
-    
+
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            output_full_path,
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            output_full_path,
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
-    
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
+
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
         print("Output:", output)
@@ -551,23 +715,38 @@ def process_image_deid_export(task):
 def process_singleclickicore(task):
     output_folder = task.output_folder
     build_singleclickicore_config(task)
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
-    output_full_path = os.path.abspath(os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}"))
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
+    output_full_path = os.path.abspath(
+        os.path.join(output_folder, f"DeID_{task.name}_{task.timestamp}")
+    )
 
     os.makedirs(TMP_INPUT_PATH, exist_ok=True)
-    temp_input = os.path.join(TMP_INPUT_PATH, 'input.xlsx')
-    shutil.copy2(task.parameters['input_file'], temp_input)
+    temp_input = os.path.join(TMP_INPUT_PATH, "input.xlsx")
+    shutil.copy2(task.parameters["input_file"], temp_input)
     input_folder = TMP_INPUT_PATH
-    
+
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            output_full_path,
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(input_folder), output_full_path]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(input_folder),
+            output_full_path,
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
-    
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
+
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
         print("Output:", output)
@@ -586,11 +765,11 @@ def detect_file_type_and_columns(input_file_path):
     """
     df = pd.read_excel(input_file_path, nrows=0)
     columns = df.columns.tolist()
-    
-    if 'Acc' in columns:
-        return {'acc_col': 'Acc'}
-    elif 'Accession Number' in columns:
-        return {'acc_col': 'Accession Number'}
+
+    if "Acc" in columns:
+        return {"acc_col": "Acc"}
+    elif "Accession Number" in columns:
+        return {"acc_col": "Accession Number"}
     else:
         raise ValueError(
             f"Unknown file format. Expected Primordial (Acc column) or mPower (Accession Number column). "
@@ -600,79 +779,106 @@ def detect_file_type_and_columns(input_file_path):
 
 def build_singleclickicore_config(task):
     """Build the configuration for singleclickicore (image deid + text deid + export)"""
-    config: dict[str, object] = {'module': 'singleclickicore'}
+    config: dict[str, object] = {"module": "singleclickicore"}
 
     settings = json.load(open(SETTINGS_PATH))
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
-    
-    config.update({
-        'pacs': task.pacs_configs,
-        'application_aet': task.application_aet,
-        'sas_url': task.parameters.get('sas_url', ''),
-        'project_name': task.name,
-    })
-    
-    input_file = task.parameters['input_file']
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
+
+    config.update(
+        {
+            "pacs": task.pacs_configs,
+            "application_aet": task.application_aet,
+            "sas_url": task.parameters.get("sas_url", ""),
+            "project_name": task.name,
+        }
+    )
+
+    input_file = task.parameters["input_file"]
     detected_columns = detect_file_type_and_columns(input_file)
     config.update(detected_columns)
 
     # === HIPAA Safe Harbor Configuration ===
     # Single-click iCore automatically enforces HIPAA Safe Harbor de-identification
 
-    general_filters = task.parameters.get('general_filters', [])
-    modality_filters = task.parameters.get('modality_filters', {})
+    general_filters = task.parameters.get("general_filters", [])
+    modality_filters = task.parameters.get("modality_filters", {})
     user_filter_string = generate_filters_string(general_filters, modality_filters)
 
+    config["ctp_filters"] = scalarstring.LiteralScalarString(user_filter_string)
 
-    config['ctp_filters'] = scalarstring.LiteralScalarString(user_filter_string)
+    config["deid_pixels"] = True
 
-    config['deid_pixels'] = True
-
-    mapping_file_path = task.parameters.get('mapping_file_path', '') if task.parameters.get('use_mapping_file', False) else None
+    mapping_file_path = (
+        task.parameters.get("mapping_file_path", "")
+        if task.parameters.get("use_mapping_file", False)
+        else None
+    )
     if mapping_file_path:
-        config['mapping_file_path'] = mapping_file_path
-    
-    date_shift_days = settings.get('date_shift_range', -21)
-    site_id = settings.get('site_id', 'SITE1')
+        config["mapping_file_path"] = mapping_file_path
 
-    hipaa_anonymizer_script = generate_hipaa_safe_harbor_script(site_id, date_shift_days)
+    date_shift_days = settings.get("date_shift_range", -21)
+    site_id = settings.get("site_id", "SITE1")
 
-    config['ctp_anonymizer'] = scalarstring.LiteralScalarString(hipaa_anonymizer_script)
+    hipaa_anonymizer_script = generate_hipaa_safe_harbor_script(
+        site_id, date_shift_days
+    )
 
-    config['apply_default_ctp_filter_script'] = task.parameters.get('apply_default_ctp_filter_script', True)
-    
+    config["ctp_anonymizer"] = scalarstring.LiteralScalarString(hipaa_anonymizer_script)
+
+    config["apply_default_ctp_filter_script"] = task.parameters.get(
+        "apply_default_ctp_filter_script", True
+    )
+
     hipaa_config = get_hipaa_safe_harbor_config()
-    config['tags_to_keep'] = hipaa_config['tags_to_keep']
-    config['tags_to_dateshift'] = hipaa_config['tags_to_dateshift']
-    config['tags_to_randomize'] = hipaa_config['tags_to_randomize']
+    config["tags_to_keep"] = hipaa_config["tags_to_keep"]
+    config["tags_to_dateshift"] = hipaa_config["tags_to_dateshift"]
+    config["tags_to_randomize"] = hipaa_config["tags_to_randomize"]
 
-    skip_export = task.parameters.get('skip_export', False)
-    config['skip_export'] = skip_export
+    skip_export = task.parameters.get("skip_export", False)
+    config["skip_export"] = skip_export
 
-    if sc_pdf_output_dir := task.parameters.get('sc_pdf_output_dir', ''):
-        sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
-        config['sc_pdf_output_dir'] = sc_pdf_full_path
+    if sc_pdf_output_dir := task.parameters.get("sc_pdf_output_dir", ""):
+        sc_pdf_full_path = os.path.abspath(
+            os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}")
+        )
+        config["sc_pdf_output_dir"] = sc_pdf_full_path
 
     # Text deidentification parameters
-    to_keep_list = task.parameters.get('text_to_keep', '').split('\n') if task.parameters.get('text_to_keep') else []
-    to_remove_list = task.parameters.get('text_to_remove', '').split('\n') if task.parameters.get('text_to_remove') else []
-    columns_to_deid = task.parameters.get('columns_to_deid', '')
-    columns_to_drop = task.parameters.get('columns_to_drop', '')
+    to_keep_list = (
+        task.parameters.get("text_to_keep", "").split("\n")
+        if task.parameters.get("text_to_keep")
+        else []
+    )
+    to_remove_list = (
+        task.parameters.get("text_to_remove", "").split("\n")
+        if task.parameters.get("text_to_remove")
+        else []
+    )
+    columns_to_deid = task.parameters.get("columns_to_deid", "")
+    columns_to_drop = task.parameters.get("columns_to_drop", "")
 
-    to_deid_list = [col.strip() for col in columns_to_deid.split('\n') if col.strip()] if columns_to_deid else None
-    to_drop_list = [col.strip() for col in columns_to_drop.split('\n') if col.strip()] if columns_to_drop else None
+    to_deid_list = (
+        [col.strip() for col in columns_to_deid.split("\n") if col.strip()]
+        if columns_to_deid
+        else None
+    )
+    to_drop_list = (
+        [col.strip() for col in columns_to_drop.split("\n") if col.strip()]
+        if columns_to_drop
+        else None
+    )
 
     if to_keep_list:
-        config['to_keep_list'] = to_keep_list
+        config["to_keep_list"] = to_keep_list
     if to_remove_list:
-        config['to_remove_list'] = to_remove_list
+        config["to_remove_list"] = to_remove_list
     if to_deid_list:
-        config['columns_to_deid'] = to_deid_list
+        config["columns_to_deid"] = to_deid_list
     if to_drop_list:
-        config['columns_to_drop'] = to_drop_list
-    
-    with open(CONFIG_PATH, 'w') as f:
+        config["columns_to_drop"] = to_drop_list
+
+    with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
     return config
@@ -680,101 +886,132 @@ def build_singleclickicore_config(task):
 
 def build_image_deid_export_config(task):
     """Build the configuration for image deidentification and export"""
-    config: dict[str, object] = {'module': 'imagedeidexport'}
+    config: dict[str, object] = {"module": "imagedeidexport"}
 
     settings = json.load(open(SETTINGS_PATH))
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
-    
-    config.update({
-        'pacs': task.pacs_configs,
-        'application_aet': task.application_aet,
-        'sas_url': task.parameters['sas_url'],
-        'project_name': task.name,
-    })
-    
-    if task.parameters['acc_col'] != '':
-        config.update({
-            'acc_col': task.parameters['acc_col'],
-            'mrn_col': task.parameters['mrn_col'],
-        })
-        if task.parameters.get('use_fallback_query', False):
-            config.update({
-                'date_col': task.parameters.get('date_col', ''),
-                'date_window': task.parameters.get('date_window', 0),
-                'use_fallback_query': True
-            })
-    elif task.parameters['mrn_col'] != '' and task.parameters['date_col'] != '':
-        config.update({
-            'mrn_col': task.parameters['mrn_col'],
-            'date_col': task.parameters['date_col'],
-            'date_window': task.parameters.get('date_window', 0)
-        })
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
 
-    general_filters = task.parameters['general_filters']
-    modality_filters = task.parameters['modality_filters']
+    config.update(
+        {
+            "pacs": task.pacs_configs,
+            "application_aet": task.application_aet,
+            "sas_url": task.parameters["sas_url"],
+            "project_name": task.name,
+        }
+    )
+
+    if task.parameters["acc_col"] != "":
+        config.update(
+            {
+                "acc_col": task.parameters["acc_col"],
+                "mrn_col": task.parameters["mrn_col"],
+            }
+        )
+        if task.parameters.get("use_fallback_query", False):
+            config.update(
+                {
+                    "date_col": task.parameters.get("date_col", ""),
+                    "date_window": task.parameters.get("date_window", 0),
+                    "use_fallback_query": True,
+                }
+            )
+    elif task.parameters["mrn_col"] != "" and task.parameters["date_col"] != "":
+        config.update(
+            {
+                "mrn_col": task.parameters["mrn_col"],
+                "date_col": task.parameters["date_col"],
+                "date_window": task.parameters.get("date_window", 0),
+            }
+        )
+
+    general_filters = task.parameters["general_filters"]
+    modality_filters = task.parameters["modality_filters"]
     expression_string = generate_filters_string(general_filters, modality_filters)
-    if expression_string != '':
-        config['ctp_filters'] = scalarstring.LiteralScalarString(expression_string)
+    if expression_string != "":
+        config["ctp_filters"] = scalarstring.LiteralScalarString(expression_string)
 
-    tags_to_keep = task.parameters['tags_to_keep']
-    tags_to_dateshift = task.parameters['tags_to_dateshift']
-    tags_to_randomize = task.parameters['tags_to_randomize']
-    date_shift_days = task.parameters['date_shift_days']
+    tags_to_keep = task.parameters["tags_to_keep"]
+    tags_to_dateshift = task.parameters["tags_to_dateshift"]
+    tags_to_randomize = task.parameters["tags_to_randomize"]
+    date_shift_days = task.parameters["date_shift_days"]
 
-    mapping_file_path = task.parameters.get('mapping_file_path', '') if task.parameters.get('use_mapping_file', False) else None
+    mapping_file_path = (
+        task.parameters.get("mapping_file_path", "")
+        if task.parameters.get("use_mapping_file", False)
+        else None
+    )
     if mapping_file_path:
-        config['mapping_file_path'] = mapping_file_path
+        config["mapping_file_path"] = mapping_file_path
 
     anonymizer_script = generate_anonymizer_script(
         tags_to_keep,
         tags_to_dateshift,
         tags_to_randomize,
         date_shift_days,
-        task.parameters['site_id'],
+        task.parameters["site_id"],
         None,
-        remove_unspecified=task.parameters.get('remove_unspecified', True),
-        remove_overlays=task.parameters.get('remove_overlays', True),
-        remove_curves=task.parameters.get('remove_curves', True),
-        remove_private=task.parameters.get('remove_private', True)
+        remove_unspecified=task.parameters.get("remove_unspecified", True),
+        remove_overlays=task.parameters.get("remove_overlays", True),
+        remove_curves=task.parameters.get("remove_curves", True),
+        remove_private=task.parameters.get("remove_private", True),
     )
-    config['ctp_anonymizer'] = scalarstring.LiteralScalarString(anonymizer_script)
+    config["ctp_anonymizer"] = scalarstring.LiteralScalarString(anonymizer_script)
 
-    deid_pixels = task.parameters.get('deid_pixels', False)
-    config['deid_pixels'] = deid_pixels
+    deid_pixels = task.parameters.get("deid_pixels", False)
+    config["deid_pixels"] = deid_pixels
 
-    apply_default_ctp_filter_script = task.parameters.get('apply_default_ctp_filter_script', True)
-    config['apply_default_ctp_filter_script'] = apply_default_ctp_filter_script
+    apply_default_ctp_filter_script = task.parameters.get(
+        "apply_default_ctp_filter_script", True
+    )
+    config["apply_default_ctp_filter_script"] = apply_default_ctp_filter_script
 
-    if sc_pdf_output_dir := task.parameters.get('sc_pdf_output_dir', ''):
-        sc_pdf_full_path = os.path.abspath(os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}"))
-        config['sc_pdf_output_dir'] = sc_pdf_full_path
+    if sc_pdf_output_dir := task.parameters.get("sc_pdf_output_dir", ""):
+        sc_pdf_full_path = os.path.abspath(
+            os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}")
+        )
+        config["sc_pdf_output_dir"] = sc_pdf_full_path
 
-    with open(CONFIG_PATH, 'w') as f:
+    with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
     return config
 
 
 def process_general_module(task):
-    module_name = task.parameters['module_name']
-    print(f'Processing {module_name} module')
+    module_name = task.parameters["module_name"]
+    print(f"Processing {module_name} module")
     build_general_module_config(task)
 
-    output_full_path = os.path.abspath(os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}"))
-    app_data_full_path = os.path.abspath(os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"))
+    output_full_path = os.path.abspath(
+        os.path.join(task.output_folder, f"PHI_{task.name}_{task.timestamp}")
+    )
+    app_data_full_path = os.path.abspath(
+        os.path.join(APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}")
+    )
 
     print(output_full_path)
-    
+
     if IS_DEV:
-        cmd = [ICORE_PROCESSOR_PATH, ICORE_CLI_SCRIPT, CONFIG_PATH, os.path.abspath(task.input_folder), os.path.abspath(output_full_path)]
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            ICORE_CLI_SCRIPT,
+            CONFIG_PATH,
+            os.path.abspath(task.input_folder),
+            os.path.abspath(output_full_path),
+        ]
     else:
-        cmd = [ICORE_PROCESSOR_PATH, CONFIG_PATH, os.path.abspath(task.input_folder), os.path.abspath(output_full_path)]
-    
+        cmd = [
+            ICORE_PROCESSOR_PATH,
+            CONFIG_PATH,
+            os.path.abspath(task.input_folder),
+            os.path.abspath(output_full_path),
+        ]
+
     env = os.environ.copy()
-    env['ICORE_APPDATA_DIR'] = app_data_full_path
-    env['ICORE_MODULES_DIR'] = MODULES_PATH
-    
+    env["ICORE_APPDATA_DIR"] = app_data_full_path
+    env["ICORE_MODULES_DIR"] = MODULES_PATH
+
     try:
         output = run_subprocess_and_capture_log_path(cmd, env, task)
         print("Output:", output)
@@ -782,39 +1019,41 @@ def process_general_module(task):
         print(f"Error output: {e.stderr}")
         raise Exception(f"Process failed with exit code {e.returncode}: {e.stderr}")
 
+
 def build_general_module_config(task):
     """Build the configuration for general module"""
-    config_string = task.parameters['config']
+    config_string = task.parameters["config"]
     yaml = YAML()
     config = yaml.load(config_string)
-    config['module'] = task.parameters['module_name']
-    
+    config["module"] = task.parameters["module_name"]
+
     settings = json.load(open(SETTINGS_PATH))
-    debug_enabled = settings.get('debug_logging', False)
-    config['debug'] = debug_enabled
-    
-    with open(CONFIG_PATH, 'w') as f:
+    debug_enabled = settings.get("debug_logging", False)
+    config["debug"] = debug_enabled
+
+    with open(CONFIG_PATH, "w") as f:
         yaml.dump(config, f)
     return config
 
+
 def run_worker():
     settings = json.load(open(SETTINGS_PATH))
-    timezone = settings.get('timezone', 'UTC')
+    timezone = settings.get("timezone", "UTC")
     timezone = pytz.timezone(timezone)
     while True:
         try:
             task = None
             with transaction.atomic():
-                
                 now = datetime.now(timezone)
-                task = (Project.objects
-                       .select_for_update(skip_locked=True)
-                       .filter(status=Project.TaskStatus.PENDING)
-                       .filter(
-                           models.Q(scheduled_time__isnull=True) |
-                           models.Q(scheduled_time__lte=now)
-                       )
-                       .first())
+                task = (
+                    Project.objects.select_for_update(skip_locked=True)
+                    .filter(status=Project.TaskStatus.PENDING)
+                    .filter(
+                        models.Q(scheduled_time__isnull=True)
+                        | models.Q(scheduled_time__lte=now)
+                    )
+                    .first()
+                )
             if task:
                 task.status = Project.TaskStatus.RUNNING
                 task.save()
@@ -846,9 +1085,9 @@ def run_worker():
                     task.process_pid = None
                     task.save()
                     print(f"Task {task.id} finished with status: {task.status}")
-            
+
             time.sleep(1)
-            
+
         except Exception as e:
             print(f"Worker error: {str(e)}")
             time.sleep(5)

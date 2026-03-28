@@ -1,3 +1,6 @@
+" Apply auto-formatting on save for Python files
+autocmd BufWritePre *.py lua vim.lsp.buf.format({ async = false })
+
 lua << EOF
 
 -- LSP configuration for Python

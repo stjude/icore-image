@@ -4,25 +4,46 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('home', '0001_initial'),
+        ("home", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='project',
-            name='process_pid',
+            model_name="project",
+            name="process_pid",
             field=models.IntegerField(blank=True, null=True),
         ),
         migrations.AlterField(
-            model_name='project',
-            name='status',
-            field=models.CharField(choices=[('PENDING', 'Pending'), ('RUNNING', 'Running'), ('COMPLETED', 'Completed'), ('FAILED', 'Failed'), ('CANCELLED', 'Cancelled')], default='PENDING', max_length=20),
+            model_name="project",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("PENDING", "Pending"),
+                    ("RUNNING", "Running"),
+                    ("COMPLETED", "Completed"),
+                    ("FAILED", "Failed"),
+                    ("CANCELLED", "Cancelled"),
+                ],
+                default="PENDING",
+                max_length=20,
+            ),
         ),
         migrations.AlterField(
-            model_name='project',
-            name='task_type',
-            field=models.CharField(choices=[('IMAGE_DEID', 'Image Deidentification'), ('IMAGE_QUERY', 'Image Query'), ('HEADER_QUERY', 'Header Query'), ('HEADER_EXTRACT', 'Header Extract'), ('TEXT_DEID', 'Text Deidentification'), ('IMAGE_EXPORT', 'Image Export'), ('IMAGE_DEID_EXPORT', 'Image Deidentification and Export'), ('GENERAL_MODULE', 'General Module')], max_length=25),
+            model_name="project",
+            name="task_type",
+            field=models.CharField(
+                choices=[
+                    ("IMAGE_DEID", "Image Deidentification"),
+                    ("IMAGE_QUERY", "Image Query"),
+                    ("HEADER_QUERY", "Header Query"),
+                    ("HEADER_EXTRACT", "Header Extract"),
+                    ("TEXT_DEID", "Text Deidentification"),
+                    ("IMAGE_EXPORT", "Image Export"),
+                    ("IMAGE_DEID_EXPORT", "Image Deidentification and Export"),
+                    ("GENERAL_MODULE", "General Module"),
+                ],
+                max_length=25,
+            ),
         ),
     ]

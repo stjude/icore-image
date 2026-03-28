@@ -4,13 +4,23 @@ import shutil
 import time
 
 from ctp import CTPPipeline
-from utils import (PacsConfiguration, PacsQueryResult, RunDirs, Spreadsheet,
-                   generate_queries_and_filter, combine_filters,
-                   validate_date_window_days, find_valid_pacs_list,
-                   find_studies_from_pacs_list,
-                   get_studies_from_study_pacs_map,
-                   setup_run_directories, configure_run_logging,
-                   format_number_with_commas, csv_string_to_xlsx, save_failed_queries_csv)
+from utils import (
+    PacsConfiguration,
+    PacsQueryResult,
+    RunDirs,
+    Spreadsheet,
+    generate_queries_and_filter,
+    combine_filters,
+    validate_date_window_days,
+    find_valid_pacs_list,
+    find_studies_from_pacs_list,
+    get_studies_from_study_pacs_map,
+    setup_run_directories,
+    configure_run_logging,
+    format_number_with_commas,
+    csv_string_to_xlsx,
+    save_failed_queries_csv,
+)
 
 
 def _save_metadata_files(pipeline: CTPPipeline, appdata_dir: str) -> None:
@@ -26,17 +36,25 @@ def _log_progress(pipeline: CTPPipeline) -> None:
 
         progress_msg = f"Processed {format_number_with_commas(files_received)} files"
         if files_quarantined > 0:
-            progress_msg += f" ({format_number_with_commas(files_quarantined)} quarantined)"
+            progress_msg += (
+                f" ({format_number_with_commas(files_quarantined)} quarantined)"
+            )
 
         logging.info(progress_msg)
 
 
-def imageqr(pacs_list: list[PacsConfiguration], query_spreadsheet: Spreadsheet,
-            application_aet: str, output_dir: str,
-            appdata_dir: str | None = None, filter_script: str | None = None,
-            date_window_days: int = 0, debug: bool = False,
-            run_dirs: RunDirs | None = None,
-            use_fallback_query: bool = False) -> PacsQueryResult:
+def imageqr(
+    pacs_list: list[PacsConfiguration],
+    query_spreadsheet: Spreadsheet,
+    application_aet: str,
+    output_dir: str,
+    appdata_dir: str | None = None,
+    filter_script: str | None = None,
+    date_window_days: int = 0,
+    debug: bool = False,
+    run_dirs: RunDirs | None = None,
+    use_fallback_query: bool = False,
+) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
 
@@ -55,16 +73,25 @@ def imageqr(pacs_list: list[PacsConfiguration], query_spreadsheet: Spreadsheet,
 
     validate_date_window_days(date_window_days)
 
-    query_params_list, expected_values_list, generated_filter = generate_queries_and_filter(
-        query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query)
+    query_params_list, expected_values_list, generated_filter = (
+        generate_queries_and_filter(
+            query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query
+        )
+    )
     combined_filter = combine_filters(filter_script, generated_filter)
 
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
 
-    study_pacs_map, failed_find_indices, find_failure_details = find_studies_from_pacs_list(
-        valid_pacs_list, query_params_list, application_aet, expected_values_list,
-        fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
-        fallback_date_window_days=date_window_days)
+    study_pacs_map, failed_find_indices, find_failure_details = (
+        find_studies_from_pacs_list(
+            valid_pacs_list,
+            query_params_list,
+            application_aet,
+            expected_values_list,
+            fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
+            fallback_date_window_days=date_window_days,
+        )
+    )
 
     # Create directory for getscu to write retrieved DICOM files
     getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
@@ -74,23 +101,27 @@ def imageqr(pacs_list: list[PacsConfiguration], query_spreadsheet: Spreadsheet,
         ctp_log_level = "DEBUG" if debug else None
 
         # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-        successful_gets, failed_get_indices, get_failure_details = get_studies_from_study_pacs_map(study_pacs_map, application_aet, getscu_output_dir)
+        successful_gets, failed_get_indices, get_failure_details = (
+            get_studies_from_study_pacs_map(
+                study_pacs_map, application_aet, getscu_output_dir
+            )
+        )
 
         # Wait briefly to ensure all files are written
         time.sleep(2)
 
-
-        with CTPPipeline(
-            pipeline_type="imageqr",
-            input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
-            output_dir=output_dir,
-            application_aet=application_aet,
-            filter_script=combined_filter,
-            log_path=run_dirs["ctp_log_path"],
-            log_level=ctp_log_level,
-            quarantine_dir=quarantine_dir
-        ) as pipeline:
-
+        with (
+            CTPPipeline(
+                pipeline_type="imageqr",
+                input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
+                output_dir=output_dir,
+                application_aet=application_aet,
+                filter_script=combined_filter,
+                log_path=run_dirs["ctp_log_path"],
+                log_level=ctp_log_level,
+                quarantine_dir=quarantine_dir,
+            ) as pipeline
+        ):
             failed_query_indices = list(set(failed_find_indices + failed_get_indices))
             combined_failure_details = {**find_failure_details, **get_failure_details}
 
@@ -101,33 +132,57 @@ def imageqr(pacs_list: list[PacsConfiguration], query_spreadsheet: Spreadsheet,
                 current_time = time.time()
                 if current_time - last_save_time >= save_interval:
                     _save_metadata_files(pipeline, appdata_dir)
-                    save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
-                                            combined_failure_details, use_fallback_query=use_fallback_query)
+                    save_failed_queries_csv(
+                        failed_query_indices,
+                        query_spreadsheet,
+                        appdata_dir,
+                        combined_failure_details,
+                        use_fallback_query=use_fallback_query,
+                    )
                     _log_progress(pipeline)
                     last_save_time = current_time
 
                 time.sleep(1)
 
             _save_metadata_files(pipeline, appdata_dir)
-            save_failed_queries_csv(failed_query_indices, query_spreadsheet, appdata_dir,
-                                    combined_failure_details, use_fallback_query=use_fallback_query)
+            save_failed_queries_csv(
+                failed_query_indices,
+                query_spreadsheet,
+                appdata_dir,
+                combined_failure_details,
+                use_fallback_query=use_fallback_query,
+            )
 
             num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
-            num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0
+            num_quarantined = (
+                pipeline.metrics.files_quarantined if pipeline.metrics else 0
+            )
 
             logging.info("Query and retrieval complete")
-            logging.info(f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}")
+            logging.info(
+                f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
+            )
             logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
-            logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
+            logging.info(
+                f"Files quarantined: {format_number_with_commas(num_quarantined)}"
+            )
 
             return {
                 "num_studies_found": len(study_pacs_map),
-                "num_images_saved": pipeline.metrics.files_saved if pipeline.metrics else 0,
-                "num_images_quarantined": pipeline.metrics.files_quarantined if pipeline.metrics else 0,
-                "failed_query_indices": failed_query_indices
+                "num_images_saved": pipeline.metrics.files_saved
+                if pipeline.metrics
+                else 0,
+                "num_images_quarantined": pipeline.metrics.files_quarantined
+                if pipeline.metrics
+                else 0,
+                "failed_query_indices": failed_query_indices,
             }
     finally:
         try:
             shutil.rmtree(getscu_output_dir)
         except OSError as e:
-            logging.warning("Failed to remove temporary getscu directory '%s': %s", getscu_output_dir, e)
+            logging.warning(
+                "Failed to remove temporary getscu directory '%s': %s",
+                getscu_output_dir,
+                e,
+            )

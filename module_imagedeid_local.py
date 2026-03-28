@@ -6,7 +6,19 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 
 from ctp import CTPPipeline
-from utils import ImageDeidLocalResult, RunDirs, setup_run_directories, configure_run_logging, format_number_with_commas, count_dicom_files, csv_string_to_xlsx, combine_filters, validate_dicom_tags, detect_and_validate_dates, format_dicom_date
+from utils import (
+    ImageDeidLocalResult,
+    RunDirs,
+    setup_run_directories,
+    configure_run_logging,
+    format_number_with_commas,
+    count_dicom_files,
+    csv_string_to_xlsx,
+    combine_filters,
+    validate_dicom_tags,
+    detect_and_validate_dates,
+    format_dicom_date,
+)
 
 
 def _save_metadata_files(pipeline: CTPPipeline, appdata_dir: str) -> None:
@@ -16,7 +28,9 @@ def _save_metadata_files(pipeline: CTPPipeline, appdata_dir: str) -> None:
 
     deid_audit_log_csv = pipeline.get_audit_log_csv("DeidAuditLog")
     if deid_audit_log_csv:
-        csv_string_to_xlsx(deid_audit_log_csv, os.path.join(appdata_dir, "deid_metadata.xlsx"))
+        csv_string_to_xlsx(
+            deid_audit_log_csv, os.path.join(appdata_dir, "deid_metadata.xlsx")
+        )
 
     linker_csv = pipeline.get_idmap_csv()
     if linker_csv:
@@ -30,18 +44,24 @@ def _log_progress(total_files: int, pipeline: CTPPipeline) -> None:
 
         progress_msg = f"Processed {format_number_with_commas(files_received)} / {format_number_with_commas(total_files)} files"
         if files_quarantined > 0:
-            progress_msg += f" ({format_number_with_commas(files_quarantined)} quarantined)"
+            progress_msg += (
+                f" ({format_number_with_commas(files_quarantined)} quarantined)"
+            )
 
         logging.info(progress_msg)
 
 
-def _apply_default_filter_script(filter_script: str | None, apply_default_filter_script: bool) -> str | None:
+def _apply_default_filter_script(
+    filter_script: str | None, apply_default_filter_script: bool
+) -> str | None:
     if not apply_default_filter_script:
         return filter_script
 
-    stanford_filter_path = os.path.join(os.path.dirname(__file__), "ctp", "scripts", "stanford-filter.script")
+    stanford_filter_path = os.path.join(
+        os.path.dirname(__file__), "ctp", "scripts", "stanford-filter.script"
+    )
     if os.path.exists(stanford_filter_path):
-        with open(stanford_filter_path, 'r') as f:
+        with open(stanford_filter_path, "r") as f:
             stanford_filter_content = f.read()
         return combine_filters(filter_script, stanford_filter_content)
     else:
@@ -60,7 +80,9 @@ def _generate_lookup_table_content(mapping_file_path: str) -> str:
                 tag_mappings[original_tag] = col
 
     if not tag_mappings:
-        raise ValueError("Mapping file must have at least one New-{TagName} column with corresponding TagName column")
+        raise ValueError(
+            "Mapping file must have at least one New-{TagName} column with corresponding TagName column"
+        )
 
     all_tags = list(tag_mappings.keys())
     validate_dicom_tags(all_tags)
@@ -113,7 +135,9 @@ def _parse_anonymizer_script_actions(anonymizer_script: str) -> dict[str, str]:
 
 
 def _get_tag_hex_from_keyword(tag_keyword: str) -> str | None:
-    dictionary_path = os.path.join(os.path.dirname(__file__), "resources", "dictionary.xml")
+    dictionary_path = os.path.join(
+        os.path.dirname(__file__), "resources", "dictionary.xml"
+    )
     tree = ET.parse(dictionary_path)
     root = tree.getroot()
 
@@ -178,7 +202,11 @@ def _merge_mapping_with_script(mapping_file_path: str, anonymizer_script: str) -
     return ET.tostring(root, encoding="unicode")
 
 
-def _process_mapping_file(mapping_file_path: str | None, anonymizer_script: str | None, lookup_table: str | None) -> tuple[str | None, str | None]:
+def _process_mapping_file(
+    mapping_file_path: str | None,
+    anonymizer_script: str | None,
+    lookup_table: str | None,
+) -> tuple[str | None, str | None]:
     if lookup_table is not None:
         return lookup_table, anonymizer_script
 
@@ -193,10 +221,20 @@ def _process_mapping_file(mapping_file_path: str | None, anonymizer_script: str 
     return lookup_content, modified_script
 
 
-def imagedeid_local(input_dir: str, output_dir: str, appdata_dir: str | None = None, filter_script: str | None = None,
-                   anonymizer_script: str | None = None, deid_pixels: bool = False, lookup_table: str | None = None,
-                   debug: bool = False, run_dirs: RunDirs | None = None, apply_default_filter_script: bool = True,
-                   mapping_file_path: str | None = None, sc_pdf_output_dir: str | None = None) -> ImageDeidLocalResult:
+def imagedeid_local(
+    input_dir: str,
+    output_dir: str,
+    appdata_dir: str | None = None,
+    filter_script: str | None = None,
+    anonymizer_script: str | None = None,
+    deid_pixels: bool = False,
+    lookup_table: str | None = None,
+    debug: bool = False,
+    run_dirs: RunDirs | None = None,
+    apply_default_filter_script: bool = True,
+    mapping_file_path: str | None = None,
+    sc_pdf_output_dir: str | None = None,
+) -> ImageDeidLocalResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
 
@@ -230,12 +268,16 @@ def imagedeid_local(input_dir: str, output_dir: str, appdata_dir: str | None = N
     os.makedirs(quarantine_dir, exist_ok=True)
 
     if anonymizer_script is None and mapping_file_path:
-        default_script_path = os.path.join(os.path.dirname(__file__), "ctp", "scripts", "DicomAnonymizer.script")
+        default_script_path = os.path.join(
+            os.path.dirname(__file__), "ctp", "scripts", "DicomAnonymizer.script"
+        )
         if os.path.exists(default_script_path):
-            with open(default_script_path, 'r') as f:
+            with open(default_script_path, "r") as f:
                 anonymizer_script = f.read()
         else:
-            raise ValueError(f"Default anonymizer script not found at {default_script_path}")
+            raise ValueError(
+                f"Default anonymizer script not found at {default_script_path}"
+            )
 
     processed_lookup_table, processed_anonymizer_script = _process_mapping_file(
         mapping_file_path, anonymizer_script, lookup_table
@@ -246,7 +288,9 @@ def imagedeid_local(input_dir: str, output_dir: str, appdata_dir: str | None = N
     if processed_anonymizer_script is not None:
         anonymizer_script = processed_anonymizer_script
 
-    final_filter_script = _apply_default_filter_script(filter_script, apply_default_filter_script)
+    final_filter_script = _apply_default_filter_script(
+        filter_script, apply_default_filter_script
+    )
 
     pipeline_type = "imagedeid_local_pixel" if deid_pixels else "imagedeid_local"
     ctp_log_level = "DEBUG" if debug else None
@@ -283,11 +327,13 @@ def imagedeid_local(input_dir: str, output_dir: str, appdata_dir: str | None = N
         num_quarantined = pipeline.metrics.files_quarantined if pipeline.metrics else 0
 
         logging.info("Deidentification complete")
-        logging.info(f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}")
+        logging.info(
+            f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
+        )
         logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
         logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
 
         return {
             "num_images_saved": num_saved,
-            "num_images_quarantined": num_quarantined
+            "num_images_quarantined": num_quarantined,
         }
