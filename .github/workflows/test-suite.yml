@@ -7,6 +7,9 @@ on:
       - main
       - dev
 
+permissions:
+  contents: read
+
 jobs:
   full-test:
     # Running on ubuntu because the docker tests are less flakey here
