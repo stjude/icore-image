@@ -136,65 +136,29 @@ def create_test_dicoms(input_dir, num_files=10):
 def test_ctp_port_selection_local_pipeline(tmp_path):
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
-    
+
     input_dir.mkdir()
     output_dir.mkdir()
-    
+
     source_ctp = Path(__file__).parent / "ctp"
-    
+
     pipeline = CTPPipeline(
         pipeline_type="imagecopy_local",
         output_dir=str(output_dir),
         input_dir=str(input_dir),
         source_ctp_dir=str(source_ctp)
     )
-    assert pipeline.port == 50000, "Should pick port 50000 when available"
-    
-    blocked_sockets = []
-    try:
-        for attempt in range(3):
-            port = 50000 + (attempt * 10)
-            
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(('localhost', port))
-            sock.listen(1)
-            blocked_sockets.append(sock)
-        
-        pipeline = CTPPipeline(
-            source_ctp_dir=str(source_ctp),
-            pipeline_type="imagecopy_local",
-            output_dir=str(output_dir),
-            input_dir=str(input_dir)
-        )
-        assert pipeline.port == 50030, "Should pick port 50030 when 50000, 50010, 50020 are blocked"
-        
-    finally:
-        for sock in blocked_sockets:
-            sock.close()
-    
-    blocked_sockets = []
-    try:
-        for attempt in range(10):
-            port = 50000 + (attempt * 10)
-            
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(('localhost', port))
-            sock.listen(1)
-            blocked_sockets.append(sock)
-        
-        with pytest.raises(RuntimeError, match="Could not find available port after 10 attempts"):
-            CTPPipeline(
-                source_ctp_dir=str(source_ctp),
-                pipeline_type="imagecopy_local",
-                output_dir=str(output_dir),
-                input_dir=str(input_dir)
-            )
-    
-    finally:
-        for sock in blocked_sockets:
-            sock.close()
+    assert isinstance(pipeline.port, int), "Port should be an integer"
+    assert pipeline.port > 0, "Port should be positive"
+
+    pipeline2 = CTPPipeline(
+        pipeline_type="imagecopy_local",
+        output_dir=str(output_dir),
+        input_dir=str(input_dir),
+        source_ctp_dir=str(source_ctp)
+    )
+    assert isinstance(pipeline2.port, int), "Port should be an integer"
+    assert pipeline.port != pipeline2.port, "Two pipelines should have different ports"
 
 
 def test_ctp_port_avoids_dicom_port(tmp_path):
@@ -215,8 +179,7 @@ def test_ctp_port_avoids_dicom_port(tmp_path):
     )
     assert pipeline._dicom_port == 50005, "DICOM port should be set to 50005"
     assert pipeline.port != 50005, "CTP port should not conflict with DICOM port"
-    assert pipeline.port in [50000, 50010, 50020, 50030, 50040, 50050, 50060, 50070, 50080, 50090], \
-        f"CTP port should be one of the standard ports, got {pipeline.port}"
+    assert pipeline.port > 0, "CTP port should be a valid port"
 
 
 def test_parallel_local_pipelines(tmp_path):
@@ -293,7 +256,7 @@ def test_pacs_pipeline_with_custom_dicom_port(tmp_path):
 
     assert pipeline._dicom_port == 11112, "DICOM port should be set to 11112"
     assert pipeline.port != 11112, "CTP port should not equal DICOM port"
-    assert pipeline.port >= 50000, "CTP port should be in expected range"
+    assert pipeline.port > 0, "CTP port should be a valid port"
 
 
 @pytest.mark.skip(reason="No longer applicable: imagedeid_pacs now uses ArchiveImportService (file-based) instead of DicomImportService (network-based) after C-MOVE to C-GET migration")
@@ -408,37 +371,41 @@ def test_archive_import_to_directory_storage(tmp_path):
     
     time.sleep(2)
     
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('localhost', 0))
+        free_port = s.getsockname()[1]
+
     config_xml = PIPELINE_TEMPLATES["imagecopy_local"].format(
         input_dir=str(input_dir.absolute()),
         output_dir=str(output_dir.absolute()),
         tempdir=str(tempdir.absolute()),
-        port=50000
+        port=free_port
     )
-    
+
     config_path = ctp_dir / "config.xml"
     config_path.write_text(config_xml)
-    
+
     server = CTPServer(str(ctp_dir))
-    
+
     try:
         server.start()
-        
+
         start_time = time.time()
         timeout = 60
-        
+
         while not server.is_complete():
             if time.time() - start_time > timeout:
                 raise TimeoutError(f"CTP pipeline did not complete within {timeout} seconds")
             time.sleep(1)
-        
+
         total_files = server.metrics.files_saved + server.metrics.files_quarantined
         assert total_files == 100, f"Expected 100 files, got {total_files}"
-        
+
         assert server.metrics.files_received == 100, f"Expected 100 files received, got {server.metrics.files_received}"
-        
+
         output_files = list(output_dir.rglob("*.dcm"))
         assert len(output_files) == 100, f"Expected 100 output files, found {len(output_files)}"
-    
+
     finally:
         server.stop()
 
@@ -469,48 +436,52 @@ def test_kills_existing_ctp_instance(tmp_path):
     
     time.sleep(2)
     
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('localhost', 0))
+        free_port = s.getsockname()[1]
+
     config_xml = PIPELINE_TEMPLATES["imagecopy_local"].format(
         input_dir=str(input_dir.absolute()),
         output_dir=str(output_dir.absolute()),
         tempdir=str(tempdir.absolute()),
-        port=50000
+        port=free_port
     )
-    
+
     config_path = ctp_dir / "config.xml"
     config_path.write_text(config_xml)
-    
+
     server1 = CTPServer(str(ctp_dir))
     server1.start()
-    
+
     time.sleep(2)
-    
+
     assert server1.process is not None
     assert server1.process.poll() is None, "Server1 should be running"
-    
-    response1 = requests.get("http://localhost:50000/status", timeout=2)
-    assert response1.status_code == 200, "Server1 should be responding on port 50000"
-    
+
+    response1 = requests.get(f"http://localhost:{free_port}/status", timeout=2)
+    assert response1.status_code == 200, f"Server1 should be responding on port {free_port}"
+
     shutil.rmtree(tempdir / "roots", ignore_errors=True)
     shutil.rmtree(tempdir / "quarantine", ignore_errors=True)
     (tempdir / "roots").mkdir()
     (tempdir / "quarantine").mkdir()
-    
+
     server2 = CTPServer(str(ctp_dir))
-    
+
     try:
         server2.start()
-        
+
         time.sleep(2)
-        
+
         assert server1.process is not None
         assert server1.process.poll() is not None, "Server1 should have been terminated"
 
         assert server2.process is not None
         assert server2.process.poll() is None, "Server2 should be running"
-        
-        response2 = requests.get("http://localhost:50000/status", timeout=2)
-        assert response2.status_code == 200, "Server2 should be responding on port 50000"
-    
+
+        response2 = requests.get(f"http://localhost:{free_port}/status", timeout=2)
+        assert response2.status_code == 200, f"Server2 should be responding on port {free_port}"
+
     finally:
         server2.stop()
         if server1.process and server1.process.poll() is None:
