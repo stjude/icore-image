@@ -6,6 +6,7 @@ import sys
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import TypedDict
 
 import pandas as pd
 from openpyxl import Workbook
@@ -37,6 +38,52 @@ class Spreadsheet:
             raise ValueError(f"Unsupported file format: {path}")
         
         return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
+
+
+class RunDirs(TypedDict):
+    log_dir: str
+    ctp_log_path: str
+    run_log_path: str
+    appdata_dir: str
+
+
+class HeaderExtractResult(TypedDict):
+    num_files_processed: int
+    num_studies: int
+
+
+class ImageDeidLocalResult(TypedDict):
+    num_images_saved: int
+    num_images_quarantined: int
+
+
+class PacsQueryResult(TypedDict):
+    num_studies_found: int
+    num_images_saved: int
+    num_images_quarantined: int
+    failed_query_indices: list[int]
+
+
+class DeidExportResult(TypedDict):
+    num_studies_found: int
+    num_images_exported: int
+    num_images_quarantined: int
+    failed_query_indices: list[int]
+
+
+class TextDeidResult(TypedDict):
+    num_rows_processed: int
+    output_file: str
+
+
+class SingleClickResult(TypedDict):
+    num_studies_found: int
+    num_images_exported: int
+    num_images_quarantined: int
+    failed_query_indices: list[int]
+    num_rows_processed: int
+    output_file: str
+    export_performed: bool
 
 
 def _build_mrn_date_query_and_filter(mrn, study_date, date_window_days):
@@ -421,7 +468,7 @@ def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir)
     return successful_gets, failed_query_indices, failure_details
 
 
-def setup_run_directories():
+def setup_run_directories() -> RunDirs:
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
     icore_base = os.path.expanduser("~/Documents/iCore")
