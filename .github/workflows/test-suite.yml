@@ -38,7 +38,7 @@ jobs:
         run: make deps external-deps
 
       - name: Run tests
-        run: PYTEST_XDIST_AUTO_NUM_WORKERS=1 make test
+        run: make test
 
   linting:
     runs-on: ubuntu-latest
