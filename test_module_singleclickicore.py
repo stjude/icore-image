@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from test_utils import _create_test_dicom, _upload_dicom_to_orthanc
+from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, get_free_port
 from utils import PacsConfiguration, Spreadsheet
 from deid.grammar import generate_hipaa_safe_harbor_script
 from ctp import generate_sc_pdf_filter
@@ -347,7 +347,7 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-        storescp_port=50001,
+        storescp_port=get_free_port(),
     )
 
     # PACS queries should fail

@@ -15,6 +15,7 @@ from test_utils import (
     _create_test_dicom,
     _upload_dicom_to_orthanc,
     Fixtures,
+    get_free_port,
 )
 from utils import (
     Spreadsheet,
@@ -226,7 +227,7 @@ def test_imageqr_failures_reported(tmp_path):
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        storescp_port=50001,
+        storescp_port=get_free_port(),
     )
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
@@ -351,12 +352,14 @@ def test_imageqr_multiple_pacs(tmp_path):
     output_dir.mkdir()
     appdata_dir.mkdir()
 
+    storescp_port = get_free_port()
+
     orthanc1 = OrthancServer(aet="ORTHANC1")
-    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
     orthanc1.start()
 
     orthanc2 = OrthancServer(aet="ORTHANC2")
-    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
     orthanc2.start()
 
     try:
@@ -389,7 +392,7 @@ def test_imageqr_multiple_pacs(tmp_path):
             application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            storescp_port=50001,
+            storescp_port=storescp_port,
         )
 
         assert result["num_studies_found"] == 4, (

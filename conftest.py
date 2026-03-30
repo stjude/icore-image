@@ -18,13 +18,13 @@ from test_utils import OrthancServer, AzuriteServer
 
 
 # ---------------------------------------------------------------------------
-# Module-scoped containers (started once per test file, reused across tests)
+# Session-scoped containers (started once per test runner)
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def shared_orthanc():
-    """A single Orthanc container shared across all tests in a module."""
+    """A single Orthanc container shared across all tests within an xdist worker."""
     # Allocate a free port for storescp so parallel xdist workers don't collide
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
@@ -38,9 +38,9 @@ def shared_orthanc():
     server.stop()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def shared_azurite():
-    """A single Azurite container shared across all tests in a module."""
+    """A single Azurite container shared across all tests within an xdist worker."""
     server = AzuriteServer()
     server.start()
     yield server

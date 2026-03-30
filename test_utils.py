@@ -30,6 +30,13 @@ from utils import (
 )
 
 
+def get_free_port():
+    """Allocate an ephemeral port from the OS, suitable for tests."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
     ds = Fixtures.create_minimal_dicom(
         patient_id=patient_id,
@@ -986,7 +993,7 @@ def test_get_studies_returns_failure_details(tmp_path):
 
         successful_gets, failed_query_indices, failure_details = (
             move_studies_from_study_pacs_map(
-                study_pacs_map, "TEST_AET", output_dir, storescp_port=50001
+                study_pacs_map, "TEST_AET", output_dir, storescp_port=get_free_port()
             )
         )
 
@@ -1038,7 +1045,7 @@ def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
 
         successful_gets, failed_query_indices, failure_details = (
             move_studies_from_study_pacs_map(
-                study_pacs_map, "TEST_AET", output_dir, storescp_port=50001
+                study_pacs_map, "TEST_AET", output_dir, storescp_port=get_free_port()
             )
         )
 
@@ -1096,7 +1103,7 @@ def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
 
         successful_gets, failed_query_indices, failure_details = (
             move_studies_from_study_pacs_map(
-                study_pacs_map, "TEST_AET", output_dir, storescp_port=50001
+                study_pacs_map, "TEST_AET", output_dir, storescp_port=get_free_port()
             )
         )
 

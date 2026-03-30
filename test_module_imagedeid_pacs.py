@@ -15,6 +15,7 @@ from test_utils import (
     _upload_dicom_to_orthanc,
     Fixtures,
     OrthancServer,
+    get_free_port,
 )
 from utils import PacsConfiguration, Spreadsheet
 
@@ -454,12 +455,14 @@ def test_imagedeid_multiple_pacs(tmp_path):
     output_dir.mkdir()
     appdata_dir.mkdir()
 
+    storescp_port = get_free_port()
+
     orthanc1 = OrthancServer(aet="ORTHANC1")
-    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
     orthanc1.start()
 
     orthanc2 = OrthancServer(aet="ORTHANC2")
-    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
+    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
     orthanc2.start()
 
     try:
@@ -503,7 +506,7 @@ def test_imagedeid_multiple_pacs(tmp_path):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
-            storescp_port=50001,
+            storescp_port=storescp_port,
         )
 
         assert result["num_studies_found"] == 4, (
