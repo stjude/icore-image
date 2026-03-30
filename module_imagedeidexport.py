@@ -33,6 +33,8 @@ def imagedeidexport(
     sc_pdf_output_dir: str | None = None,
     use_fallback_query: bool = False,
     storescp_port: int = 50001,
+    deferred_delivery: bool = False,
+    deferred_delivery_timeout: int = 172800,
 ) -> DeidExportResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
@@ -65,6 +67,8 @@ def imagedeidexport(
         sc_pdf_output_dir=sc_pdf_output_dir,
         use_fallback_query=use_fallback_query,
         storescp_port=storescp_port,
+        deferred_delivery=deferred_delivery,
+        deferred_delivery_timeout=deferred_delivery_timeout,
     )
 
     if deid_result["num_images_saved"] > 0:

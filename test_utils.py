@@ -1127,6 +1127,187 @@ def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
         )
 
 
+def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
+    """Test that deferred delivery polls until expected file count is reached."""
+    from unittest.mock import patch, Mock
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {
+        "study_uid_1": (pacs, 0),
+        "study_uid_2": (pacs, 1),
+    }
+
+    output_dir = str(tmp_path / "output")
+    call_count = {"n": 0}
+
+    def mock_count_files(_dir):
+        call_count["n"] += 1
+        if call_count["n"] >= 2:
+            return 10  # All files arrived on second poll
+        return 5
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies") as mock_find,
+        patch("utils._count_files_in_dir", side_effect=mock_count_files),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock(poll=Mock(return_value=None))
+        mock_find.return_value = [{"SOPInstanceUID": f"uid_{i}"} for i in range(5)]
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+
+        successful, failed, details = move_studies_from_study_pacs_map(
+            study_pacs_map,
+            "TEST_AET",
+            output_dir,
+            storescp_port=get_free_port(),
+            deferred_delivery=True,
+            deferred_delivery_timeout=300,
+        )
+
+    assert successful == 2
+    assert len(failed) == 0
+    # find_studies called once per study for instance counting
+    assert mock_find.call_count == 2
+
+
+def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
+    """Test that deferred delivery terminates on absolute timeout."""
+    from unittest.mock import patch, Mock
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {"study_uid_1": (pacs, 0)}
+
+    output_dir = str(tmp_path / "output")
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies") as mock_find,
+        patch("utils._count_files_in_dir", return_value=0),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock(poll=Mock(return_value=None))
+        mock_find.return_value = [{"SOPInstanceUID": "uid_1"}]
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+
+        # Use a timeout of 0 so it triggers immediately
+        successful, failed, details = move_studies_from_study_pacs_map(
+            study_pacs_map,
+            "TEST_AET",
+            output_dir,
+            storescp_port=get_free_port(),
+            deferred_delivery=True,
+            deferred_delivery_timeout=0,
+        )
+
+    assert any("timeout" in r.message.lower() for r in caplog.records)
+
+
+def test_deferred_delivery_storescp_dies(tmp_path, caplog):
+    """Test that deferred delivery handles storescp process dying."""
+    from unittest.mock import patch, Mock
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {"study_uid_1": (pacs, 0)}
+
+    output_dir = str(tmp_path / "output")
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies") as mock_find,
+        patch("utils._count_files_in_dir", return_value=0),
+        patch("time.sleep"),
+    ):
+        # storescp process dies (poll returns exit code)
+        mock_start.return_value = Mock(poll=Mock(return_value=1))
+        mock_find.return_value = [{"SOPInstanceUID": "uid_1"}]
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+
+        move_studies_from_study_pacs_map(
+            study_pacs_map,
+            "TEST_AET",
+            output_dir,
+            storescp_port=get_free_port(),
+            deferred_delivery=True,
+            deferred_delivery_timeout=300,
+        )
+
+    assert any("storescp process died" in r.message for r in caplog.records)
+
+
+def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
+    """Test that when C-FIND fails for all studies, deferred delivery falls back to idle timeout."""
+    from unittest.mock import patch, Mock
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {"study_uid_1": (pacs, 0)}
+
+    output_dir = str(tmp_path / "output")
+
+    call_count = {"n": 0}
+
+    def mock_count_files(_dir):
+        call_count["n"] += 1
+        # Return 1 file on first call (triggers idle tracking), then same on subsequent calls
+        return 1
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies", side_effect=Exception("PACS unreachable")),
+        patch("utils._count_files_in_dir", side_effect=mock_count_files),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock(poll=Mock(return_value=None))
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+
+        # Timeout is short so the idle check triggers quickly
+        move_studies_from_study_pacs_map(
+            study_pacs_map,
+            "TEST_AET",
+            output_dir,
+            storescp_port=get_free_port(),
+            deferred_delivery=True,
+            deferred_delivery_timeout=0,
+        )
+
+    # Should have logged warning about C-FIND failure
+    assert any("Failed to count instances" in r.message for r in caplog.records)
+    # Timeout should fire since expected_count is 0 and timeout is 0
+    assert any("timeout" in r.message.lower() for r in caplog.records)
+
+
 def test_find_studies_from_pacs_list_exception_handling(tmp_path, caplog):
     """Test that exceptions during find_studies don't crash the entire job."""
     from unittest.mock import patch

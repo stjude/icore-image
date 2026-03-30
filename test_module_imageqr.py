@@ -1357,3 +1357,60 @@ def test_imageqr_filter_with_fallback(tmp_path):
         filter_script = call_kwargs["filter_script"]
         assert 'AccessionNumber.contains("ACC001")' in filter_script
         assert 'PatientID.contains("MRN001")' in filter_script
+
+
+def test_imageqr_deferred_delivery_retrieves_all_files(tmp_path, orthanc):
+    """Test that deferred delivery retrieves all instances from a 7-instance series."""
+    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
+
+    output_dir = tmp_path / "output"
+    appdata_dir = tmp_path / "appdata"
+
+    output_dir.mkdir()
+    appdata_dir.mkdir()
+
+    # Upload a single study with 7 instances (one series)
+    from pydicom.uid import generate_uid
+
+    study_uid = generate_uid()
+    series_uid = generate_uid()
+
+    for i in range(7):
+        ds = _create_test_dicom(
+            "ACC_DEFER", "MRN_DEFER", "DeferredPatient", "CT", "2.0"
+        )
+        ds.StudyInstanceUID = study_uid
+        ds.SeriesInstanceUID = series_uid
+        ds.InstanceNumber = i + 1
+        ds.SOPInstanceUID = generate_uid()
+        _upload_dicom_to_orthanc(ds, orthanc)
+
+    query_file = appdata_dir / "query.xlsx"
+    query_df = pd.DataFrame({"AccessionNumber": ["ACC_DEFER"]})
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
+
+    pacs_config = PacsConfiguration(
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
+    )
+
+    result = imageqr(
+        pacs_list=[pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        storescp_port=orthanc.storescp_port,
+        deferred_delivery=True,
+        deferred_delivery_timeout=120,
+    )
+
+    assert result["num_studies_found"] == 1
+    # All 7 instances should be saved
+    images_dir = output_dir / "images"
+    output_files = list(images_dir.rglob("*.dcm"))
+    assert len(output_files) == 7, f"Expected 7 files, found {len(output_files)}"

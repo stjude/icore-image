@@ -488,14 +488,123 @@ def _attempt_fallback_queries(
     return study_pacs_map, final_failed, final_details
 
 
+def _count_files_in_dir(directory):
+    """Count all files recursively in a directory."""
+    count = 0
+    for _root, _dirs, files in os.walk(directory):
+        count += len(files)
+    return count
+
+
+def _count_expected_instances(study_pacs_map, application_aet):
+    """Query PACS for the expected number of instances across all studies using C-FIND."""
+    total = 0
+    for study_uid, (pacs, _query_index) in study_pacs_map.items():
+        try:
+            results = find_studies(
+                host=pacs.host,
+                port=pacs.port,
+                calling_aet=application_aet,
+                called_aet=pacs.aet,
+                query_params={"StudyInstanceUID": study_uid},
+                query_level="IMAGE",
+            )
+            total += len(results)
+        except Exception as e:
+            logging.warning(f"Failed to count instances for study {study_uid}: {e}")
+    return total
+
+
+def _wait_for_deferred_delivery(output_dir, expected_count, timeout, storescp_process):
+    """Poll storescp output directory until all expected files arrive or timeout."""
+    POLL_INTERVAL = 30
+    LOG_INTERVAL = 300  # 5 minutes
+    IDLE_TIMEOUT = 1800  # 30 minutes (fallback when expected_count == 0)
+
+    start_time = time.time()
+    last_log_time = start_time
+    last_file_count = 0
+    last_new_file_time = start_time
+
+    logging.info(
+        f"Deferred delivery: waiting for {expected_count} files (timeout: {timeout}s)"
+    )
+
+    while True:
+        elapsed = time.time() - start_time
+
+        actual = _count_files_in_dir(output_dir)
+
+        if elapsed >= timeout:
+            logging.warning(
+                f"Deferred delivery timeout reached after {elapsed:.0f}s. "
+                f"Received {actual}/{expected_count} files."
+            )
+            break
+
+        if storescp_process.poll() is not None:
+            logging.error(
+                f"storescp process died during deferred delivery wait. "
+                f"Received {actual}/{expected_count} files."
+            )
+            break
+
+        if actual != last_file_count:
+            last_new_file_time = time.time()
+            last_file_count = actual
+
+        # Terminate if we have all expected files
+        if expected_count > 0 and actual >= expected_count:
+            logging.info(
+                f"Deferred delivery complete: received {actual}/{expected_count} files "
+                f"in {elapsed:.0f}s."
+            )
+            break
+
+        # Fallback: if expected_count is 0 (C-FIND failed), use idle timeout
+        if expected_count == 0:
+            idle_time = time.time() - last_new_file_time
+            if idle_time >= IDLE_TIMEOUT and actual > 0:
+                logging.info(
+                    f"Deferred delivery: no new files for {idle_time:.0f}s. "
+                    f"Received {actual} files. Assuming delivery complete."
+                )
+                break
+
+        now = time.time()
+        if now - last_log_time >= LOG_INTERVAL:
+            logging.info(
+                f"Deferred delivery: {actual}/{expected_count} files received "
+                f"({elapsed:.0f}s elapsed)"
+            )
+            last_log_time = now
+
+        time.sleep(POLL_INTERVAL)
+
+
 def move_studies_from_study_pacs_map(
-    study_pacs_map, application_aet, output_dir, storescp_port
+    study_pacs_map,
+    application_aet,
+    output_dir,
+    storescp_port,
+    deferred_delivery=False,
+    deferred_delivery_timeout=172800,
 ):
     """Retrieve multiple studies from PACS using C-MOVE based on a study-to-PACS mapping.
 
     Starts a storescp listener on the given port, issues C-MOVE requests for
     each study, then stops the listener.
+
+    When deferred_delivery is True, keeps storescp running until all expected
+    files (determined by a C-FIND at IMAGE level) have arrived on disk, or
+    until deferred_delivery_timeout seconds have elapsed.
     """
+    # When using deferred delivery, count expected instances via C-FIND before starting
+    expected_count = 0
+    if deferred_delivery:
+        expected_count = _count_expected_instances(study_pacs_map, application_aet)
+        logging.info(f"Deferred delivery enabled: expecting {expected_count} instances")
+
     storescp_process = start_storescp(
         storescp_port, output_dir, calling_aet=application_aet
     )
@@ -575,8 +684,16 @@ def move_studies_from_study_pacs_map(
 
         logging.info(f"Retrieved {processed} / {total_studies} studies")
 
-        # Allow time for final files to be received by storescp
-        time.sleep(5)
+        if deferred_delivery:
+            _wait_for_deferred_delivery(
+                output_dir,
+                expected_count,
+                deferred_delivery_timeout,
+                storescp_process,
+            )
+        else:
+            # Allow time for final files to be received by storescp
+            time.sleep(5)
     finally:
         stop_storescp(storescp_process)
 

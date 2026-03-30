@@ -67,6 +67,14 @@
     </div>
 </div>
 
+<!-- Deferred Delivery Option -->
+<div class="mt-4">
+    <div class="flex items-center">
+        <input type="checkbox" id="deferred_delivery" name="deferred_delivery" class="mr-2">
+        <label for="deferred_delivery" class="text-sm">Enable deferred delivery (keep listener open until all images arrive)</label>
+    </div>
+</div>
+
 <!-- General Settings Section -->
 <div class="mt-8">
     <div class="text-md mb-4">General Settings</div>
@@ -262,6 +270,9 @@
             if (settings.debug_logging) {
                 document.querySelector('[name="debug_logging"]').checked = settings.debug_logging;
             }
+            if (settings.deferred_delivery) {
+                document.getElementById('deferred_delivery').checked = settings.deferred_delivery;
+            }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -286,7 +297,8 @@
             default_date_window_days: parseInt(document.querySelector('[name="default_date_window_days"]').value) || 0,
             default_output_folder: document.querySelector('[name="default_output_folder"]').value,
             timezone: document.querySelector('[name="timezone"]').value,
-            debug_logging: document.querySelector('[name="debug_logging"]').checked
+            debug_logging: document.querySelector('[name="debug_logging"]').checked,
+            deferred_delivery: document.getElementById('deferred_delivery').checked
         };
 
         try {

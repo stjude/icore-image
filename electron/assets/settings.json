@@ -88,6 +88,7 @@
     "default_text_to_remove": "St. Jude Children\u2019s Research Hospital\nSt Jude Children\u2019s Research Hospital\nSt. Jude Children\u2019s Hospital\nSt Jude Children\u2019s Hospital\nSt. Jude\nSt Jude\nSJCRH\nMemphis, TN 38105\nMemphis, TN\nShelby County\n@stjude.org",
     "default_headers_to_extract": "AccessionNumber\nStudyInstanceUID\nPatientName\nPatientID\nPatientSex\nManufacturer\nManufacturerModelName\nStudyDescription\nStudyDate\nSeriesInstanceUID\nSOPClassUID\nModality\nSeriesDescription\nRows\nColumns\nInstitutionName\nStudyTime",
     "timezone": "US/Central",
+    "deferred_delivery": false,
     "debug_logging": false,
     "application_aet": "ICORE",
     "default_remove_unspecified": true,

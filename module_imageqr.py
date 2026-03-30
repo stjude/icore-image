@@ -55,6 +55,8 @@ def imageqr(
     run_dirs: RunDirs | None = None,
     use_fallback_query: bool = False,
     storescp_port: int = 50001,
+    deferred_delivery: bool = False,
+    deferred_delivery_timeout: int = 172800,
 ) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
@@ -104,7 +106,12 @@ def imageqr(
         # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
         successful_moves, failed_get_indices, get_failure_details = (
             move_studies_from_study_pacs_map(
-                study_pacs_map, application_aet, dicom_retrieval_dir, storescp_port
+                study_pacs_map,
+                application_aet,
+                dicom_retrieval_dir,
+                storescp_port,
+                deferred_delivery=deferred_delivery,
+                deferred_delivery_timeout=deferred_delivery_timeout,
             )
         )
 

@@ -56,6 +56,8 @@ def build_imageqr_params(config, input_dir, output_dir, run_dirs):
         "debug": config.get("debug", False),
         "run_dirs": run_dirs,
         "use_fallback_query": config.get("use_fallback_query", False),
+        "deferred_delivery": config.get("deferred_delivery", False),
+        "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
     }
 
 
@@ -93,6 +95,8 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
         "run_dirs": run_dirs,
         "sc_pdf_output_dir": config.get("sc_pdf_output_dir"),
         "use_fallback_query": config.get("use_fallback_query", False),
+        "deferred_delivery": config.get("deferred_delivery", False),
+        "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
     }
 
 
@@ -179,6 +183,8 @@ def build_imagedeidexport_params(config, input_dir, output_dir, run_dirs):
         "run_dirs": run_dirs,
         "sc_pdf_output_dir": config.get("sc_pdf_output_dir"),
         "use_fallback_query": config.get("use_fallback_query", False),
+        "deferred_delivery": config.get("deferred_delivery", False),
+        "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
     }
 
 
@@ -238,6 +244,8 @@ def build_singleclickicore_params(config, input_dir, output_dir, run_dirs):
         "run_dirs": run_dirs,
         "sc_pdf_output_dir": config.get("sc_pdf_output_dir"),
         "use_fallback_query": config.get("use_fallback_query", False),
+        "deferred_delivery": config.get("deferred_delivery", False),
+        "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
     }
 
 
