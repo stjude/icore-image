@@ -346,16 +346,16 @@ def start_storescp(port, output_dir, calling_aet=None):
         output_dir,
         "--sort-on-study-uid",
         "",
-        str(port),
     ]
     if calling_aet:
         cmd.extend(["-aet", calling_aet])
+    cmd.append(str(port))
 
     logging.debug(f"Starting storescp: {' '.join(cmd)}")
 
     env = _build_dcmtk_env()
     process = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
     )
     return process
 
