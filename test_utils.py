@@ -477,6 +477,7 @@ class OrthancServer:
                 container_name,
                 "--network",
                 self._shared_network,
+                "--add-host=host.docker.internal:host-gateway",
                 "-p",
                 f"{self.http_port}:8042",
                 "-p",
