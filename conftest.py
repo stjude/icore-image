@@ -27,7 +27,7 @@ def shared_orthanc():
     """A single Orthanc container shared across all tests within an xdist worker."""
     # Allocate a free port for storescp so parallel xdist workers don't collide
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
+        s.bind(("127.0.0.1", 0))
         storescp_port = s.getsockname()[1]
 
     server = OrthancServer()
