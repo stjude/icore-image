@@ -16,11 +16,11 @@ jobs:
     # The setup and runtime is also a lot faster than macos. Ideally,
     # we would run the tests on macos.
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -33,19 +33,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: Install dependencies
         run: make deps external-deps
-      
+
       - name: Run tests
-        run: make test
+        run: PYTEST_XDIST_AUTO_NUM_WORKERS=1 make test
 
   linting:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
         with:
