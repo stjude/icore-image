@@ -397,18 +397,18 @@ class Fixtures:
 
 
 class OrthancServer:
-    def __init__(self, aet="ORTHANC_TEST", http_port=None, dicom_port=None):
+    def __init__(self, aet="ORTHANC_TEST", storescp_port=None):
         self.aet = aet
         self._held_sockets: list[socket.socket] = []
-        self.http_port = http_port or self._allocate_port()
-        self.dicom_port = dicom_port or self._allocate_port()
+        self.http_port = self._allocate_port()
+        self.dicom_port = self._allocate_port()
         self.container = None
         self.network = None
         self.base_url = f"http://localhost:{self.http_port}"
         self.modalities = {}
         self.storage_dir = None
         self.config_dir = None
-        self.storescp_port: int = self._allocate_port()
+        self.storescp_port: int = storescp_port or self._allocate_port()
         self.add_modality(
             "TEST_AET", "TEST_AET", "host.docker.internal", self.storescp_port
         )
