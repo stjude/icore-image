@@ -10,8 +10,6 @@ each run entire modules — get independent containers on independent random
 ports with no cross-worker conflicts.
 """
 
-import socket
-
 import pytest
 
 from test_utils import OrthancServer, AzuriteServer
