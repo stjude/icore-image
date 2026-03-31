@@ -1,25 +1,19 @@
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-
 from cli import (
-    determine_module,
-    build_imageqr_params,
-    build_imagedeid_pacs_params,
-    build_imagedeid_local_params,
-    build_textdeid_params,
-    build_image_export_params,
     build_headerextract_local_params,
-    build_imagedeidexport_params,
-    run,
-)
-
-from cli import (
-    build_imageqr_params,
+    build_image_export_params,
+    build_imagedeid_local_params,
     build_imagedeid_pacs_params,
     build_imagedeidexport_params,
+    build_imageqr_params,
     build_singleclickicore_params,
+    build_textdeid_params,
+    determine_module,
+    run,
 )
 from utils import PacsConfiguration
 
