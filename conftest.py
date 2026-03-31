@@ -16,23 +16,22 @@ from test_utils import OrthancServer, AzuriteServer
 
 
 # ---------------------------------------------------------------------------
-# Module-scoped containers (started once per test file, reused across tests)
+# Session-scoped containers (started once per test runner)
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def shared_orthanc():
-    """A single Orthanc container shared across all tests in a module."""
+    """A single Orthanc container shared across all tests within an xdist worker."""
     server = OrthancServer()
-    server.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
     server.start()
     yield server
     server.stop()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def shared_azurite():
-    """A single Azurite container shared across all tests in a module."""
+    """A single Azurite container shared across all tests within an xdist worker."""
     server = AzuriteServer()
     server.start()
     yield server

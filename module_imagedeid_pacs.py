@@ -19,7 +19,7 @@ from utils import (
     validate_date_window_days,
     find_valid_pacs_list,
     find_studies_from_pacs_list,
-    get_studies_from_study_pacs_map,
+    move_studies_from_study_pacs_map,
     setup_run_directories,
     configure_run_logging,
     format_number_with_commas,
@@ -58,6 +58,9 @@ def imagedeid_pacs(
     mapping_file_path: str | None = None,
     sc_pdf_output_dir: str | None = None,
     use_fallback_query: bool = False,
+    storescp_port: int = 50001,
+    deferred_delivery: bool = False,
+    deferred_delivery_timeout: int = 172800,
 ) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
@@ -121,17 +124,22 @@ def imagedeid_pacs(
         )
     )
 
-    # Create directory for getscu to write retrieved DICOM files
-    getscu_output_dir = os.path.join(appdata_dir, "getscu_temp")
+    # Create directory for storescp to write retrieved DICOM files
+    dicom_retrieval_dir = os.path.join(appdata_dir, "dicom_retrieval")
 
     # Choose pipeline type based on whether pixel de-identification is needed
     pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
     ctp_log_level = "DEBUG" if debug else None
 
     # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-    successful_gets, failed_get_indices, failed_get_details = (
-        get_studies_from_study_pacs_map(
-            study_pacs_map, application_aet, getscu_output_dir
+    successful_moves, failed_move_indices, failed_move_details = (
+        move_studies_from_study_pacs_map(
+            study_pacs_map,
+            application_aet,
+            dicom_retrieval_dir,
+            storescp_port,
+            deferred_delivery=deferred_delivery,
+            deferred_delivery_timeout=deferred_delivery_timeout,
         )
     )
 
@@ -139,37 +147,21 @@ def imagedeid_pacs(
     time.sleep(2)
 
     try:
-        # Choose pipeline type based on whether pixel de-identification is needed
-        pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
-        ctp_log_level = "DEBUG" if debug else None
-
-        # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-        successful_gets, failed_get_indices, failed_get_details = (
-            get_studies_from_study_pacs_map(
-                study_pacs_map, application_aet, getscu_output_dir
-            )
-        )
-
-        # Wait briefly to ensure all files are written
-        time.sleep(2)
-
-        with (
-            CTPPipeline(
-                pipeline_type=pipeline_type,
-                input_dir=getscu_output_dir,  # CTP watches this directory for files from getscu
-                output_dir=output_dir,
-                application_aet=application_aet,
-                filter_script=combined_filter,
-                anonymizer_script=anonymizer_script,
-                lookup_table=lookup_table,
-                log_path=run_dirs["ctp_log_path"],
-                log_level=ctp_log_level,
-                quarantine_dir=quarantine_dir,
-                sc_pdf_output_dir=sc_pdf_output_dir,
-            ) as pipeline
-        ):
-            failed_query_indices = list(set(failed_find_indices + failed_get_indices))
-            combined_failure_details = {**failed_find_details, **failed_get_details}
+        with CTPPipeline(
+            pipeline_type=pipeline_type,
+            input_dir=dicom_retrieval_dir,
+            output_dir=output_dir,
+            application_aet=application_aet,
+            filter_script=combined_filter,
+            anonymizer_script=anonymizer_script,
+            lookup_table=lookup_table,
+            log_path=run_dirs["ctp_log_path"],
+            log_level=ctp_log_level,
+            quarantine_dir=quarantine_dir,
+            sc_pdf_output_dir=sc_pdf_output_dir,
+        ) as pipeline:
+            failed_query_indices = list(set(failed_find_indices + failed_move_indices))
+            combined_failure_details = {**failed_find_details, **failed_move_details}
 
             save_interval = 5
             last_save_time = 0
@@ -225,10 +217,10 @@ def imagedeid_pacs(
             }
     finally:
         try:
-            shutil.rmtree(getscu_output_dir)
+            shutil.rmtree(dicom_retrieval_dir)
         except OSError as e:
             logging.warning(
-                "Failed to remove temporary getscu directory '%s': %s",
-                getscu_output_dir,
+                "Failed to remove temporary retrieval directory '%s': %s",
+                dicom_retrieval_dir,
                 e,
             )

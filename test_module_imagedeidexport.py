@@ -13,6 +13,7 @@ from test_utils import (
     _upload_dicom_to_orthanc,
     AzuriteServer,
     OrthancServer,
+    get_free_port,
 )
 from utils import PacsConfiguration, Spreadsheet
 
@@ -73,6 +74,7 @@ def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 2
@@ -147,6 +149,7 @@ def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurit
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     metadata_files = ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]
@@ -203,17 +206,19 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
 
     from module_imagedeidexport import imagedeidexport
 
-    result = imagedeidexport(
-        pacs_list=[invalid_pacs_config],
-        query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-    )
+    with get_free_port() as storescp_port:
+        result = imagedeidexport(
+            pacs_list=[invalid_pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=storescp_port,
+        )
 
     assert result["num_studies_found"] == 0
     assert result["num_images_exported"] == 0
@@ -272,6 +277,7 @@ def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
         )
 
     error_msg = str(exc_info.value).lower()
@@ -331,6 +337,7 @@ def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
         anonymizer_script=anonymizer_script,
         filter_script=filter_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 3
@@ -400,6 +407,7 @@ def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 2
@@ -423,13 +431,12 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    orthanc1 = OrthancServer(aet="ORTHANC1")
-    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
-    orthanc1.start()
+    with get_free_port() as storescp_port:
+        orthanc1 = OrthancServer(aet="ORTHANC1", storescp_port=storescp_port)
+        orthanc1.start()
 
-    orthanc2 = OrthancServer(aet="ORTHANC2")
-    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", 50001)
-    orthanc2.start()
+        orthanc2 = OrthancServer(aet="ORTHANC2", storescp_port=storescp_port)
+        orthanc2.start()
 
     azurite = AzuriteServer()
     azurite.start()
@@ -488,6 +495,7 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
             appdata_dir=str(appdata_dir),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False,
+            storescp_port=storescp_port,
         )
 
         assert result["num_studies_found"] == 4
@@ -555,6 +563,7 @@ def test_imagedeidexport_saves_failed_queries_csv(tmp_path, orthanc, azurite):
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1

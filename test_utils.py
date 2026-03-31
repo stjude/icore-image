@@ -1,9 +1,11 @@
+import contextlib
 import json
 import os
 import socket
 import subprocess
 import tempfile
 import time
+from typing import Generator
 import uuid
 
 import numpy as np
@@ -25,9 +27,17 @@ from utils import (
     generate_queries_and_filter,
     save_failed_queries_csv,
     find_studies_from_pacs_list,
-    get_studies_from_study_pacs_map,
+    move_studies_from_study_pacs_map,
     PacsConfiguration,
 )
+
+
+@contextlib.contextmanager
+def get_free_port() -> Generator[int, None, None]:
+    """Allocate an ephemeral port from the OS, suitable for tests."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        yield s.getsockname()[1]
 
 
 def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
@@ -387,23 +397,33 @@ class Fixtures:
 
 
 class OrthancServer:
-    def __init__(self, aet="ORTHANC_TEST", http_port=None, dicom_port=None):
+    def __init__(self, aet="ORTHANC_TEST", storescp_port=None):
         self.aet = aet
-        self.http_port = http_port or self._get_free_port()
-        self.dicom_port = dicom_port or self._get_free_port()
+        self._held_sockets: list[socket.socket] = []
+        self.http_port = self._allocate_port()
+        self.dicom_port = self._allocate_port()
         self.container = None
         self.network = None
         self.base_url = f"http://localhost:{self.http_port}"
         self.modalities = {}
         self.storage_dir = None
         self.config_dir = None
+        self.storescp_port: int = storescp_port or self._allocate_port()
+        self.add_modality(
+            "TEST_AET", "TEST_AET", "host.docker.internal", self.storescp_port
+        )
 
-    def _get_free_port(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("", 0))
-            s.listen(1)
-            port = s.getsockname()[1]
+    def _allocate_port(self) -> int:
+        """Allocate a port and hold the socket open to prevent reuse."""
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        self._held_sockets.append(s)
         return port
+
+    def _release_sockets(self):
+        for s in self._held_sockets:
+            s.close()
 
     def add_modality(self, name, aet, ip, port):
         self.modalities[name] = [aet, ip, port]
@@ -459,6 +479,10 @@ class OrthancServer:
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
 
+        # Release reserved sockets right before starting up Docker to minimize
+        # risk of other processes grabbing the ports in between
+        self._release_sockets()
+
         # Run Orthanc on custom network with port mapping
         subprocess.run(
             [
@@ -469,6 +493,8 @@ class OrthancServer:
                 container_name,
                 "--network",
                 self._shared_network,
+                # This is necessary to support the use of host.docker.internal DNS resolution in non-macOS systems
+                "--add-host=host.docker.internal:host-gateway",
                 "-p",
                 f"{self.http_port}:8042",
                 "-p",
@@ -950,48 +976,57 @@ def test_find_studies_returns_failure_details(tmp_path, orthanc):
 
 
 def test_get_studies_returns_failure_details(tmp_path):
-    """Test that get_studies_from_study_pacs_map returns failure details as 3rd value"""
-    from unittest.mock import patch
+    """Test that move_studies_from_study_pacs_map returns failure details as 3rd value"""
+    from unittest.mock import patch, Mock
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0), "study_uid_2": (pacs, 1)}
 
     output_dir = str(tmp_path / "output")
 
-    # Mock get_study to simulate one success and one failure
-    with patch("utils.get_study") as mock_get:
-        mock_get.side_effect = [
+    # Mock move_study to simulate one success and one failure
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock()
+        mock_move.side_effect = [
             {
                 "success": True,
                 "num_completed": 5,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get successful",
+                "message": "Move successful",
             },
             {
                 "success": False,
                 "num_completed": 0,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get failed",
+                "message": "Move failed",
             },
         ]
 
-        successful_gets, failed_query_indices, failure_details = (
-            get_studies_from_study_pacs_map(study_pacs_map, "TEST_AET", output_dir)
-        )
+        with get_free_port() as storescp_port:
+            successful_gets, failed_query_indices, failure_details = (
+                move_studies_from_study_pacs_map(
+                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                )
+            )
 
         assert successful_gets == 1, "Should have 1 successful get"
         assert len(failed_query_indices) == 1, "Should have 1 failed query index"
         assert 1 in failed_query_indices, "Query index 1 should have failed"
         assert len(failure_details) == 1, "Should have 1 failure detail entry"
         assert 1 in failure_details, "Failure details should contain query index 1"
-        assert failure_details[1] == "Failed to retrieve images: Get failed"
+        assert failure_details[1] == "Failed to retrieve images: Move failed"
 
 
-def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
+def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
     """Test that zero file retrievals are logged and treated as failures."""
-    from unittest.mock import patch
+    from unittest.mock import patch, Mock
 
     output_dir = str(tmp_path / "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -1002,28 +1037,37 @@ def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
         "1.2.3.4.6": (pacs, 1),
     }
 
-    # Mock get_study to simulate failure with 0 files completed
-    with patch("utils.get_study") as mock_get:
-        mock_get.side_effect = [
+    # Mock move_study to simulate failure with 0 files completed
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock()
+        mock_move.side_effect = [
             {
                 "success": False,
                 "num_completed": 0,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get completed with no sub-operations (no files retrieved)",
+                "message": "Move completed with no sub-operations (no files retrieved)",
             },
             {
                 "success": True,
                 "num_completed": 5,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get completed successfully",
+                "message": "Move completed successfully",
             },
         ]
 
-        successful_gets, failed_query_indices, failure_details = (
-            get_studies_from_study_pacs_map(study_pacs_map, "TEST_AET", output_dir)
-        )
+        with get_free_port() as storescp_port:
+            successful_gets, failed_query_indices, failure_details = (
+                move_studies_from_study_pacs_map(
+                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                )
+            )
 
         # Zero file retrieval should be treated as failure
         assert successful_gets == 1, (
@@ -1040,9 +1084,9 @@ def test_get_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
         )
 
 
-def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
-    """Test that exceptions during get_study don't crash the entire job."""
-    from unittest.mock import patch
+def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
+    """Test that exceptions during move_study don't crash the entire job."""
+    from unittest.mock import patch, Mock
 
     output_dir = str(tmp_path / "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -1054,16 +1098,22 @@ def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
         "1.2.3.4.7": (pacs, 2),
     }
 
-    # Mock get_study to simulate various failures including exception
-    with patch("utils.get_study") as mock_get:
-        mock_get.side_effect = [
+    # Mock move_study to simulate various failures including exception
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock()
+        mock_move.side_effect = [
             Exception("Network timeout"),  # First call raises exception
             {
                 "success": True,
                 "num_completed": 5,
                 "num_failed": 0,
                 "num_warning": 0,
-                "message": "Get completed",
+                "message": "Move completed",
             },  # Second succeeds
             {
                 "success": False,
@@ -1071,9 +1121,12 @@ def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
             },  # Third fails normally
         ]
 
-        successful_gets, failed_query_indices, failure_details = (
-            get_studies_from_study_pacs_map(study_pacs_map, "TEST_AET", output_dir)
-        )
+        with get_free_port() as storescp_port:
+            successful_gets, failed_query_indices, failure_details = (
+                move_studies_from_study_pacs_map(
+                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                )
+            )
 
         # Job should continue despite exception
         assert successful_gets == 1, "Should have 1 successful get"
@@ -1093,6 +1146,191 @@ def test_get_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
         assert any(
             "Exception while retrieving" in record.message for record in caplog.records
         )
+
+
+def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
+    """Test that deferred delivery polls until expected file count is reached."""
+    from unittest.mock import patch, Mock
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {
+        "study_uid_1": (pacs, 0),
+        "study_uid_2": (pacs, 1),
+    }
+
+    output_dir = str(tmp_path / "output")
+    call_count = {"n": 0}
+
+    def mock_count_files(_dir):
+        call_count["n"] += 1
+        if call_count["n"] >= 2:
+            return 10  # All files arrived on second poll
+        return 5
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies") as mock_find,
+        patch("utils._count_files_in_dir", side_effect=mock_count_files),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock(poll=Mock(return_value=None))
+        mock_find.return_value = [{"SOPInstanceUID": f"uid_{i}"} for i in range(5)]
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+
+        with get_free_port() as storescp_port:
+            successful, failed, details = move_studies_from_study_pacs_map(
+                study_pacs_map,
+                "TEST_AET",
+                output_dir,
+                storescp_port=storescp_port,
+                deferred_delivery=True,
+                deferred_delivery_timeout=300,
+            )
+
+    assert successful == 2
+    assert len(failed) == 0
+    # find_studies called once per study for instance counting
+    assert mock_find.call_count == 2
+
+
+def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
+    """Test that deferred delivery terminates on absolute timeout."""
+    from unittest.mock import patch, Mock
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {"study_uid_1": (pacs, 0)}
+
+    output_dir = str(tmp_path / "output")
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies") as mock_find,
+        patch("utils._count_files_in_dir", return_value=0),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock(poll=Mock(return_value=None))
+        mock_find.return_value = [{"SOPInstanceUID": "uid_1"}]
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+
+        with get_free_port() as storescp_port:
+            # Use a timeout of 0 so it triggers immediately
+            successful, failed, details = move_studies_from_study_pacs_map(
+                study_pacs_map,
+                "TEST_AET",
+                output_dir,
+                storescp_port=storescp_port,
+                deferred_delivery=True,
+                deferred_delivery_timeout=0,
+            )
+
+    assert any("timeout" in r.message.lower() for r in caplog.records)
+
+
+def test_deferred_delivery_storescp_dies(tmp_path, caplog):
+    """Test that deferred delivery handles storescp process dying."""
+    from unittest.mock import patch, Mock
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {"study_uid_1": (pacs, 0)}
+
+    output_dir = str(tmp_path / "output")
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies") as mock_find,
+        patch("utils._count_files_in_dir", return_value=0),
+        patch("time.sleep"),
+    ):
+        # storescp process dies (poll returns exit code)
+        mock_start.return_value = Mock(poll=Mock(return_value=1))
+        mock_find.return_value = [{"SOPInstanceUID": "uid_1"}]
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+
+        with get_free_port() as storescp_port:
+            move_studies_from_study_pacs_map(
+                study_pacs_map,
+                "TEST_AET",
+                output_dir,
+                storescp_port=storescp_port,
+                deferred_delivery=True,
+                deferred_delivery_timeout=300,
+            )
+
+    assert any("storescp process died" in r.message for r in caplog.records)
+
+
+def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
+    """Test that when C-FIND fails for all studies, deferred delivery falls back to idle timeout."""
+    from unittest.mock import patch, Mock
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {"study_uid_1": (pacs, 0)}
+
+    output_dir = str(tmp_path / "output")
+
+    call_count = {"n": 0}
+
+    def mock_count_files(_dir):
+        call_count["n"] += 1
+        # Return 1 file on first call (triggers idle tracking), then same on subsequent calls
+        return 1
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies", side_effect=Exception("PACS unreachable")),
+        patch("utils._count_files_in_dir", side_effect=mock_count_files),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock(poll=Mock(return_value=None))
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+
+        with get_free_port() as storescp_port:
+            # Timeout is short so the idle check triggers quickly
+            move_studies_from_study_pacs_map(
+                study_pacs_map,
+                "TEST_AET",
+                output_dir,
+                storescp_port=storescp_port,
+                deferred_delivery=True,
+                deferred_delivery_timeout=0,
+            )
+
+    # Should have logged warning about C-FIND failure
+    assert any("Failed to count instances" in r.message for r in caplog.records)
+    # Timeout should fire since expected_count is 0 and timeout is 0
+    assert any("timeout" in r.message.lower() for r in caplog.records)
 
 
 def test_find_studies_from_pacs_list_exception_handling(tmp_path, caplog):

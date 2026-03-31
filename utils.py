@@ -3,6 +3,7 @@ import io
 import logging
 import os
 import sys
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -11,7 +12,7 @@ from typing import TypedDict
 import pandas as pd
 from openpyxl import Workbook
 
-from dcmtk import find_studies, get_study, echo_pacs
+from dcmtk import find_studies, move_study, start_storescp, stop_storescp, echo_pacs
 
 
 @dataclass
@@ -487,79 +488,216 @@ def _attempt_fallback_queries(
     return study_pacs_map, final_failed, final_details
 
 
-def get_studies_from_study_pacs_map(study_pacs_map, application_aet, output_dir):
-    """Retrieve multiple studies from PACS using C-GET based on a study-to-PACS mapping."""
-    successful_gets = 0
-    failed_query_indices = []
-    failure_details = {}
-    total_studies = len(study_pacs_map)
-    processed = 0
+def _count_files_in_dir(directory):
+    """Count all files recursively in a directory."""
+    count = 0
+    for _root, _dirs, files in os.walk(directory):
+        count += len(files)
+    return count
 
-    for study_uid, (pacs, query_index) in study_pacs_map.items():
-        logging.info(f"Retrieved {processed} / {total_studies} studies")
-        logging.debug(f"Processing study from Excel row {query_index + 1}")
 
+def _count_expected_instances(study_pacs_map, application_aet):
+    """Query PACS for the expected number of instances across all studies using C-FIND."""
+    total = 0
+    for study_uid, (pacs, _query_index) in study_pacs_map.items():
         try:
-            result = get_study(
+            results = find_studies(
                 host=pacs.host,
                 port=pacs.port,
                 calling_aet=application_aet,
                 called_aet=pacs.aet,
-                output_dir=output_dir,
-                study_uid=study_uid,
+                query_params={"StudyInstanceUID": study_uid},
+                query_level="IMAGE",
             )
+            total += len(results)
+        except Exception as e:
+            logging.warning(f"Failed to count instances for study {study_uid}: {e}")
+    return total
 
-            processed += 1
 
-            if result["success"]:
-                # Check if any files were actually retrieved
-                if result["num_completed"] == 0:
-                    num_failed = result.get("num_failed", 0)
-                    num_warning = result.get("num_warning", 0)
-                    logging.warning(
-                        f"C-GET for query {query_index + 1} (study {study_uid}) reported success "
-                        f"but retrieved 0 files from {pacs.host}:{pacs.port}. "
-                        f"Failed: {num_failed}, Warning: {num_warning}. Moving on."
+def _wait_for_deferred_delivery(output_dir, expected_count, timeout, storescp_process):
+    """Poll storescp output directory until all expected files arrive or timeout."""
+    POLL_INTERVAL = 30
+    LOG_INTERVAL = 300  # 5 minutes
+    IDLE_TIMEOUT = 1800  # 30 minutes (fallback when expected_count == 0)
+
+    start_time = time.time()
+    last_log_time = start_time
+    last_file_count = 0
+    last_new_file_time = start_time
+
+    logging.info(
+        f"Deferred delivery: waiting for {expected_count} files (timeout: {timeout}s)"
+    )
+
+    while True:
+        elapsed = time.time() - start_time
+
+        actual = _count_files_in_dir(output_dir)
+
+        if elapsed >= timeout:
+            logging.warning(
+                f"Deferred delivery timeout reached after {elapsed:.0f}s. "
+                f"Received {actual}/{expected_count} files."
+            )
+            break
+
+        if storescp_process.poll() is not None:
+            logging.error(
+                f"storescp process died during deferred delivery wait. "
+                f"Received {actual}/{expected_count} files."
+            )
+            break
+
+        if actual != last_file_count:
+            last_new_file_time = time.time()
+            last_file_count = actual
+
+        # Terminate if we have all expected files
+        if expected_count > 0 and actual >= expected_count:
+            logging.info(
+                f"Deferred delivery complete: received {actual}/{expected_count} files "
+                f"in {elapsed:.0f}s."
+            )
+            break
+
+        # Fallback: if expected_count is 0 (C-FIND failed), use idle timeout
+        if expected_count == 0:
+            idle_time = time.time() - last_new_file_time
+            if idle_time >= IDLE_TIMEOUT and actual > 0:
+                logging.info(
+                    f"Deferred delivery: no new files for {idle_time:.0f}s. "
+                    f"Received {actual} files. Assuming delivery complete."
+                )
+                break
+
+        now = time.time()
+        if now - last_log_time >= LOG_INTERVAL:
+            logging.info(
+                f"Deferred delivery: {actual}/{expected_count} files received "
+                f"({elapsed:.0f}s elapsed)"
+            )
+            last_log_time = now
+
+        time.sleep(POLL_INTERVAL)
+
+
+def move_studies_from_study_pacs_map(
+    study_pacs_map,
+    application_aet,
+    output_dir,
+    storescp_port,
+    deferred_delivery=False,
+    deferred_delivery_timeout=172800,
+):
+    """Retrieve multiple studies from PACS using C-MOVE based on a study-to-PACS mapping.
+
+    Starts a storescp listener on the given port, issues C-MOVE requests for
+    each study, then stops the listener.
+
+    When deferred_delivery is True, keeps storescp running until all expected
+    files (determined by a C-FIND at IMAGE level) have arrived on disk, or
+    until deferred_delivery_timeout seconds have elapsed.
+    """
+    # When using deferred delivery, count expected instances via C-FIND before starting
+    expected_count = 0
+    if deferred_delivery:
+        expected_count = _count_expected_instances(study_pacs_map, application_aet)
+        logging.info(f"Deferred delivery enabled: expecting {expected_count} instances")
+
+    storescp_process = start_storescp(
+        storescp_port, output_dir, calling_aet=application_aet
+    )
+    time.sleep(2)  # Allow storescp to start listening
+
+    try:
+        successful_moves = 0
+        failed_query_indices = []
+        failure_details = {}
+        total_studies = len(study_pacs_map)
+        processed = 0
+
+        for study_uid, (pacs, query_index) in study_pacs_map.items():
+            logging.info(f"Retrieved {processed} / {total_studies} studies")
+            logging.debug(f"Processing study from Excel row {query_index + 1}")
+
+            try:
+                result = move_study(
+                    host=pacs.host,
+                    port=pacs.port,
+                    calling_aet=application_aet,
+                    called_aet=pacs.aet,
+                    move_dest_aet=application_aet,
+                    study_uid=study_uid,
+                )
+
+                processed += 1
+
+                if result["success"]:
+                    if result["num_completed"] == 0:
+                        # Explicitly 0 sub-operations reported — treat as failure
+                        num_failed = result.get("num_failed", 0)
+                        num_warning = result.get("num_warning", 0)
+                        logging.warning(
+                            f"C-MOVE for query {query_index + 1} (study {study_uid}) reported success "
+                            f"but retrieved 0 files from {pacs.host}:{pacs.port}. "
+                            f"Failed: {num_failed}, Warning: {num_warning}. Moving on."
+                        )
+                        if query_index not in failed_query_indices:
+                            failed_query_indices.append(query_index)
+                            if num_failed > 0 or num_warning > 0:
+                                failure_details[query_index] = (
+                                    f"C-MOVE succeeded but retrieved 0 files (failed: {num_failed}, warning: {num_warning})"
+                                )
+                            else:
+                                failure_details[query_index] = (
+                                    "C-MOVE succeeded but retrieved 0 files (no sub-operations)"
+                                )
+                    else:
+                        # num_completed > 0 or -1 (unknown, PACS didn't report counts)
+                        successful_moves += 1
+                        logging.debug(
+                            f"Successfully retrieved study {study_uid} from {pacs.host}:{pacs.port} "
+                            f"({result['num_completed']} files)"
+                        )
+                else:
+                    logging.error(
+                        f"Failed to retrieve study for query {query_index + 1}: {result['message']}. Moving on."
                     )
                     if query_index not in failed_query_indices:
                         failed_query_indices.append(query_index)
-                        if num_failed > 0 or num_warning > 0:
-                            failure_details[query_index] = (
-                                f"C-GET succeeded but retrieved 0 files (failed: {num_failed}, warning: {num_warning})"
-                            )
-                        else:
-                            failure_details[query_index] = (
-                                "C-GET succeeded but retrieved 0 files (no sub-operations)"
-                            )
-                else:
-                    successful_gets += 1
-                    logging.debug(
-                        f"Successfully retrieved study {study_uid} from {pacs.host}:{pacs.port} "
-                        f"({result['num_completed']} files)"
-                    )
-            else:
-                logging.error(
-                    f"Failed to retrieve study for query {query_index + 1}: {result['message']}. Moving on."
+                        failure_details[query_index] = (
+                            f"Failed to retrieve images: {result['message']}"
+                        )
+
+            except Exception as e:
+                logging.exception(
+                    f"Exception while retrieving study for query {query_index + 1} "
+                    f"(study {study_uid}): {str(e)}. Moving on."
                 )
+                processed += 1
                 if query_index not in failed_query_indices:
                     failed_query_indices.append(query_index)
                     failure_details[query_index] = (
-                        f"Failed to retrieve images: {result['message']}"
+                        f"Exception during retrieval: {str(e)}"
                     )
 
-        except Exception as e:
-            logging.exception(
-                f"Exception while retrieving study for query {query_index + 1} "
-                f"(study {study_uid}): {str(e)}. Moving on."
+        logging.info(f"Retrieved {processed} / {total_studies} studies")
+
+        if deferred_delivery:
+            _wait_for_deferred_delivery(
+                output_dir,
+                expected_count,
+                deferred_delivery_timeout,
+                storescp_process,
             )
-            processed += 1
-            if query_index not in failed_query_indices:
-                failed_query_indices.append(query_index)
-                failure_details[query_index] = f"Exception during retrieval: {str(e)}"
+        else:
+            # Allow time for final files to be received by storescp
+            time.sleep(5)
+    finally:
+        stop_storescp(storescp_process)
 
-    logging.info(f"Retrieved {processed} / {total_studies} studies")
-
-    return successful_gets, failed_query_indices, failure_details
+    return successful_moves, failed_query_indices, failure_details
 
 
 def setup_run_directories() -> RunDirs:

@@ -374,10 +374,6 @@ class CTPServer:
             self._monitor_exception = e
 
 
-class DicomPortInUseError(Exception):
-    pass
-
-
 PIPELINE_TEMPLATES = {
     "imagecopy_local": """
     <Configuration>
@@ -869,8 +865,6 @@ class CTPPipeline:
         log_path=None,
         log_level=None,
         quarantine_dir=None,
-        dicom_port=None,
-        force_kill_dicom_pipeline=False,
         sc_pdf_output_dir=None,
     ):
         if pipeline_type not in PIPELINE_TEMPLATES:
@@ -894,59 +888,19 @@ class CTPPipeline:
         self.log_path = log_path
         self.log_level = log_level
         self.quarantine_dir = quarantine_dir
-        self.force_kill_dicom_pipeline = force_kill_dicom_pipeline
         self.sc_pdf_output_dir = sc_pdf_output_dir
 
-        if dicom_port is not None:
-            self._dicom_port = dicom_port
-        elif self._pipeline_needs_dicom_port():
-            self._dicom_port = 50001
-        else:
-            self._dicom_port = None
-
-        self.port = self._find_available_port(self._dicom_port)
+        self.port = self._find_available_port()
         self._tempdir = tempfile.mkdtemp(prefix="ctp_")
         self.server = None
 
-    def _pipeline_needs_dicom_port(self):
-        return self.pipeline_type in [
-            "imagedeid_pacs",
-            "imagedeid_pacs_pixel",
-            "imageqr",
-        ]
-
-    def _find_available_port(self, dicom_port_to_avoid=None):
+    def _find_available_port(self):
         # Use OS-assigned ephemeral port to avoid races between parallel workers
-        for _ in range(10):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(("localhost", 0))
-                port = s.getsockname()[1]
-            if port != dicom_port_to_avoid:
-                return port
-        raise RuntimeError("Could not find available port that differs from DICOM port")
-
-    def _force_kill_by_port(self, port):
-        for proc in psutil.process_iter(["pid", "name"]):
-            try:
-                for conn in proc.net_connections():
-                    if conn.laddr.port == port:
-                        proc.kill()
-                        proc.wait(timeout=5)
-                        return
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("localhost", 0))
+            return s.getsockname()[1]
 
     def __enter__(self):
-        if self._pipeline_needs_dicom_port() and self._dicom_port:
-            if not is_port_available(self._dicom_port):
-                if self.force_kill_dicom_pipeline:
-                    self._force_kill_by_port(self._dicom_port)
-                    time.sleep(2)
-                else:
-                    raise DicomPortInUseError(
-                        f"DICOM port {self._dicom_port} is already in use. Use force_kill_dicom_pipeline=True to kill existing pipeline."
-                    )
-
         os.makedirs(os.path.join(self._tempdir, "roots"), exist_ok=True)
         os.makedirs(os.path.join(self._tempdir, "quarantine"), exist_ok=True)
 
@@ -981,7 +935,6 @@ class CTPPipeline:
             output_dir=os.path.abspath(self.output_dir),
             tempdir=os.path.abspath(self._tempdir),
             port=self.port,
-            dicom_port=self._dicom_port,
             application_aet=self.application_aet if self.application_aet else "",
             sc_pdf_quarantine=os.path.abspath(sc_pdf_quarantine),
         )

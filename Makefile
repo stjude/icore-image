@@ -6,7 +6,7 @@
 
 test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
-	uv run pytest -v -n auto --reruns 3 --reruns-delay 5
+	uv run pytest -v -n auto
 	cd electron && npm test -- --verbose
 
 dev: external-deps
@@ -61,13 +61,13 @@ dcmtk:
 			tar -xjf dcmtk.tar.bz2 && \
 			rm dcmtk.tar.bz2 && \
 			mv dcmtk-3.6.9-linux-x86_64 dcmtk && \
-			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'getscu' ! -name 'echoscu' -delete; \
+			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'storescp' ! -name 'echoscu' -delete; \
 		else \
 			curl -fL https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 -o dcmtk.tar.bz2 && \
 			tar -xjf dcmtk.tar.bz2 && \
 			rm dcmtk.tar.bz2 && \
 			mv dcmtk-3.6.9-macosx-x86_64 dcmtk && \
-			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'getscu' ! -name 'echoscu' -delete; \
+			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'storescp' ! -name 'echoscu' -delete; \
 		fi; \
 	else \
 		echo "DCMTK already exists"; \

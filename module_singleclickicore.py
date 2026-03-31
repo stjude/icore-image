@@ -39,6 +39,9 @@ def singleclickicore(
     skip_export: bool = False,
     sc_pdf_output_dir: str | None = None,
     use_fallback_query: bool = False,
+    storescp_port: int = 50001,
+    deferred_delivery: bool = False,
+    deferred_delivery_timeout: int = 172800,
 ) -> SingleClickResult:
     """
     Combined module that performs:
@@ -112,6 +115,9 @@ def singleclickicore(
         mapping_file_path=mapping_file_path,
         sc_pdf_output_dir=sc_pdf_output_dir,
         use_fallback_query=use_fallback_query,
+        storescp_port=storescp_port,
+        deferred_delivery=deferred_delivery,
+        deferred_delivery_timeout=deferred_delivery_timeout,
     )
 
     # Step 2: Text deid on input Excel

@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from test_utils import _create_test_dicom, _upload_dicom_to_orthanc
+from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, get_free_port
 from utils import PacsConfiguration, Spreadsheet
 from deid.grammar import generate_hipaa_safe_harbor_script
 from ctp import generate_sc_pdf_filter
@@ -102,6 +102,7 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
         filter_script=hipaa_config["filter_script"],
         deid_pixels=hipaa_config["deid_pixels"],
         apply_default_filter_script=hipaa_config["apply_default_filter_script"],
+        storescp_port=orthanc.storescp_port,
     )
 
     # Verify image deid results
@@ -209,6 +210,7 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
         anonymizer_script=anonymizer_script,
         filter_script=filter_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     # Only 1 image should pass filter (3.0 slice thickness)
@@ -282,6 +284,7 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
         columns_to_deid=["SensitiveColumn"],
         columns_to_drop=["DropMe"],
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     output_xlsx = output_dir / "output.xlsx"
@@ -333,18 +336,20 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
 
     from module_singleclickicore import singleclickicore
 
-    result = singleclickicore(
-        pacs_list=[invalid_pacs_config],
-        query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        input_file=str(query_file),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-    )
+    with get_free_port() as storescp_port:
+        result = singleclickicore(
+            pacs_list=[invalid_pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            input_file=str(query_file),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=storescp_port,
+        )
 
     # PACS queries should fail
     assert result["num_studies_found"] == 0
@@ -415,6 +420,7 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
             input_file=str(query_file),
             anonymizer_script=anonymizer_script,
             apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
         )
 
     # Should raise an rclone error
@@ -475,6 +481,7 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         skip_export=True,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1
@@ -538,6 +545,7 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
         input_file=str(query_file),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["export_performed"]
@@ -595,6 +603,7 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         skip_export=True,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1
@@ -659,6 +668,7 @@ def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
         columns_to_drop=["PatientName"],
         apply_default_filter_script=False,
         skip_export=True,
+        storescp_port=orthanc.storescp_port,
     )
 
     assert result["num_studies_found"] == 1

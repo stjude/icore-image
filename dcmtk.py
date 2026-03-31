@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import xml.etree.ElementTree as ET
 
 from tenacity import (
@@ -70,7 +69,7 @@ def _parse_find_xml(xml_content):
     return results
 
 
-def _parse_get_output(stderr, returncode):
+def _parse_move_output(stderr, returncode):
     result = {
         "success": False,
         "num_completed": 0,
@@ -79,10 +78,7 @@ def _parse_get_output(stderr, returncode):
         "message": "",
     }
 
-    if (
-        "Received Final Get Response (Success)" in stderr
-        or "Received C-GET Response (Success)" in stderr
-    ):
+    if "Received Final Move Response (Success)" in stderr:
         result["success"] = True
 
         completed_match = re.search(r"Sub-Operations Complete:\s*(\d+)", stderr)
@@ -101,29 +97,37 @@ def _parse_get_output(stderr, returncode):
         if warning_match:
             result["num_warning"] = int(warning_match.group(1))
 
-        # Check for zero files retrieved case
-        if (
+        has_sub_operation_counts = completed_match is not None
+        if not has_sub_operation_counts:
+            # PACS reported success but no sub-operation counts (common with some PACS)
+            result[
+                "num_completed"
+            ] = -1  # unknown count; files may have been received by storescp
+            result["message"] = (
+                "Move completed successfully (sub-operation counts not reported)"
+            )
+        elif (
             result["num_completed"] == 0
             and result["num_failed"] == 0
             and result["num_warning"] == 0
         ):
             result["message"] = (
-                "Get completed with no sub-operations (no files retrieved)"
+                "Move completed with no sub-operations (no files retrieved)"
             )
         elif result["num_failed"] > 0 or result["num_warning"] > 0:
             result["message"] = (
-                f"Get completed: {result['num_completed']} succeeded, "
+                f"Move completed: {result['num_completed']} succeeded, "
                 f"{result['num_failed']} failed, {result['num_warning']} warnings"
             )
         else:
-            result["message"] = "Get completed successfully"
+            result["message"] = "Move completed successfully"
     else:
         if "Failed: UnableToProcess" in stderr:
-            result["message"] = "Get failed: UnableToProcess"
+            result["message"] = "Move failed: UnableToProcess"
         elif "Failed" in stderr:
-            result["message"] = "Get failed"
+            result["message"] = "Move failed"
         else:
-            result["message"] = f"Get failed with exit code {returncode}"
+            result["message"] = f"Move failed with exit code {returncode}"
 
     return result
 
@@ -233,29 +237,33 @@ def _return_last_result(retry_state: RetryCallState):
     return retry_state.outcome.result()
 
 
-def _log_get_retry(retry_state: RetryCallState):
-    logging.info("Get failed. Retrying")
+def _log_move_retry(retry_state: RetryCallState):
+    logging.info("Move failed. Retrying")
 
 
 @retry(
     stop=stop_after_attempt(4),
     wait=wait_chain(wait_fixed(4), wait_fixed(16), wait_fixed(32)),
     retry=retry_if_result(lambda result: not result["success"]),
-    before_sleep=_log_get_retry,
+    before_sleep=_log_move_retry,
     retry_error_callback=_return_last_result,
 )
-def get_study(
-    host, port, calling_aet, called_aet, output_dir, study_uid, query_level="STUDY"
+def move_study(
+    host, port, calling_aet, called_aet, move_dest_aet, study_uid, query_level="STUDY"
 ):
     """
-    Retrieve a study from PACS using getscu (C-GET).
+    Retrieve a study from PACS using movescu (C-MOVE).
+
+    The PACS will push files to the DICOM listener (storescp) registered
+    under the move_dest_aet. The listener must be started separately
+    before calling this function.
 
     Args:
         host: PACS hostname or IP address
         port: PACS DICOM port
         calling_aet: AE title of the calling application
         called_aet: AE title of the PACS
-        output_dir: Directory where retrieved DICOM files will be written (will be created if it does not exist)
+        move_dest_aet: AE title of the move destination (where PACS sends files)
         study_uid: StudyInstanceUID to retrieve
         query_level: Query/retrieve level (default: "STUDY")
 
@@ -263,21 +271,19 @@ def get_study(
         Dict with keys: success (bool), num_completed (int), num_failed (int),
         num_warning (int), message (str)
     """
-    # Ensure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
-
     dcmtk_home = _get_default_dcmtk_home()
-    getscu_binary = os.path.join(dcmtk_home, "bin", "getscu")
+    movescu_binary = os.path.join(dcmtk_home, "bin", "movescu")
 
     cmd = [
-        getscu_binary,
+        movescu_binary,
         "-v",
-        "-od",
-        output_dir,
         "-aet",
         calling_aet,
+        "-aem",
+        move_dest_aet,
         "-aec",
         called_aet,
+        "-S",
         "-k",
         f"QueryRetrieveLevel={query_level}",
         "-k",
@@ -286,40 +292,83 @@ def get_study(
         str(port),
     ]
 
-    logging.debug(f"Running getscu: {' '.join(cmd)}")
+    logging.debug(f"Running movescu: {' '.join(cmd)}")
 
     env = _build_dcmtk_env()
-
-    start_time = time.time()
-
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
-    parsed_result = _parse_get_output(result.stderr, result.returncode)
+    parsed_result = _parse_move_output(result.stderr, result.returncode)
 
-    # Log detailed results
     if parsed_result["success"]:
         if parsed_result["num_completed"] == 0:
             logging.warning(
-                f"C-GET for study {study_uid} completed but retrieved 0 files. "
+                f"C-MOVE for study {study_uid} completed but retrieved 0 files. "
                 f"Failed: {parsed_result['num_failed']}, Warning: {parsed_result['num_warning']}"
+            )
+        elif parsed_result["num_completed"] == -1:
+            logging.info(
+                f"C-MOVE for study {study_uid}: completed (sub-operation counts not reported by PACS)"
             )
         else:
             logging.info(
-                f"C-GET for study {study_uid}: Retrieved {parsed_result['num_completed']} files. "
+                f"C-MOVE for study {study_uid}: Retrieved {parsed_result['num_completed']} files. "
                 f"Failed: {parsed_result['num_failed']}, Warning: {parsed_result['num_warning']}"
             )
     else:
-        logging.error(f"C-GET for study {study_uid} failed: {parsed_result['message']}")
-
-    # Add .dcm extension to retrieved files (required by CTP ArchiveImportService)
-    if parsed_result["success"]:
-        for filename in os.listdir(output_dir):
-            filepath = os.path.join(output_dir, filename)
-            if os.path.isfile(filepath) and not filename.endswith(".dcm"):
-                if os.path.getmtime(filepath) >= start_time:
-                    os.rename(filepath, filepath + ".dcm")
+        logging.error(
+            f"C-MOVE for study {study_uid} failed: {parsed_result['message']}"
+        )
 
     return parsed_result
+
+
+def start_storescp(port, output_dir, calling_aet=None):
+    """
+    Start a DICOM Store SCP listener that writes received files to output_dir.
+
+    Args:
+        port: Port to listen on
+        output_dir: Directory where received DICOM files will be written
+        calling_aet: Optional AE title for the SCP
+
+    Returns:
+        subprocess.Popen process handle
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    dcmtk_home = _get_default_dcmtk_home()
+    storescp_binary = os.path.join(dcmtk_home, "bin", "storescp")
+
+    cmd = [
+        storescp_binary,
+        "-v",
+        "-od",
+        output_dir,
+        "--sort-on-study-uid",
+        "",
+    ]
+    if calling_aet:
+        cmd.extend(["-aet", calling_aet])
+    cmd.append(str(port))
+
+    logging.debug(f"Starting storescp: {' '.join(cmd)}")
+
+    env = _build_dcmtk_env()
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
+    )
+    return process
+
+
+def stop_storescp(process):
+    """Gracefully terminate a running storescp process."""
+    if process and process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
 
 
 def echo_pacs(host, port, calling_aet, called_aet):
@@ -329,7 +378,8 @@ def echo_pacs(host, port, calling_aet, called_aet):
     Args:
         host: PACS hostname or IP address
         port: PACS DICOM port
-        aet: AE title of the PACS
+        calling_aet: AE title of the calling application
+        called_aet: AE title of the PACS
 
     Returns:
         Dict with keys: success (bool), message (str)
