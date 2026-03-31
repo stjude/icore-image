@@ -5,8 +5,8 @@ import tempfile
 
 import pandas as pd
 import pydicom
-import pytest
-from pydicom.dataset import Dataset, FileDataset
+import pydicom.uid
+from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian
 
 from audit_extraction import (
@@ -18,8 +18,8 @@ from audit_extraction import (
 
 def _create_test_dicom(filepath: str, **tag_values) -> None:
     """Create a minimal valid DICOM file with given tag values."""
-    file_meta = pydicom.Dataset()
-    file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
+    file_meta = FileMetaDataset()
+    file_meta.MediaStorageSOPClassUID = pydicom.uid.UID("1.2.840.10008.5.1.4.1.1.2")
     file_meta.MediaStorageSOPInstanceUID = pydicom.uid.generate_uid()
     file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
 

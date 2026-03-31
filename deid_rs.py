@@ -170,7 +170,9 @@ class DeidRsPipeline:
                 "files_skipped", 0
             )
 
-            logging.info(f"dicom-deid-rs complete: {num_saved} processed, {num_quarantined} quarantined/skipped")
+            logging.info(
+                f"dicom-deid-rs complete: {num_saved} processed, {num_quarantined} quarantined/skipped"
+            )
 
             return {
                 "num_images_saved": num_saved,

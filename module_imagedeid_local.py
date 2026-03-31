@@ -325,9 +325,7 @@ def imagedeid_local(
             f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
         )
         logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
-        logging.info(
-            f"Files quarantined: {format_number_with_commas(num_quarantined)}"
-        )
+        logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
 
         return result
 

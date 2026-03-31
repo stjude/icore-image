@@ -65,7 +65,7 @@ class TestDeidRsPipeline:
             anonymizer_script='<script><p t="DATEINC">-100</p><e en="T" t="00080020" n="StudyDate">@incrementdate(this,@DATEINC)</e></script>',
             binary_path="/usr/bin/dicom-deid-rs",
         )
-        result = pipeline.run()
+        pipeline.run()
 
         cmd = mock_run.call_args[0][0]
         # Should have --var DATEINC -100 in the command
@@ -102,7 +102,7 @@ class TestDeidRsPipeline:
             lookup_table="PatientID/12345 = ANON001",
             binary_path="/usr/bin/dicom-deid-rs",
         )
-        result = pipeline.run()
+        pipeline.run()
 
         cmd = mock_run.call_args[0][0]
         assert "--lookup-table" in cmd

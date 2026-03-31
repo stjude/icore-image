@@ -246,9 +246,7 @@ def build_image_deid_config(task):
         )
         config["sc_pdf_output_dir"] = sc_pdf_full_path
 
-    deid_engine = task.parameters.get(
-        "deid_engine", settings.get("deid_engine", "ctp")
-    )
+    deid_engine = task.parameters.get("deid_engine", settings.get("deid_engine", "ctp"))
     if deid_engine != "ctp":
         config["deid_engine"] = deid_engine
 
@@ -884,9 +882,7 @@ def build_singleclickicore_config(task):
     if to_drop_list:
         config["columns_to_drop"] = to_drop_list
 
-    deid_engine = task.parameters.get(
-        "deid_engine", settings.get("deid_engine", "ctp")
-    )
+    deid_engine = task.parameters.get("deid_engine", settings.get("deid_engine", "ctp"))
     if deid_engine != "ctp":
         config["deid_engine"] = deid_engine
 
@@ -984,9 +980,7 @@ def build_image_deid_export_config(task):
         )
         config["sc_pdf_output_dir"] = sc_pdf_full_path
 
-    deid_engine = task.parameters.get(
-        "deid_engine", settings.get("deid_engine", "ctp")
-    )
+    deid_engine = task.parameters.get("deid_engine", settings.get("deid_engine", "ctp"))
     if deid_engine != "ctp":
         config["deid_engine"] = deid_engine
 

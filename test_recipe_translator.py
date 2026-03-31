@@ -1,7 +1,5 @@
 """Tests for recipe_translator.py -- CTP script to recipe format translation."""
 
-import pytest
-
 from recipe_translator import (
     build_recipe,
     translate_anonymizer_script,
@@ -22,7 +20,9 @@ class TestTranslateAnonymizerScript:
         assert "KEEP (0008,0005)" in lines
 
     def test_remove_action(self):
-        xml = '<script><e en="T" t="00080080" n="InstitutionName">@remove()</e></script>'
+        xml = (
+            '<script><e en="T" t="00080080" n="InstitutionName">@remove()</e></script>'
+        )
         lines, _ = translate_anonymizer_script(xml)
         assert "REMOVE (0008,0080)" in lines
 
@@ -86,9 +86,9 @@ class TestTranslateAnonymizerScript:
             <e en="F" t="00080060" n="Modality">@keep()</e>
         </script>"""
         lines, _ = translate_anonymizer_script(xml)
-        assert any("0008,0005" in l for l in lines)
-        assert not any("0008,0008" in l for l in lines)
-        assert not any("0008,0060" in l for l in lines)
+        assert any("0008,0005" in line for line in lines)
+        assert not any("0008,0008" in line for line in lines)
+        assert not any("0008,0060" in line for line in lines)
 
     def test_removal_rules(self):
         xml = """<script>
@@ -97,14 +97,14 @@ class TestTranslateAnonymizerScript:
             <r en="F" t="privategroups">Remove private groups</r>
         </script>"""
         lines, _ = translate_anonymizer_script(xml)
-        assert any("curves" in l for l in lines)
-        assert any("REMOVE OverlayData" in l for l in lines)
-        assert not any("private" in l for l in lines)
+        assert any("curves" in line for line in lines)
+        assert any("REMOVE OverlayData" in line for line in lines)
+        assert not any("private" in line for line in lines)
 
     def test_hex_tag_fallback(self):
         xml = '<script><e en="T" t="00091001"></e></script>'
         lines, _ = translate_anonymizer_script(xml)
-        assert any("(0009,1001)" in l for l in lines)
+        assert any("(0009,1001)" in line for line in lines)
 
     def test_full_script(self):
         xml = """<script>
@@ -220,14 +220,18 @@ class TestTranslateFilterScript:
         assert "contains Modality CT" in result
 
     def test_and_filter(self):
-        script = 'Modality.containsIgnoreCase("CT") * Manufacturer.containsIgnoreCase("GE")'
+        script = (
+            'Modality.containsIgnoreCase("CT") * Manufacturer.containsIgnoreCase("GE")'
+        )
         lines = translate_filter_script(script)
         result = "\n".join(lines)
         assert "contains Modality CT" in result
         assert "+ contains Manufacturer GE" in result
 
     def test_or_filter_creates_separate_labels(self):
-        script = '(Modality.containsIgnoreCase("CT")) + (Modality.containsIgnoreCase("MR"))'
+        script = (
+            '(Modality.containsIgnoreCase("CT")) + (Modality.containsIgnoreCase("MR"))'
+        )
         lines = translate_filter_script(script)
         result = "\n".join(lines)
         assert "LABEL filter_rule_0" in result

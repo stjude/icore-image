@@ -151,6 +151,9 @@ def imagedeid_pacs(
     # Wait briefly to ensure all files are written
     time.sleep(2)
 
+    failed_query_indices = list(set(failed_find_indices + failed_move_indices))
+    combined_failure_details = {**failed_find_details, **failed_move_details}
+
     try:
         if deid_engine == "rust":
             from audit_extraction import save_audit_files
@@ -168,9 +171,6 @@ def imagedeid_pacs(
             result = rs_pipeline.run()
 
             save_audit_files(dicom_retrieval_dir, output_dir, appdata_dir)
-
-            failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-            combined_failure_details = {**failed_find_details, **failed_move_details}
             save_failed_queries_csv(
                 failed_query_indices,
                 query_spreadsheet,
@@ -181,90 +181,66 @@ def imagedeid_pacs(
 
             num_saved = result["num_images_saved"]
             num_quarantined = result["num_images_quarantined"]
-            logging.info("Deidentification complete")
-            logging.info(
-                f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
-            )
-            logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
-            logging.info(
-                f"Files quarantined: {format_number_with_commas(num_quarantined)}"
-            )
+        else:
+            with CTPPipeline(
+                pipeline_type=pipeline_type,
+                input_dir=dicom_retrieval_dir,
+                output_dir=output_dir,
+                application_aet=application_aet,
+                filter_script=combined_filter,
+                anonymizer_script=anonymizer_script,
+                lookup_table=lookup_table,
+                log_path=run_dirs["ctp_log_path"],
+                log_level=ctp_log_level,
+                quarantine_dir=quarantine_dir,
+                sc_pdf_output_dir=sc_pdf_output_dir,
+            ) as pipeline:
+                save_interval = 5
+                last_save_time = 0
 
-            return {
-                "num_studies_found": len(study_pacs_map),
-                "num_images_saved": num_saved,
-                "num_images_quarantined": num_quarantined,
-                "failed_query_indices": failed_query_indices,
-            }
+                while not pipeline.is_complete():
+                    current_time = time.time()
+                    if current_time - last_save_time >= save_interval:
+                        _save_metadata_files(pipeline, appdata_dir)
+                        save_failed_queries_csv(
+                            failed_query_indices,
+                            query_spreadsheet,
+                            appdata_dir,
+                            combined_failure_details,
+                            use_fallback_query=use_fallback_query,
+                        )
+                        _log_progress(pipeline)
+                        last_save_time = current_time
 
-        with CTPPipeline(
-            pipeline_type=pipeline_type,
-            input_dir=dicom_retrieval_dir,
-            output_dir=output_dir,
-            application_aet=application_aet,
-            filter_script=combined_filter,
-            anonymizer_script=anonymizer_script,
-            lookup_table=lookup_table,
-            log_path=run_dirs["ctp_log_path"],
-            log_level=ctp_log_level,
-            quarantine_dir=quarantine_dir,
-            sc_pdf_output_dir=sc_pdf_output_dir,
-        ) as pipeline:
-            failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-            combined_failure_details = {**failed_find_details, **failed_move_details}
+                    time.sleep(1)
 
-            save_interval = 5
-            last_save_time = 0
+                _save_metadata_files(pipeline, appdata_dir)
+                save_failed_queries_csv(
+                    failed_query_indices,
+                    query_spreadsheet,
+                    appdata_dir,
+                    combined_failure_details,
+                    use_fallback_query=use_fallback_query,
+                )
 
-            while not pipeline.is_complete():
-                current_time = time.time()
-                if current_time - last_save_time >= save_interval:
-                    _save_metadata_files(pipeline, appdata_dir)
-                    save_failed_queries_csv(
-                        failed_query_indices,
-                        query_spreadsheet,
-                        appdata_dir,
-                        combined_failure_details,
-                        use_fallback_query=use_fallback_query,
-                    )
-                    _log_progress(pipeline)
-                    last_save_time = current_time
+                num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
+                num_quarantined = (
+                    pipeline.metrics.files_quarantined if pipeline.metrics else 0
+                )
 
-                time.sleep(1)
+        logging.info("Deidentification complete")
+        logging.info(
+            f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
+        )
+        logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
+        logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
 
-            _save_metadata_files(pipeline, appdata_dir)
-            save_failed_queries_csv(
-                failed_query_indices,
-                query_spreadsheet,
-                appdata_dir,
-                combined_failure_details,
-                use_fallback_query=use_fallback_query,
-            )
-
-            num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
-            num_quarantined = (
-                pipeline.metrics.files_quarantined if pipeline.metrics else 0
-            )
-
-            logging.info("Deidentification complete")
-            logging.info(
-                f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
-            )
-            logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
-            logging.info(
-                f"Files quarantined: {format_number_with_commas(num_quarantined)}"
-            )
-
-            return {
-                "num_studies_found": len(study_pacs_map),
-                "num_images_saved": pipeline.metrics.files_saved
-                if pipeline.metrics
-                else 0,
-                "num_images_quarantined": pipeline.metrics.files_quarantined
-                if pipeline.metrics
-                else 0,
-                "failed_query_indices": failed_query_indices,
-            }
+        return {
+            "num_studies_found": len(study_pacs_map),
+            "num_images_saved": num_saved,
+            "num_images_quarantined": num_quarantined,
+            "failed_query_indices": failed_query_indices,
+        }
     finally:
         try:
             shutil.rmtree(dicom_retrieval_dir)

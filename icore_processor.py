@@ -1469,7 +1469,9 @@ def _imagedeid_main_rust(config, querying_pacs):
 
     if querying_pacs:
         # For PACS mode: retrieve files first via dcmtk, then run Rust engine
-        logging.info("PACS mode: retrieving studies via C-MOVE before de-identification")
+        logging.info(
+            "PACS mode: retrieving studies via C-MOVE before de-identification"
+        )
 
         getscu_output_dir = os.path.join(APPDATA_DIR, "getscu_temp")
         os.makedirs(getscu_output_dir, exist_ok=True)
@@ -1477,9 +1479,7 @@ def _imagedeid_main_rust(config, querying_pacs):
         # Use the existing cmove logic to retrieve files into getscu_output_dir
         # We need a temporary log file handle for cmove_images
         with open(os.path.join(APPDATA_DIR, "log.txt"), "a") as logf:
-            failed_accessions = _cmove_images_to_dir(
-                logf, getscu_output_dir, **config
-            )
+            failed_accessions = _cmove_images_to_dir(logf, getscu_output_dir, **config)
 
         input_dir = getscu_output_dir
     else:
@@ -1561,12 +1561,18 @@ def _cmove_images_to_dir(logf, output_dir, **config):
             cmd = [
                 get_dcmtk_binary("getscu"),
                 "-v",
-                "-aet", aet,
-                "-aec", aec,
-                "-od", output_dir,
-                "-k", "QueryRetrieveLevel=STUDY",
-                "-k", f"StudyInstanceUID={study_uid}",
-                ip, str(port),
+                "-aet",
+                aet,
+                "-aec",
+                aec,
+                "-od",
+                output_dir,
+                "-k",
+                "QueryRetrieveLevel=STUDY",
+                "-k",
+                f"StudyInstanceUID={study_uid}",
+                ip,
+                str(port),
             ]
             env = os.environ.copy()
             env["DCMDICTPATH"] = get_dcmtk_dict_path()
@@ -1579,7 +1585,9 @@ def _cmove_images_to_dir(logf, output_dir, **config):
                 successful_rows.add(study_uids_rows.get(study_uid, i))
                 logging.info(f"Retrieved study {study_uid} ({i + 1}/{len(study_uids)})")
             else:
-                logging.warning(f"Failed to retrieve study {study_uid}: {process.stderr}")
+                logging.warning(
+                    f"Failed to retrieve study {study_uid}: {process.stderr}"
+                )
 
     for i in range(len(queries)):
         if i not in successful_rows:

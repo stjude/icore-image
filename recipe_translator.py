@@ -145,8 +145,8 @@ def _removal_rule_lines(rule_type: str) -> list[str]:
 _COORD_RE = re.compile(r"\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 _PREDICATE_RE = re.compile(
-    r'^(!?)(\[[\d\w,]+\]|\w+)\.'
-    r'(containsIgnoreCase|equals|equalsIgnoreCase|startsWith|startsWithIgnoreCase)'
+    r"^(!?)(\[[\d\w,]+\]|\w+)\."
+    r"(containsIgnoreCase|equals|equalsIgnoreCase|startsWith|startsWithIgnoreCase)"
     r'\("([^"]*)"\)$'
 )
 
@@ -333,10 +333,10 @@ def _generate_label_from_conditions(
 # ---------------------------------------------------------------------------
 
 _FILTER_PRED_RE = re.compile(
-    r'(!?)(\[[\d\w,]+\]|\w+)\.'
-    r'(equals|equalsIgnoreCase|matches|contains|containsIgnoreCase|'
-    r'startsWith|startsWithIgnoreCase|endsWith|endsWithIgnoreCase|'
-    r'isLessThan|isGreaterThan)'
+    r"(!?)(\[[\d\w,]+\]|\w+)\."
+    r"(equals|equalsIgnoreCase|matches|contains|containsIgnoreCase|"
+    r"startsWith|startsWithIgnoreCase|endsWith|endsWithIgnoreCase|"
+    r"isLessThan|isGreaterThan)"
     r'\("([^"]*)"\)'
 )
 

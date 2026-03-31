@@ -62,9 +62,7 @@ def _get_tag_value(ds: pydicom.Dataset, tag_name: str) -> str:
         return ""
 
 
-def extract_audit_log(
-    dicom_dir: str, level: str = "study"
-) -> pd.DataFrame:
+def extract_audit_log(dicom_dir: str, level: str = "study") -> pd.DataFrame:
     """Read all DICOMs in dir, extract AUDIT_TAGS, return DataFrame.
 
     When level="study", deduplicates by StudyInstanceUID to match CTP's
@@ -92,7 +90,7 @@ def extract_audit_log(
             row[tag_name] = _get_tag_value(ds, tag_name)
         rows.append(row)
 
-    return pd.DataFrame(rows, columns=AUDIT_TAGS)
+    return pd.DataFrame(rows, columns=pd.Index(AUDIT_TAGS))
 
 
 def build_linker_table(
@@ -115,7 +113,7 @@ def build_linker_table(
     ]
 
     if pre_audit.empty or post_audit.empty:
-        return pd.DataFrame(columns=linker_cols)
+        return pd.DataFrame(columns=pd.Index(linker_cols))
 
     # Match by row order (input and output should correspond 1:1 for
     # non-blacklisted files). If sizes differ, match what we can.
@@ -136,12 +134,10 @@ def build_linker_table(
             }
         )
 
-    return pd.DataFrame(rows, columns=linker_cols)
+    return pd.DataFrame(rows, columns=pd.Index(linker_cols))
 
 
-def save_audit_files(
-    input_dir: str, output_dir: str, appdata_dir: str
-) -> None:
+def save_audit_files(input_dir: str, output_dir: str, appdata_dir: str) -> None:
     """Full audit extraction workflow.
 
     Extracts pre-deid and post-deid audit logs from DICOM headers,
