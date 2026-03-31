@@ -374,7 +374,6 @@ class CTPServer:
             self._monitor_exception = e
 
 
-
 PIPELINE_TEMPLATES = {
     "imagecopy_local": """
     <Configuration>

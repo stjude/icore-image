@@ -409,7 +409,9 @@ class OrthancServer:
         self.storage_dir = None
         self.config_dir = None
         self.storescp_port: int = self._allocate_port()
-        self.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", self.storescp_port)
+        self.add_modality(
+            "TEST_AET", "TEST_AET", "host.docker.internal", self.storescp_port
+        )
 
     def _allocate_port(self) -> int:
         """Allocate a port and hold the socket open to prevent reuse."""
