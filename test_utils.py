@@ -1,9 +1,11 @@
+import contextlib
 import json
 import os
 import socket
 import subprocess
 import tempfile
 import time
+from typing import Generator
 import uuid
 
 import numpy as np
@@ -30,11 +32,12 @@ from utils import (
 )
 
 
-def get_free_port():
+@contextlib.contextmanager
+def get_free_port() -> Generator[int, None, None]:
     """Allocate an ephemeral port from the OS, suitable for tests."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+        yield s.getsockname()[1]
 
 
 def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
@@ -396,15 +399,29 @@ class Fixtures:
 class OrthancServer:
     def __init__(self, aet="ORTHANC_TEST", http_port=None, dicom_port=None):
         self.aet = aet
-        self.http_port = http_port or get_free_port()
-        self.dicom_port = dicom_port or get_free_port()
+        self._held_sockets: list[socket.socket] = []
+        self.http_port = http_port or self._allocate_port()
+        self.dicom_port = dicom_port or self._allocate_port()
         self.container = None
         self.network = None
         self.base_url = f"http://localhost:{self.http_port}"
         self.modalities = {}
         self.storage_dir = None
         self.config_dir = None
-        self.storescp_port: int = 50001
+        self.storescp_port: int = self._allocate_port()
+        self.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", self.storescp_port)
+
+    def _allocate_port(self) -> int:
+        """Allocate a port and hold the socket open to prevent reuse."""
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        self._held_sockets.append(s)
+        return port
+
+    def _release_sockets(self):
+        for s in self._held_sockets:
+            s.close()
 
     def add_modality(self, name, aet, ip, port):
         self.modalities[name] = [aet, ip, port]
@@ -459,6 +476,10 @@ class OrthancServer:
 
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
+
+        # Release reserved sockets right before starting up Docker to minimize
+        # risk of other processes grabbing the ports in between
+        self._release_sockets()
 
         # Run Orthanc on custom network with port mapping
         subprocess.run(
@@ -986,11 +1007,12 @@ def test_get_studies_returns_failure_details(tmp_path):
             },
         ]
 
-        successful_gets, failed_query_indices, failure_details = (
-            move_studies_from_study_pacs_map(
-                study_pacs_map, "TEST_AET", output_dir, storescp_port=get_free_port()
+        with get_free_port() as storescp_port:
+            successful_gets, failed_query_indices, failure_details = (
+                move_studies_from_study_pacs_map(
+                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                )
             )
-        )
 
         assert successful_gets == 1, "Should have 1 successful get"
         assert len(failed_query_indices) == 1, "Should have 1 failed query index"
@@ -1038,11 +1060,12 @@ def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
             },
         ]
 
-        successful_gets, failed_query_indices, failure_details = (
-            move_studies_from_study_pacs_map(
-                study_pacs_map, "TEST_AET", output_dir, storescp_port=get_free_port()
+        with get_free_port() as storescp_port:
+            successful_gets, failed_query_indices, failure_details = (
+                move_studies_from_study_pacs_map(
+                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                )
             )
-        )
 
         # Zero file retrieval should be treated as failure
         assert successful_gets == 1, (
@@ -1096,11 +1119,12 @@ def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
             },  # Third fails normally
         ]
 
-        successful_gets, failed_query_indices, failure_details = (
-            move_studies_from_study_pacs_map(
-                study_pacs_map, "TEST_AET", output_dir, storescp_port=get_free_port()
+        with get_free_port() as storescp_port:
+            successful_gets, failed_query_indices, failure_details = (
+                move_studies_from_study_pacs_map(
+                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                )
             )
-        )
 
         # Job should continue despite exception
         assert successful_gets == 1, "Should have 1 successful get"
@@ -1159,14 +1183,15 @@ def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
             "message": "Move completed",
         }
 
-        successful, failed, details = move_studies_from_study_pacs_map(
-            study_pacs_map,
-            "TEST_AET",
-            output_dir,
-            storescp_port=get_free_port(),
-            deferred_delivery=True,
-            deferred_delivery_timeout=300,
-        )
+        with get_free_port() as storescp_port:
+            successful, failed, details = move_studies_from_study_pacs_map(
+                study_pacs_map,
+                "TEST_AET",
+                output_dir,
+                storescp_port=storescp_port,
+                deferred_delivery=True,
+                deferred_delivery_timeout=300,
+            )
 
     assert successful == 2
     assert len(failed) == 0
@@ -1201,15 +1226,16 @@ def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
             "message": "Move completed",
         }
 
-        # Use a timeout of 0 so it triggers immediately
-        successful, failed, details = move_studies_from_study_pacs_map(
-            study_pacs_map,
-            "TEST_AET",
-            output_dir,
-            storescp_port=get_free_port(),
-            deferred_delivery=True,
-            deferred_delivery_timeout=0,
-        )
+        with get_free_port() as storescp_port:
+            # Use a timeout of 0 so it triggers immediately
+            successful, failed, details = move_studies_from_study_pacs_map(
+                study_pacs_map,
+                "TEST_AET",
+                output_dir,
+                storescp_port=storescp_port,
+                deferred_delivery=True,
+                deferred_delivery_timeout=0,
+            )
 
     assert any("timeout" in r.message.lower() for r in caplog.records)
 
@@ -1242,14 +1268,15 @@ def test_deferred_delivery_storescp_dies(tmp_path, caplog):
             "message": "Move completed",
         }
 
-        move_studies_from_study_pacs_map(
-            study_pacs_map,
-            "TEST_AET",
-            output_dir,
-            storescp_port=get_free_port(),
-            deferred_delivery=True,
-            deferred_delivery_timeout=300,
-        )
+        with get_free_port() as storescp_port:
+            move_studies_from_study_pacs_map(
+                study_pacs_map,
+                "TEST_AET",
+                output_dir,
+                storescp_port=storescp_port,
+                deferred_delivery=True,
+                deferred_delivery_timeout=300,
+            )
 
     assert any("storescp process died" in r.message for r in caplog.records)
 
@@ -1287,15 +1314,16 @@ def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
             "message": "Move completed",
         }
 
-        # Timeout is short so the idle check triggers quickly
-        move_studies_from_study_pacs_map(
-            study_pacs_map,
-            "TEST_AET",
-            output_dir,
-            storescp_port=get_free_port(),
-            deferred_delivery=True,
-            deferred_delivery_timeout=0,
-        )
+        with get_free_port() as storescp_port:
+            # Timeout is short so the idle check triggers quickly
+            move_studies_from_study_pacs_map(
+                study_pacs_map,
+                "TEST_AET",
+                output_dir,
+                storescp_port=storescp_port,
+                deferred_delivery=True,
+                deferred_delivery_timeout=0,
+            )
 
     # Should have logged warning about C-FIND failure
     assert any("Failed to count instances" in r.message for r in caplog.records)

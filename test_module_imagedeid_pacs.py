@@ -455,15 +455,14 @@ def test_imagedeid_multiple_pacs(tmp_path):
     output_dir.mkdir()
     appdata_dir.mkdir()
 
-    storescp_port = get_free_port()
+    with get_free_port() as storescp_port:
+        orthanc1 = OrthancServer(aet="ORTHANC1")
+        orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
+        orthanc1.start()
 
-    orthanc1 = OrthancServer(aet="ORTHANC1")
-    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
-    orthanc1.start()
-
-    orthanc2 = OrthancServer(aet="ORTHANC2")
-    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
-    orthanc2.start()
+        orthanc2 = OrthancServer(aet="ORTHANC2")
+        orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
+        orthanc2.start()
 
     try:
         for i in range(2):

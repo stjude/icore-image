@@ -206,18 +206,19 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
 
     from module_imagedeidexport import imagedeidexport
 
-    result = imagedeidexport(
-        pacs_list=[invalid_pacs_config],
-        query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=get_free_port(),
-    )
+    with get_free_port() as storescp_port:
+        result = imagedeidexport(
+            pacs_list=[invalid_pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=storescp_port,
+        )
 
     assert result["num_studies_found"] == 0
     assert result["num_images_exported"] == 0
@@ -430,15 +431,14 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    storescp_port = get_free_port()
+    with get_free_port() as storescp_port:
+        orthanc1 = OrthancServer(aet="ORTHANC1")
+        orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
+        orthanc1.start()
 
-    orthanc1 = OrthancServer(aet="ORTHANC1")
-    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
-    orthanc1.start()
-
-    orthanc2 = OrthancServer(aet="ORTHANC2")
-    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
-    orthanc2.start()
+        orthanc2 = OrthancServer(aet="ORTHANC2")
+        orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
+        orthanc2.start()
 
     azurite = AzuriteServer()
     azurite.start()

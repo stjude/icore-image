@@ -25,14 +25,7 @@ from test_utils import OrthancServer, AzuriteServer
 @pytest.fixture(scope="session")
 def shared_orthanc():
     """A single Orthanc container shared across all tests within an xdist worker."""
-    # Allocate a free port for storescp so parallel xdist workers don't collide
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        storescp_port = s.getsockname()[1]
-
     server = OrthancServer()
-    server.storescp_port = storescp_port
-    server.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
     server.start()
     yield server
     server.stop()

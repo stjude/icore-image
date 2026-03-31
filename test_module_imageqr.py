@@ -221,14 +221,15 @@ def test_imageqr_failures_reported(tmp_path):
         host="invalid-host-that-does-not-exist.local", port=99999, aet="INVALID_AET"
     )
 
-    result = imageqr(
-        pacs_list=[invalid_pacs_config],
-        query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        storescp_port=get_free_port(),
-    )
+    with get_free_port() as storescp_port:
+        result = imageqr(
+            pacs_list=[invalid_pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            storescp_port=storescp_port,
+        )
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
     assert result["failed_query_indices"] == [0, 1, 2], (
@@ -352,15 +353,14 @@ def test_imageqr_multiple_pacs(tmp_path):
     output_dir.mkdir()
     appdata_dir.mkdir()
 
-    storescp_port = get_free_port()
+    with get_free_port() as storescp_port:
+        orthanc1 = OrthancServer(aet="ORTHANC1")
+        orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
+        orthanc1.start()
 
-    orthanc1 = OrthancServer(aet="ORTHANC1")
-    orthanc1.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
-    orthanc1.start()
-
-    orthanc2 = OrthancServer(aet="ORTHANC2")
-    orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
-    orthanc2.start()
+        orthanc2 = OrthancServer(aet="ORTHANC2")
+        orthanc2.add_modality("TEST_AET", "TEST_AET", "host.docker.internal", storescp_port)
+        orthanc2.start()
 
     try:
         for i in range(2):

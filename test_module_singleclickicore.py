@@ -336,19 +336,20 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
 
     from module_singleclickicore import singleclickicore
 
-    result = singleclickicore(
-        pacs_list=[invalid_pacs_config],
-        query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        input_file=str(query_file),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=get_free_port(),
-    )
+    with get_free_port() as storescp_port:
+        result = singleclickicore(
+            pacs_list=[invalid_pacs_config],
+            query_spreadsheet=query_spreadsheet,
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            output_dir=str(output_dir),
+            appdata_dir=str(appdata_dir),
+            input_file=str(query_file),
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=storescp_port,
+        )
 
     # PACS queries should fail
     assert result["num_studies_found"] == 0
