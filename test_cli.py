@@ -1,5 +1,6 @@
 import os
 from unittest.mock import patch, MagicMock
+import pytest
 
 
 from cli import (
@@ -12,6 +13,13 @@ from cli import (
     build_headerextract_local_params,
     build_imagedeidexport_params,
     run,
+)
+
+from cli import (
+    build_imageqr_params,
+    build_imagedeid_pacs_params,
+    build_imagedeidexport_params,
+    build_singleclickicore_params,
 )
 from utils import PacsConfiguration
 
@@ -1026,14 +1034,17 @@ def test_run_calls_imagedeidexport_with_correct_params(tmp_path):
             assert result == {"files_uploaded": 5, "bytes_uploaded": 1024}
 
 
-def test_build_params_includes_deferred_delivery(tmp_path):
-    """Test that all build_*_params functions extract deferred_delivery settings."""
-    from cli import (
+@pytest.mark.parametrize(
+    "builder",
+    [
         build_imageqr_params,
         build_imagedeid_pacs_params,
         build_imagedeidexport_params,
         build_singleclickicore_params,
-    )
+    ],
+)
+def test_build_params_includes_deferred_delivery(tmp_path, builder):
+    """Test that all build_*_params functions extract deferred_delivery settings."""
 
     config = {
         "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
@@ -1047,19 +1058,13 @@ def test_build_params_includes_deferred_delivery(tmp_path):
     output_dir = str(tmp_path / "output")
 
     with patch("utils.Spreadsheet.from_file"):
-        for builder in [
-            build_imageqr_params,
-            build_imagedeid_pacs_params,
-            build_imagedeidexport_params,
-            build_singleclickicore_params,
-        ]:
-            params = builder(config, input_dir, output_dir, {})
-            assert params["deferred_delivery"] is True, (
-                f"{builder.__name__} should include deferred_delivery"
-            )
-            assert params["deferred_delivery_timeout"] == 3600, (
-                f"{builder.__name__} should include deferred_delivery_timeout"
-            )
+        params = builder(config, input_dir, output_dir, {})
+        assert params["deferred_delivery"] is True, (
+            f"{builder.__name__} should include deferred_delivery"
+        )
+        assert params["deferred_delivery_timeout"] == 3600, (
+            f"{builder.__name__} should include deferred_delivery_timeout"
+        )
 
 
 def test_build_params_deferred_delivery_defaults(tmp_path):

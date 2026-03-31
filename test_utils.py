@@ -396,8 +396,8 @@ class Fixtures:
 class OrthancServer:
     def __init__(self, aet="ORTHANC_TEST", http_port=None, dicom_port=None):
         self.aet = aet
-        self.http_port = http_port or self._get_free_port()
-        self.dicom_port = dicom_port or self._get_free_port()
+        self.http_port = http_port or get_free_port()
+        self.dicom_port = dicom_port or get_free_port()
         self.container = None
         self.network = None
         self.base_url = f"http://localhost:{self.http_port}"
@@ -405,13 +405,6 @@ class OrthancServer:
         self.storage_dir = None
         self.config_dir = None
         self.storescp_port: int = 50001
-
-    def _get_free_port(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            s.listen(1)
-            port = s.getsockname()[1]
-        return port
 
     def add_modality(self, name, aet, ip, port):
         self.modalities[name] = [aet, ip, port]
@@ -477,6 +470,7 @@ class OrthancServer:
                 container_name,
                 "--network",
                 self._shared_network,
+                # This is necessary to support the use of host.docker.internal DNS resolution in non-macOS systems
                 "--add-host=host.docker.internal:host-gateway",
                 "-p",
                 f"{self.http_port}:8042",

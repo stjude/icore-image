@@ -132,7 +132,7 @@ def imagedeid_pacs(
     ctp_log_level = "DEBUG" if debug else None
 
     # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-    successful_moves, failed_get_indices, failed_get_details = (
+    successful_moves, failed_move_indices, failed_move_details = (
         move_studies_from_study_pacs_map(
             study_pacs_map,
             application_aet,
@@ -160,8 +160,8 @@ def imagedeid_pacs(
             quarantine_dir=quarantine_dir,
             sc_pdf_output_dir=sc_pdf_output_dir,
         ) as pipeline:
-            failed_query_indices = list(set(failed_find_indices + failed_get_indices))
-            combined_failure_details = {**failed_find_details, **failed_get_details}
+            failed_query_indices = list(set(failed_find_indices + failed_move_indices))
+            combined_failure_details = {**failed_find_details, **failed_move_details}
 
             save_interval = 5
             last_save_time = 0
