@@ -1468,20 +1468,18 @@ def _imagedeid_main_rust(config, querying_pacs):
     deid_pixels = config.get("deid_pixels", False)
 
     if querying_pacs:
-        # For PACS mode: retrieve files first via dcmtk, then run Rust engine
+        # For PACS mode: retrieve files first via C-MOVE, then run Rust engine
         logging.info(
             "PACS mode: retrieving studies via C-MOVE before de-identification"
         )
 
-        getscu_output_dir = os.path.join(APPDATA_DIR, "getscu_temp")
-        os.makedirs(getscu_output_dir, exist_ok=True)
+        dicom_retrieval_dir = os.path.join(APPDATA_DIR, "dicom_retrieval")
+        os.makedirs(dicom_retrieval_dir, exist_ok=True)
 
-        # Use the existing cmove logic to retrieve files into getscu_output_dir
-        # We need a temporary log file handle for cmove_images
         with open(os.path.join(APPDATA_DIR, "log.txt"), "a") as logf:
-            failed_accessions = _cmove_images_to_dir(logf, getscu_output_dir, **config)
+            failed_accessions = cmove_images(logf, **config)
 
-        input_dir = getscu_output_dir
+        input_dir = dicom_retrieval_dir
     else:
         failed_accessions = []
         input_dir = INPUT_DIR
@@ -1501,7 +1499,7 @@ def _imagedeid_main_rust(config, querying_pacs):
 
     if querying_pacs:
         save_failed_accessions(failed_accessions)
-        shutil.rmtree(getscu_output_dir, ignore_errors=True)
+        shutil.rmtree(dicom_retrieval_dir, ignore_errors=True)
     else:
         save_failed_accessions([])
 
@@ -1515,85 +1513,6 @@ def _imagedeid_main_rust(config, querying_pacs):
     )
 
 
-def _cmove_images_to_dir(logf, output_dir, **config):
-    """Retrieve DICOM files via C-MOVE into a local directory (no CTP listener).
-
-    Uses getscu instead of movescu since there's no CTP DICOM listener running.
-    Falls back to the existing cmove_images logic for PACS retrieval.
-    """
-    # For the Rust engine, we use getscu (C-GET) to retrieve files directly
-    # to a directory, rather than movescu which sends to a DICOM listener.
-    failed_accessions = []
-    successful_rows = set()
-    study_uids_rows = {}
-
-    queries, accession_numbers = cmove_queries(**config)
-
-    for pacs in config.get("pacs", []):
-        study_uids = set()
-        ip, port, aec = pacs.get("ip", ""), pacs.get("port", ""), pacs.get("ae", "")
-        aet = config.get("application_aet", "")
-        logging.info(f"Querying PACS: {ip}:{port} (AE: {aec})")
-
-        for i, query in enumerate(queries):
-            cmd = (
-                [get_dcmtk_binary("findscu"), "-v", "-aet", aet, "-aec", aec, "-S"]
-                + query.split()
-                + ["-k", "StudyInstanceUID", ip, str(port)]
-            )
-            env = os.environ.copy()
-            env["DCMDICTPATH"] = get_dcmtk_dict_path()
-            process = subprocess.run(
-                cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
-            )
-
-            output = process.stderr
-            for entry in output.split("Find Response:")[1:]:
-                tags = parse_dicom_tag_dict(entry)
-                study_uid = tags.get("StudyInstanceUID")
-                if study_uid and len(study_uid) > 0:
-                    study_uids.add(study_uid)
-                    study_uids_rows[study_uid] = i
-
-        logging.info(f"Found {len(study_uids)} unique studies from PACS {ip}:{port}")
-
-        for i, study_uid in enumerate(study_uids):
-            cmd = [
-                get_dcmtk_binary("getscu"),
-                "-v",
-                "-aet",
-                aet,
-                "-aec",
-                aec,
-                "-od",
-                output_dir,
-                "-k",
-                "QueryRetrieveLevel=STUDY",
-                "-k",
-                f"StudyInstanceUID={study_uid}",
-                ip,
-                str(port),
-            ]
-            env = os.environ.copy()
-            env["DCMDICTPATH"] = get_dcmtk_dict_path()
-            process = subprocess.run(
-                cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
-            )
-
-            success = process.returncode == 0
-            if success:
-                successful_rows.add(study_uids_rows.get(study_uid, i))
-                logging.info(f"Retrieved study {study_uid} ({i + 1}/{len(study_uids)})")
-            else:
-                logging.warning(
-                    f"Failed to retrieve study {study_uid}: {process.stderr}"
-                )
-
-    for i in range(len(queries)):
-        if i not in successful_rows:
-            failed_accessions.append(i)
-
-    return failed_accessions
 
 
 def imagedeid_main(**config):
