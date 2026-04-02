@@ -19,6 +19,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          submodules: 'recursive'
 
       - name: Configure git
         run: |
@@ -81,6 +82,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: v${{ inputs.version }}
+          submodules: 'recursive'
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
@@ -94,6 +96,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Set up Rust
+        run: rustup toolchain install stable
 
       - name: Import signing certificate
         env:
