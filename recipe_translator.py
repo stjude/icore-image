@@ -9,13 +9,46 @@ import xml.etree.ElementTree as ET
 # ---------------------------------------------------------------------------
 
 
+class AnonymizerResult:
+    """Result of translating a CTP anonymizer script.
+
+    Attributes:
+        lines: Recipe header lines.
+        params: ``<p>`` parameter variables (name → value).
+        remove_private_tags: Whether private tags should be removed,
+            derived from the ``<r t="privategroups">`` rule's ``en``
+            attribute.  Defaults to ``True`` when the rule is absent.
+    """
+
+    def __init__(
+        self,
+        lines: list[str],
+        params: dict[str, str],
+        remove_private_tags: bool,
+    ):
+        self.lines = lines
+        self.params = params
+        self.remove_private_tags = remove_private_tags
+
+
 def translate_anonymizer_script(xml_text: str) -> tuple[list[str], dict[str, str]]:
     """Translate a CTP anonymizer XML script to recipe header lines.
 
     Returns (header_lines, variables) where variables is a dict of <p> params.
     """
+    result = translate_anonymizer_script_full(xml_text)
+    return result.lines, result.params
+
+
+def translate_anonymizer_script_full(xml_text: str) -> AnonymizerResult:
+    """Translate a CTP anonymizer XML script with full metadata.
+
+    Like :func:`translate_anonymizer_script` but also reports whether the
+    script enables private-tag removal.
+    """
     params: dict[str, str] = {}
     lines: list[str] = []
+    remove_private_tags = True
 
     root = ET.fromstring(xml_text)
 
@@ -39,13 +72,16 @@ def translate_anonymizer_script(xml_text: str) -> tuple[list[str], dict[str, str
             lines.append(line)
 
     for elem in root.findall("r"):
+        rule_type = elem.get("t", "")
         enabled = elem.get("en", "T")
+        if rule_type == "privategroups":
+            remove_private_tags = enabled == "T"
+            continue
         if enabled == "F":
             continue
-        rule_type = elem.get("t", "")
         lines.extend(_removal_rule_lines(rule_type))
 
-    return lines, params
+    return AnonymizerResult(lines, params, remove_private_tags)
 
 
 def _format_tag_identifier(tag_name: str | None, tag_hex: str) -> str:
@@ -250,28 +286,37 @@ def _extract_function_args(text: str) -> str | None:
 
 
 def _removal_rule_lines(rule_type: str) -> list[str]:
-    """Convert a CTP ``<r>`` removal rule type to recipe lines.
+    """Convert a CTP ``<r>`` removal rule type to recipe ``REMOVE`` directives.
+
+    CTP removal rules target entire categories of DICOM tags:
+
+    - ``overlays``: repeating groups 6000-601E (overlay data).
+    - ``curves``: repeating groups 5000-501E (retired curve data).
+    - ``privategroups``: no-op — the engine removes private tags
+      automatically.
+    - ``uncheckedUIDs``: no direct equivalent in the recipe format.
+
+    Uses the ``(GGGG-GGGG,*)`` group-range syntax supported by
+    dicom-deid-rs.
 
     >>> _removal_rule_lines("overlays")
-    ['REMOVE OverlayData']
+    ['REMOVE (6000-601e,*)']
     >>> _removal_rule_lines("curves")
-    ['# Remove curves (retired 50xx groups)']
+    ['REMOVE (5000-501e,*)']
     >>> _removal_rule_lines("privategroups")
-    ['# Remove private groups']
+    ['# privategroups: handled automatically by the deid engine']
     >>> _removal_rule_lines("uncheckedUIDs")
-    ['# Remove unchecked UIDs']
-    >>> _removal_rule_lines("something")
-    ['# Remove something']
+    ['# uncheckedUIDs: no direct equivalent in recipe format']
     """
     if rule_type == "overlays":
-        return ["REMOVE OverlayData"]
+        return ["REMOVE (6000-601e,*)"]
     if rule_type == "curves":
-        return ["# Remove curves (retired 50xx groups)"]
-    if rule_type == "uncheckedUIDs":
-        return ["# Remove unchecked UIDs"]
+        return ["REMOVE (5000-501e,*)"]
     if rule_type == "privategroups":
-        return ["# Remove private groups"]
-    return [f"# Remove {rule_type}"]
+        return ["# privategroups: handled automatically by the deid engine"]
+    if rule_type == "uncheckedUIDs":
+        return ["# uncheckedUIDs: no direct equivalent in recipe format"]
+    return [f"# Remove {rule_type}: unsupported removal category"]
 
 
 # ---------------------------------------------------------------------------
@@ -794,6 +839,27 @@ def _extract_predicates_from_atom(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+class RecipeResult:
+    """Result of building a complete recipe.
+
+    Attributes:
+        text: The recipe text.
+        variables: Recipe variables extracted from ``<p>`` parameters.
+        remove_private_tags: Whether private tags should be removed,
+            as specified by the CTP anonymizer script.
+    """
+
+    def __init__(
+        self,
+        text: str,
+        variables: dict[str, str],
+        remove_private_tags: bool,
+    ):
+        self.text = text
+        self.variables = variables
+        self.remove_private_tags = remove_private_tags
+
+
 def build_recipe(
     anonymizer_xml: str | None = None,
     pixel_script: str | None = None,
@@ -803,8 +869,23 @@ def build_recipe(
 
     Returns (recipe_text, variables_dict).
     """
+    result = build_recipe_full(anonymizer_xml, pixel_script, filter_script)
+    return result.text, result.variables
+
+
+def build_recipe_full(
+    anonymizer_xml: str | None = None,
+    pixel_script: str | None = None,
+    filter_script: str | None = None,
+) -> RecipeResult:
+    """Build a complete recipe with full metadata.
+
+    Like :func:`build_recipe` but also reports engine configuration
+    derived from the CTP scripts (e.g. whether to remove private tags).
+    """
     output = "FORMAT dicom\n"
     variables: dict[str, str] = {}
+    remove_private_tags = True
 
     if filter_script:
         filter_lines = translate_filter_script(filter_script)
@@ -823,12 +904,13 @@ def build_recipe(
             output += "\n"
 
     if anonymizer_xml:
-        header_lines, params = translate_anonymizer_script(anonymizer_xml)
-        variables.update(params)
-        if header_lines:
+        anon_result = translate_anonymizer_script_full(anonymizer_xml)
+        variables.update(anon_result.params)
+        remove_private_tags = anon_result.remove_private_tags
+        if anon_result.lines:
             output += "\n%header\n"
             output += "\n"
-            output += "\n".join(header_lines)
+            output += "\n".join(anon_result.lines)
             output += "\n"
 
-    return output, variables
+    return RecipeResult(output, variables, remove_private_tags)

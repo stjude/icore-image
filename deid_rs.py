@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-from recipe_translator import build_recipe
+from recipe_translator import build_recipe_full
 from utils import ImageDeidLocalResult
 
 
@@ -87,11 +87,13 @@ class DeidRsPipeline:
                 )
 
         # Build recipe
-        recipe_text, variables = build_recipe(
+        recipe = build_recipe_full(
             anonymizer_xml=self.anonymizer_script,
             pixel_script=pixel_script,
             filter_script=self.filter_script,
         )
+        recipe_text = recipe.text
+        variables = recipe.variables
 
         logging.info("=" * 80)
         logging.info("GENERATED RECIPE:")
@@ -122,6 +124,10 @@ class DeidRsPipeline:
             # Add variables
             for name, value in variables.items():
                 cmd.extend(["--var", name, value])
+
+            # Preserve private tags if the CTP script has them disabled
+            if not recipe.remove_private_tags:
+                cmd.append("--keep-private-tags")
 
             # Add lookup table
             if self.lookup_table:

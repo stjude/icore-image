@@ -97,8 +97,8 @@ class TestTranslateAnonymizerScript:
             <r en="F" t="privategroups">Remove private groups</r>
         </script>"""
         lines, _ = translate_anonymizer_script(xml)
-        assert any("curves" in line for line in lines)
-        assert any("REMOVE OverlayData" in line for line in lines)
+        assert any("REMOVE (5000-501e,*)" in line for line in lines)
+        assert any("REMOVE (6000-601e,*)" in line for line in lines)
         assert not any("private" in line for line in lines)
 
     def test_hex_tag_fallback(self):
