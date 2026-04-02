@@ -7,6 +7,7 @@ block_cipher = None
 
 # Get the current working directory (where the spec file is executed)
 project_path = os.getcwd()
+target_arch = os.environ.get('PYINSTALLER_TARGET_ARCH', None)
 
 # Collect all dependencies for the project
 django_datas = collect_data_files('django')
@@ -72,7 +73,7 @@ exe = EXE(
     upx=True,
     console=True,
     disable_windowed_traceback=False,
-    target_arch=None,
+    target_arch=target_arch,
 )
 
 coll = COLLECT(

@@ -18,7 +18,16 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15-intel
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x86_64
+            arch_label: x64
+          - runner: macos-15
+            arch: arm64
+            arch_label: arm64
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout code
@@ -56,7 +65,7 @@ jobs:
 
       - name: Build unsigned DMG
         if: inputs.build_type == 'unsigned'
-        run: make
+        run: make ARCH=${{ matrix.arch }}
 
       - name: Build signed DMG
         if: inputs.build_type == 'signed'
@@ -64,10 +73,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: make signed
+        run: make signed ARCH=${{ matrix.arch }}
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: icore-x64-dmg
-          path: icore-x64-*.dmg
+          name: icore-${{ matrix.arch_label }}-dmg
+          path: icore-${{ matrix.arch_label }}-*.dmg

@@ -4,6 +4,25 @@
 
 .DEFAULT_GOAL := all
 
+# Architecture configuration (override with `make ARCH=arm64` or `make ARCH=x86_64`)
+ARCH ?= $(shell uname -m)
+
+ifeq ($(ARCH),arm64)
+  ARCH_LABEL := arm64
+  JRE_ARCH := aarch64
+  DCMTK_ARCH := arm64
+  RCLONE_ARCH := arm64
+  ELECTRON_ARCH_FLAG := --arm64
+  PYINSTALLER_ARCH := arm64
+else
+  ARCH_LABEL := x64
+  JRE_ARCH := x64
+  DCMTK_ARCH := x86_64
+  RCLONE_ARCH := amd64
+  ELECTRON_ARCH_FLAG := --x64
+  PYINSTALLER_ARCH := x86_64
+endif
+
 test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
 	uv run pytest -v -n auto
@@ -42,7 +61,7 @@ jre8:
 			| tar -xz; \
 			mv jdk8*-jre jre8; \
 		else \
-			curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=x64&image_type=jre&jvm_impl=hotspot" \
+			curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=$(JRE_ARCH)&image_type=jre&jvm_impl=hotspot" \
 			| jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
 			| head -n1 \
 			| xargs curl -L \
@@ -63,10 +82,10 @@ dcmtk:
 			mv dcmtk-3.6.9-linux-x86_64 dcmtk && \
 			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'storescp' ! -name 'echoscu' -delete; \
 		else \
-			curl -fL https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-x86_64.tar.bz2 -o dcmtk.tar.bz2 && \
+			curl -fL https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-$(DCMTK_ARCH).tar.bz2 -o dcmtk.tar.bz2 && \
 			tar -xjf dcmtk.tar.bz2 && \
 			rm dcmtk.tar.bz2 && \
-			mv dcmtk-3.6.9-macosx-x86_64 dcmtk && \
+			mv dcmtk-3.6.9-macosx-$(DCMTK_ARCH) dcmtk && \
 			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'storescp' ! -name 'echoscu' -delete; \
 		fi; \
 	else \
@@ -85,11 +104,11 @@ rclone:
 			chmod +x rclone/rclone; \
 			rm -rf rclone-$$RCLONE_VERSION-linux-amd64 rclone.zip; \
 		else \
-			curl -fL https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-osx-amd64.zip -o rclone.zip; \
+			curl -fL https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-osx-$(RCLONE_ARCH).zip -o rclone.zip; \
 			unzip -q rclone.zip; \
-			mv rclone-$$RCLONE_VERSION-osx-amd64/rclone rclone/; \
+			mv rclone-$$RCLONE_VERSION-osx-$(RCLONE_ARCH)/rclone rclone/; \
 			chmod +x rclone/rclone; \
-			rm -rf rclone-$$RCLONE_VERSION-osx-amd64 rclone.zip; \
+			rm -rf rclone-$$RCLONE_VERSION-osx-$(RCLONE_ARCH) rclone.zip; \
 		fi; \
 	else \
 		echo "rclone already exists"; \
@@ -99,12 +118,12 @@ external-deps: jre8 dcmtk rclone
 
 build-icorecli:
 	rm -rf dist
-	uv run pyinstaller --clean -y icorecli.spec
+	PYINSTALLER_TARGET_ARCH=$(PYINSTALLER_ARCH) uv run pyinstaller --clean -y icorecli.spec
 
 build-django-app:
 	cd deid && \
-		uv run pyinstaller --clean -y manage.spec && \
-		uv run pyinstaller --clean -y initialize_admin_password.spec
+		PYINSTALLER_TARGET_ARCH=$(PYINSTALLER_ARCH) uv run pyinstaller --clean -y manage.spec && \
+		PYINSTALLER_TARGET_ARCH=$(PYINSTALLER_ARCH) uv run pyinstaller --clean -y initialize_admin_password.spec
 
 build-binaries: build-icorecli build-django-app
 
@@ -115,11 +134,11 @@ prepare-assets:
 	ditto dist/icorecli electron/assets/dist/icorecli
 
 build-dmg:
-	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=false npm run build
+	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg $(ELECTRON_ARCH_FLAG)
 	@VERSION=$$(node -p "require('./electron/package.json').version"); \
 	DMG_FILE=$$(ls -t electron/dist/iCore-*.dmg 2>/dev/null | head -1); \
-	cp "$$DMG_FILE" icore-x64-$$VERSION.dmg; \
-	echo "DMG copied to icore-x64-$$VERSION.dmg"
+	cp "$$DMG_FILE" icore-$(ARCH_LABEL)-$$VERSION.dmg; \
+	echo "DMG copied to icore-$(ARCH_LABEL)-$$VERSION.dmg"
 
 build-dmg-signed:
 	@if [ -z "$$APPLE_ID" ] || [ -z "$$APPLE_APP_SPECIFIC_PASSWORD" ] || [ -z "$$APPLE_TEAM_ID" ]; then \
@@ -134,11 +153,11 @@ build-dmg-signed:
 		echo "  export APPLE_TEAM_ID=\"your-team-id\""; \
 		exit 1; \
 	fi
-	cd electron && npm run build_signed
+	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=true npx electron-builder --mac dmg $(ELECTRON_ARCH_FLAG)
 	@VERSION=$$(node -p "require('./electron/package.json').version"); \
 	DMG_FILE=$$(ls -t electron/dist/iCore-*.dmg 2>/dev/null | head -1); \
-	cp "$$DMG_FILE" icore-x64-$$VERSION.dmg; \
-	echo "DMG copied to icore-x64-$$VERSION.dmg"
+	cp "$$DMG_FILE" icore-$(ARCH_LABEL)-$$VERSION.dmg; \
+	echo "DMG copied to icore-$(ARCH_LABEL)-$$VERSION.dmg"
 
 clean:
 	rm -rf dist deid/dist electron/assets/dist build deid/build

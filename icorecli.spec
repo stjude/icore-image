@@ -7,6 +7,7 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files
 block_cipher = None
 
 project_path = os.getcwd()
+target_arch = os.environ.get('PYINSTALLER_TARGET_ARCH', None)
 
 datas = []
 
@@ -164,7 +165,7 @@ exe = EXE(
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch=None,
+    target_arch=target_arch,
 )
 
 coll = COLLECT(
