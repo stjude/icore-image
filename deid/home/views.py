@@ -1551,6 +1551,7 @@ def reset_deid_settings(request):
                 "default_remove_overlays",
                 "default_remove_curves",
                 "default_remove_private",
+                "deid_engine",
             ]
         elif settings_type == "text_deid":
             keys_to_reset = [

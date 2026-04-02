@@ -138,6 +138,17 @@
     </div>
 </div>
 
+<div class="mt-8">
+    <div class="text-md mb-4">Deidentification Engine</div>
+    <div>
+        <div class="flex items-center">
+            <input type="checkbox" id="deid_engine_rust" name="deid_engine_rust">
+            <label for="deid_engine_rust" class="ml-2">Use experimental Rust engine</label>
+        </div>
+        <div class="text-sm text-gray-500 ml-6">Use dicom-deid-rs instead of CTP for deidentification. This engine is faster but is still under active development.</div>
+    </div>
+</div>
+
 <!-- Default De-id Filters Section -->
 <div class="mt-8">
     <div class="text-md mb-4">Default Deidentification Filters</div>
@@ -230,6 +241,9 @@
             if (settings.default_apply_default_ctp_filter_script !== undefined) {
                 document.getElementById('default_apply_default_ctp_filter_script').checked = settings.default_apply_default_ctp_filter_script;
             }
+            if (settings.deid_engine !== undefined) {
+                document.getElementById('deid_engine_rust').checked = settings.deid_engine === 'rust';
+            }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
             }
@@ -254,6 +268,7 @@
             default_remove_curves: document.getElementById('default_remove_curves').checked,
             default_remove_private: document.getElementById('default_remove_private').checked,
             default_apply_default_ctp_filter_script: document.getElementById('default_apply_default_ctp_filter_script').checked,
+            deid_engine: document.getElementById('deid_engine_rust').checked ? 'rust' : 'ctp',
             selected_protocol: document.getElementById('protocol_select').value,
             deid_filters: filterData
         };
