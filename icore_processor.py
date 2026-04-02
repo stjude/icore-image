@@ -1457,8 +1457,8 @@ def imagedeid_func(_):
 
 def _imagedeid_main_rust(config, querying_pacs):
     """Run image de-identification using the dicom-deid-rs (Rust) engine."""
-    from audit_extraction import save_audit_files
     from deid_rs import DeidRsPipeline
+    from module_imagedeid_pacs import _collect_engine_audit_files
 
     logging.info("Starting image deidentification using dicom-deid-rs (Rust) engine")
 
@@ -1495,7 +1495,7 @@ def _imagedeid_main_rust(config, querying_pacs):
     )
     result = rs_pipeline.run()
 
-    save_audit_files(input_dir, OUTPUT_DIR, APPDATA_DIR)
+    _collect_engine_audit_files(OUTPUT_DIR, APPDATA_DIR)
 
     if querying_pacs:
         save_failed_accessions(failed_accessions)

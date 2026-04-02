@@ -27,6 +27,23 @@ from utils import (
 )
 
 
+def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
+    """Move engine-generated audit CSVs to appdata_dir as Excel files."""
+    from utils import csv_string_to_xlsx
+
+    for csv_name, xlsx_name in [
+        ("metadata.csv", "metadata.xlsx"),
+        ("deid_metadata.csv", "deid_metadata.xlsx"),
+        ("linker.csv", "linker.xlsx"),
+    ]:
+        csv_path = os.path.join(output_dir, csv_name)
+        if os.path.exists(csv_path):
+            with open(csv_path, "r") as f:
+                csv_string_to_xlsx(f.read(), os.path.join(appdata_dir, xlsx_name))
+            os.remove(csv_path)
+            logging.info(f"Converted {csv_name} -> {xlsx_name}")
+
+
 def _log_progress(pipeline: CTPPipeline) -> None:
     if pipeline.metrics:
         files_received = pipeline.metrics.files_received
@@ -156,7 +173,6 @@ def imagedeid_pacs(
 
     try:
         if deid_engine == "rust":
-            from audit_extraction import save_audit_files
             from deid_rs import DeidRsPipeline
 
             rs_pipeline = DeidRsPipeline(
@@ -170,7 +186,7 @@ def imagedeid_pacs(
             )
             result = rs_pipeline.run()
 
-            save_audit_files(dicom_retrieval_dir, output_dir, appdata_dir)
+            _collect_engine_audit_files(output_dir, appdata_dir)
             save_failed_queries_csv(
                 failed_query_indices,
                 query_spreadsheet,

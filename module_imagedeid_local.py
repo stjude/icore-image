@@ -295,8 +295,8 @@ def imagedeid_local(
     )
 
     if deid_engine == "rust":
-        from audit_extraction import save_audit_files
         from deid_rs import DeidRsPipeline
+        from module_imagedeid_pacs import _collect_engine_audit_files
 
         if final_filter_script:
             logging.info(
@@ -316,7 +316,7 @@ def imagedeid_local(
         )
         result = rs_pipeline.run()
 
-        save_audit_files(input_dir, output_dir, appdata_dir)
+        _collect_engine_audit_files(output_dir, appdata_dir)
 
         num_saved = result["num_images_saved"]
         num_quarantined = result["num_images_quarantined"]
