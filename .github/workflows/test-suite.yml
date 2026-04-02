@@ -34,6 +34,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Set up Rust
+        run: rustup toolchain install stable
+
       - name: Install dependencies
         run: make deps external-deps
 
@@ -53,6 +56,9 @@ jobs:
 
       - name: Set up Python
         run: uv python install
+
+      - name: Set up Rust
+        run: rustup toolchain install stable
 
       - name: Install dependencies
         run: uv sync
