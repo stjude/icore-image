@@ -9,12 +9,10 @@ on:
         type: string
 
 jobs:
-  release:
+  prepare-release:
     permissions:
       contents: write
-      pull-requests: write
-    runs-on: macos-15-intel
-
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,23 +20,15 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: '0.10.3'
-
-      - name: Set up Python
-        run: uv python install
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Create release branch
         run: |
@@ -71,6 +61,40 @@ jobs:
           git push origin "$TAG"
           echo "Pushed release branch $BRANCH and tag $TAG"
 
+  build:
+    needs: prepare-release
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x86_64
+            arch_label: x64
+          - runner: macos-15
+            arch: arm64
+            arch_label: arm64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.10.3'
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Import signing certificate
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -92,7 +116,32 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: make signed
+        run: make signed ARCH=${{ matrix.arch }}
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: icore-${{ matrix.arch_label }}-dmg
+          path: icore-${{ matrix.arch_label }}-*.dmg
+
+  create-release:
+    needs: build
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: release/v${{ inputs.version }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: icore-*-dmg
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -100,7 +149,7 @@ jobs:
           tag_name: v${{ inputs.version }}
           name: v${{ inputs.version }}
           body: ''
-          files: icore-x64-*.dmg
+          files: icore-*.dmg
           draft: true
           prerelease: false
         env:
@@ -119,4 +168,3 @@ jobs:
             --body "Automated release PR for version $VERSION" \
             --reviewer qsodia \
             --draft
-
