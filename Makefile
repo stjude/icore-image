@@ -9,14 +9,12 @@ ARCH ?= $(shell uname -m)
 
 ifeq ($(ARCH),arm64)
   ARCH_LABEL := arm64
-  JRE_ARCH := aarch64
   DCMTK_ARCH := arm64
   RCLONE_ARCH := arm64
   ELECTRON_ARCH_FLAG := --arm64
   PYINSTALLER_ARCH := arm64
 else
   ARCH_LABEL := x64
-  JRE_ARCH := x64
   DCMTK_ARCH := x86_64
   RCLONE_ARCH := amd64
   ELECTRON_ARCH_FLAG := --x64
@@ -50,6 +48,7 @@ deps-deid:
 deps-electron:
 	cd electron && npm install
 
+# Note: jre8 is always installed as x64 since it predates apple silicon. It is run through rosetta on arm64 macs.
 jre8:
 	@if [ ! -d "jre8" ]; then \
 		echo "Downloading JRE8..."; \
@@ -61,7 +60,7 @@ jre8:
 			| tar -xz; \
 			mv jdk8*-jre jre8; \
 		else \
-			curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=$(JRE_ARCH)&image_type=jre&jvm_impl=hotspot" \
+			curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=x64&image_type=jre&jvm_impl=hotspot" \
 			| jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
 			| head -n1 \
 			| xargs curl -L \
