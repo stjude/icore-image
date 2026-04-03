@@ -1,5 +1,6 @@
 """Translate CTP anonymizer/pixel/filter scripts to dicom-deid-rs recipe format."""
 
+import logging
 import re
 import xml.etree.ElementTree as ET
 
@@ -176,6 +177,12 @@ def _translate_action(action_text: str, tag: str) -> str | None:
         return f"APPEND {tag} {value}"
     if action_text.startswith("@if("):
         return _translate_if_action(action_text, tag)
+    if action_text.startswith("@process("):
+        logging.warning(
+            "Skipping CTP-only function @process() for tag %s (no equivalent in recipe format)",
+            tag,
+        )
+        return None
 
     # Bare literal value -- set it directly
     return f"REPLACE {tag} {action_text}"
@@ -222,9 +229,7 @@ def _extract_param_ref(text: str) -> str | None:
     return None
 
 
-_IF_RE = re.compile(
-    r"@if\(([^)]+)\)\{([^}]*)\}(?:\{([^}]*)\})?"
-)
+_IF_RE = re.compile(r"@if\(([^)]+)\)\{([^}]*)\}(?:\{([^}]*)\})?")
 
 
 def _translate_if_action(action_text: str, tag: str) -> str | None:
