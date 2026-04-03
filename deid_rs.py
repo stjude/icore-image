@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import selectors
 import subprocess
 import sys
 import tempfile
@@ -141,21 +142,46 @@ class DeidRsPipeline:
 
             logging.info(f"Running dicom-deid-rs: {' '.join(cmd)}")
 
-            result = subprocess.run(
+            process = subprocess.Popen(
                 cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=None,
             )
 
-            if result.stdout:
-                logging.info(f"dicom-deid-rs stdout: {result.stdout}")
-            if result.stderr:
-                logging.info(f"dicom-deid-rs stderr: {result.stderr}")
+            # Stream stderr (progress updates) to logging in real time
+            stdout_lines = []
+            stderr_lines = []
 
-            if result.returncode != 0:
+            sel = selectors.DefaultSelector()
+            sel.register(process.stdout, selectors.EVENT_READ)
+            sel.register(process.stderr, selectors.EVENT_READ)
+
+            open_streams = 2
+            while open_streams > 0:
+                for key, _ in sel.select():
+                    line = key.fileobj.readline()
+                    if not line:
+                        sel.unregister(key.fileobj)
+                        open_streams -= 1
+                        continue
+                    line = line.rstrip("\n")
+                    if key.fileobj is process.stderr:
+                        stderr_lines.append(line)
+                        logging.info(f"[dicom-deid-rs] {line}")
+                    else:
+                        stdout_lines.append(line)
+                        logging.info(f"[dicom-deid-rs] {line}")
+
+            sel.close()
+            process.wait()
+
+            stdout_text = "\n".join(stdout_lines)
+            stderr_text = "\n".join(stderr_lines)
+
+            if process.returncode != 0:
                 raise RuntimeError(
-                    f"dicom-deid-rs exited with code {result.returncode}: {result.stderr}"
+                    f"dicom-deid-rs exited with code {process.returncode}: {stderr_text}"
                 )
 
             # Check for blacklisted_files.txt
@@ -170,7 +196,7 @@ class DeidRsPipeline:
                 logging.info("=" * 80)
 
             # Parse output
-            report = _parse_report(result.stdout)
+            report = _parse_report(stdout_text)
             num_saved = report.get("files_processed", 0)
             num_quarantined = report.get("files_blacklisted", 0) + report.get(
                 "files_skipped", 0
