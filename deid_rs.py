@@ -7,6 +7,7 @@ import selectors
 import subprocess
 import sys
 import tempfile
+from typing import IO
 
 from recipe_translator import build_recipe_full
 from utils import ImageDeidLocalResult
@@ -150,23 +151,34 @@ class DeidRsPipeline:
             )
 
             # Stream stderr (progress updates) to logging in real time
-            stdout_lines = []
-            stderr_lines = []
+            stdout_lines: list[str] = []
+            stderr_lines: list[str] = []
+
+            assert process.stdout is not None
+            assert process.stderr is not None
+            proc_stdout: IO[str] = process.stdout
+            proc_stderr: IO[str] = process.stderr
+
+            streams: dict[int, IO[str]] = {
+                proc_stdout.fileno(): proc_stdout,
+                proc_stderr.fileno(): proc_stderr,
+            }
 
             sel = selectors.DefaultSelector()
-            sel.register(process.stdout, selectors.EVENT_READ)
-            sel.register(process.stderr, selectors.EVENT_READ)
+            sel.register(proc_stdout, selectors.EVENT_READ)
+            sel.register(proc_stderr, selectors.EVENT_READ)
 
-            open_streams = 2
-            while open_streams > 0:
+            while streams:
                 for key, _ in sel.select():
-                    line = key.fileobj.readline()
+                    fd = key.fd
+                    stream = streams[fd]
+                    line = stream.readline()
                     if not line:
                         sel.unregister(key.fileobj)
-                        open_streams -= 1
+                        del streams[fd]
                         continue
                     line = line.rstrip("\n")
-                    if key.fileobj is process.stderr:
+                    if stream is proc_stderr:
                         stderr_lines.append(line)
                         logging.info(f"[dicom-deid-rs] {line}")
                     else:
