@@ -1513,8 +1513,6 @@ def _imagedeid_main_rust(config, querying_pacs):
     )
 
 
-
-
 def imagedeid_main(**config):
     deid_engine = config.get("deid_engine", "ctp")
     querying_pacs = os.path.exists(os.path.join(INPUT_DIR, "input.xlsx"))
