@@ -27,6 +27,23 @@ from utils import (
 )
 
 
+def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
+    """Move engine-generated audit CSVs to appdata_dir as Excel files."""
+    from utils import csv_string_to_xlsx
+
+    for csv_name, xlsx_name in [
+        ("metadata.csv", "metadata.xlsx"),
+        ("deid_metadata.csv", "deid_metadata.xlsx"),
+        ("linker.csv", "linker.xlsx"),
+    ]:
+        csv_path = os.path.join(output_dir, csv_name)
+        if os.path.exists(csv_path):
+            with open(csv_path, "r") as f:
+                csv_string_to_xlsx(f.read(), os.path.join(appdata_dir, xlsx_name))
+            os.remove(csv_path)
+            logging.info(f"Converted {csv_name} -> {xlsx_name}")
+
+
 def _log_progress(pipeline: CTPPipeline) -> None:
     if pipeline.metrics:
         files_received = pipeline.metrics.files_received
@@ -61,13 +78,18 @@ def imagedeid_pacs(
     storescp_port: int = 50001,
     deferred_delivery: bool = False,
     deferred_delivery_timeout: int = 172800,
+    deid_engine: str = "ctp",
 ) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
 
     log_level = logging.DEBUG if debug else logging.INFO
     configure_run_logging(run_dirs["run_log_path"], log_level)
-    logging.info(f"Running imagedeid_pacs (use_fallback_query={use_fallback_query})")
+    engine_label = "dicom-deid-rs (Rust)" if deid_engine == "rust" else "CTP (Java)"
+    logging.info(
+        f"Running imagedeid_pacs using {engine_label} engine "
+        f"(use_fallback_query={use_fallback_query})"
+    )
 
     if appdata_dir is None:
         appdata_dir = run_dirs["appdata_dir"]
@@ -146,75 +168,81 @@ def imagedeid_pacs(
     # Wait briefly to ensure all files are written
     time.sleep(2)
 
+    failed_query_indices = list(set(failed_find_indices + failed_move_indices))
+    combined_failure_details = {**failed_find_details, **failed_move_details}
+    save_failed_queries_csv(
+        failed_query_indices,
+        query_spreadsheet,
+        appdata_dir,
+        combined_failure_details,
+        use_fallback_query=use_fallback_query,
+    )
+
     try:
-        with CTPPipeline(
-            pipeline_type=pipeline_type,
-            input_dir=dicom_retrieval_dir,
-            output_dir=output_dir,
-            application_aet=application_aet,
-            filter_script=combined_filter,
-            anonymizer_script=anonymizer_script,
-            lookup_table=lookup_table,
-            log_path=run_dirs["ctp_log_path"],
-            log_level=ctp_log_level,
-            quarantine_dir=quarantine_dir,
-            sc_pdf_output_dir=sc_pdf_output_dir,
-        ) as pipeline:
-            failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-            combined_failure_details = {**failed_find_details, **failed_move_details}
+        if deid_engine == "rust":
+            from deid_rs import DeidRsPipeline
 
-            save_interval = 5
-            last_save_time = 0
-
-            while not pipeline.is_complete():
-                current_time = time.time()
-                if current_time - last_save_time >= save_interval:
-                    _save_metadata_files(pipeline, appdata_dir)
-                    save_failed_queries_csv(
-                        failed_query_indices,
-                        query_spreadsheet,
-                        appdata_dir,
-                        combined_failure_details,
-                        use_fallback_query=use_fallback_query,
-                    )
-                    _log_progress(pipeline)
-                    last_save_time = current_time
-
-                time.sleep(1)
-
-            _save_metadata_files(pipeline, appdata_dir)
-            save_failed_queries_csv(
-                failed_query_indices,
-                query_spreadsheet,
-                appdata_dir,
-                combined_failure_details,
-                use_fallback_query=use_fallback_query,
+            rs_pipeline = DeidRsPipeline(
+                input_dir=dicom_retrieval_dir,
+                output_dir=output_dir,
+                anonymizer_script=anonymizer_script,
+                filter_script=combined_filter,
+                deid_pixels=deid_pixels,
+                lookup_table=lookup_table,
+                quarantine_dir=quarantine_dir,
             )
+            result = rs_pipeline.run()
 
-            num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
-            num_quarantined = (
-                pipeline.metrics.files_quarantined if pipeline.metrics else 0
-            )
+            _collect_engine_audit_files(output_dir, appdata_dir)
 
-            logging.info("Deidentification complete")
-            logging.info(
-                f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
-            )
-            logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
-            logging.info(
-                f"Files quarantined: {format_number_with_commas(num_quarantined)}"
-            )
+            num_saved = result["num_images_saved"]
+            num_quarantined = result["num_images_quarantined"]
+        else:
+            with CTPPipeline(
+                pipeline_type=pipeline_type,
+                input_dir=dicom_retrieval_dir,
+                output_dir=output_dir,
+                application_aet=application_aet,
+                filter_script=combined_filter,
+                anonymizer_script=anonymizer_script,
+                lookup_table=lookup_table,
+                log_path=run_dirs["ctp_log_path"],
+                log_level=ctp_log_level,
+                quarantine_dir=quarantine_dir,
+                sc_pdf_output_dir=sc_pdf_output_dir,
+            ) as pipeline:
+                save_interval = 5
+                last_save_time = 0
 
-            return {
-                "num_studies_found": len(study_pacs_map),
-                "num_images_saved": pipeline.metrics.files_saved
-                if pipeline.metrics
-                else 0,
-                "num_images_quarantined": pipeline.metrics.files_quarantined
-                if pipeline.metrics
-                else 0,
-                "failed_query_indices": failed_query_indices,
-            }
+                while not pipeline.is_complete():
+                    current_time = time.time()
+                    if current_time - last_save_time >= save_interval:
+                        _save_metadata_files(pipeline, appdata_dir)
+                        _log_progress(pipeline)
+                        last_save_time = current_time
+
+                    time.sleep(1)
+
+                _save_metadata_files(pipeline, appdata_dir)
+
+                num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
+                num_quarantined = (
+                    pipeline.metrics.files_quarantined if pipeline.metrics else 0
+                )
+
+        logging.info("Deidentification complete")
+        logging.info(
+            f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
+        )
+        logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
+        logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
+
+        return {
+            "num_studies_found": len(study_pacs_map),
+            "num_images_saved": num_saved,
+            "num_images_quarantined": num_quarantined,
+            "failed_query_indices": failed_query_indices,
+        }
     finally:
         try:
             shutil.rmtree(dicom_retrieval_dir)

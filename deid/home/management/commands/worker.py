@@ -246,6 +246,10 @@ def build_image_deid_config(task):
         )
         config["sc_pdf_output_dir"] = sc_pdf_full_path
 
+    deid_engine = task.parameters.get("deid_engine", settings.get("deid_engine", "ctp"))
+    if deid_engine != "ctp":
+        config["deid_engine"] = deid_engine
+
     print(config)
     # Write config to file
     with open(CONFIG_PATH, "w") as f:
@@ -878,6 +882,10 @@ def build_singleclickicore_config(task):
     if to_drop_list:
         config["columns_to_drop"] = to_drop_list
 
+    deid_engine = task.parameters.get("deid_engine", settings.get("deid_engine", "ctp"))
+    if deid_engine != "ctp":
+        config["deid_engine"] = deid_engine
+
     with open(CONFIG_PATH, "w") as f:
         yaml = YAML()
         yaml.dump(config, f)
@@ -971,6 +979,10 @@ def build_image_deid_export_config(task):
             os.path.join(sc_pdf_output_dir, f"PHI_{task.name}_{task.timestamp}")
         )
         config["sc_pdf_output_dir"] = sc_pdf_full_path
+
+    deid_engine = task.parameters.get("deid_engine", settings.get("deid_engine", "ctp"))
+    if deid_engine != "ctp":
+        config["deid_engine"] = deid_engine
 
     with open(CONFIG_PATH, "w") as f:
         yaml = YAML()

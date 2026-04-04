@@ -23,6 +23,10 @@ dcmtk_path = os.path.join(project_path, 'dcmtk')
 if os.path.exists(dcmtk_path):
     datas.append((dcmtk_path, 'dcmtk'))
 
+binaries = []
+deid_rs_path = os.path.join(project_path, 'dicom-deid-rs', 'target', 'release', 'dicom-deid-rs')
+if os.path.exists(deid_rs_path):
+    binaries.append((deid_rs_path, '.'))
 
 try:
     lark_datas = collect_data_files('lark')
@@ -92,7 +96,7 @@ except:
 a = Analysis(
     [os.path.join(project_path, 'icore_processor.py')],
     pathex=[project_path],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=[
         'lark',

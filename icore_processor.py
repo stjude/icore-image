@@ -1455,8 +1455,73 @@ def imagedeid_func(_):
     save_linker_csv()
 
 
+def _imagedeid_main_rust(config, querying_pacs):
+    """Run image de-identification using the dicom-deid-rs (Rust) engine."""
+    from deid_rs import DeidRsPipeline
+    from module_imagedeid_pacs import _collect_engine_audit_files
+
+    logging.info("Starting image deidentification using dicom-deid-rs (Rust) engine")
+
+    combined_filter = get_combined_ctp_filter(config)
+    anonymizer_script = config.get("ctp_anonymizer")
+    lookup_table = config.get("ctp_lookup_table")
+    deid_pixels = config.get("deid_pixels", False)
+
+    if querying_pacs:
+        # For PACS mode: retrieve files first via C-MOVE, then run Rust engine
+        logging.info(
+            "PACS mode: retrieving studies via C-MOVE before de-identification"
+        )
+
+        dicom_retrieval_dir = os.path.join(APPDATA_DIR, "dicom_retrieval")
+        os.makedirs(dicom_retrieval_dir, exist_ok=True)
+
+        with open(os.path.join(APPDATA_DIR, "log.txt"), "a") as logf:
+            failed_accessions = cmove_images(logf, **config)
+
+        input_dir = dicom_retrieval_dir
+    else:
+        failed_accessions = []
+        input_dir = INPUT_DIR
+
+    rs_pipeline = DeidRsPipeline(
+        input_dir=input_dir,
+        output_dir=OUTPUT_DIR,
+        anonymizer_script=anonymizer_script,
+        filter_script=combined_filter,
+        deid_pixels=deid_pixels,
+        lookup_table=lookup_table,
+        quarantine_dir=os.path.join(APPDATA_DIR, "quarantine"),
+    )
+    result = rs_pipeline.run()
+
+    _collect_engine_audit_files(OUTPUT_DIR, APPDATA_DIR)
+
+    if querying_pacs:
+        save_failed_accessions(failed_accessions)
+        shutil.rmtree(dicom_retrieval_dir, ignore_errors=True)
+    else:
+        save_failed_accessions([])
+
+    save_quarantined_files_log()
+
+    num_saved = result["num_images_saved"]
+    num_quarantined = result["num_images_quarantined"]
+    logging.info(
+        f"PROCESSING COMPLETE - Files saved: {num_saved}, "
+        f"Files quarantined/skipped: {num_quarantined}"
+    )
+
+
 def imagedeid_main(**config):
+    deid_engine = config.get("deid_engine", "ctp")
     querying_pacs = os.path.exists(os.path.join(INPUT_DIR, "input.xlsx"))
+
+    if deid_engine == "rust":
+        _imagedeid_main_rust(config, querying_pacs)
+        return
+
+    logging.info("Starting image deidentification using CTP (Java) engine")
 
     def setup_config(temp_ctp_dir):
         # Log filter generation details
@@ -1733,8 +1798,22 @@ def validate_config(config):
         error_and_exit("Config file unable to load or invalid.")
     if config.get("module") is None:
         error_and_exit("Module not specified in config file.")
-    if not os.environ.get("JAVA_HOME") and not hasattr(sys, "_MEIPASS"):
-        error_and_exit("JAVA_HOME environment variable is not set")
+    deid_engine = config.get("deid_engine", "ctp")
+    if deid_engine not in ("ctp", "rust"):
+        error_and_exit(f"Invalid deid_engine: {deid_engine}. Must be 'ctp' or 'rust'.")
+    if deid_engine == "ctp":
+        if not os.environ.get("JAVA_HOME") and not hasattr(sys, "_MEIPASS"):
+            error_and_exit("JAVA_HOME environment variable is not set")
+    else:
+        # Verify Rust binary exists
+        from deid_rs import _get_default_binary_path
+
+        binary_path = _get_default_binary_path()
+        if not os.path.exists(binary_path):
+            error_and_exit(
+                f"dicom-deid-rs binary not found at {binary_path}. "
+                "Build it with: cd dicom-deid-rs && cargo build --release"
+            )
     if not getattr(sys, "frozen", False):
         if not os.environ.get("DCMTK_HOME"):
             error_and_exit("DCMTK_HOME environment variable is not set")

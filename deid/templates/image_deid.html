@@ -194,6 +194,14 @@
                 </div>
                 <div class="text-sm text-gray-500 ml-6">Blacks out regions of pixels in a DICOM image from known devices.</div>
             </div>
+            <div class="text-md mb-4 mt-8">Deidentification Engine</div>
+            <div class="mb-4">
+                <div class="flex items-center">
+                    <input type="checkbox" id="deid_engine_rust" name="deid_engine_rust" class="mr-2">
+                    <label for="deid_engine_rust">Use experimental Rust engine</label>
+                </div>
+                <div class="text-sm text-gray-500 ml-6">Use dicom-deid-rs instead of CTP for deidentification. This engine is faster but is still under active development.</div>
+            </div>
             <div class="text-md mb-4 mt-8">Mapping File Configuration</div>
             <div>
                 <div class="flex items-center">
@@ -358,6 +366,9 @@
             }
             if (settings.default_apply_default_ctp_filter_script !== undefined) {
                 document.getElementById('apply_default_ctp_filter_script').checked = settings.default_apply_default_ctp_filter_script;
+            }
+            if (settings.deid_engine !== undefined) {
+                document.getElementById('deid_engine_rust').checked = settings.deid_engine === 'rust';
             }
             if (settings.deid_filters) {
                 loadFiltersFromSettings(settings.deid_filters);
@@ -664,6 +675,7 @@
             remove_curves: document.getElementById('remove_curves').checked,
             remove_private: document.getElementById('remove_private').checked,
             apply_default_ctp_filter_script: document.getElementById('apply_default_ctp_filter_script').checked,
+            deid_engine: document.getElementById('deid_engine_rust').checked ? 'rust' : 'ctp',
             date_shift_days: settings.date_shift_range || 0,
             site_id: settings.site_id || '',
             pacs_configs: settings.pacs_configs || [],

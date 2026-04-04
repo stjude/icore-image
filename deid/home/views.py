@@ -589,6 +589,7 @@ def run_deid(request):
                     "apply_default_ctp_filter_script": data.get(
                         "apply_default_ctp_filter_script", True
                     ),
+                    "deid_engine": data.get("deid_engine", "ctp"),
                     "site_id": data["site_id"],
                     "sc_pdf_output_dir": data.get("sc_pdf_output_dir", ""),
                     "use_fallback_query": data.get("use_fallback_query", False),
@@ -817,6 +818,7 @@ def run_imagedeidexport(request):
                 "apply_default_ctp_filter_script": data.get(
                     "apply_default_ctp_filter_script", True
                 ),
+                "deid_engine": data.get("deid_engine", "ctp"),
                 "site_id": data["site_id"],
                 "sas_url": data["sas_url"],
                 "sc_pdf_output_dir": data.get("sc_pdf_output_dir", ""),
@@ -1551,6 +1553,7 @@ def reset_deid_settings(request):
                 "default_remove_overlays",
                 "default_remove_curves",
                 "default_remove_private",
+                "deid_engine",
             ]
         elif settings_type == "text_deid":
             keys_to_reset = [
