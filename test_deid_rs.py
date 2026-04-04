@@ -26,6 +26,28 @@ def _mock_popen(returncode=0, stdout="", stderr=""):
     return mock_proc
 
 
+def _mock_translate_run(returncode=0, stderr=""):
+    """Create a mock subprocess.run result for translate-ctp."""
+    mock_result = MagicMock()
+    mock_result.returncode = returncode
+    mock_result.stdout = ""
+    mock_result.stderr = stderr
+    return mock_result
+
+
+# Default translate-ctp stderr output (variables + config)
+TRANSLATE_STDERR = """\
+Recipe written to /tmp/recipe.txt
+
+Variables:
+  DATEINC = -100
+
+Config:
+  remove_private_tags: true
+  remove_unspecified_elements: false
+"""
+
+
 class TestParseReport:
     def test_basic_output(self):
         stdout = """De-identification complete:
@@ -50,7 +72,9 @@ class TestParseReport:
 
 class TestDeidRsPipeline:
     @patch("deid_rs.subprocess.Popen")
-    def test_basic_invocation(self, mock_popen_cls):
+    @patch("deid_rs.subprocess.run")
+    def test_basic_invocation(self, mock_run, mock_popen_cls):
+        mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
         mock_popen_cls.return_value = _mock_popen(
             stdout="De-identification complete:\n  Files processed:  5\n  Files blacklisted: 0\n  Files skipped:    0\n",
         )
@@ -63,35 +87,43 @@ class TestDeidRsPipeline:
         assert result["num_images_saved"] == 5
         assert result["num_images_quarantined"] == 0
 
-        # Verify subprocess was called
+        # Verify translate-ctp was called first
+        assert mock_run.called
+        translate_cmd = mock_run.call_args[0][0]
+        assert translate_cmd[1] == "translate-ctp"
+
+        # Verify pipeline was called
         assert mock_popen_cls.called
-        cmd = mock_popen_cls.call_args[0][0]
-        assert cmd[0] == "/usr/bin/dicom-deid-rs"
-        assert cmd[1] == "/tmp/in"
-        assert cmd[2] == "/tmp/out"
+        pipeline_cmd = mock_popen_cls.call_args[0][0]
+        assert pipeline_cmd[0] == "/usr/bin/dicom-deid-rs"
+        assert pipeline_cmd[1] == "/tmp/in"
+        assert pipeline_cmd[2] == "/tmp/out"
 
     @patch("deid_rs.subprocess.Popen")
-    def test_variables_passed(self, mock_popen_cls):
+    @patch("deid_rs.subprocess.run")
+    def test_variables_passed(self, mock_run, mock_popen_cls):
+        mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
         mock_popen_cls.return_value = _mock_popen(
             stdout="  Files processed:  1\n  Files blacklisted: 0\n  Files skipped:    0\n",
         )
         pipeline = DeidRsPipeline(
             input_dir="/tmp/in",
             output_dir="/tmp/out",
-            anonymizer_script='<script><p t="DATEINC">-100</p><e en="T" t="00080020" n="StudyDate">@incrementdate(this,@DATEINC)</e></script>',
+            anonymizer_script='<script><p t="DATEINC">-100</p></script>',
             binary_path="/usr/bin/dicom-deid-rs",
         )
         pipeline.run()
 
-        cmd = mock_popen_cls.call_args[0][0]
-        # Should have --var DATEINC -100 in the command
-        assert "--var" in cmd
-        var_idx = cmd.index("--var")
-        assert cmd[var_idx + 1] == "DATEINC"
-        assert cmd[var_idx + 2] == "-100"
+        pipeline_cmd = mock_popen_cls.call_args[0][0]
+        assert "--var" in pipeline_cmd
+        var_idx = pipeline_cmd.index("--var")
+        assert pipeline_cmd[var_idx + 1] == "DATEINC"
+        assert pipeline_cmd[var_idx + 2] == "-100"
 
     @patch("deid_rs.subprocess.Popen")
-    def test_error_handling(self, mock_popen_cls):
+    @patch("deid_rs.subprocess.run")
+    def test_error_handling(self, mock_run, mock_popen_cls):
+        mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
         mock_popen_cls.return_value = _mock_popen(
             returncode=1,
             stderr="Error: recipe parse failed\n",
@@ -105,7 +137,23 @@ class TestDeidRsPipeline:
             pipeline.run()
 
     @patch("deid_rs.subprocess.Popen")
-    def test_lookup_table_passed(self, mock_popen_cls):
+    @patch("deid_rs.subprocess.run")
+    def test_translate_error(self, mock_run, mock_popen_cls):
+        mock_run.return_value = _mock_translate_run(
+            returncode=1, stderr="Error: XML parse error"
+        )
+        pipeline = DeidRsPipeline(
+            input_dir="/tmp/in",
+            output_dir="/tmp/out",
+            binary_path="/usr/bin/dicom-deid-rs",
+        )
+        with pytest.raises(RuntimeError, match="translate-ctp failed"):
+            pipeline.run()
+
+    @patch("deid_rs.subprocess.Popen")
+    @patch("deid_rs.subprocess.run")
+    def test_lookup_table_passed(self, mock_run, mock_popen_cls):
+        mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
         mock_popen_cls.return_value = _mock_popen(
             stdout="  Files processed:  1\n  Files blacklisted: 0\n  Files skipped:    0\n",
         )
@@ -117,5 +165,5 @@ class TestDeidRsPipeline:
         )
         pipeline.run()
 
-        cmd = mock_popen_cls.call_args[0][0]
-        assert "--lookup-table" in cmd
+        pipeline_cmd = mock_popen_cls.call_args[0][0]
+        assert "--lookup-table" in pipeline_cmd

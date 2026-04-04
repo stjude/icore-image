@@ -9,16 +9,12 @@ import sys
 import tempfile
 from typing import IO
 
-from recipe_translator import build_recipe_full
 from utils import ImageDeidLocalResult
 
 
 def _get_default_binary_path() -> str:
     """Locate the dicom-deid-rs binary."""
     if getattr(sys, "frozen", False):
-        # Packaged app: binary is bundled alongside the executable.
-        # Check both the executable directory (COLLECT/one-folder mode)
-        # and _MEIPASS (one-file mode).
         candidates = [
             os.path.join(os.path.dirname(sys.executable), "dicom-deid-rs"),
         ]
@@ -27,30 +23,28 @@ def _get_default_binary_path() -> str:
         for path in candidates:
             if os.path.exists(path):
                 return path
-        # Fall through to the first candidate for error reporting
         return candidates[0]
 
-    # Development: use the cargo build output
     return os.path.join(
         os.path.dirname(__file__), "dicom-deid-rs", "target", "release", "dicom-deid-rs"
     )
 
 
-def _get_default_pixel_script() -> str | None:
-    """Load the default CTP pixel anonymizer script."""
+def _get_default_pixel_script_path() -> str | None:
+    """Return the path to the default CTP pixel anonymizer script."""
     script_path = os.path.join(
         os.path.dirname(__file__), "ctp", "scripts", "DicomPixelAnonymizer.script"
     )
     if os.path.exists(script_path):
-        with open(script_path, "r") as f:
-            return f.read()
+        return script_path
     return None
 
 
 class DeidRsPipeline:
     """Context-free wrapper for the dicom-deid-rs CLI.
 
-    Unlike CTPPipeline, this runs synchronously -- no polling loop needed.
+    Uses the built-in translate-ctp subcommand to translate CTP scripts
+    to recipe format, then runs the de-identification pipeline.
     """
 
     def __init__(
@@ -76,62 +70,39 @@ class DeidRsPipeline:
     def run(self) -> ImageDeidLocalResult:
         """Run the de-identification pipeline.
 
-        Translates CTP scripts to recipe format, invokes the Rust binary,
-        and returns results in the same format as CTPPipeline.
+        Uses the Rust translate-ctp subcommand to translate CTP scripts,
+        then invokes the pipeline with the generated recipe.
         """
-        # Load pixel script if needed
-        pixel_script = None
-        if self.deid_pixels:
-            pixel_script = _get_default_pixel_script()
-            if pixel_script is None:
-                logging.warning(
-                    "Pixel deid enabled but DicomPixelAnonymizer.script not found"
-                )
-
-        # Build recipe
-        recipe = build_recipe_full(
-            anonymizer_xml=self.anonymizer_script,
-            pixel_script=pixel_script,
-            filter_script=self.filter_script,
-        )
-        recipe_text = recipe.text
-        variables = recipe.variables
-
-        logging.info("=" * 80)
-        logging.info("GENERATED RECIPE:")
-        logging.info("=" * 80)
-        logging.info(recipe_text)
-        logging.info("=" * 80)
-        if variables:
-            logging.info(f"Recipe variables: {variables}")
-
-        # Write temp files
-        temp_files = []
+        temp_files: list[str] = []
         try:
-            recipe_file = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False
+            # Step 1: Translate CTP scripts using the Rust translator
+            recipe_path, variables, remove_private_tags = (
+                self._translate_ctp_scripts(temp_files)
             )
-            recipe_file.write(recipe_text)
-            recipe_file.close()
-            temp_files.append(recipe_file.name)
 
-            # Build command
+            logging.info("=" * 80)
+            logging.info("GENERATED RECIPE (via translate-ctp):")
+            logging.info("=" * 80)
+            with open(recipe_path, "r") as f:
+                logging.info(f.read())
+            logging.info("=" * 80)
+            if variables:
+                logging.info(f"Recipe variables: {variables}")
+
+            # Step 2: Build pipeline command
             cmd = [
                 self.binary_path,
                 self.input_dir,
                 self.output_dir,
-                recipe_file.name,
+                recipe_path,
             ]
 
-            # Add variables
             for name, value in variables.items():
                 cmd.extend(["--var", name, value])
 
-            # Preserve private tags if the CTP script has them disabled
-            if not recipe.remove_private_tags:
+            if not remove_private_tags:
                 cmd.append("--keep-private-tags")
 
-            # Add lookup table
             if self.lookup_table:
                 lookup_file = tempfile.NamedTemporaryFile(
                     mode="w", suffix=".properties", delete=False
@@ -229,6 +200,87 @@ class DeidRsPipeline:
                     os.unlink(path)
                 except OSError:
                     pass
+
+    def _translate_ctp_scripts(
+        self, temp_files: list[str]
+    ) -> tuple[str, dict[str, str], bool]:
+        """Use dicom-deid-rs translate-ctp to convert CTP scripts to recipe.
+
+        Returns (recipe_path, variables, remove_private_tags).
+        """
+        # Write anonymizer script to temp file
+        anon_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".xml", delete=False
+        )
+        anon_file.write(self.anonymizer_script or "<script></script>")
+        anon_file.close()
+        temp_files.append(anon_file.name)
+
+        # Recipe output file
+        recipe_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False
+        )
+        recipe_file.close()
+        temp_files.append(recipe_file.name)
+
+        # Build translate-ctp command
+        cmd = [
+            self.binary_path,
+            "translate-ctp",
+            anon_file.name,
+            "-o",
+            recipe_file.name,
+        ]
+
+        # Add pixel script
+        if self.deid_pixels:
+            pixel_path = _get_default_pixel_script_path()
+            if pixel_path:
+                cmd.extend(["--pixel", pixel_path])
+            else:
+                logging.warning(
+                    "Pixel deid enabled but DicomPixelAnonymizer.script not found"
+                )
+
+        # Add filter script
+        if self.filter_script:
+            filter_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".script", delete=False
+            )
+            filter_file.write(self.filter_script)
+            filter_file.close()
+            temp_files.append(filter_file.name)
+            cmd.extend(["--filter", filter_file.name])
+
+        logging.info(f"Translating CTP scripts: {' '.join(cmd)}")
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"translate-ctp failed with code {result.returncode}: {result.stderr}"
+            )
+
+        # Parse variables and config from stderr
+        variables: dict[str, str] = {}
+        remove_private_tags = True
+
+        for line in result.stderr.splitlines():
+            line = line.strip()
+            if "=" in line and not line.startswith("Config:") and not line.startswith("Variables:"):
+                key, _, val = line.partition("=")
+                key = key.strip()
+                val = val.strip()
+                if key and val and not key.startswith("remove_"):
+                    variables[key] = val
+            if line.startswith("remove_private_tags:"):
+                remove_private_tags = "true" in line
+
+        return recipe_file.name, variables, remove_private_tags
 
 
 _REPORT_RE = re.compile(r"Files (\w+):\s*(\d+)")
