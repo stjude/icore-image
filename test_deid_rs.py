@@ -167,3 +167,41 @@ class TestDeidRsPipeline:
 
         pipeline_cmd = mock_popen_cls.call_args[0][0]
         assert "--lookup-table" in pipeline_cmd
+
+    @patch("deid_rs.subprocess.Popen")
+    @patch("deid_rs.subprocess.run")
+    def test_remove_unspecified_elements_passed(self, mock_run, mock_popen_cls):
+        stderr_with_unspecified = TRANSLATE_STDERR.replace(
+            "remove_unspecified_elements: false",
+            "remove_unspecified_elements: true",
+        )
+        mock_run.return_value = _mock_translate_run(stderr=stderr_with_unspecified)
+        mock_popen_cls.return_value = _mock_popen(
+            stdout="  Files processed:  1\n  Files blacklisted: 0\n  Files skipped:    0\n",
+        )
+        pipeline = DeidRsPipeline(
+            input_dir="/tmp/in",
+            output_dir="/tmp/out",
+            binary_path="/usr/bin/dicom-deid-rs",
+        )
+        pipeline.run()
+
+        pipeline_cmd = mock_popen_cls.call_args[0][0]
+        assert "--remove-unspecified-elements" in pipeline_cmd
+
+    @patch("deid_rs.subprocess.Popen")
+    @patch("deid_rs.subprocess.run")
+    def test_remove_unspecified_not_passed_when_false(self, mock_run, mock_popen_cls):
+        mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
+        mock_popen_cls.return_value = _mock_popen(
+            stdout="  Files processed:  1\n  Files blacklisted: 0\n  Files skipped:    0\n",
+        )
+        pipeline = DeidRsPipeline(
+            input_dir="/tmp/in",
+            output_dir="/tmp/out",
+            binary_path="/usr/bin/dicom-deid-rs",
+        )
+        pipeline.run()
+
+        pipeline_cmd = mock_popen_cls.call_args[0][0]
+        assert "--remove-unspecified-elements" not in pipeline_cmd

@@ -76,8 +76,8 @@ class DeidRsPipeline:
         temp_files: list[str] = []
         try:
             # Step 1: Translate CTP scripts using the Rust translator
-            recipe_path, variables, remove_private_tags = self._translate_ctp_scripts(
-                temp_files
+            recipe_path, variables, remove_private_tags, remove_unspecified = (
+                self._translate_ctp_scripts(temp_files)
             )
 
             logging.info("=" * 80)
@@ -88,6 +88,10 @@ class DeidRsPipeline:
             logging.info("=" * 80)
             if variables:
                 logging.info(f"Recipe variables: {variables}")
+            logging.info(
+                f"Config: remove_private_tags={remove_private_tags}, "
+                f"remove_unspecified_elements={remove_unspecified}"
+            )
 
             # Step 2: Build pipeline command
             cmd = [
@@ -102,6 +106,9 @@ class DeidRsPipeline:
 
             if not remove_private_tags:
                 cmd.append("--keep-private-tags")
+
+            if remove_unspecified:
+                cmd.append("--remove-unspecified-elements")
 
             if self.lookup_table:
                 lookup_file = tempfile.NamedTemporaryFile(
@@ -203,10 +210,10 @@ class DeidRsPipeline:
 
     def _translate_ctp_scripts(
         self, temp_files: list[str]
-    ) -> tuple[str, dict[str, str], bool]:
+    ) -> tuple[str, dict[str, str], bool, bool]:
         """Use dicom-deid-rs translate-ctp to convert CTP scripts to recipe.
 
-        Returns (recipe_path, variables, remove_private_tags).
+        Returns (recipe_path, variables, remove_private_tags, remove_unspecified_elements).
         """
         # Write anonymizer script to temp file
         anon_file = tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False)
@@ -264,6 +271,7 @@ class DeidRsPipeline:
         # Parse variables and config from stderr
         variables: dict[str, str] = {}
         remove_private_tags = True
+        remove_unspecified_elements = False
 
         for line in result.stderr.splitlines():
             line = line.strip()
@@ -279,8 +287,10 @@ class DeidRsPipeline:
                     variables[key] = val
             if line.startswith("remove_private_tags:"):
                 remove_private_tags = "true" in line
+            if line.startswith("remove_unspecified_elements:"):
+                remove_unspecified_elements = "true" in line
 
-        return recipe_file.name, variables, remove_private_tags
+        return recipe_file.name, variables, remove_private_tags, remove_unspecified_elements
 
 
 _REPORT_RE = re.compile(r"Files (\w+):\s*(\d+)")
