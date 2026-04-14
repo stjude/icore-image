@@ -76,8 +76,8 @@ class DeidRsPipeline:
         temp_files: list[str] = []
         try:
             # Step 1: Translate CTP scripts using the Rust translator
-            recipe_path, variables, remove_private_tags = (
-                self._translate_ctp_scripts(temp_files)
+            recipe_path, variables, remove_private_tags = self._translate_ctp_scripts(
+                temp_files
             )
 
             logging.info("=" * 80)
@@ -209,17 +209,13 @@ class DeidRsPipeline:
         Returns (recipe_path, variables, remove_private_tags).
         """
         # Write anonymizer script to temp file
-        anon_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".xml", delete=False
-        )
+        anon_file = tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False)
         anon_file.write(self.anonymizer_script or "<script></script>")
         anon_file.close()
         temp_files.append(anon_file.name)
 
         # Recipe output file
-        recipe_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        )
+        recipe_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
         recipe_file.close()
         temp_files.append(recipe_file.name)
 
@@ -271,7 +267,11 @@ class DeidRsPipeline:
 
         for line in result.stderr.splitlines():
             line = line.strip()
-            if "=" in line and not line.startswith("Config:") and not line.startswith("Variables:"):
+            if (
+                "=" in line
+                and not line.startswith("Config:")
+                and not line.startswith("Variables:")
+            ):
                 key, _, val = line.partition("=")
                 key = key.strip()
                 val = val.strip()
