@@ -54,7 +54,7 @@ class PacsQueryGather(GatherStage):
     query-derived filter is merged); this stage will AND-merge the
     spreadsheet-derived filter onto it and store the combined filter on
     ``ctx`` for the image-deid stage to consume via
-    :attr:`combined_filter`.
+    :attr:`gather_filter_override`.
     """
 
     def __init__(

@@ -229,14 +229,26 @@ def _get_tag_hex_from_keyword(tag_keyword: str) -> str | None:
     raise ValueError(f"Tag {tag_keyword} not found in DICOM dictionary")
 
 
-def _extract_simple_action(action_string: str) -> str | None:
+def _extract_simple_action(action_string: str) -> str:
+    """Return the CTP simple-action name for ``@lookup`` fallback usage.
+
+    Only ``keep``/``remove``/``empty`` are valid fallbacks in CTP's
+    ``@lookup(this, KeyType, default)`` form (see docs/ctp-script-format.md).
+    For any other action (e.g. ``@hashPtID``, ``@UID``, or a raw value),
+    fall back to ``keep`` and warn, so the merged script remains valid.
+    """
     simple_actions = ["@keep()", "@remove()", "@empty()"]
 
     for simple_action in simple_actions:
         if action_string == simple_action:
             return simple_action[1:-2]
 
-    return "quarantine"
+    logging.warning(
+        "Unsupported CTP action %r cannot be used as an @lookup fallback; "
+        "defaulting to 'keep'.",
+        action_string,
+    )
+    return "keep"
 
 
 def _merge_mapping_with_script(mapping_file_path: str, anonymizer_script: str) -> str:
