@@ -121,6 +121,10 @@ class DeidRsPipeline:
                 temp_files.append(lookup_file.name)
                 cmd.extend(["--lookup-table", lookup_file.name])
 
+            if self.quarantine_dir:
+                os.makedirs(self.quarantine_dir, exist_ok=True)
+                cmd.extend(["--quarantine-dir", self.quarantine_dir])
+
             logging.info(f"Running dicom-deid-rs: {' '.join(cmd)}")
 
             process = subprocess.Popen(
@@ -176,16 +180,25 @@ class DeidRsPipeline:
                     f"dicom-deid-rs exited with code {process.returncode}: {stderr_text}"
                 )
 
-            # Check for blacklisted_files.txt
-            blacklist_report = os.path.join(self.output_dir, "blacklisted_files.txt")
-            if os.path.exists(blacklist_report):
-                with open(blacklist_report, "r") as f:
-                    content = f.read()
-                logging.info("=" * 80)
-                logging.info("BLACKLISTED FILES (rejected by filter):")
-                logging.info("=" * 80)
-                logging.info(content)
-                logging.info("=" * 80)
+            # Check for blacklisted_files.txt — when a quarantine_dir is
+            # configured the Rust engine now writes the report alongside the
+            # quarantined files.  Fall back to output_dir for older binaries
+            # or runs without a quarantine_dir.
+            candidate_dirs = []
+            if self.quarantine_dir:
+                candidate_dirs.append(self.quarantine_dir)
+            candidate_dirs.append(self.output_dir)
+            for d in candidate_dirs:
+                blacklist_report = os.path.join(d, "blacklisted_files.txt")
+                if os.path.exists(blacklist_report):
+                    with open(blacklist_report, "r") as f:
+                        content = f.read()
+                    logging.info("=" * 80)
+                    logging.info("BLACKLISTED FILES (rejected by filter):")
+                    logging.info("=" * 80)
+                    logging.info(content)
+                    logging.info("=" * 80)
+                    break
 
             # Parse output
             report = _parse_report(stdout_text)

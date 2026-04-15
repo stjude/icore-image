@@ -205,3 +205,143 @@ class TestDeidRsPipeline:
 
         pipeline_cmd = mock_popen_cls.call_args[0][0]
         assert "--remove-unspecified-elements" not in pipeline_cmd
+
+    @patch("deid_rs.subprocess.Popen")
+    @patch("deid_rs.subprocess.run")
+    def test_quarantine_dir_passed(self, mock_run, mock_popen_cls, tmp_path):
+        mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
+        mock_popen_cls.return_value = _mock_popen(
+            stdout="  Files processed:  1\n  Files blacklisted: 0\n  Files skipped:    0\n",
+        )
+        qdir = tmp_path / "quarantine"
+        pipeline = DeidRsPipeline(
+            input_dir="/tmp/in",
+            output_dir="/tmp/out",
+            quarantine_dir=str(qdir),
+            binary_path="/usr/bin/dicom-deid-rs",
+        )
+        pipeline.run()
+
+        pipeline_cmd = mock_popen_cls.call_args[0][0]
+        assert "--quarantine-dir" in pipeline_cmd
+        idx = pipeline_cmd.index("--quarantine-dir")
+        assert pipeline_cmd[idx + 1] == str(qdir)
+        assert qdir.is_dir(), "quarantine_dir should be created before invocation"
+
+    @patch("deid_rs.subprocess.Popen")
+    @patch("deid_rs.subprocess.run")
+    def test_quarantine_dir_not_passed_when_none(self, mock_run, mock_popen_cls):
+        mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
+        mock_popen_cls.return_value = _mock_popen(
+            stdout="  Files processed:  1\n  Files blacklisted: 0\n  Files skipped:    0\n",
+        )
+        pipeline = DeidRsPipeline(
+            input_dir="/tmp/in",
+            output_dir="/tmp/out",
+            binary_path="/usr/bin/dicom-deid-rs",
+        )
+        pipeline.run()
+
+        pipeline_cmd = mock_popen_cls.call_args[0][0]
+        assert "--quarantine-dir" not in pipeline_cmd
+
+
+class TestDeidRsQuarantineE2E:
+    """End-to-end: real binary, real inputs, real quarantine directory.
+
+    Skipped when the release binary isn't built. Build with
+    ``cd dicom-deid-rs && cargo build --release`` before running.
+    """
+
+    def _binary_path(self) -> str:
+        from pathlib import Path
+
+        return str(
+            Path(__file__).parent
+            / "dicom-deid-rs"
+            / "target"
+            / "release"
+            / "dicom-deid-rs"
+        )
+
+    def test_blacklisted_files_land_in_quarantine_dir(self, tmp_path):
+        if not os.path.exists(self._binary_path()):
+            pytest.skip("dicom-deid-rs release binary not built")
+
+        from pydicom.dataset import FileDataset, FileMetaDataset
+
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        quarantine_dir = tmp_path / "quarantine"
+        input_dir.mkdir()
+
+        # Write a minimal CT DICOM so the blacklist matches.
+        meta = FileMetaDataset()
+        meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
+        meta.MediaStorageSOPInstanceUID = "1.2.3"
+        meta.TransferSyntaxUID = "1.2.840.10008.1.2.1"
+        ds = FileDataset(
+            str(input_dir / "test.dcm"), {}, file_meta=meta, preamble=b"\0" * 128
+        )
+        ds.PatientName = "Test^Patient"
+        ds.PatientID = "PID123"
+        ds.Modality = "CT"
+        ds.StudyDate = "20250101"
+        ds.SeriesNumber = "1"
+        ds.SOPInstanceUID = "1.2.3"
+        ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
+        ds.StudyInstanceUID = "1.2"
+        ds.SeriesInstanceUID = "1.2.9"
+        ds.save_as(str(input_dir / "test.dcm"), write_like_original=False)
+
+        # Recipe with a blacklist that rejects CT files.
+        recipe_path = tmp_path / "recipe.txt"
+        recipe_path.write_text(
+            "FORMAT dicom\n%filter blacklist\nLABEL reject_ct\n  equals Modality CT\n"
+        )
+
+        pipeline = DeidRsPipeline(
+            input_dir=str(input_dir),
+            output_dir=str(output_dir),
+            quarantine_dir=str(quarantine_dir),
+            binary_path=self._binary_path(),
+        )
+        # Bypass translate-ctp by providing the recipe directly — we still
+        # need a minimal anonymizer for the translator step, so use `run()`
+        # after mocking the translator to return our prewritten recipe.
+        import subprocess
+
+        real_run = subprocess.run
+
+        def fake_translate(cmd, *args, **kwargs):
+            if len(cmd) >= 2 and cmd[1] == "translate-ctp":
+                # Copy our prewritten recipe to the requested output path.
+                if "-o" in cmd:
+                    out_idx = cmd.index("-o")
+                    out_path = cmd[out_idx + 1]
+                    import shutil
+
+                    shutil.copy(recipe_path, out_path)
+                result = MagicMock()
+                result.returncode = 0
+                result.stdout = ""
+                result.stderr = (
+                    "Recipe written\n\nConfig:\n"
+                    "  remove_private_tags: true\n"
+                    "  remove_unspecified_elements: false\n"
+                )
+                return result
+            return real_run(cmd, *args, **kwargs)
+
+        with patch("deid_rs.subprocess.run", side_effect=fake_translate):
+            result = pipeline.run()
+
+        assert result["num_images_quarantined"] >= 1
+        quarantined = list(quarantine_dir.rglob("*.dcm"))
+        assert len(quarantined) == 1, (
+            f"expected one quarantined .dcm, got {quarantined}"
+        )
+        assert (quarantine_dir / "test.dcm").exists()
+        assert (quarantine_dir / "blacklisted_files.txt").exists()
+        # Sanity: the output directory does NOT contain the blacklist report.
+        assert not (output_dir / "blacklisted_files.txt").exists()
