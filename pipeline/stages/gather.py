@@ -39,9 +39,7 @@ class LocalFilesystemGather(GatherStage):
         logging.info(f"Input directory: {self.input_dir}")
         logging.info("Counting input files...")
         total_files = count_dicom_files(self.input_dir)
-        logging.info(
-            f"Found {format_number_with_commas(total_files)} files to process"
-        )
+        logging.info(f"Found {format_number_with_commas(total_files)} files to process")
         ctx.dicom_input_dir = self.input_dir
         ctx.total_files = total_files
 

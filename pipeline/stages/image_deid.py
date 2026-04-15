@@ -350,9 +350,7 @@ class ImageDeidExecutor(ImageDeidStage):
                 "GatherStage first."
             )
 
-        engine_label = (
-            "dicom-deid-rs (Rust)" if self.engine == "rust" else "CTP (Java)"
-        )
+        engine_label = "dicom-deid-rs (Rust)" if self.engine == "rust" else "CTP (Java)"
         logging.info(f"Image deidentification using {engine_label} engine")
 
         quarantine_dir = os.path.join(ctx.appdata_dir, "quarantine")
@@ -496,9 +494,7 @@ class ImageDeidExecutor(ImageDeidStage):
 
             _save_metadata_files(pipeline, ctx.appdata_dir)
 
-            ctx.images_saved = (
-                pipeline.metrics.files_saved if pipeline.metrics else 0
-            )
+            ctx.images_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
             ctx.images_quarantined = (
                 pipeline.metrics.files_quarantined if pipeline.metrics else 0
             )
@@ -516,9 +512,7 @@ class ImageDeidExecutor(ImageDeidStage):
             return "imagedeid_pacs_pixel" if self.deid_pixels else "imagedeid_pacs"
         return "imagedeid_local_pixel" if self.deid_pixels else "imagedeid_local"
 
-    def _resolve_default_anonymizer(
-        self, anonymizer_script: str | None
-    ) -> str | None:
+    def _resolve_default_anonymizer(self, anonymizer_script: str | None) -> str | None:
         """Load the default DicomAnonymizer.script when a mapping file is
         present and no anonymizer was supplied."""
         if anonymizer_script is not None or not self.mapping_file_path:

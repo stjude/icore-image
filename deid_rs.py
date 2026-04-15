@@ -302,7 +302,12 @@ class DeidRsPipeline:
             if line.startswith("remove_unspecified_elements:"):
                 remove_unspecified_elements = "true" in line
 
-        return recipe_file.name, variables, remove_private_tags, remove_unspecified_elements
+        return (
+            recipe_file.name,
+            variables,
+            remove_private_tags,
+            remove_unspecified_elements,
+        )
 
 
 _REPORT_RE = re.compile(r"Files (\w+):\s*(\d+)")

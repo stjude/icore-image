@@ -104,7 +104,11 @@ class AzureBlobExport(ExportStage):
         self.gate_on_content = gate_on_content
 
     def execute(self, ctx: PipelineContext) -> None:
-        if self.gate_on_content and ctx.images_saved == 0 and ctx.text_rows_processed == 0:
+        if (
+            self.gate_on_content
+            and ctx.images_saved == 0
+            and ctx.text_rows_processed == 0
+        ):
             logging.info("No content to export - skipping Azure upload")
             return
 

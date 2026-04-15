@@ -97,9 +97,7 @@ class ImageDeidLocalPipeline(Pipeline):
         engine_label = (
             "dicom-deid-rs (Rust)" if self.deid_engine == "rust" else "CTP (Java)"
         )
-        logging.info(
-            f"Starting image deidentification using {engine_label} engine"
-        )
+        logging.info(f"Starting image deidentification using {engine_label} engine")
         logging.info(f"Output directory: {self.output_dir}")
         if self.filter_script:
             logging.info(f"Filter script: {self.filter_script}")
