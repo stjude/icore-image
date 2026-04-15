@@ -7,7 +7,7 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TypedDict
+from typing import TypedDict, Literal
 
 import pandas as pd
 from openpyxl import Workbook
@@ -85,6 +85,9 @@ class SingleClickResult(TypedDict):
     num_rows_processed: int
     output_file: str
     export_performed: bool
+
+
+type DeidEngine = Literal["ctp", "rust"]
 
 
 def _build_mrn_date_query_and_filter(mrn, study_date, date_window_days):

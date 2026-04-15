@@ -3,6 +3,7 @@ import os
 import time
 import xml.etree.ElementTree as ET
 from abc import ABC
+from typing import Literal
 
 import pandas as pd
 
@@ -322,7 +323,7 @@ class ImageDeidExecutor(ImageDeidStage):
 
     def __init__(
         self,
-        engine: str,
+        engine: Literal["rust", "ctp"],
         anonymizer_script: str | None = None,
         filter_script: str | None = None,
         lookup_table: str | None = None,

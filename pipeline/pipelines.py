@@ -13,6 +13,7 @@ from pipeline.stages.gather import (
 from pipeline.stages.image_deid import ImageDeidExecutor
 from pipeline.stages.text_deid import PresidioTextDeid
 from utils import (
+    DeidEngine,
     DeidExportResult,
     ImageDeidLocalResult,
     PacsConfiguration,
@@ -24,7 +25,6 @@ from utils import (
     configure_run_logging,
     setup_run_directories,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared preamble helper
@@ -73,7 +73,7 @@ class ImageDeidLocalPipeline(Pipeline):
         apply_default_filter_script: bool = True,
         mapping_file_path: str | None = None,
         sc_pdf_output_dir: str | None = None,
-        deid_engine: str = "ctp",
+        deid_engine: DeidEngine = "ctp",
     ) -> None:
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -168,7 +168,7 @@ class ImageDeidPacsPipeline(Pipeline):
         storescp_port: int = 50001,
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
-        deid_engine: str = "ctp",
+        deid_engine: DeidEngine = "ctp",
     ) -> None:
         self.pacs_list = pacs_list
         self.query_spreadsheet = query_spreadsheet
@@ -383,7 +383,7 @@ class ImageDeidExportPipeline(ImageDeidPacsPipeline):
         storescp_port: int = 50001,
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
-        deid_engine: str = "ctp",
+        deid_engine: DeidEngine = "ctp",
     ) -> None:
         super().__init__(
             pacs_list=pacs_list,
@@ -464,7 +464,7 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
         storescp_port: int = 50001,
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
-        deid_engine: str = "ctp",
+        deid_engine: DeidEngine = "ctp",
         to_keep_list: list[str] | None = None,
         to_remove_list: list[str] | None = None,
         columns_to_drop: list[str] | None = None,

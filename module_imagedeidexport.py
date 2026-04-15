@@ -1,5 +1,5 @@
 from pipeline import ImageDeidExportPipeline
-from utils import DeidExportResult, PacsConfiguration, RunDirs, Spreadsheet
+from utils import DeidExportResult, PacsConfiguration, RunDirs, Spreadsheet, DeidEngine
 
 
 def imagedeidexport(
@@ -24,7 +24,7 @@ def imagedeidexport(
     storescp_port: int = 50001,
     deferred_delivery: bool = False,
     deferred_delivery_timeout: int = 172800,
-    deid_engine: str = "ctp",
+    deid_engine: DeidEngine = "ctp",
 ) -> DeidExportResult:
     return ImageDeidExportPipeline(
         sas_url=sas_url,

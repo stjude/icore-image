@@ -2,7 +2,7 @@ from pipeline import ImageDeidPacsPipeline
 
 # Re-exported for backwards compatibility with ``icore_processor.py``.
 from pipeline.stages.image_deid import _collect_engine_audit_files  # noqa: F401
-from utils import PacsConfiguration, PacsQueryResult, RunDirs, Spreadsheet
+from utils import PacsConfiguration, PacsQueryResult, RunDirs, Spreadsheet, DeidEngine
 
 
 def imagedeid_pacs(
@@ -25,7 +25,7 @@ def imagedeid_pacs(
     storescp_port: int = 50001,
     deferred_delivery: bool = False,
     deferred_delivery_timeout: int = 172800,
-    deid_engine: str = "ctp",
+    deid_engine: DeidEngine = "ctp",
 ) -> PacsQueryResult:
     return ImageDeidPacsPipeline(
         pacs_list=pacs_list,

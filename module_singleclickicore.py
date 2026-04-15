@@ -1,5 +1,5 @@
 from pipeline import SingleClickIcorePipeline
-from utils import PacsConfiguration, RunDirs, SingleClickResult, Spreadsheet
+from utils import PacsConfiguration, RunDirs, SingleClickResult, Spreadsheet, DeidEngine
 
 
 def singleclickicore(
@@ -30,7 +30,7 @@ def singleclickicore(
     storescp_port: int = 50001,
     deferred_delivery: bool = False,
     deferred_delivery_timeout: int = 172800,
-    deid_engine: str = "ctp",
+    deid_engine: DeidEngine = "ctp",
 ) -> SingleClickResult:
     return SingleClickIcorePipeline(
         sas_url=sas_url,

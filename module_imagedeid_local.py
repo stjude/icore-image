@@ -10,7 +10,7 @@ from pipeline.stages.image_deid import (  # noqa: F401
     _get_sc_pdf_blacklist,
     _process_mapping_file,
 )
-from utils import ImageDeidLocalResult, RunDirs
+from utils import ImageDeidLocalResult, RunDirs, DeidEngine
 
 
 def imagedeid_local(
@@ -26,7 +26,7 @@ def imagedeid_local(
     apply_default_filter_script: bool = True,
     mapping_file_path: str | None = None,
     sc_pdf_output_dir: str | None = None,
-    deid_engine: str = "ctp",
+    deid_engine: DeidEngine = "ctp",
 ) -> ImageDeidLocalResult:
     return ImageDeidLocalPipeline(
         input_dir=input_dir,
