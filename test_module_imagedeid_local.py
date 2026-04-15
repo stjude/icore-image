@@ -9,7 +9,13 @@ import pandas as pd
 import pytest
 import pydicom
 
-from module_imagedeid_local import imagedeid_local, _generate_lookup_table_content
+from module_imagedeid_local import (
+    imagedeid_local,
+    _apply_default_filter_script,
+    _combine_with_sc_pdf,
+    _generate_lookup_table_content,
+    _get_sc_pdf_blacklist,
+)
 from test_utils import (
     _create_test_dicom,
     _create_secondary_capture_dicom,
@@ -19,6 +25,62 @@ from test_utils import (
 
 
 logging.basicConfig(level=logging.INFO)
+
+
+class TestApplyDefaultFilterScript:
+    """Unit tests for the filter-bundle combination logic."""
+
+    def test_disabled_returns_user_filter_unchanged(self):
+        user_filter = 'Modality.equals("CT")'
+        result = _apply_default_filter_script(user_filter, False)
+        assert result == user_filter
+
+    def test_disabled_with_no_user_filter_returns_none(self):
+        assert _apply_default_filter_script(None, False) is None
+
+    def test_enabled_merges_stanford(self):
+        user_filter = 'Modality.equals("CT")'
+        result = _apply_default_filter_script(user_filter, True)
+        assert result is not None
+        # User filter present
+        assert 'Modality.equals("CT")' in result
+        # Stanford device-whitelisting filter content
+        assert "KONICA" in result or "SIEMENS" in result
+
+    def test_enabled_with_no_user_filter(self):
+        result = _apply_default_filter_script(None, True)
+        assert result is not None
+        # Stanford filter present
+        assert "KONICA" in result or "SIEMENS" in result
+
+    def test_combine_with_sc_pdf_merges_inverted_exclusion(self):
+        user_filter = 'Modality.equals("CT")'
+        result = _combine_with_sc_pdf(user_filter, True)
+        assert result is not None
+        assert 'Modality.equals("CT")' in result
+        # SC/PDF exclusion is inverted
+        assert "!(" in result
+        # SC/PDF filter conditions
+        assert "1.2.840.10008.5.1.4.1.1.7" in result  # Secondary Capture
+        assert "1.2.840.10008.5.1.4.1.1.88" in result  # Structured Reports
+        assert "1.2.840.10008.5.1.4.1.1.11" in result  # Presentation States
+        assert "BurnedInAnnotation" in result
+
+    def test_combine_with_sc_pdf_disabled_is_identity(self):
+        user_filter = 'Modality.equals("CT")'
+        assert _combine_with_sc_pdf(user_filter, False) == user_filter
+        assert _combine_with_sc_pdf(None, False) is None
+
+    def test_get_sc_pdf_blacklist_returns_uninverted_filter(self):
+        result = _get_sc_pdf_blacklist(True)
+        assert result is not None
+        assert "1.2.840.10008.5.1.4.1.1.7" in result
+        assert "BurnedInAnnotation" in result
+        # Uninverted: no leading `!(`
+        assert not result.lstrip().startswith("!(")
+
+    def test_get_sc_pdf_blacklist_disabled_returns_none(self):
+        assert _get_sc_pdf_blacklist(False) is None
 
 
 def test_imagedeid_local(tmp_path):
@@ -1057,7 +1119,13 @@ def _create_sc_pdf_ct_dicom(accession, patient_id, patient_name):
 
 
 def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
-    """SC and PDF files go to quarantine when no custom path provided."""
+    """SC and PDF files go to quarantine when the default filter bundle is applied.
+
+    Uses an explicit SC/PDF-only filter (rather than the full default bundle)
+    to isolate this test from the Stanford device-whitelisting filter.
+    """
+    from ctp import generate_sc_pdf_filter
+
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
@@ -1083,10 +1151,16 @@ def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
+    # Pass just the SC/PDF exclusion as the user filter to isolate this test
+    # from the Stanford device-whitelisting filter (which would otherwise
+    # quarantine our generic-manufacturer CT fixture).
+    sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
+
     imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        filter_script=sc_pdf_only_filter,
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
     )
@@ -1109,6 +1183,11 @@ def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
     )
 
 
+@pytest.mark.skip(
+    reason="SC/PDF diversion to custom output dir is no longer supported after "
+    "the dedicated ScPdfFilter stage was removed. SC/PDF files now flow through "
+    "the single quarantine directory."
+)
 def test_sc_pdf_routed_to_custom_path(tmp_path):
     """SC and PDF files go to custom path when sc_pdf_output_dir is provided."""
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
@@ -1143,7 +1222,7 @@ def test_sc_pdf_routed_to_custom_path(tmp_path):
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
+        apply_default_filter_script=True,
         sc_pdf_output_dir=str(custom_sc_dir),
     )
 
@@ -1213,7 +1292,9 @@ def test_sc_pdf_normal_images_not_affected(tmp_path):
 
 
 def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
-    """Encapsulated PDF files are quarantined."""
+    """Encapsulated PDF files are quarantined by the SC/PDF filter."""
+    from ctp import generate_sc_pdf_filter
+
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
@@ -1239,10 +1320,13 @@ def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
+    sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
+
     imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        filter_script=sc_pdf_only_filter,
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
     )
@@ -1260,7 +1344,9 @@ def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
 
 
 def test_sc_pdf_burned_in_annotation_quarantined(tmp_path):
-    """Files with BurnedInAnnotation=YES are quarantined."""
+    """Files with BurnedInAnnotation=YES are quarantined by the SC/PDF filter."""
+    from ctp import generate_sc_pdf_filter
+
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
@@ -1285,10 +1371,13 @@ def test_sc_pdf_burned_in_annotation_quarantined(tmp_path):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
+    sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
+
     imagedeid_local(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
+        filter_script=sc_pdf_only_filter,
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
     )

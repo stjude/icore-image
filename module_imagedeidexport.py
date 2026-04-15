@@ -1,16 +1,5 @@
-import logging
-import os
-
-from module_imagedeid_pacs import imagedeid_pacs
-from module_image_export import image_export
-from utils import (
-    DeidExportResult,
-    PacsConfiguration,
-    RunDirs,
-    Spreadsheet,
-    setup_run_directories,
-    configure_run_logging,
-)
+from pipeline import ImageDeidExportPipeline
+from utils import DeidExportResult, PacsConfiguration, RunDirs, Spreadsheet
 
 
 def imagedeidexport(
@@ -37,20 +26,9 @@ def imagedeidexport(
     deferred_delivery_timeout: int = 172800,
     deid_engine: str = "ctp",
 ) -> DeidExportResult:
-    if run_dirs is None:
-        run_dirs = setup_run_directories()
-
-    log_level = logging.DEBUG if debug else logging.INFO
-    configure_run_logging(run_dirs["run_log_path"], log_level)
-    logging.info("Running imagedeidexport")
-
-    if appdata_dir is None:
-        appdata_dir = run_dirs["appdata_dir"]
-
-    os.makedirs(appdata_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
-
-    deid_result = imagedeid_pacs(
+    return ImageDeidExportPipeline(
+        sas_url=sas_url,
+        project_name=project_name,
         pacs_list=pacs_list,
         query_spreadsheet=query_spreadsheet,
         application_aet=application_aet,
@@ -71,24 +49,4 @@ def imagedeidexport(
         deferred_delivery=deferred_delivery,
         deferred_delivery_timeout=deferred_delivery_timeout,
         deid_engine=deid_engine,
-    )
-
-    if deid_result["num_images_saved"] > 0:
-        image_export(
-            input_dir=output_dir,
-            sas_url=sas_url,
-            project_name=project_name,
-            appdata_dir=appdata_dir,
-            debug=debug,
-            run_dirs=run_dirs,
-        )
-
-    logging.info("Deidentification and export complete")
-    logging.info(f"Deidentified files preserved at: {output_dir}")
-
-    return {
-        "num_studies_found": deid_result["num_studies_found"],
-        "num_images_exported": deid_result["num_images_saved"],
-        "num_images_quarantined": deid_result["num_images_quarantined"],
-        "failed_query_indices": deid_result["failed_query_indices"],
-    }
+    ).run()

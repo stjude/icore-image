@@ -53,6 +53,7 @@ class DeidRsPipeline:
         output_dir: str,
         anonymizer_script: str | None = None,
         filter_script: str | None = None,
+        sc_pdf_blacklist: str | None = None,
         deid_pixels: bool = False,
         lookup_table: str | None = None,
         quarantine_dir: str | None = None,
@@ -62,6 +63,7 @@ class DeidRsPipeline:
         self.output_dir = output_dir
         self.anonymizer_script = anonymizer_script
         self.filter_script = filter_script
+        self.sc_pdf_blacklist = sc_pdf_blacklist
         self.deid_pixels = deid_pixels
         self.lookup_table = lookup_table
         self.quarantine_dir = quarantine_dir
@@ -254,6 +256,16 @@ class DeidRsPipeline:
             filter_file.close()
             temp_files.append(filter_file.name)
             cmd.extend(["--filter", filter_file.name])
+
+        # Add blacklist script (e.g. SC/PDF exclusion)
+        if self.sc_pdf_blacklist:
+            blacklist_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".script", delete=False
+            )
+            blacklist_file.write(self.sc_pdf_blacklist)
+            blacklist_file.close()
+            temp_files.append(blacklist_file.name)
+            cmd.extend(["--blacklist", blacklist_file.name])
 
         logging.info(f"Translating CTP scripts: {' '.join(cmd)}")
 

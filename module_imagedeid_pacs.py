@@ -1,61 +1,8 @@
-import logging
-import os
-import shutil
-import time
+from pipeline import ImageDeidPacsPipeline
 
-from ctp import CTPPipeline
-from module_imagedeid_local import (
-    _save_metadata_files,
-    _apply_default_filter_script,
-    _process_mapping_file,
-)
-from utils import (
-    PacsConfiguration,
-    PacsQueryResult,
-    RunDirs,
-    Spreadsheet,
-    generate_queries_and_filter,
-    combine_filters,
-    validate_date_window_days,
-    find_valid_pacs_list,
-    find_studies_from_pacs_list,
-    move_studies_from_study_pacs_map,
-    setup_run_directories,
-    configure_run_logging,
-    format_number_with_commas,
-    save_failed_queries_csv,
-)
-
-
-def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
-    """Move engine-generated audit CSVs to appdata_dir as Excel files."""
-    from utils import csv_string_to_xlsx
-
-    for csv_name, xlsx_name in [
-        ("metadata.csv", "metadata.xlsx"),
-        ("deid_metadata.csv", "deid_metadata.xlsx"),
-        ("linker.csv", "linker.xlsx"),
-    ]:
-        csv_path = os.path.join(output_dir, csv_name)
-        if os.path.exists(csv_path):
-            with open(csv_path, "r") as f:
-                csv_string_to_xlsx(f.read(), os.path.join(appdata_dir, xlsx_name))
-            os.remove(csv_path)
-            logging.info(f"Converted {csv_name} -> {xlsx_name}")
-
-
-def _log_progress(pipeline: CTPPipeline) -> None:
-    if pipeline.metrics:
-        files_received = pipeline.metrics.files_received
-        files_quarantined = pipeline.metrics.files_quarantined
-
-        progress_msg = f"Processed {format_number_with_commas(files_received)} files"
-        if files_quarantined > 0:
-            progress_msg += (
-                f" ({format_number_with_commas(files_quarantined)} quarantined)"
-            )
-
-        logging.info(progress_msg)
+# Re-exported for backwards compatibility with ``icore_processor.py``.
+from pipeline.stages.image_deid import _collect_engine_audit_files  # noqa: F401
+from utils import PacsConfiguration, PacsQueryResult, RunDirs, Spreadsheet
 
 
 def imagedeid_pacs(
@@ -80,175 +27,25 @@ def imagedeid_pacs(
     deferred_delivery_timeout: int = 172800,
     deid_engine: str = "ctp",
 ) -> PacsQueryResult:
-    if run_dirs is None:
-        run_dirs = setup_run_directories()
-
-    log_level = logging.DEBUG if debug else logging.INFO
-    configure_run_logging(run_dirs["run_log_path"], log_level)
-    engine_label = "dicom-deid-rs (Rust)" if deid_engine == "rust" else "CTP (Java)"
-    logging.info(
-        f"Running imagedeid_pacs using {engine_label} engine "
-        f"(use_fallback_query={use_fallback_query})"
-    )
-
-    if appdata_dir is None:
-        appdata_dir = run_dirs["appdata_dir"]
-
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(appdata_dir, exist_ok=True)
-
-    quarantine_dir = os.path.join(appdata_dir, "quarantine")
-    os.makedirs(quarantine_dir, exist_ok=True)
-
-    validate_date_window_days(date_window_days)
-
-    if anonymizer_script is None and mapping_file_path:
-        default_script_path = os.path.join(
-            os.path.dirname(__file__), "ctp", "scripts", "DicomAnonymizer.script"
-        )
-        if os.path.exists(default_script_path):
-            with open(default_script_path, "r") as f:
-                anonymizer_script = f.read()
-        else:
-            raise ValueError(
-                f"Default anonymizer script not found at {default_script_path}"
-            )
-
-    processed_lookup_table, processed_anonymizer_script = _process_mapping_file(
-        mapping_file_path, anonymizer_script, lookup_table
-    )
-
-    if processed_lookup_table is not None:
-        lookup_table = processed_lookup_table
-    if processed_anonymizer_script is not None:
-        anonymizer_script = processed_anonymizer_script
-
-    query_params_list, expected_values_list, generated_filter = (
-        generate_queries_and_filter(
-            query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query
-        )
-    )
-    combined_filter = combine_filters(filter_script, generated_filter)
-    combined_filter = _apply_default_filter_script(
-        combined_filter, apply_default_filter_script
-    )
-
-    valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
-
-    study_pacs_map, failed_find_indices, failed_find_details = (
-        find_studies_from_pacs_list(
-            valid_pacs_list,
-            query_params_list,
-            application_aet,
-            expected_values_list,
-            fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
-            fallback_date_window_days=date_window_days,
-        )
-    )
-
-    # Create directory for storescp to write retrieved DICOM files
-    dicom_retrieval_dir = os.path.join(appdata_dir, "dicom_retrieval")
-
-    # Choose pipeline type based on whether pixel de-identification is needed
-    pipeline_type = "imagedeid_pacs_pixel" if deid_pixels else "imagedeid_pacs"
-    ctp_log_level = "DEBUG" if debug else None
-
-    # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-    successful_moves, failed_move_indices, failed_move_details = (
-        move_studies_from_study_pacs_map(
-            study_pacs_map,
-            application_aet,
-            dicom_retrieval_dir,
-            storescp_port,
-            deferred_delivery=deferred_delivery,
-            deferred_delivery_timeout=deferred_delivery_timeout,
-        )
-    )
-
-    # Wait briefly to ensure all files are written
-    time.sleep(2)
-
-    failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-    combined_failure_details = {**failed_find_details, **failed_move_details}
-    save_failed_queries_csv(
-        failed_query_indices,
-        query_spreadsheet,
-        appdata_dir,
-        combined_failure_details,
+    return ImageDeidPacsPipeline(
+        pacs_list=pacs_list,
+        query_spreadsheet=query_spreadsheet,
+        application_aet=application_aet,
+        output_dir=output_dir,
+        appdata_dir=appdata_dir,
+        filter_script=filter_script,
+        date_window_days=date_window_days,
+        anonymizer_script=anonymizer_script,
+        deid_pixels=deid_pixels,
+        lookup_table=lookup_table,
+        debug=debug,
+        run_dirs=run_dirs,
+        apply_default_filter_script=apply_default_filter_script,
+        mapping_file_path=mapping_file_path,
+        sc_pdf_output_dir=sc_pdf_output_dir,
         use_fallback_query=use_fallback_query,
-    )
-
-    try:
-        if deid_engine == "rust":
-            from deid_rs import DeidRsPipeline
-
-            rs_pipeline = DeidRsPipeline(
-                input_dir=dicom_retrieval_dir,
-                output_dir=output_dir,
-                anonymizer_script=anonymizer_script,
-                filter_script=combined_filter,
-                deid_pixels=deid_pixels,
-                lookup_table=lookup_table,
-                quarantine_dir=quarantine_dir,
-            )
-            result = rs_pipeline.run()
-
-            _collect_engine_audit_files(output_dir, appdata_dir)
-
-            num_saved = result["num_images_saved"]
-            num_quarantined = result["num_images_quarantined"]
-        else:
-            with CTPPipeline(
-                pipeline_type=pipeline_type,
-                input_dir=dicom_retrieval_dir,
-                output_dir=output_dir,
-                application_aet=application_aet,
-                filter_script=combined_filter,
-                anonymizer_script=anonymizer_script,
-                lookup_table=lookup_table,
-                log_path=run_dirs["ctp_log_path"],
-                log_level=ctp_log_level,
-                quarantine_dir=quarantine_dir,
-                sc_pdf_output_dir=sc_pdf_output_dir,
-            ) as pipeline:
-                save_interval = 5
-                last_save_time = 0
-
-                while not pipeline.is_complete():
-                    current_time = time.time()
-                    if current_time - last_save_time >= save_interval:
-                        _save_metadata_files(pipeline, appdata_dir)
-                        _log_progress(pipeline)
-                        last_save_time = current_time
-
-                    time.sleep(1)
-
-                _save_metadata_files(pipeline, appdata_dir)
-
-                num_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
-                num_quarantined = (
-                    pipeline.metrics.files_quarantined if pipeline.metrics else 0
-                )
-
-        logging.info("Deidentification complete")
-        logging.info(
-            f"Total files processed: {format_number_with_commas(num_saved + num_quarantined)}"
-        )
-        logging.info(f"Files saved: {format_number_with_commas(num_saved)}")
-        logging.info(f"Files quarantined: {format_number_with_commas(num_quarantined)}")
-
-        return {
-            "num_studies_found": len(study_pacs_map),
-            "num_images_saved": num_saved,
-            "num_images_quarantined": num_quarantined,
-            "failed_query_indices": failed_query_indices,
-        }
-    finally:
-        try:
-            shutil.rmtree(dicom_retrieval_dir)
-        except OSError as e:
-            logging.warning(
-                "Failed to remove temporary retrieval directory '%s': %s",
-                dicom_retrieval_dir,
-                e,
-            )
+        storescp_port=storescp_port,
+        deferred_delivery=deferred_delivery,
+        deferred_delivery_timeout=deferred_delivery_timeout,
+        deid_engine=deid_engine,
+    ).run()
