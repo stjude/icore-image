@@ -380,14 +380,16 @@ def create_analyzer_engine() -> AnalyzerEngine:
     return analyzer
 
 
-def scrub(data: list[Any], whitelist: list[str], blacklist: list[str]) -> list[str]:
-    analyzer = create_analyzer_engine()
-    anonymizer = AnonymizerEngine()
-
+def _build_medical_preserve(whitelist: list[str]) -> set[str]:
     medical_preserve = NLM_PRESERVE_MEDICAL.copy()
     if whitelist:
         medical_preserve.update(w.lower() for w in whitelist)
+    return medical_preserve
 
+
+def _register_blacklist_recognizers(
+    analyzer: AnalyzerEngine, blacklist: list[str]
+) -> None:
     for item in blacklist:
         rec = PatternRecognizer(
             supported_entity="BLACKLIST",
@@ -396,6 +398,13 @@ def scrub(data: list[Any], whitelist: list[str], blacklist: list[str]) -> list[s
         )
         analyzer.registry.add_recognizer(rec)
 
+
+def scrub(
+    data: list[Any],
+    analyzer: AnalyzerEngine,
+    anonymizer: AnonymizerEngine,
+    medical_preserve: set[str],
+) -> list[str]:
     entities = [
         "PERSON",
         "DATE_TIME",
@@ -613,13 +622,19 @@ class PresidioTextDeid(TextDeidStage):
         )
         columns_to_process = [c for c in columns_to_process if c in df.columns]
 
+        analyzer = create_analyzer_engine()
+        anonymizer = AnonymizerEngine()
+        _register_blacklist_recognizers(analyzer, self.to_remove_list or [])
+        medical_preserve = _build_medical_preserve(self.to_keep_list or [])
+
         result_df = df.copy()
         for column in columns_to_process:
             logging.info(f"Processing: {column}")
             result_df[column] = scrub(
                 df[column].tolist(),
-                self.to_keep_list or [],
-                self.to_remove_list or [],
+                analyzer,
+                anonymizer,
+                medical_preserve,
             )
 
         os.makedirs(ctx.output_dir, exist_ok=True)
