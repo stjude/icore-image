@@ -21,7 +21,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          # Note: not "recursive", since we don't want the reference submodules in dicom-deid-rs
+          submodules: True
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
