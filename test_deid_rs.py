@@ -269,6 +269,7 @@ class TestDeidRsQuarantineE2E:
             pytest.skip("dicom-deid-rs release binary not built")
 
         from pydicom.dataset import FileDataset, FileMetaDataset
+        from pydicom.uid import UID
 
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
@@ -277,9 +278,9 @@ class TestDeidRsQuarantineE2E:
 
         # Write a minimal CT DICOM so the blacklist matches.
         meta = FileMetaDataset()
-        meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
-        meta.MediaStorageSOPInstanceUID = "1.2.3"
-        meta.TransferSyntaxUID = "1.2.840.10008.1.2.1"
+        meta.MediaStorageSOPClassUID = UID("1.2.840.10008.5.1.4.1.1.2")
+        meta.MediaStorageSOPInstanceUID = UID("1.2.3")
+        meta.TransferSyntaxUID = UID("1.2.840.10008.1.2.1")
         ds = FileDataset(
             str(input_dir / "test.dcm"), {}, file_meta=meta, preamble=b"\0" * 128
         )
@@ -288,10 +289,10 @@ class TestDeidRsQuarantineE2E:
         ds.Modality = "CT"
         ds.StudyDate = "20250101"
         ds.SeriesNumber = "1"
-        ds.SOPInstanceUID = "1.2.3"
-        ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
-        ds.StudyInstanceUID = "1.2"
-        ds.SeriesInstanceUID = "1.2.9"
+        ds.SOPInstanceUID = UID("1.2.3")
+        ds.SOPClassUID = UID("1.2.840.10008.5.1.4.1.1.2")
+        ds.StudyInstanceUID = UID("1.2")
+        ds.SeriesInstanceUID = UID("1.2.9")
         ds.save_as(str(input_dir / "test.dcm"), write_like_original=False)
 
         # Recipe with a blacklist that rejects CT files.
