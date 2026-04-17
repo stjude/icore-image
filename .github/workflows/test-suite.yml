@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Note: not "recursive", since we don't want the reference submodules in dicom-deid-rs
+          submodules: True
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
@@ -33,6 +36,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Set up Rust
+        run: rustup toolchain install stable
 
       - name: Install dependencies
         run: make deps external-deps
@@ -53,6 +59,9 @@ jobs:
 
       - name: Set up Python
         run: uv python install
+
+      - name: Set up Rust
+        run: rustup toolchain install stable
 
       - name: Install dependencies
         run: uv sync

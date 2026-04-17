@@ -350,9 +350,11 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch("module_imagedeid_pacs.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imagedeid_pacs.move_studies_from_study_pacs_map") as mock_get,
-        patch("module_imagedeid_pacs.CTPPipeline") as mock_pipeline_class,
+        patch(
+            "pipeline.stages.gather.find_studies_from_pacs_list"
+        ) as mock_find_studies,
+        patch("pipeline.stages.gather.move_studies_from_study_pacs_map") as mock_get,
+        patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})
@@ -1276,7 +1278,14 @@ def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
             )
 
 
-def test_imagedeid_pacs_complex_function_quarantines(tmp_path, orthanc):
+def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
+    """When the original anonymizer action is a complex function (e.g.
+    ``@hashPtID(@UID(),13)``), CTP's ``@lookup(this, KeyType, default)``
+    syntax can only accept ``keep``/``remove``/``empty`` as a fallback
+    (see docs/ctp-script-format.md).  ``quarantine`` is not a valid
+    fallback action, so we degrade gracefully to ``keep`` (and log a
+    warning) — unmapped values pass through unchanged rather than
+    breaking the script."""
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -1329,17 +1338,19 @@ def test_imagedeid_pacs_complex_function_quarantines(tmp_path, orthanc):
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
-    assert len(output_files) == 1, (
-        f"Expected 1 output file (mapped), got {len(output_files)}"
+    assert len(output_files) == 2, (
+        f"Both files should pass through (mapped + keep-fallback), got {len(output_files)}"
     )
 
-    ds = pydicom.dcmread(output_files[0])
-    assert ds.AccessionNumber == "MAPPED001", "Only mapped file should be in output"
+    accs = sorted(pydicom.dcmread(p).AccessionNumber for p in output_files)
+    assert accs == ["ACC002", "MAPPED001"], (
+        f"Mapped file should be remapped, unmapped should keep original; got {accs}"
+    )
 
     quarantine_dir = appdata_dir / "quarantine"
     quarantined_files = list(quarantine_dir.rglob("*.dcm"))
-    assert len(quarantined_files) == 1, (
-        "Unmapped file with complex function should be quarantined"
+    assert len(quarantined_files) == 0, (
+        "Nothing should be quarantined: the keep fallback preserves unmapped values"
     )
 
 
@@ -1491,9 +1502,11 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch("module_imagedeid_pacs.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imagedeid_pacs.move_studies_from_study_pacs_map") as mock_get,
-        patch("module_imagedeid_pacs.CTPPipeline") as mock_pipeline_class,
+        patch(
+            "pipeline.stages.gather.find_studies_from_pacs_list"
+        ) as mock_find_studies,
+        patch("pipeline.stages.gather.move_studies_from_study_pacs_map") as mock_get,
+        patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})
@@ -1538,9 +1551,11 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch("module_imagedeid_pacs.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imagedeid_pacs.move_studies_from_study_pacs_map") as mock_get,
-        patch("module_imagedeid_pacs.CTPPipeline") as mock_pipeline_class,
+        patch(
+            "pipeline.stages.gather.find_studies_from_pacs_list"
+        ) as mock_find_studies,
+        patch("pipeline.stages.gather.move_studies_from_study_pacs_map") as mock_get,
+        patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})

@@ -32,6 +32,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
@@ -45,6 +47,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Set up Rust
+        run: rustup toolchain install stable
 
       - name: Import signing certificate
         if: inputs.build_type == 'signed'
