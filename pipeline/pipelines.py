@@ -169,6 +169,7 @@ class ImageDeidPacsPipeline(Pipeline):
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
         deid_engine: DeidEngine = "ctp",
+        cmove_batch_size: int = 50,
     ) -> None:
         self.pacs_list = pacs_list
         self.query_spreadsheet = query_spreadsheet
@@ -190,6 +191,7 @@ class ImageDeidPacsPipeline(Pipeline):
         self.deferred_delivery = deferred_delivery
         self.deferred_delivery_timeout = deferred_delivery_timeout
         self.deid_engine = deid_engine
+        self.cmove_batch_size = cmove_batch_size
 
     def _build_context(self) -> PipelineContext:
         run_dirs, appdata_dir = _prepare_run(
@@ -222,6 +224,7 @@ class ImageDeidPacsPipeline(Pipeline):
             deferred_delivery=self.deferred_delivery,
             deferred_delivery_timeout=self.deferred_delivery_timeout,
             filter_script_seed=self.filter_script,
+            cmove_batch_size=self.cmove_batch_size,
         )
 
     def build_image_deid_stage(self) -> PipelineStage:

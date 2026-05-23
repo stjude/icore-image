@@ -68,6 +68,7 @@ class PacsQueryGather(GatherStage):
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
         filter_script_seed: str | None = None,
+        cmove_batch_size: int = 50,
     ) -> None:
         validate_date_window_days(date_window_days)
         self.pacs_list = pacs_list

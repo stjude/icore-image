@@ -75,6 +75,16 @@
     </div>
 </div>
 
+<!-- C-MOVE Batch Size Section -->
+<div class="mt-4">
+     <div class="text-sm text-gray-500 mb-2">C-MOVE Batch Size (studies per batch)</div>
+     <input type="number"
+            class="w-64 border-2 border-gray-400 p-1"
+            id="cmove_batch_size"
+            min="1"
+            value="50">
+ </div>
+
 <!-- General Settings Section -->
 <div class="mt-8">
     <div class="text-md mb-4">General Settings</div>
@@ -273,6 +283,9 @@
             if (settings.deferred_delivery) {
                 document.getElementById('deferred_delivery').checked = settings.deferred_delivery;
             }
+            if (settings.cmove_batch_size) {
+                document.getElementById('cmove_batch_size').value = settings.cmove_batch_size;
+            }
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -298,7 +311,8 @@
             default_output_folder: document.querySelector('[name="default_output_folder"]').value,
             timezone: document.querySelector('[name="timezone"]').value,
             debug_logging: document.querySelector('[name="debug_logging"]').checked,
-            deferred_delivery: document.getElementById('deferred_delivery').checked
+            deferred_delivery: document.getElementById('deferred_delivery').checked,
+            cmove_batch_size: parseInt(document.getElementById('cmove_batch_size').value) || 50
         };
 
         try {

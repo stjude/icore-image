@@ -57,6 +57,7 @@ def imageqr(
     storescp_port: int = 50001,
     deferred_delivery: bool = False,
     deferred_delivery_timeout: int = 172800,
+    cmove_batch_size: int = 50,
 ) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
@@ -112,6 +113,7 @@ def imageqr(
                 storescp_port,
                 deferred_delivery=deferred_delivery,
                 deferred_delivery_timeout=deferred_delivery_timeout,
+                cmove_batch_size=cmove_batch_size,
             )
         )
 
