@@ -48,6 +48,7 @@ def imageqr(
     query_spreadsheet: Spreadsheet,
     application_aet: str,
     output_dir: str,
+    cmove_batch_size: int,
     appdata_dir: str | None = None,
     filter_script: str | None = None,
     date_window_days: int = 0,
@@ -57,7 +58,6 @@ def imageqr(
     storescp_port: int = 50001,
     deferred_delivery: bool = False,
     deferred_delivery_timeout: int = 172800,
-    cmove_batch_size: int = 50,
 ) -> PacsQueryResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()

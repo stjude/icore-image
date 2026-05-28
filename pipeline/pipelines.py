@@ -153,6 +153,7 @@ class ImageDeidPacsPipeline(Pipeline):
         query_spreadsheet: Spreadsheet,
         application_aet: str,
         output_dir: str,
+        cmove_batch_size: int,
         appdata_dir: str | None = None,
         filter_script: str | None = None,
         date_window_days: int = 0,
@@ -169,7 +170,6 @@ class ImageDeidPacsPipeline(Pipeline):
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
         deid_engine: DeidEngine = "ctp",
-        cmove_batch_size: int = 50,
     ) -> None:
         self.pacs_list = pacs_list
         self.query_spreadsheet = query_spreadsheet
@@ -371,6 +371,7 @@ class ImageDeidExportPipeline(ImageDeidPacsPipeline):
         sas_url: str,
         project_name: str,
         output_dir: str,
+        cmove_batch_size: int,
         appdata_dir: str | None = None,
         filter_script: str | None = None,
         date_window_days: int = 0,
@@ -393,6 +394,7 @@ class ImageDeidExportPipeline(ImageDeidPacsPipeline):
             query_spreadsheet=query_spreadsheet,
             application_aet=application_aet,
             output_dir=output_dir,
+            cmove_batch_size=cmove_batch_size,
             appdata_dir=appdata_dir,
             filter_script=filter_script,
             date_window_days=date_window_days,
@@ -452,6 +454,7 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
         project_name: str,
         input_file: str,
         output_dir: str,
+        cmove_batch_size: int,
         appdata_dir: str | None = None,
         filter_script: str | None = None,
         date_window_days: int = 0,
@@ -494,6 +497,7 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
             storescp_port=storescp_port,
             deferred_delivery=deferred_delivery,
             deferred_delivery_timeout=deferred_delivery_timeout,
+            cmove_batch_size=cmove_batch_size,
             deid_engine=deid_engine,
         )
         self.sas_url = sas_url

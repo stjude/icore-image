@@ -590,9 +590,9 @@ def move_studies_from_study_pacs_map(
     application_aet,
     output_dir,
     storescp_port,
+    cmove_batch_size: int,
     deferred_delivery=False,
     deferred_delivery_timeout=172800,
-    cmove_batch_size=50,
 ):
     """Retrieve multiple studies from PACS using C-MOVE based on a study-to-PACS mapping.
 
@@ -603,12 +603,6 @@ def move_studies_from_study_pacs_map(
     files (determined by a C-FIND at IMAGE level) have arrived on disk, or
     until deferred_delivery_timeout seconds have elapsed.
     """
-    # When using deferred delivery, count expected instances via C-FIND before starting
-    expected_count = 0
-    if deferred_delivery:
-        expected_count = _count_expected_instances(study_pacs_map, application_aet)
-        logging.info(f"Deferred delivery enabled: expecting {expected_count} instances")
-
     storescp_process = start_storescp(
         storescp_port, output_dir, calling_aet=application_aet
     )
@@ -621,6 +615,7 @@ def move_studies_from_study_pacs_map(
         total_studies = len(study_pacs_map)
         total_batches = (total_studies + cmove_batch_size - 1) // cmove_batch_size
         processed = 0
+        cumulative_expected = 0
 
         for batch_start in range(0, total_studies, cmove_batch_size):
             batch_num = (batch_start // cmove_batch_size) + 1
@@ -695,9 +690,16 @@ def move_studies_from_study_pacs_map(
                         )
 
             if deferred_delivery:
+                batch_map = dict(batch)
+                batch_expected = _count_expected_instances(batch_map, application_aet)
+                cumulative_expected += batch_expected
+                logging.info(
+                    f"Deferred delivery: expecting {batch_expected} instances for batch {batch_num} "
+                    f"({cumulative_expected} cumulative)"
+                )
                 _wait_for_deferred_delivery(
                     output_dir,
-                    expected_count,
+                    cumulative_expected,
                     deferred_delivery_timeout,
                     storescp_process,
                 )

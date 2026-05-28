@@ -16,6 +16,7 @@ from test_utils import (
     Fixtures,
     OrthancServer,
     get_free_port,
+    CMOVE_BATCH_SIZE,
 )
 from utils import PacsConfiguration, Spreadsheet
 
@@ -91,6 +92,7 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -276,6 +278,7 @@ def test_continuous_audit_log_saving(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     stop_monitoring.set()
@@ -328,6 +331,7 @@ def test_imagedeid_failures_reported(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
@@ -379,6 +383,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -416,6 +421,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -438,6 +444,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
             appdata_dir=str(appdata_dir),
             filter_script=user_filter,
             apply_default_filter_script=False,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -506,6 +513,7 @@ def test_imagedeid_multiple_pacs(tmp_path):
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
             storescp_port=storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         assert result["num_studies_found"] == 4, (
@@ -581,6 +589,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
         appdata_dir=str(appdata_dir),
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 3, (
@@ -622,6 +631,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
 
@@ -744,6 +754,7 @@ def test_imagedeid_pacs_date_window(tmp_path, orthanc):
         date_window_days=2,
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -804,6 +815,7 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
         deid_pixels=True,
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 1, (
@@ -903,6 +915,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result_without_filter["num_images_saved"] == 2, (
@@ -931,6 +944,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=True,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result_with_filter["num_images_saved"] == 1, (
@@ -1009,6 +1023,7 @@ def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1090,6 +1105,7 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1183,6 +1199,7 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1257,6 +1274,7 @@ def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1335,6 +1353,7 @@ def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1407,6 +1426,7 @@ def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1476,6 +1496,7 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, o
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1531,6 +1552,7 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         dicom_retrieval = appdata_dir / "dicom_retrieval"
@@ -1579,6 +1601,7 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
                 output_dir=str(output_dir),
                 appdata_dir=str(appdata_dir),
                 apply_default_filter_script=False,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
             )
 
         dicom_retrieval = appdata_dir / "dicom_retrieval"
@@ -1631,6 +1654,7 @@ def test_imagedeid_pacs_saves_failed_queries_csv(tmp_path, orthanc):
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 1
