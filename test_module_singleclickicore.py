@@ -6,7 +6,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from test_utils import _create_test_dicom, _upload_dicom_to_orthanc, get_free_port, CMOVE_BATCH_SIZE
+from test_utils import (
+    _create_test_dicom,
+    _upload_dicom_to_orthanc,
+    get_free_port,
+    CMOVE_BATCH_SIZE,
+)
 from utils import PacsConfiguration, Spreadsheet
 from deid.grammar import generate_hipaa_safe_harbor_script
 from ctp import generate_sc_pdf_filter

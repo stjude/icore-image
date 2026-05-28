@@ -1018,7 +1018,7 @@ def test_get_studies_returns_failure_details(tmp_path):
                     "TEST_AET",
                     output_dir,
                     storescp_port=storescp_port,
-                    cmove_batch_size=CMOVE_BATCH_SIZE
+                    cmove_batch_size=CMOVE_BATCH_SIZE,
                 )
             )
 
@@ -1075,7 +1075,7 @@ def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
                     "TEST_AET",
                     output_dir,
                     storescp_port=storescp_port,
-                    cmove_batch_size=CMOVE_BATCH_SIZE
+                    cmove_batch_size=CMOVE_BATCH_SIZE,
                 )
             )
 
@@ -1138,7 +1138,7 @@ def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
                     "TEST_AET",
                     output_dir,
                     storescp_port=storescp_port,
-                    cmove_batch_size=CMOVE_BATCH_SIZE
+                    cmove_batch_size=CMOVE_BATCH_SIZE,
                 )
             )
 

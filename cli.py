@@ -6,6 +6,7 @@ import yaml
 
 CMOVE_BATCH_SIZE = 50
 
+
 def determine_module(config, input_dir):
     module = config.get("module")
 

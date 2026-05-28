@@ -798,7 +798,9 @@ def build_singleclickicore_config(task):
             "sas_url": task.parameters.get("sas_url", ""),
             "project_name": task.name,
             "deferred_delivery": settings.get("deferred_delivery", False),
-            "deferred_delivery_timeout": settings.get("deferred_delivery_timeout", 172800),
+            "deferred_delivery_timeout": settings.get(
+                "deferred_delivery_timeout", 172800
+            ),
             "cmove_batch_size": settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         }
     )
@@ -912,7 +914,9 @@ def build_image_deid_export_config(task):
             "sas_url": task.parameters["sas_url"],
             "project_name": task.name,
             "deferred_delivery": settings.get("deferred_delivery", False),
-            "deferred_delivery_timeout": settings.get("deferred_delivery_timeout", 172800),
+            "deferred_delivery_timeout": settings.get(
+                "deferred_delivery_timeout", 172800
+            ),
             "cmove_batch_size": settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         }
     )
