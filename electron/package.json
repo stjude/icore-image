@@ -1,6 +1,6 @@
 {
   "name": "icore",
-  "version": "0.0.30-beta.1",
+  "version": "0.0.30-beta.2",
   "main": "main.js",
   "scripts": {
     "start": "ICORE_DEV=1 electron .",
@@ -49,6 +49,7 @@
     "dmg": {
       "title": "iCore ${version}",
       "background": "background.png",
+      "size": "1g",
       "contents": [
         {
           "x": 150,
