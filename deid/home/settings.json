@@ -96,5 +96,6 @@
     "default_remove_curves": true,
     "default_remove_private": true,
     "date_shift_range": -730,
-    "site_id": "SITE1"
+    "site_id": "SITE1",
+    "beta_updates_enabled": false
 }

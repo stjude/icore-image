@@ -65,11 +65,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make signed ARCH=${{ matrix.arch }} PUBLISH=always
 
-      - name: Save per-arch latest-mac.yml for merge
+      - name: Save per-arch update metadata for merge
         uses: actions/upload-artifact@v4
         with:
-          name: latest-mac-${{ matrix.arch }}
-          path: electron/dist/latest-mac.yml
+          name: update-metadata-${{ matrix.arch }}
+          path: electron/dist/*-mac.yml
           if-no-files-found: error
 
   merge-update-metadata:
@@ -79,50 +79,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download per-arch latest-mac.yml artifacts
+      - name: Download per-arch update metadata artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: latest-mac-*
+          pattern: update-metadata-*
           path: yml-artifacts
 
       - name: Install PyYAML
         run: pip install pyyaml
 
-      - name: Merge latest-mac.yml files
+      - name: Merge update metadata yml files
         run: |
           python3 <<'EOF'
+          import collections
           import glob
+          import os
           import yaml
 
-          merged = None
-          seen_urls = set()
-          merged_files = []
+          # electron-builder writes <channel>-mac.yml (latest-mac.yml for stable,
+          # beta-mac.yml for prerelease tags, etc.). A single build only produces
+          # one channel's yml; group by basename so each channel merges independently.
+          groups = collections.defaultdict(list)
+          for path in glob.glob("yml-artifacts/**/*-mac.yml", recursive=True):
+              groups[os.path.basename(path)].append(path)
 
-          # Sort so latest-mac-arm64 is processed first; its top-level fields
-          # (path/sha512/releaseDate) become the defaults for legacy updater clients.
-          paths = sorted(glob.glob("yml-artifacts/**/latest-mac.yml", recursive=True))
-          if not paths:
-              raise SystemExit("no latest-mac.yml artifacts found")
+          if not groups:
+              raise SystemExit("no *-mac.yml artifacts found")
 
-          for path in paths:
-              with open(path) as f:
-                  data = yaml.safe_load(f)
-              if merged is None:
-                  merged = dict(data)
-              for entry in data.get("files", []):
-                  if entry["url"] not in seen_urls:
-                      seen_urls.add(entry["url"])
-                      merged_files.append(entry)
-
-          merged["files"] = merged_files
-          with open("latest-mac.yml", "w") as f:
-              yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
-
-          with open("latest-mac.yml") as f:
-              print("merged latest-mac.yml:\n" + f.read())
+          for basename, paths in groups.items():
+              merged = None
+              seen_urls = set()
+              merged_files = []
+              # Sort so arm64 is processed first; its top-level fields
+              # (path/sha512/releaseDate) become the defaults for legacy clients.
+              for path in sorted(paths):
+                  with open(path) as f:
+                      data = yaml.safe_load(f)
+                  if merged is None:
+                      merged = dict(data)
+                  for entry in data.get("files", []):
+                      if entry["url"] not in seen_urls:
+                          seen_urls.add(entry["url"])
+                          merged_files.append(entry)
+              merged["files"] = merged_files
+              with open(basename, "w") as f:
+                  yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
+              with open(basename) as f:
+                  print(f"merged {basename}:\n{f.read()}")
           EOF
 
-      - name: Upload merged latest-mac.yml to draft release
+      - name: Upload merged update metadata to draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF_NAME}" latest-mac.yml --clobber --repo "${GITHUB_REPOSITORY}"
+        run: gh release upload "${GITHUB_REF_NAME}" *-mac.yml --clobber --repo "${GITHUB_REPOSITORY}"

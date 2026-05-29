@@ -207,6 +207,17 @@ app.on('ready', async () => {
   mainWindow.loadURL('http://127.0.0.1:8000/');
 
   if (app.isPackaged) {
+    let betaUpdates = false;
+    try {
+      if (fs.existsSync(settingsPath)) {
+        const userSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        betaUpdates = userSettings.beta_updates_enabled === true;
+      }
+    } catch (e) {
+      logWithTimestamp('updater', `failed reading beta_updates_enabled: ${e}`);
+    }
+    autoUpdater.allowPrerelease = betaUpdates;
+    logWithTimestamp('updater', `allowPrerelease=${betaUpdates}`);
     autoUpdater.checkForUpdatesAndNotify().catch((error) => {
       logWithTimestamp('updater', `Update check failed: ${error}`);
     });
