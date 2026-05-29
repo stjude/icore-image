@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { autoUpdater } = require("electron-updater")
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -204,6 +205,23 @@ app.on('ready', async () => {
 
   await new Promise(resolve => setTimeout(resolve, 5000));
   mainWindow.loadURL('http://127.0.0.1:8000/');
+
+  if (app.isPackaged) {
+    let betaUpdates = false;
+    try {
+      if (fs.existsSync(settingsPath)) {
+        const userSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        betaUpdates = userSettings.beta_updates_enabled === true;
+      }
+    } catch (e) {
+      logWithTimestamp('updater', `failed reading beta_updates_enabled: ${e}`);
+    }
+    autoUpdater.allowPrerelease = betaUpdates;
+    logWithTimestamp('updater', `allowPrerelease=${betaUpdates}`);
+    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      logWithTimestamp('updater', `Update check failed: ${error}`);
+    });
+  }
 
   mainWindow.webContents.on('did-finish-load', () => {
     if (mainWindow.webContents.navigationHistory.canGoBack) {

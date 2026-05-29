@@ -1176,6 +1176,10 @@ def save_admin_settings(request):
     if request.POST.get("imagine_sas_url"):
         existing_settings["imagine_sas_url"] = request.POST["imagine_sas_url"]
 
+    beta_value = request.POST.get("beta_updates_enabled")
+    if beta_value is not None:
+        existing_settings["beta_updates_enabled"] = beta_value.lower() == "true"
+
     # Save updated settings
     with open(settings_path, "w") as f:
         json.dump(existing_settings, f, indent=4)

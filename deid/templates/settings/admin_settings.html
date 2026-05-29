@@ -87,6 +87,16 @@
         </div>
     </div>
 
+    <div class="mt-8">
+        <div class="text-md mb-4">Software Updates</div>
+        <label class="flex items-center space-x-2">
+            <input type="checkbox" id="beta_updates_enabled" class="h-4 w-4">
+            <span class="text-sm">Enable beta releases</span>
+        </label>
+        <div class="text-xs text-gray-400 mt-1">Includes pre-release builds. Takes effect on next launch.</div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block settings_scripts %}
@@ -167,6 +177,7 @@ async function loadSettings() {
         if (settings.imagine_sas_url) {
             document.getElementById('imagine_sas_url').value = settings.imagine_sas_url;
         }
+        document.getElementById('beta_updates_enabled').checked = !!settings.beta_updates_enabled;
     } catch (error) {
         console.error('Error loading settings:', error);
     }
@@ -192,6 +203,8 @@ async function saveSettings() {
         if (imagineSasUrl) {
             formData.append('imagine_sas_url', imagineSasUrl);
         }
+        formData.append('beta_updates_enabled',
+            document.getElementById('beta_updates_enabled').checked ? 'true' : 'false');
         const response = await fetch('/save_admin_settings/', {
             method: 'POST',
             headers: {

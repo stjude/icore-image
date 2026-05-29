@@ -7,6 +7,9 @@
 # Architecture configuration (override with `make ARCH=arm64` or `make ARCH=x86_64`)
 ARCH ?= $(shell uname -m)
 
+# electron-builder --publish flag (override with `make signed PUBLISH=always` to upload to GitHub Releases)
+PUBLISH ?= never
+
 ifeq ($(ARCH),arm64)
   ARCH_LABEL := arm64
   DCMTK_ARCH := arm64
@@ -160,7 +163,7 @@ build-dmg-signed:
 		echo "  export APPLE_TEAM_ID=\"your-team-id\""; \
 		exit 1; \
 	fi
-	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=true npx electron-builder --mac dmg $(ELECTRON_ARCH_FLAG)
+	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=true npx electron-builder --mac dmg $(ELECTRON_ARCH_FLAG) --publish $(PUBLISH)
 	@VERSION=$$(node -p "require('./electron/package.json').version"); \
 	DMG_FILE=$$(ls -t electron/dist/iCore-*.dmg 2>/dev/null | head -1); \
 	cp "$$DMG_FILE" icore-$(ARCH_LABEL)-$$VERSION.dmg; \

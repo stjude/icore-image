@@ -1,87 +1,28 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version number (e.g., 0.0.16)'
-        required: true
-        type: string
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
-  prepare-release:
+  build-and-publish:
     permissions:
       contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-          submodules: 'recursive'
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Create release branch
-        run: |
-          VERSION="${{ inputs.version }}"
-          BRANCH="release/v$VERSION"
-          git checkout -b "$BRANCH"
-          echo "Created release branch $BRANCH"
-
-      - name: Update version in package.json
-        run: |
-          VERSION="${{ inputs.version }}"
-          cd electron
-          npm version "$VERSION" --no-git-tag-version
-          echo "Updated package.json to version $VERSION"
-
-      - name: Commit version change
-        run: |
-          VERSION="${{ inputs.version }}"
-          git add electron/package.json
-          git commit -m "Release version $VERSION"
-          echo "Committed version change"
-
-      - name: Push release branch and create tag
-        run: |
-          VERSION="${{ inputs.version }}"
-          BRANCH="release/v$VERSION"
-          TAG="v$VERSION"
-          git push origin "$BRANCH"
-          git tag -a "$TAG" -m "Release $VERSION"
-          git push origin "$TAG"
-          echo "Pushed release branch $BRANCH and tag $TAG"
-
-  build:
-    needs: prepare-release
-    permissions:
-      contents: read
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: macos-15-intel
             arch: x86_64
-            arch_label: x64
           - runner: macos-15
             arch: arm64
-            arch_label: arm64
     runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: v${{ inputs.version }}
           submodules: 'recursive'
 
       - name: Setup uv
@@ -116,60 +57,78 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
           rm certificate.p12
 
-      - name: Build signed DMG
+      - name: Build, sign, and publish DMG
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: make signed ARCH=${{ matrix.arch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make signed ARCH=${{ matrix.arch }} PUBLISH=always
 
-      - name: Upload DMG artifact
+      - name: Save per-arch update metadata for merge
         uses: actions/upload-artifact@v4
         with:
-          name: icore-${{ matrix.arch_label }}-dmg
-          path: icore-${{ matrix.arch_label }}-*.dmg
+          name: update-metadata-${{ matrix.arch }}
+          path: electron/dist/*-mac.yml
+          if-no-files-found: error
 
-  create-release:
-    needs: build
+  merge-update-metadata:
+    needs: build-and-publish
     permissions:
       contents: write
-      pull-requests: write
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: release/v${{ inputs.version }}
-
-      - name: Download all artifacts
+      - name: Download per-arch update metadata artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: icore-*-dmg
-          merge-multiple: true
+          pattern: update-metadata-*
+          path: yml-artifacts
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ inputs.version }}
-          name: v${{ inputs.version }}
-          body: ''
-          files: icore-*.dmg
-          draft: true
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install PyYAML
+        run: pip install pyyaml
 
-      - name: Create Pull Request
+      - name: Merge update metadata yml files
+        run: |
+          python3 <<'EOF'
+          import collections
+          import glob
+          import os
+          import yaml
+
+          # electron-builder writes <channel>-mac.yml (latest-mac.yml for stable,
+          # beta-mac.yml for prerelease tags, etc.). A single build only produces
+          # one channel's yml; group by basename so each channel merges independently.
+          groups = collections.defaultdict(list)
+          for path in glob.glob("yml-artifacts/**/*-mac.yml", recursive=True):
+              groups[os.path.basename(path)].append(path)
+
+          if not groups:
+              raise SystemExit("no *-mac.yml artifacts found")
+
+          for basename, paths in groups.items():
+              merged = None
+              seen_urls = set()
+              merged_files = []
+              # Sort so arm64 is processed first; its top-level fields
+              # (path/sha512/releaseDate) become the defaults for legacy clients.
+              for path in sorted(paths):
+                  with open(path) as f:
+                      data = yaml.safe_load(f)
+                  if merged is None:
+                      merged = dict(data)
+                  for entry in data.get("files", []):
+                      if entry["url"] not in seen_urls:
+                          seen_urls.add(entry["url"])
+                          merged_files.append(entry)
+              merged["files"] = merged_files
+              with open(basename, "w") as f:
+                  yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
+              with open(basename) as f:
+                  print(f"merged {basename}:\n{f.read()}")
+          EOF
+
+      - name: Upload merged update metadata to draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ inputs.version }}"
-          BRANCH="release/v$VERSION"
-          gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "Release v$VERSION" \
-            --body "Automated release PR for version $VERSION" \
-            --reviewer qsodia \
-            --draft
+        run: gh release upload "${GITHUB_REF_NAME}" *-mac.yml --clobber --repo "${GITHUB_REPOSITORY}"

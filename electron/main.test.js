@@ -68,6 +68,13 @@ jest.mock('./lib/setup', () => ({
   initializeApp: mockInitializeApp
 }));
 
+jest.mock('electron-updater', () => ({
+  autoUpdater: {
+    allowPrerelease: false,
+    checkForUpdatesAndNotify: jest.fn().mockResolvedValue(null)
+  }
+}));
+
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
   existsSync: jest.fn().mockReturnValue(true)

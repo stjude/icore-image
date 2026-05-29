@@ -1,6 +1,6 @@
 {
   "name": "icore",
-  "version": "0.0.26",
+  "version": "0.0.29",
   "main": "main.js",
   "scripts": {
     "start": "ICORE_DEV=1 electron .",
@@ -11,7 +11,7 @@
     "test:coverage": "jest --coverage"
   },
   "devDependencies": {
-    "electron": "^35.7.5",
+    "electron": "^42.2.0",
     "electron-builder": "^26.0.12",
     "jest": "^29.7.0"
   },
@@ -39,16 +39,22 @@
       "hardenedRuntime": true,
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.plist",
-      "type": "distribution"
+      "type": "distribution",
+      "publish": {
+        "provider": "github",
+        "owner": "stjude",
+        "repo": "icore-image"
+      }
     },
     "dmg": {
-      "title": "iCore",
+      "title": "iCore ${version}",
       "background": "background.png",
       "contents": [
         {
           "x": 150,
           "y": 90,
-          "type": "file"
+          "type": "file",
+          "name": "iCore.app"
         },
         {
           "x": 150,
@@ -58,5 +64,8 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }

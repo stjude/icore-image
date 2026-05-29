@@ -4,13 +4,17 @@ import re
 import string
 import sys
 from abc import ABC
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
-from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
+from presidio_analyzer import (
+    AnalyzerEngine,
+    Pattern,
+    PatternRecognizer,
+)
 from presidio_analyzer.nlp_engine import NlpEngine, NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
-from presidio_anonymizer.entities import OperatorConfig
+from presidio_anonymizer.entities import OperatorConfig, RecognizerResult
 
 from pipeline.base import PipelineStage
 from pipeline.context import PipelineContext
@@ -576,7 +580,9 @@ def scrub(
 
         filtered = sorted(filtered, key=lambda x: x.start)
         anonymized = anonymizer.anonymize(
-            text=text, analyzer_results=filtered, operators=operators
+            text=text,
+            analyzer_results=cast(list[RecognizerResult], filtered),
+            operators=operators,
         )
         results.append(anonymized.text)
 
