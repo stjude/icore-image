@@ -144,7 +144,7 @@ prepare-assets:
 	ditto dist/icorecli electron/assets/dist/icorecli
 
 build-dmg:
-	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg $(ELECTRON_ARCH_FLAG)
+	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac $(ELECTRON_ARCH_FLAG)
 	@VERSION=$$(node -p "require('./electron/package.json').version"); \
 	DMG_FILE=$$(ls -t electron/dist/iCore-*.dmg 2>/dev/null | head -1); \
 	cp "$$DMG_FILE" icore-$(ARCH_LABEL)-$$VERSION.dmg; \
@@ -163,7 +163,7 @@ build-dmg-signed:
 		echo "  export APPLE_TEAM_ID=\"your-team-id\""; \
 		exit 1; \
 	fi
-	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=true npx electron-builder --mac dmg $(ELECTRON_ARCH_FLAG) --publish $(PUBLISH)
+	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=true npx electron-builder --mac $(ELECTRON_ARCH_FLAG) --publish $(PUBLISH)
 	@VERSION=$$(node -p "require('./electron/package.json').version"); \
 	DMG_FILE=$$(ls -t electron/dist/iCore-*.dmg 2>/dev/null | head -1); \
 	cp "$$DMG_FILE" icore-$(ARCH_LABEL)-$$VERSION.dmg; \
