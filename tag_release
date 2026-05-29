@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "usage: $0 <version>"
+  echo "  version: semantic version without leading 'v' (e.g. 0.0.27)"
+  exit 64
+}
+
+if [ $# -ne 1 ]; then
+  usage
+fi
+
+VERSION="$1"
+
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "error: version '$VERSION' does not match X.Y.Z (digits only)" >&2
+  exit 1
+fi
+
+TAG="v$VERSION"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PKG="$REPO_ROOT/electron/package.json"
+LOCK="$REPO_ROOT/electron/package-lock.json"
+
+for f in "$PKG" "$LOCK"; do
+  [ -f "$f" ] || { echo "error: $f not found" >&2; exit 1; }
+done
+
+PKG_VERSION=$(node -p "require('$PKG').version")
+LOCK_TOP=$(node -p "require('$LOCK').version")
+LOCK_ROOT_PKG=$(node -p "require('$LOCK').packages[''].version")
+
+mismatch=0
+check() {
+  local label="$1" actual="$2"
+  if [ "$actual" != "$VERSION" ]; then
+    echo "  $label: $actual (expected $VERSION)" >&2
+    mismatch=1
+  fi
+}
+check "electron/package.json .version" "$PKG_VERSION"
+check "electron/package-lock.json .version" "$LOCK_TOP"
+check "electron/package-lock.json .packages[''].version" "$LOCK_ROOT_PKG"
+
+if [ "$mismatch" -ne 0 ]; then
+  echo "error: version mismatch; bump the files above before tagging" >&2
+  exit 1
+fi
+
+if git -C "$REPO_ROOT" rev-parse "$TAG" >/dev/null 2>&1; then
+  echo "error: tag $TAG already exists" >&2
+  exit 1
+fi
+
+git -C "$REPO_ROOT" tag -a "$TAG" -m "Release $VERSION"
+echo "created tag $TAG at $(git -C "$REPO_ROOT" rev-parse --short "$TAG")"
+echo "push with: git push origin $TAG"
