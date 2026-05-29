@@ -617,12 +617,13 @@ def move_studies_from_study_pacs_map(
         processed = 0
         cumulative_expected = 0
 
+        studies = list(study_pacs_map.items())
         for batch_start in range(0, total_studies, cmove_batch_size):
             batch_num = (batch_start // cmove_batch_size) + 1
             batch_end = min(batch_start + cmove_batch_size, total_studies)
-            batch = list(study_pacs_map.items())[batch_start:batch_end]
+            batch = studies[batch_start:batch_end]
 
-            logging.info(f"Processing C-MOVE batch {batch_num} / {total_batches} ")
+            logging.info(f"Processing C-MOVE batch {batch_num} / {total_batches}")
 
             for study_uid, (pacs, query_index) in batch:
                 logging.info(f"Retrieved {processed} / {total_studies} studies")
