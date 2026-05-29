@@ -1,11 +1,11 @@
 {
   "name": "icore",
-  "version": "0.0.30-beta.1",
+  "version": "0.0.30-beta.3",
   "main": "main.js",
   "scripts": {
     "start": "ICORE_DEV=1 electron .",
-    "build": "electron-builder --mac dmg",
-    "build_signed": "CSC_IDENTITY_AUTO_DISCOVERY=true electron-builder --mac dmg",
+    "build": "electron-builder --mac",
+    "build_signed": "CSC_IDENTITY_AUTO_DISCOVERY=true electron-builder --mac",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -34,7 +34,7 @@
       }
     ],
     "mac": {
-      "target": "dmg",
+      "target": ["dmg", "zip"],
       "icon": "assets/icon.icns",
       "hardenedRuntime": true,
       "entitlements": "entitlements.mac.plist",
@@ -49,6 +49,7 @@
     "dmg": {
       "title": "iCore ${version}",
       "background": "background.png",
+      "size": "1g",
       "contents": [
         {
           "x": 150,
