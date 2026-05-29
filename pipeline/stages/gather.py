@@ -62,6 +62,7 @@ class PacsQueryGather(GatherStage):
         pacs_list: list[PacsConfiguration],
         query_spreadsheet: Spreadsheet,
         application_aet: str,
+        cmove_batch_size: int,
         date_window_days: int = 0,
         use_fallback_query: bool = False,
         storescp_port: int = 50001,
@@ -77,6 +78,7 @@ class PacsQueryGather(GatherStage):
         self.use_fallback_query = use_fallback_query
         self.storescp_port = storescp_port
         self.deferred_delivery = deferred_delivery
+        self.cmove_batch_size = cmove_batch_size
         self.deferred_delivery_timeout = deferred_delivery_timeout
         self.filter_script_seed = filter_script_seed
 
@@ -117,6 +119,7 @@ class PacsQueryGather(GatherStage):
             self.application_aet,
             retrieval_dir,
             self.storescp_port,
+            cmove_batch_size=self.cmove_batch_size,
             deferred_delivery=self.deferred_delivery,
             deferred_delivery_timeout=self.deferred_delivery_timeout,
         )

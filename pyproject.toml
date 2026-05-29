@@ -52,3 +52,8 @@ dev = [
     "ty>=0.0.25",
 ]
 
+[tool.ruff]
+exclude = ["dicom-deid-rs/"]
+
+[tool.ty.src]
+exclude = ["dicom-deid-rs/"]

@@ -590,6 +590,7 @@ def move_studies_from_study_pacs_map(
     application_aet,
     output_dir,
     storescp_port,
+    cmove_batch_size: int,
     deferred_delivery=False,
     deferred_delivery_timeout=172800,
 ):
@@ -602,12 +603,6 @@ def move_studies_from_study_pacs_map(
     files (determined by a C-FIND at IMAGE level) have arrived on disk, or
     until deferred_delivery_timeout seconds have elapsed.
     """
-    # When using deferred delivery, count expected instances via C-FIND before starting
-    expected_count = 0
-    if deferred_delivery:
-        expected_count = _count_expected_instances(study_pacs_map, application_aet)
-        logging.info(f"Deferred delivery enabled: expecting {expected_count} instances")
-
     storescp_process = start_storescp(
         storescp_port, output_dir, calling_aet=application_aet
     )
@@ -618,85 +613,103 @@ def move_studies_from_study_pacs_map(
         failed_query_indices = []
         failure_details = {}
         total_studies = len(study_pacs_map)
+        total_batches = (total_studies + cmove_batch_size - 1) // cmove_batch_size
         processed = 0
+        cumulative_expected = 0
 
-        for study_uid, (pacs, query_index) in study_pacs_map.items():
-            logging.info(f"Retrieved {processed} / {total_studies} studies")
-            logging.debug(f"Processing study from Excel row {query_index + 1}")
+        studies = list(study_pacs_map.items())
+        for batch_start in range(0, total_studies, cmove_batch_size):
+            batch_num = (batch_start // cmove_batch_size) + 1
+            batch_end = min(batch_start + cmove_batch_size, total_studies)
+            batch = studies[batch_start:batch_end]
 
-            try:
-                result = move_study(
-                    host=pacs.host,
-                    port=pacs.port,
-                    calling_aet=application_aet,
-                    called_aet=pacs.aet,
-                    move_dest_aet=application_aet,
-                    study_uid=study_uid,
-                )
+            logging.info(f"Processing C-MOVE batch {batch_num} / {total_batches}")
 
-                processed += 1
+            for study_uid, (pacs, query_index) in batch:
+                logging.info(f"Retrieved {processed} / {total_studies} studies")
+                logging.debug(f"Processing study from Excel row {query_index + 1}")
 
-                if result["success"]:
-                    if result["num_completed"] == 0:
-                        # Explicitly 0 sub-operations reported — treat as failure
-                        num_failed = result.get("num_failed", 0)
-                        num_warning = result.get("num_warning", 0)
-                        logging.warning(
-                            f"C-MOVE for query {query_index + 1} (study {study_uid}) reported success "
-                            f"but retrieved 0 files from {pacs.host}:{pacs.port}. "
-                            f"Failed: {num_failed}, Warning: {num_warning}. Moving on."
+                try:
+                    result = move_study(
+                        host=pacs.host,
+                        port=pacs.port,
+                        calling_aet=application_aet,
+                        called_aet=pacs.aet,
+                        move_dest_aet=application_aet,
+                        study_uid=study_uid,
+                    )
+
+                    processed += 1
+
+                    if result["success"]:
+                        if result["num_completed"] == 0:
+                            # Explicitly 0 sub-operations reported — treat as failure
+                            num_failed = result.get("num_failed", 0)
+                            num_warning = result.get("num_warning", 0)
+                            logging.warning(
+                                f"C-MOVE for query {query_index + 1} (study {study_uid}) reported success "
+                                f"but retrieved 0 files from {pacs.host}:{pacs.port}. "
+                                f"Failed: {num_failed}, Warning: {num_warning}. Moving on."
+                            )
+                            if query_index not in failed_query_indices:
+                                failed_query_indices.append(query_index)
+                                if num_failed > 0 or num_warning > 0:
+                                    failure_details[query_index] = (
+                                        f"C-MOVE succeeded but retrieved 0 files (failed: {num_failed}, warning: {num_warning})"
+                                    )
+                                else:
+                                    failure_details[query_index] = (
+                                        "C-MOVE succeeded but retrieved 0 files (no sub-operations)"
+                                    )
+                        else:
+                            # num_completed > 0 or -1 (unknown, PACS didn't report counts)
+                            successful_moves += 1
+                            logging.debug(
+                                f"Successfully retrieved study {study_uid} from {pacs.host}:{pacs.port} "
+                                f"({result['num_completed']} files)"
+                            )
+                    else:
+                        logging.error(
+                            f"Failed to retrieve study for query {query_index + 1}: {result['message']}. Moving on."
                         )
                         if query_index not in failed_query_indices:
                             failed_query_indices.append(query_index)
-                            if num_failed > 0 or num_warning > 0:
-                                failure_details[query_index] = (
-                                    f"C-MOVE succeeded but retrieved 0 files (failed: {num_failed}, warning: {num_warning})"
-                                )
-                            else:
-                                failure_details[query_index] = (
-                                    "C-MOVE succeeded but retrieved 0 files (no sub-operations)"
-                                )
-                    else:
-                        # num_completed > 0 or -1 (unknown, PACS didn't report counts)
-                        successful_moves += 1
-                        logging.debug(
-                            f"Successfully retrieved study {study_uid} from {pacs.host}:{pacs.port} "
-                            f"({result['num_completed']} files)"
-                        )
-                else:
-                    logging.error(
-                        f"Failed to retrieve study for query {query_index + 1}: {result['message']}. Moving on."
+                            failure_details[query_index] = (
+                                f"Failed to retrieve images: {result['message']}"
+                            )
+
+                except Exception as e:
+                    logging.exception(
+                        f"Exception while retrieving study for query {query_index + 1} "
+                        f"(study {study_uid}): {str(e)}. Moving on."
                     )
+                    processed += 1
                     if query_index not in failed_query_indices:
                         failed_query_indices.append(query_index)
                         failure_details[query_index] = (
-                            f"Failed to retrieve images: {result['message']}"
+                            f"Exception during retrieval: {str(e)}"
                         )
 
-            except Exception as e:
-                logging.exception(
-                    f"Exception while retrieving study for query {query_index + 1} "
-                    f"(study {study_uid}): {str(e)}. Moving on."
+            if deferred_delivery:
+                batch_map = dict(batch)
+                batch_expected = _count_expected_instances(batch_map, application_aet)
+                cumulative_expected += batch_expected
+                logging.info(
+                    f"Deferred delivery: expecting {batch_expected} instances for batch {batch_num} "
+                    f"({cumulative_expected} cumulative)"
                 )
-                processed += 1
-                if query_index not in failed_query_indices:
-                    failed_query_indices.append(query_index)
-                    failure_details[query_index] = (
-                        f"Exception during retrieval: {str(e)}"
-                    )
+                _wait_for_deferred_delivery(
+                    output_dir,
+                    cumulative_expected,
+                    deferred_delivery_timeout,
+                    storescp_process,
+                )
+            else:
+                # Allow time for final files to be received by storescp
+                time.sleep(5)
 
+            logging.info(f"Processed C-MOVE batch {batch_num} / {total_batches} ")
         logging.info(f"Retrieved {processed} / {total_studies} studies")
-
-        if deferred_delivery:
-            _wait_for_deferred_delivery(
-                output_dir,
-                expected_count,
-                deferred_delivery_timeout,
-                storescp_process,
-            )
-        else:
-            # Allow time for final files to be received by storescp
-            time.sleep(5)
     finally:
         stop_storescp(storescp_process)
 

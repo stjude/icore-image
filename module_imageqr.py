@@ -48,6 +48,7 @@ def imageqr(
     query_spreadsheet: Spreadsheet,
     application_aet: str,
     output_dir: str,
+    cmove_batch_size: int,
     appdata_dir: str | None = None,
     filter_script: str | None = None,
     date_window_days: int = 0,
@@ -112,6 +113,7 @@ def imageqr(
                 storescp_port,
                 deferred_delivery=deferred_delivery,
                 deferred_delivery_timeout=deferred_delivery_timeout,
+                cmove_batch_size=cmove_batch_size,
             )
         )
 

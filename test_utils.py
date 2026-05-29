@@ -31,6 +31,8 @@ from utils import (
     PacsConfiguration,
 )
 
+CMOVE_BATCH_SIZE = 50
+
 
 @contextlib.contextmanager
 def get_free_port() -> Generator[int, None, None]:
@@ -1012,7 +1014,11 @@ def test_get_studies_returns_failure_details(tmp_path):
         with get_free_port() as storescp_port:
             successful_gets, failed_query_indices, failure_details = (
                 move_studies_from_study_pacs_map(
-                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                    study_pacs_map,
+                    "TEST_AET",
+                    output_dir,
+                    storescp_port=storescp_port,
+                    cmove_batch_size=CMOVE_BATCH_SIZE,
                 )
             )
 
@@ -1065,7 +1071,11 @@ def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
         with get_free_port() as storescp_port:
             successful_gets, failed_query_indices, failure_details = (
                 move_studies_from_study_pacs_map(
-                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                    study_pacs_map,
+                    "TEST_AET",
+                    output_dir,
+                    storescp_port=storescp_port,
+                    cmove_batch_size=CMOVE_BATCH_SIZE,
                 )
             )
 
@@ -1124,7 +1134,11 @@ def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
         with get_free_port() as storescp_port:
             successful_gets, failed_query_indices, failure_details = (
                 move_studies_from_study_pacs_map(
-                    study_pacs_map, "TEST_AET", output_dir, storescp_port=storescp_port
+                    study_pacs_map,
+                    "TEST_AET",
+                    output_dir,
+                    storescp_port=storescp_port,
+                    cmove_batch_size=CMOVE_BATCH_SIZE,
                 )
             )
 
@@ -1191,6 +1205,7 @@ def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
                 "TEST_AET",
                 output_dir,
                 storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
                 deferred_delivery=True,
                 deferred_delivery_timeout=300,
             )
@@ -1235,6 +1250,7 @@ def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
                 "TEST_AET",
                 output_dir,
                 storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
                 deferred_delivery=True,
                 deferred_delivery_timeout=0,
             )
@@ -1276,6 +1292,7 @@ def test_deferred_delivery_storescp_dies(tmp_path, caplog):
                 "TEST_AET",
                 output_dir,
                 storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
                 deferred_delivery=True,
                 deferred_delivery_timeout=300,
             )
@@ -1323,6 +1340,7 @@ def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
                 "TEST_AET",
                 output_dir,
                 storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
                 deferred_delivery=True,
                 deferred_delivery_timeout=0,
             )

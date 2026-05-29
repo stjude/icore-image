@@ -20,6 +20,8 @@ from grammar import (
 from home.models import Project
 from ruamel.yaml import YAML, scalarstring
 
+CMOVE_BATCH_SIZE = 50
+
 
 def run_subprocess_and_capture_log_path(cmd, env, task):
     shell_cmd = " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd)
@@ -795,6 +797,11 @@ def build_singleclickicore_config(task):
             "application_aet": task.application_aet,
             "sas_url": task.parameters.get("sas_url", ""),
             "project_name": task.name,
+            "deferred_delivery": settings.get("deferred_delivery", False),
+            "deferred_delivery_timeout": settings.get(
+                "deferred_delivery_timeout", 172800
+            ),
+            "cmove_batch_size": settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         }
     )
 
@@ -906,6 +913,11 @@ def build_image_deid_export_config(task):
             "application_aet": task.application_aet,
             "sas_url": task.parameters["sas_url"],
             "project_name": task.name,
+            "deferred_delivery": settings.get("deferred_delivery", False),
+            "deferred_delivery_timeout": settings.get(
+                "deferred_delivery_timeout", 172800
+            ),
+            "cmove_batch_size": settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         }
     )
 

@@ -4,6 +4,8 @@ import sys
 
 import yaml
 
+CMOVE_BATCH_SIZE = 50
+
 
 def determine_module(config, input_dir):
     module = config.get("module")
@@ -58,6 +60,7 @@ def build_imageqr_params(config, input_dir, output_dir, run_dirs):
         "use_fallback_query": config.get("use_fallback_query", False),
         "deferred_delivery": config.get("deferred_delivery", False),
         "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
+        "cmove_batch_size": config.get("cmove_batch_size", CMOVE_BATCH_SIZE),
     }
 
 
@@ -98,6 +101,7 @@ def build_imagedeid_pacs_params(config, input_dir, output_dir, run_dirs):
         "deferred_delivery": config.get("deferred_delivery", False),
         "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
         "deid_engine": config.get("deid_engine", "ctp"),
+        "cmove_batch_size": config.get("cmove_batch_size", CMOVE_BATCH_SIZE),
     }
 
 
@@ -188,6 +192,7 @@ def build_imagedeidexport_params(config, input_dir, output_dir, run_dirs):
         "deferred_delivery": config.get("deferred_delivery", False),
         "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
         "deid_engine": config.get("deid_engine", "ctp"),
+        "cmove_batch_size": config.get("cmove_batch_size", CMOVE_BATCH_SIZE),
     }
 
 
@@ -250,6 +255,7 @@ def build_singleclickicore_params(config, input_dir, output_dir, run_dirs):
         "deferred_delivery": config.get("deferred_delivery", False),
         "deferred_delivery_timeout": config.get("deferred_delivery_timeout", 172800),
         "deid_engine": config.get("deid_engine", "ctp"),
+        "cmove_batch_size": config.get("cmove_batch_size", CMOVE_BATCH_SIZE),
     }
 
 
