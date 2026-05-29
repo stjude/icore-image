@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { autoUpdater } = require("electron-updater")
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -204,6 +205,8 @@ app.on('ready', async () => {
 
   await new Promise(resolve => setTimeout(resolve, 5000));
   mainWindow.loadURL('http://127.0.0.1:8000/');
+
+  autoUpdater.checkForUpdatesAndNotify();
 
   mainWindow.webContents.on('did-finish-load', () => {
     if (mainWindow.webContents.navigationHistory.canGoBack) {

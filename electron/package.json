@@ -39,10 +39,15 @@
       "hardenedRuntime": true,
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.plist",
-      "type": "distribution"
+      "type": "distribution",
+      "publish": {
+        "provider": "github",
+        "owner": "stjude",
+        "repo": "icore-image"
+      }
     },
     "dmg": {
-      "title": "iCore",
+      "title": "iCore ${version}",
       "background": "background.png",
       "contents": [
         {
@@ -59,5 +64,8 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }
