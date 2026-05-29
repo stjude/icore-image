@@ -7,7 +7,12 @@ from abc import ABC
 from typing import Any
 
 import pandas as pd
-from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
+from presidio_analyzer import (
+    AnalyzerEngine,
+    Pattern,
+    PatternRecognizer,
+    RecognizerResult,
+)
 from presidio_analyzer.nlp_engine import NlpEngine, NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
@@ -574,7 +579,7 @@ def scrub(
 
             filtered.append(result)
 
-        filtered = sorted(filtered, key=lambda x: x.start)
+        filtered: list[RecognizerResult] = sorted(filtered, key=lambda x: x.start)
         anonymized = anonymizer.anonymize(
             text=text, analyzer_results=filtered, operators=operators
         )
