@@ -206,7 +206,11 @@ app.on('ready', async () => {
   await new Promise(resolve => setTimeout(resolve, 5000));
   mainWindow.loadURL('http://127.0.0.1:8000/');
 
-  autoUpdater.checkForUpdatesAndNotify();
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      logWithTimestamp('updater', `Update check failed: ${error}`);
+    });
+  }
 
   mainWindow.webContents.on('did-finish-load', () => {
     if (mainWindow.webContents.navigationHistory.canGoBack) {
