@@ -376,6 +376,9 @@ def get_log_content(request):
         if not log_path:
             return HttpResponseBadRequest("No log path specified")
 
+        if not os.path.normpath(log_path).startswith(os.path.normpath(LOGS_DIR)):
+            return HttpResponseBadRequest("Invalid log path")
+
         # Check if file exists
         if not os.path.exists(log_path):
             return HttpResponseNotFound("Loading. Please wait...")
@@ -1437,11 +1440,14 @@ def upload_module(request):
 
     try:
         # Create iCore config directory in user's home if it doesn't exist
-        icore_dir = f"{SETTINGS_DIR}/modules"
+        icore_dir = os.path.join(SETTINGS_DIR, "modules")
         os.makedirs(icore_dir, exist_ok=True)
 
         # Save the file
-        file_path = f"{icore_dir}/{module_file.name}"
+        file_path = os.path.normpath(os.path.join(icore_dir, module_file.name))
+        if not file_path.startswith(icore_dir):
+            return JsonResponse({"status": "error", "error": "Invalid file name"})
+
         with open(file_path, "wb+") as destination:
             for chunk in module_file.chunks():
                 destination.write(chunk)
