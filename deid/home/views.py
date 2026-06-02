@@ -28,6 +28,7 @@ from django.views.generic.edit import CreateView
 
 from .models import Project, Module
 from grammar import get_hipaa_safe_harbor_config
+from pathutils import is_path_within_directory
 
 logger = logging.getLogger(__name__)
 
@@ -406,7 +407,7 @@ def get_log_content(request):
         if not log_path:
             return HttpResponseBadRequest("No log path specified")
 
-        if not os.path.normpath(log_path).startswith(os.path.normpath(LOGS_DIR)):
+        if not is_path_within_directory(log_path, LOGS_DIR):
             return HttpResponseBadRequest("Invalid log path")
 
         # Check if file exists
@@ -1506,8 +1507,8 @@ def upload_module(request):
         os.makedirs(icore_dir, exist_ok=True)
 
         # Save the file
-        file_path = os.path.normpath(os.path.join(icore_dir, module_file.name))
-        if not file_path.startswith(icore_dir):
+        file_path = os.path.realpath(os.path.join(icore_dir, module_file.name))
+        if not is_path_within_directory(file_path, icore_dir):
             return JsonResponse({"status": "error", "error": "Invalid file name"})
 
         with open(file_path, "wb+") as destination:
