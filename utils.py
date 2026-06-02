@@ -514,7 +514,12 @@ def _count_expected_instances(study_pacs_map, application_aet):
                 return_tags=["NumberOfStudyRelatedInstances"],
             )
             for result in results:
-                total += int(result.get("NumberOfStudyRelatedInstances", 0) or 0)
+                if instances := result.get("NumberOfStudyRelatedInstances", 0):
+                    try:
+                        total += int(instances)
+                    except ValueError:
+                        logging.warning(f"Encountered non-integer NumberOfStudyRelatedInstances '{instances}'. Skipping count for study."
+                        )
         except Exception as e:
             logging.warning(f"Failed to count instances for study {study_uid}: {e}")
     return total
