@@ -3,10 +3,10 @@ import os
 import time
 import xml.etree.ElementTree as ET
 from abc import ABC
-from typing import Literal
 
 import pandas as pd
 
+from config import IcoreConfig
 from ctp import CTPPipeline, generate_sc_pdf_filter
 from pipeline.base import PipelineStage
 from pipeline.context import PipelineContext
@@ -333,27 +333,16 @@ class ImageDeidExecutor(ImageDeidStage):
     to the chosen engine.
     """
 
-    def __init__(
-        self,
-        engine: Literal["rust", "ctp"],
-        anonymizer_script: str | None = None,
-        filter_script: str | None = None,
-        lookup_table: str | None = None,
-        mapping_file_path: str | None = None,
-        deid_pixels: bool = False,
-        apply_default_filter_script: bool = True,
-        sc_pdf_output_dir: str | None = None,
-        application_aet: str | None = None,
-    ) -> None:
-        self.engine = engine
-        self.anonymizer_script = anonymizer_script
-        self.filter_script = filter_script
-        self.lookup_table = lookup_table
-        self.mapping_file_path = mapping_file_path
-        self.deid_pixels = deid_pixels
-        self.apply_default_filter_script = apply_default_filter_script
-        self.sc_pdf_output_dir = sc_pdf_output_dir
-        self.application_aet = application_aet
+    def __init__(self, config: IcoreConfig) -> None:
+        self.engine = config.deid_engine
+        self.anonymizer_script = config.anonymizer_script
+        self.filter_script = config.filter_script
+        self.lookup_table = config.lookup_table
+        self.mapping_file_path = config.mapping_file_path
+        self.deid_pixels = config.deid_pixels
+        self.apply_default_filter_script = config.apply_default_filter_script
+        self.sc_pdf_output_dir = config.sc_pdf_output_dir
+        self.application_aet = config.application_aet
 
     def execute(self, ctx: PipelineContext) -> None:
         input_dir = ctx.dicom_input_dir

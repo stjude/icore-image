@@ -4,10 +4,10 @@ import shutil
 import time
 from abc import ABC
 
+from config import IcoreConfig
 from pipeline.base import PipelineStage
 from pipeline.context import PipelineContext
 from utils import (
-    PacsConfiguration,
     Spreadsheet,
     combine_filters,
     count_dicom_files,
@@ -59,28 +59,21 @@ class PacsQueryGather(GatherStage):
 
     def __init__(
         self,
-        pacs_list: list[PacsConfiguration],
+        config: IcoreConfig,
+        *,
         query_spreadsheet: Spreadsheet,
-        application_aet: str,
-        cmove_batch_size: int,
-        date_window_days: int = 0,
-        use_fallback_query: bool = False,
-        storescp_port: int = 50001,
-        deferred_delivery: bool = False,
-        deferred_delivery_timeout: int = 172800,
-        filter_script_seed: str | None = None,
     ) -> None:
-        validate_date_window_days(date_window_days)
-        self.pacs_list = pacs_list
+        validate_date_window_days(config.date_window_days)
+        self.pacs_list = config.pacs
         self.query_spreadsheet = query_spreadsheet
-        self.application_aet = application_aet
-        self.date_window_days = date_window_days
-        self.use_fallback_query = use_fallback_query
-        self.storescp_port = storescp_port
-        self.deferred_delivery = deferred_delivery
-        self.cmove_batch_size = cmove_batch_size
-        self.deferred_delivery_timeout = deferred_delivery_timeout
-        self.filter_script_seed = filter_script_seed
+        self.application_aet = config.application_aet
+        self.date_window_days = config.date_window_days
+        self.use_fallback_query = config.use_fallback_query
+        self.storescp_port = config.storescp_port
+        self.deferred_delivery = config.deferred_delivery
+        self.cmove_batch_size = config.cmove_batch_size
+        self.deferred_delivery_timeout = config.deferred_delivery_timeout
+        self.filter_script_seed = config.filter_script
 
         self._retrieval_dir: str | None = None
 

@@ -1,597 +1,168 @@
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-
-from cli import (
-    build_headerextract_local_params,
-    build_image_export_params,
-    build_imagedeid_local_params,
-    build_imagedeid_pacs_params,
-    build_imagedeidexport_params,
-    build_imageqr_params,
-    build_singleclickicore_params,
-    build_textdeid_params,
-    determine_module,
-    run,
-)
+from cli import determine_module, run
+from config import IcoreConfig
 from utils import PacsConfiguration
 
 
+# ---------------------------------------------------------------------------
+# determine_module
+# ---------------------------------------------------------------------------
+
+
 def test_determine_module_imageqr(tmp_path):
-    config = {"module": "imageqr"}
-    input_dir = str(tmp_path)
-
-    result = determine_module(config, input_dir)
-
+    result = determine_module(IcoreConfig(module="imageqr"), str(tmp_path))
     assert result == "imageqr"
 
 
 def test_determine_module_imagedeid_with_input_xlsx_routes_to_pacs(tmp_path):
-    config = {"module": "imagedeid"}
-    input_dir = str(tmp_path)
     (tmp_path / "input.xlsx").touch()
-
-    result = determine_module(config, input_dir)
-
+    result = determine_module(IcoreConfig(module="imagedeid"), str(tmp_path))
     assert result == "imagedeid_pacs"
 
 
 def test_determine_module_imagedeid_without_input_xlsx_routes_to_local(tmp_path):
-    config = {"module": "imagedeid"}
-    input_dir = str(tmp_path)
-
-    result = determine_module(config, input_dir)
-
+    result = determine_module(IcoreConfig(module="imagedeid"), str(tmp_path))
     assert result == "imagedeid_local"
 
 
 def test_determine_module_image_export(tmp_path):
-    config = {"module": "imageexport"}
-    input_dir = str(tmp_path)
-
-    result = determine_module(config, input_dir)
-
+    result = determine_module(IcoreConfig(module="imageexport"), str(tmp_path))
     assert result == "imageexport"
 
 
 def test_determine_module_headerextract(tmp_path):
-    config = {"module": "headerextract"}
-    input_dir = str(tmp_path)
-
-    result = determine_module(config, input_dir)
-
+    result = determine_module(IcoreConfig(module="headerextract"), str(tmp_path))
     assert result == "headerextract_local"
 
 
 def test_determine_module_imagedeidexport(tmp_path):
-    config = {"module": "imagedeidexport"}
-    input_dir = str(tmp_path)
-
-    result = determine_module(config, input_dir)
-
+    result = determine_module(IcoreConfig(module="imagedeidexport"), str(tmp_path))
     assert result == "imagedeidexport"
 
 
-def test_build_imageqr_params_builds_pacs_configuration_list(tmp_path):
-    config = {
-        "pacs": [
-            {"ip": "192.168.1.1", "port": 104, "ae": "PACS1"},
-            {"ip": "192.168.1.2", "port": 105, "ae": "PACS2"},
-        ],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
+# ---------------------------------------------------------------------------
+# IcoreConfig.model_validate — YAML alias mapping + pacs coercion
+# ---------------------------------------------------------------------------
+
+
+def test_config_coerces_pacs_dicts_to_pacs_configuration():
+    config = IcoreConfig.model_validate(
+        {
+            "pacs": [
+                {"ip": "192.168.1.1", "port": 104, "ae": "PACS1"},
+                {"ip": "192.168.1.2", "port": 105, "ae": "PACS2"},
+            ]
+        }
+    )
+
+    assert len(config.pacs) == 2
+    assert isinstance(config.pacs[0], PacsConfiguration)
+    assert config.pacs[0].host == "192.168.1.1"
+    assert config.pacs[0].port == 104
+    assert config.pacs[0].aet == "PACS1"
+    assert config.pacs[1].host == "192.168.1.2"
+    assert config.pacs[1].port == 105
+    assert config.pacs[1].aet == "PACS2"
+
+
+def test_config_maps_ctp_yaml_keys_to_python_fields():
+    config = IcoreConfig.model_validate(
+        {
+            "application_aet": "ICORE",
+            "ctp_filters": 'Modality.contains("CT")',
+            "ctp_anonymizer": "<script></script>",
+            "ctp_lookup_table": "key=value",
+            "date_window": 7,
+            "apply_default_ctp_filter_script": False,
+        }
+    )
+
+    assert config.application_aet == "ICORE"
+    assert config.filter_script == 'Modality.contains("CT")'
+    assert config.anonymizer_script == "<script></script>"
+    assert config.lookup_table == "key=value"
+    assert config.date_window_days == 7
+    assert config.apply_default_filter_script is False
+
+
+def test_config_spreadsheet_column_keys():
+    config = IcoreConfig.model_validate(
+        {"acc_col": "AccessionNumber", "mrn_col": "PatientID", "date_col": "StudyDate"}
+    )
+    assert config.acc_col == "AccessionNumber"
+    assert config.mrn_col == "PatientID"
+    assert config.date_col == "StudyDate"
+
+
+def test_config_text_and_header_lists():
+    config = IcoreConfig.model_validate(
+        {
+            "to_keep_list": ["medical", "term"],
+            "to_remove_list": ["secret", "data"],
+            "columns_to_drop": ["DropColumn1"],
+            "columns_to_deid": ["PatientName", "SSN"],
+            "headers_to_extract": ["AccessionNumber", "PatientID"],
+            "extract_all_headers": True,
+        }
+    )
+    assert config.to_keep_list == ["medical", "term"]
+    assert config.to_remove_list == ["secret", "data"]
+    assert config.columns_to_drop == ["DropColumn1"]
+    assert config.columns_to_deid == ["PatientName", "SSN"]
+    assert config.headers_to_extract == ["AccessionNumber", "PatientID"]
+    assert config.extract_all_headers is True
+
+
+def test_config_defaults():
+    config = IcoreConfig()
+
+    assert config.pacs == []
+    assert config.application_aet is None
+    assert config.filter_script is None
+    assert config.anonymizer_script is None
+    assert config.lookup_table is None
+    assert config.mapping_file_path is None
+    assert config.date_window_days == 0
+    assert config.debug is False
+    assert config.deid_pixels is False
+    assert config.deid_engine == "ctp"
+    assert config.apply_default_filter_script is True
+    assert config.cmove_batch_size == 50
+    assert config.storescp_port == 50001
+    assert config.use_fallback_query is False
+    assert config.deferred_delivery is False
+    assert config.deferred_delivery_timeout == 172800
+    assert config.extract_all_headers is False
+    assert config.headers_to_extract is None
+    assert config.skip_export is False
+
+
+def test_config_deferred_delivery_overrides():
+    config = IcoreConfig.model_validate(
+        {"deferred_delivery": True, "deferred_delivery_timeout": 3600}
+    )
+    assert config.deferred_delivery is True
+    assert config.deferred_delivery_timeout == 3600
 
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imageqr_params(config, input_dir, output_dir, {})
 
-    assert "pacs_list" in params
-    assert len(params["pacs_list"]) == 2
-    assert isinstance(params["pacs_list"][0], PacsConfiguration)
-    assert params["pacs_list"][0].host == "192.168.1.1"
-    assert params["pacs_list"][0].port == 104
-    assert params["pacs_list"][0].aet == "PACS1"
-    assert params["pacs_list"][1].host == "192.168.1.2"
-    assert params["pacs_list"][1].port == 105
-    assert params["pacs_list"][1].aet == "PACS2"
+def test_config_ignores_unknown_keys():
+    # ``module`` routing key and any other extras must not raise.
+    config = IcoreConfig.model_validate({"module": "imageqr", "some_future_key": 1})
+    assert config.module == "imageqr"
 
 
-def test_build_imageqr_params_builds_spreadsheet_with_acc_col(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    input_file = tmp_path / "input.xlsx"
-    input_file.touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file") as mock_from_file:
-        mock_spreadsheet = MagicMock()
-        mock_from_file.return_value = mock_spreadsheet
-
-        params = build_imageqr_params(config, input_dir, output_dir, {})
-
-        mock_from_file.assert_called_once_with(
-            str(input_file), acc_col="AccessionNumber", mrn_col=None, date_col=None
-        )
-        assert params["query_spreadsheet"] == mock_spreadsheet
-
-
-def test_build_imageqr_params_builds_spreadsheet_with_mrn_and_date_cols(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "mrn_col": "PatientID",
-        "date_col": "StudyDate",
-        "date_window": 5,
-    }
-    input_dir = str(tmp_path)
-    input_file = tmp_path / "input.xlsx"
-    input_file.touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file") as mock_from_file:
-        mock_spreadsheet = MagicMock()
-        mock_from_file.return_value = mock_spreadsheet
-
-        params = build_imageqr_params(config, input_dir, output_dir, {})
-
-        mock_from_file.assert_called_once_with(
-            str(input_file), acc_col=None, mrn_col="PatientID", date_col="StudyDate"
-        )
-        assert params["query_spreadsheet"] == mock_spreadsheet
-
-
-def test_build_imageqr_params_maps_config_keys_correctly(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "ctp_filters": 'Modality.contains("CT")',
-        "date_window": 3,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imageqr_params(config, input_dir, output_dir, {})
-
-    assert params["application_aet"] == "ICORE"
-    assert params["output_dir"] == output_dir
-    assert params["filter_script"] == 'Modality.contains("CT")'
-    assert params["date_window_days"] == 3
-
-
-def test_build_imageqr_params_date_window_defaults_to_zero(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imageqr_params(config, input_dir, output_dir, {})
-
-    assert params["date_window_days"] == 0
-
-
-def test_build_imageqr_params_debug_defaults_to_false(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imageqr_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is False
-
-
-def test_build_imageqr_params_includes_debug_when_specified(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "debug": True,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imageqr_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is True
-
-
-def test_build_imagedeid_pacs_params_builds_pacs_configuration_list(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert "pacs_list" in params
-    assert len(params["pacs_list"]) == 1
-    assert isinstance(params["pacs_list"][0], PacsConfiguration)
-
-
-def test_build_imagedeid_pacs_params_maps_config_keys_correctly(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "ctp_filters": 'Modality.contains("CT")',
-        "ctp_anonymizer": "<script></script>",
-        "ctp_lookup_table": "key=value",
-        "date_window": 7,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["application_aet"] == "ICORE"
-    assert params["output_dir"] == output_dir
-    assert params["filter_script"] == 'Modality.contains("CT")'
-    assert params["anonymizer_script"] == "<script></script>"
-    assert params["lookup_table"] == "key=value"
-    assert params["date_window_days"] == 7
-    assert params["mapping_file_path"] is None
-
-
-def test_build_imagedeid_local_params_maps_config_keys_correctly(tmp_path):
-    config = {
-        "ctp_filters": 'Modality.contains("CT")',
-        "ctp_anonymizer": "<script></script>",
-        "ctp_lookup_table": "key=value",
-    }
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["input_dir"] == input_dir
-    assert params["output_dir"] == output_dir
-    assert params["filter_script"] == 'Modality.contains("CT")'
-    assert params["anonymizer_script"] == "<script></script>"
-    assert params["lookup_table"] == "key=value"
-    assert params["mapping_file_path"] is None
-
-
-def test_build_imagedeid_local_params_handles_missing_optional_params(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["input_dir"] == input_dir
-    assert params["output_dir"] == output_dir
-    assert params["filter_script"] is None
-    assert params["anonymizer_script"] is None
-    assert params["lookup_table"] is None
-    assert params["mapping_file_path"] is None
-
-
-def test_build_imagedeid_pacs_params_includes_deid_pixels_when_specified(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "deid_pixels": True,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["deid_pixels"] is True
-
-
-def test_build_imagedeid_pacs_params_defaults_deid_pixels_to_false(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["deid_pixels"] is False
-
-
-def test_build_imagedeid_pacs_params_debug_defaults_to_false(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is False
-
-
-def test_build_imagedeid_pacs_params_includes_debug_when_specified(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "debug": True,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is True
-
-
-def test_build_imagedeid_local_params_includes_deid_pixels_when_specified(tmp_path):
-    config = {"ctp_filters": 'Modality.contains("CT")', "deid_pixels": True}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["deid_pixels"] is True
-
-
-def test_build_imagedeid_local_params_defaults_deid_pixels_to_false(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["deid_pixels"] is False
-
-
-def test_build_imagedeid_local_params_debug_defaults_to_false(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is False
-
-
-def test_build_imagedeid_local_params_includes_debug_when_specified(tmp_path):
-    config = {"debug": True}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is True
-
-
-def test_build_imagedeid_pacs_params_defaults_apply_default_filter_script_to_true(
-    tmp_path,
-):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["apply_default_filter_script"] is True
-
-
-def test_build_imagedeid_pacs_params_includes_apply_default_filter_script_when_false(
-    tmp_path,
-):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "apply_default_ctp_filter_script": False,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["apply_default_filter_script"] is False
-
-
-def test_build_imagedeid_pacs_params_includes_apply_default_filter_script_when_true(
-    tmp_path,
-):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "apply_default_ctp_filter_script": True,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["apply_default_filter_script"] is True
-
-
-def test_build_imagedeid_local_params_defaults_apply_default_filter_script_to_true(
-    tmp_path,
-):
-    config = {}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["apply_default_filter_script"] is True
-
-
-def test_build_imagedeid_local_params_includes_apply_default_filter_script_when_false(
-    tmp_path,
-):
-    config = {"apply_default_ctp_filter_script": False}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["apply_default_filter_script"] is False
-
-
-def test_build_imagedeid_local_params_includes_apply_default_filter_script_when_true(
-    tmp_path,
-):
-    config = {"apply_default_ctp_filter_script": True}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["apply_default_filter_script"] is True
-
-
-def test_build_imagedeid_pacs_params_includes_mapping_file_path_when_specified(
-    tmp_path,
-):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "mapping_file_path": "/path/to/mapping.xlsx",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["mapping_file_path"] == "/path/to/mapping.xlsx"
-
-
-def test_build_imagedeid_pacs_params_mapping_file_path_defaults_to_none(tmp_path):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["mapping_file_path"] is None
-
-
-def test_build_imagedeid_local_params_includes_mapping_file_path_when_specified(
-    tmp_path,
-):
-    config = {"mapping_file_path": "/path/to/mapping.xlsx"}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["mapping_file_path"] == "/path/to/mapping.xlsx"
-
-
-def test_build_imagedeid_local_params_mapping_file_path_defaults_to_none(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["mapping_file_path"] is None
-
-
-def test_build_imagedeid_pacs_params_includes_both_lookup_table_and_mapping_file_path(
-    tmp_path,
-):
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "ctp_lookup_table": "AccessionNumber/ACC001 = MAPPED001",
-        "mapping_file_path": "/path/to/mapping.xlsx",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeid_pacs_params(config, input_dir, output_dir, {})
-
-    assert params["lookup_table"] == "AccessionNumber/ACC001 = MAPPED001"
-    assert params["mapping_file_path"] == "/path/to/mapping.xlsx"
-
-
-def test_build_imagedeid_local_params_includes_both_lookup_table_and_mapping_file_path(
-    tmp_path,
-):
-    config = {
-        "ctp_lookup_table": "AccessionNumber/ACC001 = MAPPED001",
-        "mapping_file_path": "/path/to/mapping.xlsx",
-    }
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_imagedeid_local_params(config, input_dir, output_dir, {})
-
-    assert params["lookup_table"] == "AccessionNumber/ACC001 = MAPPED001"
-    assert params["mapping_file_path"] == "/path/to/mapping.xlsx"
+# ---------------------------------------------------------------------------
+# run() dispatch — config passed positionally, IO values as kwargs
+# ---------------------------------------------------------------------------
 
 
 def test_run_calls_imageqr_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text(
-        "module: imageqr\napplication_aet: ICORE\npacs:\n  - ip: localhost\n    port: 104\n    ae: PACS1\nacc_col: AccessionNumber"
+        "module: imageqr\napplication_aet: ICORE\npacs:\n  - ip: localhost\n"
+        "    port: 104\n    ae: PACS1\nacc_col: AccessionNumber"
     )
     input_dir = str(tmp_path / "input")
     os.makedirs(input_dir)
@@ -605,16 +176,19 @@ def test_run_calls_imageqr_with_correct_params(tmp_path):
             result = run(str(config_path), input_dir, output_dir)
 
             mock_imageqr.assert_called_once()
-            call_kwargs = mock_imageqr.call_args.kwargs
-            assert call_kwargs["application_aet"] == "ICORE"
-            assert call_kwargs["output_dir"] == output_dir
+            config = mock_imageqr.call_args.args[0]
+            assert isinstance(config, IcoreConfig)
+            assert config.application_aet == "ICORE"
+            assert config.pacs[0].host == "localhost"
+            assert mock_imageqr.call_args.kwargs["output_dir"] == output_dir
             assert result == {"num_studies_found": 5}
 
 
 def test_run_calls_imagedeid_pacs_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text(
-        "module: imagedeid\napplication_aet: ICORE\npacs:\n  - ip: localhost\n    port: 104\n    ae: PACS1\nacc_col: AccessionNumber"
+        "module: imagedeid\napplication_aet: ICORE\npacs:\n  - ip: localhost\n"
+        "    port: 104\n    ae: PACS1\nacc_col: AccessionNumber"
     )
     input_dir = str(tmp_path / "input")
     os.makedirs(input_dir)
@@ -628,9 +202,9 @@ def test_run_calls_imagedeid_pacs_with_correct_params(tmp_path):
             result = run(str(config_path), input_dir, output_dir)
 
             mock_imagedeid_pacs.assert_called_once()
-            call_kwargs = mock_imagedeid_pacs.call_args.kwargs
-            assert call_kwargs["application_aet"] == "ICORE"
-            assert call_kwargs["output_dir"] == output_dir
+            config = mock_imagedeid_pacs.call_args.args[0]
+            assert config.application_aet == "ICORE"
+            assert mock_imagedeid_pacs.call_args.kwargs["output_dir"] == output_dir
             assert result == {"num_images_saved": 100}
 
 
@@ -647,284 +221,18 @@ def test_run_calls_imagedeid_local_with_correct_params(tmp_path):
         result = run(str(config_path), input_dir, output_dir)
 
         mock_imagedeid_local.assert_called_once()
-        call_kwargs = mock_imagedeid_local.call_args.kwargs
-        assert call_kwargs["input_dir"] == input_dir
-        assert call_kwargs["output_dir"] == output_dir
-        assert call_kwargs["filter_script"] == 'Modality.contains("CT")'
+        config = mock_imagedeid_local.call_args.args[0]
+        assert config.filter_script == 'Modality.contains("CT")'
+        assert mock_imagedeid_local.call_args.kwargs["input_dir"] == input_dir
+        assert mock_imagedeid_local.call_args.kwargs["output_dir"] == output_dir
         assert result == {"num_images_saved": 50}
-
-
-def test_build_textdeid_params_maps_config_keys_correctly(tmp_path):
-    config = {
-        "to_keep_list": ["medical", "term"],
-        "to_remove_list": ["secret", "data"],
-        "columns_to_drop": ["DropColumn1", "DropColumn2"],
-        "columns_to_deid": ["PatientName", "SSN"],
-    }
-    input_dir = str(tmp_path)
-    input_file = tmp_path / "input.xlsx"
-    input_file.touch()
-    output_dir = str(tmp_path / "output")
-
-    params = build_textdeid_params(config, input_dir, output_dir, {})
-
-    assert params["input_file"] == str(input_file)
-    assert params["output_dir"] == output_dir
-    assert params["to_keep_list"] == ["medical", "term"]
-    assert params["to_remove_list"] == ["secret", "data"]
-    assert params["columns_to_drop"] == ["DropColumn1", "DropColumn2"]
-    assert params["columns_to_deid"] == ["PatientName", "SSN"]
-
-
-def test_build_textdeid_params_handles_missing_optional_params(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    input_file = tmp_path / "input.xlsx"
-    input_file.touch()
-    output_dir = str(tmp_path / "output")
-
-    params = build_textdeid_params(config, input_dir, output_dir, {})
-
-    assert params["input_file"] == str(input_file)
-    assert params["output_dir"] == output_dir
-    assert params["to_keep_list"] is None
-    assert params["to_remove_list"] is None
-    assert params["columns_to_drop"] is None
-    assert params["columns_to_deid"] is None
-
-
-def test_build_textdeid_params_debug_defaults_to_false(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    input_file = tmp_path / "input.xlsx"
-    input_file.touch()
-    output_dir = str(tmp_path / "output")
-
-    params = build_textdeid_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is False
-
-
-def test_build_textdeid_params_includes_debug_when_specified(tmp_path):
-    config = {"debug": True}
-    input_dir = str(tmp_path)
-    input_file = tmp_path / "input.xlsx"
-    input_file.touch()
-    output_dir = str(tmp_path / "output")
-
-    params = build_textdeid_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is True
-
-
-def test_build_image_export_params_maps_config_keys_correctly(tmp_path):
-    config = {
-        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
-        "project_name": "TestProject",
-    }
-    input_dir = str(tmp_path)
-
-    params = build_image_export_params(config, input_dir, {})
-
-    assert params["input_dir"] == input_dir
-    assert (
-        params["sas_url"]
-        == "http://127.0.0.1:10000/devstoreaccount1/container?sig=token"
-    )
-    assert params["project_name"] == "TestProject"
-
-
-def test_build_image_export_params_debug_defaults_to_false(tmp_path):
-    config = {
-        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
-        "project_name": "TestProject",
-    }
-    input_dir = str(tmp_path)
-
-    params = build_image_export_params(config, input_dir, {})
-
-    assert params["debug"] is False
-
-
-def test_build_image_export_params_includes_debug_when_specified(tmp_path):
-    config = {
-        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
-        "project_name": "TestProject",
-        "debug": True,
-    }
-    input_dir = str(tmp_path)
-
-    params = build_image_export_params(config, input_dir, {})
-
-    assert params["debug"] is True
-
-
-def test_build_headerextract_params_maps_config_keys_correctly(tmp_path):
-    config = {"extract_all_headers": True, "debug": True}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_headerextract_local_params(config, input_dir, output_dir, {})
-
-    assert params["input_dir"] == input_dir
-    assert params["output_dir"] == output_dir
-    assert params["extract_all_headers"] is True
-    assert params["debug"] is True
-
-
-def test_build_headerextract_params_handles_missing_optional_params(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_headerextract_local_params(config, input_dir, output_dir, {})
-
-    assert params["input_dir"] == input_dir
-    assert params["output_dir"] == output_dir
-    assert params["extract_all_headers"] is False
-    assert params["headers_to_extract"] is None
-    assert params["debug"] is False
-
-
-def test_build_headerextract_params_extract_all_headers_defaults_to_false(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_headerextract_local_params(config, input_dir, output_dir, {})
-
-    assert params["extract_all_headers"] is False
-
-
-def test_build_headerextract_params_includes_extract_all_headers_when_true(tmp_path):
-    config = {"extract_all_headers": True}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_headerextract_local_params(config, input_dir, output_dir, {})
-
-    assert params["extract_all_headers"] is True
-
-
-def test_build_headerextract_params_debug_defaults_to_false(tmp_path):
-    config = {}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_headerextract_local_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is False
-
-
-def test_build_headerextract_params_includes_debug_when_specified(tmp_path):
-    config = {"debug": True}
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_headerextract_local_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is True
-
-
-def test_build_headerextract_params_includes_headers_to_extract_when_specified(
-    tmp_path,
-):
-    config = {
-        "headers_to_extract": [
-            "AccessionNumber",
-            "StudyInstanceUID",
-            "PatientName",
-            "PatientID",
-        ]
-    }
-    input_dir = str(tmp_path)
-    output_dir = str(tmp_path / "output")
-
-    params = build_headerextract_local_params(config, input_dir, output_dir, {})
-
-    assert params["headers_to_extract"] == [
-        "AccessionNumber",
-        "StudyInstanceUID",
-        "PatientName",
-        "PatientID",
-    ]
-    assert params["extract_all_headers"] is False
-
-
-def test_build_imagedeidexport_params_maps_config_keys_correctly(tmp_path):
-    config = {
-        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
-        "project_name": "TestProject",
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "ctp_filters": 'Modality.contains("CT")',
-        "ctp_anonymizer": "<script></script>",
-        "ctp_lookup_table": "key=value",
-        "date_window": 7,
-        "mapping_file_path": None,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeidexport_params(config, input_dir, output_dir, {})
-
-    assert (
-        params["sas_url"]
-        == "http://127.0.0.1:10000/devstoreaccount1/container?sig=token"
-    )
-    assert params["project_name"] == "TestProject"
-    assert params["application_aet"] == "ICORE"
-    assert params["output_dir"] == output_dir
-    assert params["filter_script"] == 'Modality.contains("CT")'
-    assert params["anonymizer_script"] == "<script></script>"
-    assert params["lookup_table"] == "key=value"
-    assert params["date_window_days"] == 7
-    assert params["mapping_file_path"] is None
-
-
-def test_build_imagedeidexport_params_debug_defaults_to_false(tmp_path):
-    config = {
-        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
-        "project_name": "TestProject",
-        "acc_col": "AccessionNumber",
-        "mrn_col": "PatientID",
-        "date_col": "StudyDate",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeidexport_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is False
-
-
-def test_build_imagedeidexport_params_includes_debug_when_specified(tmp_path):
-    config = {
-        "sas_url": "http://127.0.0.1:10000/devstoreaccount1/container?sig=token",
-        "project_name": "TestProject",
-        "acc_col": "AccessionNumber",
-        "mrn_col": "PatientID",
-        "date_col": "StudyDate",
-        "debug": True,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imagedeidexport_params(config, input_dir, output_dir, {})
-
-    assert params["debug"] is True
 
 
 def test_run_calls_textdeid_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text(
-        "module: textdeid\nto_keep_list:\n  - medical\nto_remove_list:\n  - secret\ncolumns_to_drop:\n  - DropColumn\ncolumns_to_deid:\n  - PatientName"
+        "module: textdeid\nto_keep_list:\n  - medical\nto_remove_list:\n  - secret\n"
+        "columns_to_drop:\n  - DropColumn\ncolumns_to_deid:\n  - PatientName"
     )
     input_dir = str(tmp_path / "input")
     os.makedirs(input_dir)
@@ -937,18 +245,22 @@ def test_run_calls_textdeid_with_correct_params(tmp_path):
         result = run(str(config_path), input_dir, output_dir)
 
         mock_textdeid.assert_called_once()
-        call_kwargs = mock_textdeid.call_args.kwargs
-        assert call_kwargs["input_file"] == os.path.join(input_dir, "input.xlsx")
-        assert call_kwargs["output_dir"] == output_dir
-        assert call_kwargs["to_keep_list"] == ["medical"]
-        assert call_kwargs["to_remove_list"] == ["secret"]
+        config = mock_textdeid.call_args.args[0]
+        assert config.to_keep_list == ["medical"]
+        assert config.to_remove_list == ["secret"]
+        assert mock_textdeid.call_args.kwargs["input_file"] == os.path.join(
+            input_dir, "input.xlsx"
+        )
+        assert mock_textdeid.call_args.kwargs["output_dir"] == output_dir
         assert result == {"num_rows_processed": 10}
 
 
 def test_run_calls_image_export_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text(
-        "module: imageexport\nsas_url: http://127.0.0.1:10000/devstoreaccount1/container?sig=token\nproject_name: TestProject"
+        "module: imageexport\n"
+        "sas_url: http://127.0.0.1:10000/devstoreaccount1/container?sig=token\n"
+        "project_name: TestProject"
     )
     input_dir = str(tmp_path / "input")
     os.makedirs(input_dir)
@@ -960,13 +272,13 @@ def test_run_calls_image_export_with_correct_params(tmp_path):
         result = run(str(config_path), input_dir, output_dir)
 
         mock_image_export.assert_called_once()
-        call_kwargs = mock_image_export.call_args.kwargs
-        assert call_kwargs["input_dir"] == input_dir
+        config = mock_image_export.call_args.args[0]
         assert (
-            call_kwargs["sas_url"]
+            config.sas_url
             == "http://127.0.0.1:10000/devstoreaccount1/container?sig=token"
         )
-        assert call_kwargs["project_name"] == "TestProject"
+        assert config.project_name == "TestProject"
+        assert mock_image_export.call_args.kwargs["input_dir"] == input_dir
         assert result == {"files_uploaded": 5, "bytes_uploaded": 1024}
 
 
@@ -990,18 +302,20 @@ def test_run_calls_headerextract_local_with_correct_params(tmp_path):
         result = run(str(config_path), input_dir, output_dir)
 
         mock_headerextract_local.assert_called_once()
-        call_kwargs = mock_headerextract_local.call_args.kwargs
-        assert call_kwargs["input_dir"] == input_dir
-        assert call_kwargs["output_dir"] == output_dir
-        assert call_kwargs["extract_all_headers"] is True
-        assert call_kwargs["debug"] is False
+        config = mock_headerextract_local.call_args.args[0]
+        assert config.extract_all_headers is True
+        assert config.debug is False
+        assert mock_headerextract_local.call_args.kwargs["input_dir"] == input_dir
+        assert mock_headerextract_local.call_args.kwargs["output_dir"] == output_dir
         assert result == {"num_files_processed": 10, "num_studies": 5}
 
 
 def test_run_calls_imagedeidexport_with_correct_params(tmp_path):
     config_path = tmp_path / "config.yml"
     config_path.write_text(
-        "module: imagedeidexport\nsas_url: http://127.0.0.1:10000/devstoreaccount1/container?sig=token\nproject_name: TestProject"
+        "module: imagedeidexport\n"
+        "sas_url: http://127.0.0.1:10000/devstoreaccount1/container?sig=token\n"
+        "project_name: TestProject"
     )
     input_dir = str(tmp_path / "input")
     os.makedirs(input_dir)
@@ -1018,63 +332,11 @@ def test_run_calls_imagedeidexport_with_correct_params(tmp_path):
             result = run(str(config_path), input_dir, output_dir)
 
             mock_imagedeidexport.assert_called_once()
-            call_kwargs = mock_imagedeidexport.call_args.kwargs
-            assert call_kwargs["output_dir"] == output_dir
+            config = mock_imagedeidexport.call_args.args[0]
             assert (
-                call_kwargs["sas_url"]
+                config.sas_url
                 == "http://127.0.0.1:10000/devstoreaccount1/container?sig=token"
             )
-            assert call_kwargs["project_name"] == "TestProject"
+            assert config.project_name == "TestProject"
+            assert mock_imagedeidexport.call_args.kwargs["output_dir"] == output_dir
             assert result == {"files_uploaded": 5, "bytes_uploaded": 1024}
-
-
-@pytest.mark.parametrize(
-    "builder",
-    [
-        build_imageqr_params,
-        build_imagedeid_pacs_params,
-        build_imagedeidexport_params,
-        build_singleclickicore_params,
-    ],
-)
-def test_build_params_includes_deferred_delivery(tmp_path, builder):
-    """Test that all build_*_params functions extract deferred_delivery settings."""
-
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-        "deferred_delivery": True,
-        "deferred_delivery_timeout": 3600,
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = builder(config, input_dir, output_dir, {})
-        assert params["deferred_delivery"] is True, (
-            f"{builder.__name__} should include deferred_delivery"
-        )
-        assert params["deferred_delivery_timeout"] == 3600, (
-            f"{builder.__name__} should include deferred_delivery_timeout"
-        )
-
-
-def test_build_params_deferred_delivery_defaults(tmp_path):
-    """Test that deferred_delivery defaults to False when not in config."""
-    from cli import build_imageqr_params
-
-    config = {
-        "pacs": [{"ip": "192.168.1.1", "port": 104, "ae": "PACS1"}],
-        "application_aet": "ICORE",
-        "acc_col": "AccessionNumber",
-    }
-    input_dir = str(tmp_path)
-    (tmp_path / "input.xlsx").touch()
-    output_dir = str(tmp_path / "output")
-
-    with patch("utils.Spreadsheet.from_file"):
-        params = build_imageqr_params(config, input_dir, output_dir, {})
-        assert params["deferred_delivery"] is False
-        assert params["deferred_delivery_timeout"] == 172800

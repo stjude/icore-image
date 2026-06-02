@@ -21,6 +21,7 @@ from pydicom.uid import (
     UID,
 )
 
+from config import IcoreConfig
 from utils import (
     csv_string_to_xlsx,
     Spreadsheet,
@@ -32,6 +33,15 @@ from utils import (
 )
 
 CMOVE_BATCH_SIZE = 50
+
+
+def make_config(**overrides) -> IcoreConfig:
+    """Build an :class:`IcoreConfig` for tests with the given field overrides.
+
+    Defaults mirror the model defaults; pass any config knob (python field name
+    or YAML alias) to override it, e.g. ``make_config(deid_engine="rust")``.
+    """
+    return IcoreConfig(**overrides)
 
 
 @contextlib.contextmanager

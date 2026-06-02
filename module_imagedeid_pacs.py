@@ -1,53 +1,23 @@
+from config import IcoreConfig
 from pipeline import ImageDeidPacsPipeline
 
 # Re-exported for backwards compatibility with ``icore_processor.py``.
 from pipeline.stages.image_deid import _collect_engine_audit_files  # noqa: F401
-from utils import PacsConfiguration, PacsQueryResult, RunDirs, Spreadsheet, DeidEngine
+from utils import PacsQueryResult, RunDirs, Spreadsheet
 
 
 def imagedeid_pacs(
-    pacs_list: list[PacsConfiguration],
+    config: IcoreConfig,
+    *,
     query_spreadsheet: Spreadsheet,
-    application_aet: str,
     output_dir: str,
-    cmove_batch_size: int,
     appdata_dir: str | None = None,
-    filter_script: str | None = None,
-    date_window_days: int = 0,
-    anonymizer_script: str | None = None,
-    deid_pixels: bool = False,
-    lookup_table: str | None = None,
-    debug: bool = False,
     run_dirs: RunDirs | None = None,
-    apply_default_filter_script: bool = True,
-    mapping_file_path: str | None = None,
-    sc_pdf_output_dir: str | None = None,
-    use_fallback_query: bool = False,
-    storescp_port: int = 50001,
-    deferred_delivery: bool = False,
-    deferred_delivery_timeout: int = 172800,
-    deid_engine: DeidEngine = "ctp",
 ) -> PacsQueryResult:
     return ImageDeidPacsPipeline(
-        pacs_list=pacs_list,
+        config,
         query_spreadsheet=query_spreadsheet,
-        application_aet=application_aet,
         output_dir=output_dir,
-        cmove_batch_size=cmove_batch_size,
         appdata_dir=appdata_dir,
-        filter_script=filter_script,
-        date_window_days=date_window_days,
-        anonymizer_script=anonymizer_script,
-        deid_pixels=deid_pixels,
-        lookup_table=lookup_table,
-        debug=debug,
         run_dirs=run_dirs,
-        apply_default_filter_script=apply_default_filter_script,
-        mapping_file_path=mapping_file_path,
-        sc_pdf_output_dir=sc_pdf_output_dir,
-        use_fallback_query=use_fallback_query,
-        storescp_port=storescp_port,
-        deferred_delivery=deferred_delivery,
-        deferred_delivery_timeout=deferred_delivery_timeout,
-        deid_engine=deid_engine,
     ).run()

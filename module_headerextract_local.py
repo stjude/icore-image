@@ -6,6 +6,7 @@ import pandas as pd
 import pydicom
 from pydicom.dataset import Dataset
 
+from config import IcoreConfig
 from utils import (
     HeaderExtractResult,
     RunDirs,
@@ -80,13 +81,20 @@ def _aggregate_by_study(all_headers: list[dict[str, str]]) -> pd.DataFrame:
 
 
 def headerextract_local(
+    config: IcoreConfig,
+    *,
     input_dir: str,
     output_dir: str,
-    headers_to_extract: list[str] | None = None,
-    extract_all_headers: bool = False,
-    debug: bool = False,
     run_dirs: RunDirs | None = None,
 ) -> HeaderExtractResult:
+    # Copy the list so the in-place ``StudyInstanceUID`` append below does not
+    # mutate the shared config object.
+    headers_to_extract = (
+        list(config.headers_to_extract) if config.headers_to_extract else None
+    )
+    extract_all_headers = config.extract_all_headers
+    debug = config.debug
+
     if run_dirs is None:
         run_dirs = setup_run_directories()
 

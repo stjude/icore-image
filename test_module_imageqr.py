@@ -17,6 +17,7 @@ from test_utils import (
     Fixtures,
     get_free_port,
     CMOVE_BATCH_SIZE,
+    make_config,
 )
 from utils import (
     Spreadsheet,
@@ -77,14 +78,16 @@ def test_imageqr_pacs_with_accession_filter(tmp_path, orthanc):
     filter_script = 'Modality.contains("CT") * SliceThickness.isGreaterThan("1") * SliceThickness.isLessThan("5")'
 
     result = imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            filter_script=filter_script,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        filter_script=filter_script,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     images_dir = output_dir / "images"
@@ -180,13 +183,15 @@ def test_continuous_audit_log_saving(tmp_path, orthanc):
     monitor_thread.start()
 
     imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     stop_monitoring.set()
@@ -226,13 +231,15 @@ def test_imageqr_failures_reported(tmp_path):
 
     with get_free_port() as storescp_port:
         result = imageqr(
-            pacs_list=[invalid_pacs_config],
+            make_config(
+                pacs=[invalid_pacs_config],
+                application_aet="TEST_AET",
+                storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            storescp_port=storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
@@ -278,12 +285,14 @@ def test_imageqr_filter_script_generation(tmp_path):
         )
 
         imageqr(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -312,12 +321,14 @@ def test_imageqr_filter_script_generation(tmp_path):
         )
 
         imageqr(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -333,13 +344,15 @@ def test_imageqr_filter_script_generation(tmp_path):
         user_filter = 'Modality.contains("CT")'
 
         imageqr(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                filter_script=user_filter,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            filter_script=user_filter,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -392,13 +405,15 @@ def test_imageqr_multiple_pacs(tmp_path):
         pacs_configs = [orthanc1.get_pacs_config(), orthanc2.get_pacs_config()]
 
         result = imageqr(
-            pacs_list=pacs_configs,
+            make_config(
+                pacs=pacs_configs,
+                application_aet="TEST_AET",
+                storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            storescp_port=storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         assert result["num_studies_found"] == 4, (
@@ -467,13 +482,15 @@ def test_imageqr_pacs_mrn_study_date_fallback(tmp_path, orthanc):
     )
 
     result = imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 3, (
@@ -510,13 +527,15 @@ def test_imageqr_pacs_mrn_study_date_fallback(tmp_path, orthanc):
 
     with pytest.raises(ValueError, match="StudyDate must be in Excel date format"):
         imageqr(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                storescp_port=orthanc.storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet_invalid,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            storescp_port=orthanc.storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
 
@@ -615,14 +634,16 @@ def test_imageqr_pacs_date_window(tmp_path, orthanc):
     )
 
     result = imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            date_window_days=2,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        date_window_days=2,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     images_dir = output_dir / "images"
@@ -687,13 +708,15 @@ def test_imageqr_accession_wildcard_filtering(tmp_path, orthanc):
     )
 
     result = imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     images_dir = output_dir / "images"
@@ -742,13 +765,15 @@ def test_imageqr_saves_failed_queries_csv_on_find_failure(tmp_path, orthanc):
     )
 
     result = imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 1
@@ -817,13 +842,15 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path, orthanc):
     )
 
     result = imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 1
@@ -872,12 +899,14 @@ def test_imageqr_cleans_up_dicom_retrieval(tmp_path):
         )
 
         imageqr(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         dicom_retrieval = appdata_dir / "dicom_retrieval"
@@ -918,12 +947,14 @@ def test_imageqr_cleans_up_dicom_retrieval_on_error(tmp_path):
 
         with pytest.raises(RuntimeError, match="Pipeline failure"):
             imageqr(
-                pacs_list=[pacs_config],
+                make_config(
+                    pacs=[pacs_config],
+                    application_aet="TEST_AET",
+                    cmove_batch_size=CMOVE_BATCH_SIZE,
+                ),
                 query_spreadsheet=query_spreadsheet,
-                application_aet="TEST_AET",
                 output_dir=str(output_dir),
                 appdata_dir=str(appdata_dir),
-                cmove_batch_size=CMOVE_BATCH_SIZE,
             )
 
         dicom_retrieval = appdata_dir / "dicom_retrieval"
@@ -991,13 +1022,15 @@ def test_imageqr_continues_despite_move_failures(tmp_path, capsys, orthanc):
 
     with patch("utils.move_study", side_effect=mock_move_study):
         result = imageqr(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                storescp_port=orthanc.storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            storescp_port=orthanc.storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
     assert result is not None, "imageqr should return a result"
@@ -1299,14 +1332,16 @@ def test_imageqr_with_fallback_query(tmp_path, orthanc):
     )
 
     result = imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            use_fallback_query=True,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        use_fallback_query=True,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 2, (
@@ -1361,13 +1396,15 @@ def test_imageqr_filter_with_fallback(tmp_path):
         )
 
         imageqr(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                use_fallback_query=True,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            use_fallback_query=True,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -1416,15 +1453,17 @@ def test_imageqr_deferred_delivery_retrieves_all_files(tmp_path, orthanc):
     )
 
     result = imageqr(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+            deferred_delivery=True,
+            deferred_delivery_timeout=120,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
-        deferred_delivery=True,
-        deferred_delivery_timeout=120,
     )
 
     assert result["num_studies_found"] == 1

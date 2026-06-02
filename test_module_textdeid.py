@@ -2,6 +2,7 @@ import os
 import tempfile
 import pandas as pd
 from module_textdeid import textdeid
+from test_utils import make_config
 
 
 def test_textdeid_removes_phi():
@@ -21,7 +22,7 @@ def test_textdeid_removes_phi():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir)
+        textdeid(make_config(), input_file=input_file, output_dir=output_dir)
 
         output_file = os.path.join(output_dir, "output.xlsx")
         assert os.path.exists(output_file)
@@ -52,7 +53,11 @@ def test_textdeid_drops_specified_columns():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_drop=["DropMe", "AlsoDropMe"])
+        textdeid(
+            make_config(columns_to_drop=["DropMe", "AlsoDropMe"]),
+            input_file=input_file,
+            output_dir=output_dir,
+        )
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -81,7 +86,11 @@ def test_textdeid_deids_only_specified_columns():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_deid=["PatientName"])
+        textdeid(
+            make_config(columns_to_deid=["PatientName"]),
+            input_file=input_file,
+            output_dir=output_dir,
+        )
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -104,7 +113,11 @@ def test_textdeid_deids_all_columns_when_none_specified():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_deid=None)
+        textdeid(
+            make_config(columns_to_deid=None),
+            input_file=input_file,
+            output_dir=output_dir,
+        )
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -123,7 +136,11 @@ def test_textdeid_drops_no_columns_when_none_specified():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_drop=None)
+        textdeid(
+            make_config(columns_to_drop=None),
+            input_file=input_file,
+            output_dir=output_dir,
+        )
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -143,7 +160,7 @@ def test_textdeid_preserves_header_row():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir)
+        textdeid(make_config(), input_file=input_file, output_dir=output_dir)
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -165,7 +182,11 @@ def test_textdeid_keeps_unspecified_columns_as_is():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_deid=["PatientName"])
+        textdeid(
+            make_config(columns_to_deid=["PatientName"]),
+            input_file=input_file,
+            output_dir=output_dir,
+        )
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -196,10 +217,12 @@ def test_textdeid_honors_blacklist_and_whitelist():
         to_remove_list = ["radiology"]
 
         textdeid(
-            input_file,
-            output_dir,
-            to_keep_list=to_keep_list,
-            to_remove_list=to_remove_list,
+            make_config(
+                to_keep_list=to_keep_list,
+                to_remove_list=to_remove_list,
+            ),
+            input_file=input_file,
+            output_dir=output_dir,
         )
 
         output_file = os.path.join(output_dir, "output.xlsx")

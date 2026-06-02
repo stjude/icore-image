@@ -14,6 +14,7 @@ from test_utils import (
     AzuriteServer,
     OrthancServer,
     get_free_port,
+    make_config,
     CMOVE_BATCH_SIZE,
 )
 from utils import PacsConfiguration, Spreadsheet
@@ -66,17 +67,19 @@ def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
     from module_imagedeidexport import imagedeidexport
 
     result = imagedeidexport(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 2
@@ -142,17 +145,19 @@ def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurit
     from module_imagedeidexport import imagedeidexport
 
     imagedeidexport(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     metadata_files = ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]
@@ -211,17 +216,19 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
 
     with get_free_port() as storescp_port:
         result = imagedeidexport(
-            pacs_list=[invalid_pacs_config],
+            make_config(
+                pacs=[invalid_pacs_config],
+                application_aet="TEST_AET",
+                sas_url=sas_url,
+                project_name=project_name,
+                anonymizer_script=anonymizer_script,
+                apply_default_filter_script=False,
+                storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            sas_url=sas_url,
-            project_name=project_name,
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False,
-            storescp_port=storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
     assert result["num_studies_found"] == 0
@@ -272,17 +279,19 @@ def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
 
     with pytest.raises(Exception) as exc_info:
         imagedeidexport(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                sas_url=invalid_sas_url,
+                project_name=project_name,
+                anonymizer_script=anonymizer_script,
+                apply_default_filter_script=False,
+                storescp_port=orthanc.storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            sas_url=invalid_sas_url,
-            project_name=project_name,
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False,
-            storescp_port=orthanc.storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
     error_msg = str(exc_info.value).lower()
@@ -332,18 +341,20 @@ def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
     from module_imagedeidexport import imagedeidexport
 
     result = imagedeidexport(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            anonymizer_script=anonymizer_script,
+            filter_script=filter_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        filter_script=filter_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 3
@@ -403,18 +414,20 @@ def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
     from module_imagedeidexport import imagedeidexport
 
     result = imagedeidexport(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 2
@@ -493,17 +506,19 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
         from module_imagedeidexport import imagedeidexport
 
         result = imagedeidexport(
-            pacs_list=pacs_configs,
+            make_config(
+                pacs=pacs_configs,
+                application_aet="TEST_AET",
+                sas_url=sas_url,
+                project_name=project_name,
+                anonymizer_script=anonymizer_script,
+                apply_default_filter_script=False,
+                storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            sas_url=sas_url,
-            project_name=project_name,
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            anonymizer_script=anonymizer_script,
-            apply_default_filter_script=False,
-            storescp_port=storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         assert result["num_studies_found"] == 4
@@ -562,17 +577,19 @@ def test_imagedeidexport_saves_failed_queries_csv(tmp_path, orthanc, azurite):
     from module_imagedeidexport import imagedeidexport
 
     result = imagedeidexport(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            sas_url=sas_url,
+            project_name=project_name,
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        sas_url=sas_url,
-        project_name=project_name,
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 1

@@ -16,6 +16,7 @@ from presidio_analyzer.nlp_engine import NlpEngine, NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig, RecognizerResult
 
+from config import IcoreConfig
 from pipeline.base import PipelineStage
 from pipeline.context import PipelineContext
 
@@ -596,17 +597,11 @@ class TextDeidStage(PipelineStage, ABC):
 class PresidioTextDeid(TextDeidStage):
     """Concrete text-deid stage backed by Presidio + custom recognizers."""
 
-    def __init__(
-        self,
-        to_keep_list: list[str] | None = None,
-        to_remove_list: list[str] | None = None,
-        columns_to_drop: list[str] | None = None,
-        columns_to_deid: list[str] | None = None,
-    ) -> None:
-        self.to_keep_list = to_keep_list
-        self.to_remove_list = to_remove_list
-        self.columns_to_drop = columns_to_drop
-        self.columns_to_deid = columns_to_deid
+    def __init__(self, config: IcoreConfig) -> None:
+        self.to_keep_list = config.to_keep_list
+        self.to_remove_list = config.to_remove_list
+        self.columns_to_drop = config.columns_to_drop
+        self.columns_to_deid = config.columns_to_deid
 
     def execute(self, ctx: PipelineContext) -> None:
         input_file = ctx.text_input_file

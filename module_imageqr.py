@@ -3,9 +3,9 @@ import os
 import shutil
 import time
 
+from config import IcoreConfig
 from ctp import CTPPipeline
 from utils import (
-    PacsConfiguration,
     PacsQueryResult,
     RunDirs,
     Spreadsheet,
@@ -44,21 +44,24 @@ def _log_progress(pipeline: CTPPipeline) -> None:
 
 
 def imageqr(
-    pacs_list: list[PacsConfiguration],
+    config: IcoreConfig,
+    *,
     query_spreadsheet: Spreadsheet,
-    application_aet: str,
     output_dir: str,
-    cmove_batch_size: int,
     appdata_dir: str | None = None,
-    filter_script: str | None = None,
-    date_window_days: int = 0,
-    debug: bool = False,
     run_dirs: RunDirs | None = None,
-    use_fallback_query: bool = False,
-    storescp_port: int = 50001,
-    deferred_delivery: bool = False,
-    deferred_delivery_timeout: int = 172800,
 ) -> PacsQueryResult:
+    pacs_list = config.pacs
+    application_aet = config.application_aet
+    cmove_batch_size = config.cmove_batch_size
+    filter_script = config.filter_script
+    date_window_days = config.date_window_days
+    debug = config.debug
+    use_fallback_query = config.use_fallback_query
+    storescp_port = config.storescp_port
+    deferred_delivery = config.deferred_delivery
+    deferred_delivery_timeout = config.deferred_delivery_timeout
+
     if run_dirs is None:
         run_dirs = setup_run_directories()
 

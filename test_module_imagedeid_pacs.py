@@ -16,6 +16,7 @@ from test_utils import (
     Fixtures,
     OrthancServer,
     get_free_port,
+    make_config,
     CMOVE_BATCH_SIZE,
 )
 from utils import PacsConfiguration, Spreadsheet
@@ -83,16 +84,18 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
     filter_script = 'Modality.contains("CT") * SliceThickness.isGreaterThan("1") * SliceThickness.isLessThan("5")'
 
     result = imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            filter_script=filter_script,
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        filter_script=filter_script,
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -270,15 +273,17 @@ def test_continuous_audit_log_saving(tmp_path, orthanc):
     monitor_thread.start()
 
     imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     stop_monitoring.set()
@@ -323,15 +328,17 @@ def test_imagedeid_failures_reported(tmp_path, orthanc):
 </script>"""
 
     result = imagedeid_pacs(
-        pacs_list=[invalid_pacs_config],
+        make_config(
+            pacs=[invalid_pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
@@ -377,13 +384,15 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
         )
 
         imagedeid_pacs(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                apply_default_filter_script=False,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            apply_default_filter_script=False,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -415,13 +424,15 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
         )
 
         imagedeid_pacs(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                apply_default_filter_script=False,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            apply_default_filter_script=False,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -437,14 +448,16 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
         user_filter = 'Modality.contains("CT")'
 
         imagedeid_pacs(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                filter_script=user_filter,
+                apply_default_filter_script=False,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            filter_script=user_filter,
-            apply_default_filter_script=False,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         call_kwargs = mock_pipeline_class.call_args[1]
@@ -506,14 +519,16 @@ def test_imagedeid_multiple_pacs(tmp_path):
         ]
 
         result = imagedeid_pacs(
-            pacs_list=pacs_configs,
+            make_config(
+                pacs=pacs_configs,
+                application_aet="TEST_AET",
+                apply_default_filter_script=False,
+                storescp_port=storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            apply_default_filter_script=False,
-            storescp_port=storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         assert result["num_studies_found"] == 4, (
@@ -582,14 +597,16 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
     )
 
     result = imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet_valid,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 3, (
@@ -625,13 +642,15 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
 
     with pytest.raises(ValueError, match="StudyDate must be in Excel date format"):
         imagedeid_pacs(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                storescp_port=orthanc.storescp_port,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet_invalid,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            storescp_port=orthanc.storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
 
@@ -745,16 +764,18 @@ def test_imagedeid_pacs_date_window(tmp_path, orthanc):
 </script>"""
 
     result = imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            date_window_days=2,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        date_window_days=2,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -807,15 +828,17 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
     )
 
     result = imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            deid_pixels=True,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        deid_pixels=True,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 1, (
@@ -907,15 +930,17 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
 </script>"""
 
     result_without_filter = imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result_without_filter["num_images_saved"] == 2, (
@@ -936,15 +961,17 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
             file.unlink()
 
     result_with_filter = imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=True,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=True,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result_with_filter["num_images_saved"] == 1, (
@@ -1014,16 +1041,18 @@ def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
 </script>"""
 
     imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1096,16 +1125,18 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
 </script>"""
 
     imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1190,16 +1221,18 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
 </script>"""
 
     imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1265,16 +1298,18 @@ def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
 </script>"""
 
     imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1344,16 +1379,18 @@ def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
 </script>"""
 
     imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1417,16 +1454,18 @@ def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
 </script>"""
 
     imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1486,17 +1525,19 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, o
 </script>"""
 
     imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            lookup_table=explicit_lookup_table,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        lookup_table=explicit_lookup_table,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1546,13 +1587,15 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
         )
 
         imagedeid_pacs(
-            pacs_list=[pacs_config],
+            make_config(
+                pacs=[pacs_config],
+                application_aet="TEST_AET",
+                apply_default_filter_script=False,
+                cmove_batch_size=CMOVE_BATCH_SIZE,
+            ),
             query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
             output_dir=str(output_dir),
             appdata_dir=str(appdata_dir),
-            apply_default_filter_script=False,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
         )
 
         dicom_retrieval = appdata_dir / "dicom_retrieval"
@@ -1595,13 +1638,15 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
 
         with pytest.raises(RuntimeError, match="Pipeline failure"):
             imagedeid_pacs(
-                pacs_list=[pacs_config],
+                make_config(
+                    pacs=[pacs_config],
+                    application_aet="TEST_AET",
+                    apply_default_filter_script=False,
+                    cmove_batch_size=CMOVE_BATCH_SIZE,
+                ),
                 query_spreadsheet=query_spreadsheet,
-                application_aet="TEST_AET",
                 output_dir=str(output_dir),
                 appdata_dir=str(appdata_dir),
-                apply_default_filter_script=False,
-                cmove_batch_size=CMOVE_BATCH_SIZE,
             )
 
         dicom_retrieval = appdata_dir / "dicom_retrieval"
@@ -1646,15 +1691,17 @@ def test_imagedeid_pacs_saves_failed_queries_csv(tmp_path, orthanc):
 </script>"""
 
     result = imagedeid_pacs(
-        pacs_list=[pacs_config],
+        make_config(
+            pacs=[pacs_config],
+            application_aet="TEST_AET",
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+            storescp_port=orthanc.storescp_port,
+            cmove_batch_size=CMOVE_BATCH_SIZE,
+        ),
         query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
     assert result["num_studies_found"] == 1

@@ -6,6 +6,7 @@ import tempfile
 from abc import ABC
 from urllib.parse import urlparse
 
+from config import IcoreConfig
 from pipeline.base import PipelineStage
 from pipeline.context import PipelineContext
 
@@ -95,12 +96,12 @@ class AzureBlobExport(ExportStage):
 
     def __init__(
         self,
-        sas_url: str,
-        project_name: str,
+        config: IcoreConfig,
+        *,
         gate_on_content: bool = False,
     ) -> None:
-        self.sas_url = sas_url
-        self.project_name = project_name
+        self.sas_url = config.sas_url
+        self.project_name = config.project_name
         self.gate_on_content = gate_on_content
 
     def execute(self, ctx: PipelineContext) -> None:
@@ -111,6 +112,9 @@ class AzureBlobExport(ExportStage):
         ):
             logging.info("No content to export - skipping Azure upload")
             return
+
+        if self.sas_url is None:
+            raise ValueError("sas_url is required to export to Azure Blob Storage")
 
         logging.info("=" * 80)
         logging.info("IMAGE EXPORT MODULE (rclone)")

@@ -21,6 +21,7 @@ from test_utils import (
     _create_secondary_capture_dicom,
     _create_encapsulated_pdf_dicom,
     Fixtures,
+    make_config,
 )
 
 
@@ -134,12 +135,14 @@ def test_imagedeid_local(tmp_path):
     filter_script = 'Modality.contains("CT") * SliceThickness.isGreaterThan("1") * SliceThickness.isLessThan("5")'
 
     result = imagedeid_local(
+        make_config(
+            filter_script=filter_script,
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        filter_script=filter_script,
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -305,12 +308,14 @@ def test_imagedeid_local_pixel(tmp_path):
 </script>"""
 
     result = imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            deid_pixels=True,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        deid_pixels=True,
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -396,11 +401,13 @@ def test_continuous_audit_log_saving(tmp_path):
     monitor_thread.start()
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
     )
 
     stop_monitoring.set()
@@ -434,11 +441,13 @@ def test_imagedeid_failures_reported(tmp_path):
 </script>"""
 
     result = imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
     )
 
     assert result["num_images_saved"] == 0, (
@@ -510,11 +519,13 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
 </script>"""
 
     result_without_filter = imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
     )
 
     assert result_without_filter["num_images_saved"] == 2, (
@@ -533,11 +544,13 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
         file.unlink()
 
     result_with_filter = imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=True,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=True,
     )
 
     assert result_with_filter["num_images_saved"] == 1, (
@@ -654,12 +667,14 @@ def test_imagedeid_local_with_mapping_file_basic(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -722,12 +737,14 @@ def test_imagedeid_local_with_mapping_file_multiple_tags(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -802,12 +819,14 @@ def test_imagedeid_local_date_format_conversion(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -902,12 +921,14 @@ def test_imagedeid_local_fallback_to_simple_action(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -967,12 +988,14 @@ def test_imagedeid_local_complex_function_falls_back_to_keep(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1026,12 +1049,14 @@ def test_imagedeid_local_tag_not_in_script(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1081,13 +1106,15 @@ def test_explicit_lookup_table_overrides_mapping_file(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            lookup_table=explicit_lookup_table,
+            mapping_file_path=str(mapping_file),
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        lookup_table=explicit_lookup_table,
-        mapping_file_path=str(mapping_file),
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1166,12 +1193,14 @@ def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
     sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
 
     imagedeid_local(
+        make_config(
+            filter_script=sc_pdf_only_filter,
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        filter_script=sc_pdf_only_filter,
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1227,12 +1256,14 @@ def test_sc_pdf_routed_to_custom_path(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=True,
+            sc_pdf_output_dir=str(custom_sc_dir),
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=True,
-        sc_pdf_output_dir=str(custom_sc_dir),
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1281,11 +1312,13 @@ def test_sc_pdf_normal_images_not_affected(tmp_path):
 </script>"""
 
     imagedeid_local(
+        make_config(
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1332,12 +1365,14 @@ def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
     sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
 
     imagedeid_local(
+        make_config(
+            filter_script=sc_pdf_only_filter,
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        filter_script=sc_pdf_only_filter,
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))
@@ -1383,12 +1418,14 @@ def test_sc_pdf_burned_in_annotation_quarantined(tmp_path):
     sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
 
     imagedeid_local(
+        make_config(
+            filter_script=sc_pdf_only_filter,
+            anonymizer_script=anonymizer_script,
+            apply_default_filter_script=False,
+        ),
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        filter_script=sc_pdf_only_filter,
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
     )
 
     output_files = list(output_dir.rglob("*.dcm"))

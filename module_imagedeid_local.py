@@ -1,3 +1,4 @@
+from config import IcoreConfig
 from pipeline import ImageDeidLocalPipeline
 
 # Private helpers re-exported here for backwards compatibility with existing
@@ -10,36 +11,21 @@ from pipeline.stages.image_deid import (  # noqa: F401
     _get_sc_pdf_blacklist,
     _process_mapping_file,
 )
-from utils import ImageDeidLocalResult, RunDirs, DeidEngine
+from utils import ImageDeidLocalResult, RunDirs
 
 
 def imagedeid_local(
+    config: IcoreConfig,
+    *,
     input_dir: str,
     output_dir: str,
     appdata_dir: str | None = None,
-    filter_script: str | None = None,
-    anonymizer_script: str | None = None,
-    deid_pixels: bool = False,
-    lookup_table: str | None = None,
-    debug: bool = False,
     run_dirs: RunDirs | None = None,
-    apply_default_filter_script: bool = True,
-    mapping_file_path: str | None = None,
-    sc_pdf_output_dir: str | None = None,
-    deid_engine: DeidEngine = "ctp",
 ) -> ImageDeidLocalResult:
     return ImageDeidLocalPipeline(
+        config,
         input_dir=input_dir,
         output_dir=output_dir,
         appdata_dir=appdata_dir,
-        filter_script=filter_script,
-        anonymizer_script=anonymizer_script,
-        deid_pixels=deid_pixels,
-        lookup_table=lookup_table,
-        debug=debug,
         run_dirs=run_dirs,
-        apply_default_filter_script=apply_default_filter_script,
-        mapping_file_path=mapping_file_path,
-        sc_pdf_output_dir=sc_pdf_output_dir,
-        deid_engine=deid_engine,
     ).run()
