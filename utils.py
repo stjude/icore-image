@@ -518,7 +518,8 @@ def _count_expected_instances(study_pacs_map, application_aet):
                     try:
                         total += int(instances)
                     except ValueError:
-                        logging.warning(f"Encountered non-integer NumberOfStudyRelatedInstances '{instances}'. Skipping count for study."
+                        logging.warning(
+                            f"Encountered non-integer NumberOfStudyRelatedInstances '{instances}'. Skipping count for study."
                         )
         except Exception as e:
             logging.warning(f"Failed to count instances for study {study_uid}: {e}")
