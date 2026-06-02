@@ -201,9 +201,10 @@ def find_studies(
 
         if return_tags:
             for tag in return_tags:
-                cmd.extend(["-k", tag])
-        else:
-            cmd.extend(["-k", "StudyInstanceUID"])
+                # Prevent overriding query constraints for keys specified in the return tag list.
+                # Overriding could cause runaway queries by removing the query constraints.
+                if tag not in query_params:
+                    cmd.extend(["-k", tag])
 
         cmd.extend([host, str(port)])
 

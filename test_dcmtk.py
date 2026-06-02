@@ -129,6 +129,7 @@ def test_find_studies_single_result(tmp_path):
                     calling_aet="TEST_SCU",
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "ACC12345"},
+                    return_tags=["StudyInstanceUID"],
                 )
 
     assert len(results) == 1
@@ -169,6 +170,7 @@ def test_find_studies_multiple_results(tmp_path):
                         "PatientID": "PAT001",
                         "StudyDate": "20240101-20240131",
                     },
+                    return_tags=["StudyInstanceUID"],
                 )
 
     assert len(results) == 2
@@ -203,6 +205,7 @@ def test_find_studies_no_results(tmp_path):
                     calling_aet="TEST_SCU",
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "NONEXISTENT"},
+                    return_tags=["StudyInstanceUID"],
                 )
 
     assert len(results) == 0
@@ -225,6 +228,7 @@ def test_find_studies_command_error(tmp_path):
                         calling_aet="TEST_SCU",
                         called_aet="ORTHANC_TEST",
                         query_params={"AccessionNumber": "TEST"},
+                        return_tags=["StudyInstanceUID"],
                     )
 
 
@@ -295,6 +299,7 @@ def test_invalid_xml_response(tmp_path):
                         calling_aet="TEST_SCU",
                         called_aet="ORTHANC_TEST",
                         query_params={"AccessionNumber": "TEST"},
+                        return_tags=["StudyInstanceUID"],
                     )
 
 
@@ -330,6 +335,7 @@ def test_find_studies_retries_on_failure(tmp_path):
                     calling_aet="TEST_SCU",
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "ACC12345"},
+                    return_tags=["StudyInstanceUID"],
                 )
 
     assert len(results) == 1
