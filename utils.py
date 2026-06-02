@@ -510,9 +510,17 @@ def _count_expected_instances(study_pacs_map, application_aet):
                 calling_aet=application_aet,
                 called_aet=pacs.aet,
                 query_params={"StudyInstanceUID": study_uid},
-                query_level="IMAGE",
+                query_level="STUDY",
+                return_tags=["NumberOfStudyRelatedInstances"],
             )
-            total += len(results)
+            for result in results:
+                if instances := result.get("NumberOfStudyRelatedInstances", 0):
+                    try:
+                        total += int(instances)
+                    except ValueError:
+                        logging.warning(
+                            f"Encountered non-integer NumberOfStudyRelatedInstances '{instances}'. Skipping count for study."
+                        )
         except Exception as e:
             logging.warning(f"Failed to count instances for study {study_uid}: {e}")
     return total

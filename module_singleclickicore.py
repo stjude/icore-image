@@ -62,4 +62,5 @@ def singleclickicore(
         storescp_port=storescp_port,
         deferred_delivery=deferred_delivery,
         deferred_delivery_timeout=deferred_delivery_timeout,
+        deid_engine=deid_engine,
     ).run()

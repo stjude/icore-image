@@ -129,6 +129,7 @@ def test_find_studies_single_result(tmp_path):
                     calling_aet="TEST_SCU",
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "ACC12345"},
+                    return_tags=["StudyInstanceUID"],
                 )
 
     assert len(results) == 1
@@ -169,6 +170,7 @@ def test_find_studies_multiple_results(tmp_path):
                         "PatientID": "PAT001",
                         "StudyDate": "20240101-20240131",
                     },
+                    return_tags=["StudyInstanceUID"],
                 )
 
     assert len(results) == 2
@@ -203,6 +205,7 @@ def test_find_studies_no_results(tmp_path):
                     calling_aet="TEST_SCU",
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "NONEXISTENT"},
+                    return_tags=["StudyInstanceUID"],
                 )
 
     assert len(results) == 0
@@ -225,6 +228,7 @@ def test_find_studies_command_error(tmp_path):
                         calling_aet="TEST_SCU",
                         called_aet="ORTHANC_TEST",
                         query_params={"AccessionNumber": "TEST"},
+                        return_tags=["StudyInstanceUID"],
                     )
 
 
@@ -295,6 +299,7 @@ def test_invalid_xml_response(tmp_path):
                         calling_aet="TEST_SCU",
                         called_aet="ORTHANC_TEST",
                         query_params={"AccessionNumber": "TEST"},
+                        return_tags=["StudyInstanceUID"],
                     )
 
 
@@ -330,6 +335,7 @@ def test_find_studies_retries_on_failure(tmp_path):
                     calling_aet="TEST_SCU",
                     called_aet="ORTHANC_TEST",
                     query_params={"AccessionNumber": "ACC12345"},
+                    return_tags=["StudyInstanceUID"],
                 )
 
     assert len(results) == 1
@@ -490,3 +496,84 @@ def test_start_stop_storescp():
     mock_process.poll.return_value = None
     stop_storescp(mock_process)
     mock_process.terminate.assert_called_once()
+
+
+def _findscu_run_capturing(captured, xml_to_write):
+    """Build a subprocess.run side-effect that records the issued command and
+    writes the given C-FIND XML to the path requested via the -Xs flag."""
+
+    def mock_run(*args, **kwargs):
+        cmd = list(args[0])
+        captured["cmd"] = cmd
+        for i, arg in enumerate(cmd):
+            if arg == "-Xs":
+                with open(cmd[i + 1], "w") as f:
+                    f.write(xml_to_write)
+                break
+        return mock.Mock(returncode=0, stdout="", stderr="")
+
+    return mock_run
+
+
+def _query_keys(cmd):
+    """Return the list of values passed after each '-k' flag in a command."""
+    return [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "-k"]
+
+
+def test_return_tag_cannot_wipe_query_constraint():
+    """A return tag duplicating a query_params key must NOT emit a valueless
+    '-k StudyInstanceUID', which DCMTK would let override the matching key
+    (last key wins) and turn the C-FIND into a whole-archive query."""
+    captured = {}
+    study_uid = "1.2.826.0.1.3680043.8.498.19219017759098709637263425563099910928"
+
+    with mock.patch(
+        "subprocess.run",
+        side_effect=_findscu_run_capturing(captured, FINDSCU_SINGLE_ACCESSION_XML),
+    ):
+        with mock.patch("time.sleep"):
+            find_studies(
+                host="localhost",
+                port=11112,
+                calling_aet="TEST_SCU",
+                called_aet="ORTHANC_TEST",
+                query_params={"StudyInstanceUID": study_uid},
+                # StudyInstanceUID also requested as a return tag -> must not duplicate
+                return_tags=["StudyInstanceUID", "NumberOfStudyRelatedInstances"],
+            )
+
+    keys = _query_keys(captured["cmd"])
+
+    # The valued matching key must be present...
+    assert f"StudyInstanceUID={study_uid}" in keys
+    # ...and there must be NO valueless StudyInstanceUID key that would wipe it.
+    assert "StudyInstanceUID" not in keys
+    # Exactly one StudyInstanceUID key total (the valued one).
+    assert sum(k.startswith("StudyInstanceUID") for k in keys) == 1
+    # The other (non-conflicting) return tag is still requested.
+    assert "NumberOfStudyRelatedInstances" in keys
+
+
+def test_return_tag_present_when_not_a_query_constraint():
+    """A return tag that is NOT also a query key is still emitted as a
+    valueless key so the field comes back in the response."""
+    captured = {}
+
+    with mock.patch(
+        "subprocess.run",
+        side_effect=_findscu_run_capturing(captured, FINDSCU_SINGLE_ACCESSION_XML),
+    ):
+        with mock.patch("time.sleep"):
+            find_studies(
+                host="localhost",
+                port=11112,
+                calling_aet="TEST_SCU",
+                called_aet="ORTHANC_TEST",
+                query_params={"AccessionNumber": "ACC12345"},
+                return_tags=["StudyInstanceUID"],
+            )
+
+    keys = _query_keys(captured["cmd"])
+    assert "AccessionNumber=ACC12345" in keys
+    # Not a query constraint here, so the valueless return key is expected.
+    assert "StudyInstanceUID" in keys

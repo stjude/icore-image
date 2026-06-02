@@ -28,6 +28,16 @@ from django.views.generic.edit import CreateView
 
 from .models import Project, Module
 from grammar import get_hipaa_safe_harbor_config
+from pathutils import is_path_within_directory
+
+logger = logging.getLogger(__name__)
+
+# Generic message returned to clients in place of raw exception text, which
+# could leak internal details. The full exception is logged server-side via
+# logger.exception() instead.
+GENERIC_ERROR_MESSAGE = (
+    "An unexpected error occurred. Please check the system logs for details."
+)
 
 ICORE_BASE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "iCore")
 SETTINGS_DIR = os.path.join(ICORE_BASE_DIR, "config")
@@ -106,13 +116,15 @@ def _validate_sas_url(sas_url):
             container_name = parsed.path.lstrip("/").split("/")[0]
             if not container_name:
                 return {"valid": False, "error": "Container name not found in URL"}
-        except Exception as e:
-            return {"valid": False, "error": f"Failed to parse SAS URL: {str(e)}"}
+        except Exception:
+            logger.exception("Failed to parse SAS URL")
+            return {"valid": False, "error": "Failed to parse SAS URL"}
 
         return {"valid": True, "error": None}
 
-    except Exception as e:
-        return {"valid": False, "error": f"Validation error: {str(e)}"}
+    except Exception:
+        logger.exception("SAS URL validation error")
+        return {"valid": False, "error": "Validation error"}
 
 
 os.makedirs(os.path.dirname(AUTHENTICATION_LOG_PATH), exist_ok=True)
@@ -128,6 +140,25 @@ auth_formatter = logging.Formatter(
 auth_handler.setFormatter(auth_formatter)
 
 AUTH_LOGGER.addHandler(auth_handler)
+
+# Record view-layer logging (including handled exceptions) in the iCore system
+# log file. The Electron shell launches the Django server process and pipes its
+# stdout/stderr into logs/system/log.txt, so emitting to stdout is what lands
+# records in the system log. The Django web-server process does not otherwise
+# configure root logging, so without this handler these records would be
+# dropped (INFO) or only reach stderr via the last-resort handler (errors).
+logger.setLevel(logging.INFO)
+logger.propagate = False  # avoid duplicate emission via the root last-resort handler
+if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+    system_handler = logging.StreamHandler(sys.stdout)
+    system_handler.setLevel(logging.INFO)
+    system_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)-5s %(name)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    logger.addHandler(system_handler)
 
 settings_path = os.path.join(SETTINGS_DIR, "settings.json")
 with open(settings_path, "r") as f:
@@ -376,6 +407,9 @@ def get_log_content(request):
         if not log_path:
             return HttpResponseBadRequest("No log path specified")
 
+        if not is_path_within_directory(log_path, LOGS_DIR):
+            return HttpResponseBadRequest("Invalid log path")
+
         # Check if file exists
         if not os.path.exists(log_path):
             return HttpResponseNotFound("Loading. Please wait...")
@@ -386,8 +420,9 @@ def get_log_content(request):
 
         return HttpResponse(content, content_type="text/plain")
 
-    except Exception as e:
-        return HttpResponse(str(e), status=500)
+    except Exception:
+        logger.exception("Error reading log file")
+        return HttpResponse("An internal server error occurred.", status=500)
 
 
 def task_status(request, project_id):
@@ -431,8 +466,9 @@ def task_status(request, project_id):
         )
     except Project.DoesNotExist:
         return JsonResponse({"error": "Task not found"}, status=404)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 
 @csrf_exempt
@@ -479,9 +515,11 @@ def run_header_query(request):
                 "log_path": project.log_path,
             }
         )
-    except Exception as e:
-        print(f"Error: {e}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @csrf_exempt
@@ -518,9 +556,11 @@ def run_header_extract(request):
                 "log_path": project.log_path,
             }
         )
-    except Exception as e:
-        print(f"Error: {e}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @csrf_exempt
@@ -607,11 +647,13 @@ def run_deid(request):
             if "database is locked" in str(e):
                 attempt += 1
                 if attempt == max_attempts:
-                    print(f"Failed after {max_attempts} attempts: {e}")
+                    logger.exception(
+                        f"Database locked, failed after {max_attempts} attempts"
+                    )
                     return JsonResponse(
                         {
                             "status": "error",
-                            "message": f"Database is locked. Please try again. ({str(e)})",
+                            "message": "Database is locked. Please try again.",
                         },
                         status=503,
                     )  # 503 Service Unavailable
@@ -621,9 +663,11 @@ def run_deid(request):
                 time.sleep(0.5 * attempt)  # Increasing backoff
             else:
                 raise
-        except Exception as e:
-            print(f"Error: {e}")
-            return JsonResponse({"status": "error", "message": str(e)}, status=400)
+        except Exception:
+            logger.exception("Error processing request")
+            return JsonResponse(
+                {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+            )
 
 
 @csrf_exempt
@@ -679,9 +723,11 @@ def run_query(request):
                 "log_path": project.log_path,
             }
         )
-    except Exception as e:
-        print(f"Error: {e}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @csrf_exempt
@@ -723,9 +769,11 @@ def run_text_deid(request):
                 "log_path": project.log_path,
             }
         )
-    except Exception as e:
-        print(f"Error: {e}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @csrf_exempt
@@ -753,9 +801,11 @@ def run_export(request):
                 "log_path": project.log_path,
             }
         )
-    except Exception as e:
-        print(f"Error: {e}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @csrf_exempt
@@ -832,9 +882,11 @@ def run_imagedeidexport(request):
                 "log_path": project.log_path,
             }
         )
-    except Exception as e:
-        print(f"Error: {e}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @csrf_exempt
@@ -904,9 +956,11 @@ def run_singleclickicore(request):
                 "log_path": project.log_path,
             }
         )
-    except Exception as e:
-        print(f"Error: {e}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @csrf_exempt
@@ -934,9 +988,11 @@ def run_general_module(request):
                 "log_path": project.log_path,
             }
         )
-    except Exception as e:
-        print(f"Error: {e}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @require_http_methods(["POST"])
@@ -961,8 +1017,11 @@ def save_settings(request):
             json.dump(existing_settings, f, indent=4)
 
         return JsonResponse({"status": "success"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @require_http_methods(["GET"])
@@ -974,8 +1033,11 @@ def load_settings(request):
         return JsonResponse(settings)
     except FileNotFoundError:
         return JsonResponse({})
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 def get_dicom_fields():
@@ -1116,8 +1178,9 @@ def test_pacs_connection(request):
                 return JsonResponse({"status": "error", "error": "C-ECHO failed"})
         else:
             return JsonResponse({"status": "error", "error": "Association rejected"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "error": str(e)})
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse({"status": "error", "error": GENERIC_ERROR_MESSAGE})
 
 
 @require_http_methods(["GET"])
@@ -1139,9 +1202,9 @@ def load_admin_settings(request):
             settings["date_shift_range"] = int(settings["date_shift_range"])
 
         return JsonResponse(settings)
-    except Exception as e:
-        print(f"Error loading admin settings: {str(e)}")
-        return JsonResponse({"error": str(e)}, status=500)
+    except Exception:
+        logger.exception("Error loading admin settings")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -1229,13 +1292,9 @@ def get_protocol_settings(request, protocol_id):
         }
 
         return JsonResponse({"protocol_settings": protocol_settings})
-    except Exception as e:
-        print(f"Error getting protocol settings: {str(e)}")
-        print(f"Error type: {type(e)}")
-        import traceback
-
-        print(f"Traceback: {traceback.format_exc()}")
-        return JsonResponse({"error": str(e)}, status=500)
+    except Exception:
+        logger.exception("Error getting protocol settings")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 
 def get_unique_protocols():
@@ -1254,8 +1313,8 @@ def get_unique_protocols():
         unique_protocols = df["Protocol ID"].unique().tolist()
 
         return unique_protocols
-    except Exception as e:
-        print(f"Error reading protocol file: {str(e)}")
+    except Exception:
+        logger.exception("Error reading protocol file")
         return []
 
 
@@ -1349,8 +1408,9 @@ def verify_admin_password(request):
                 f"Authentication failed for AET Title: {aet} and hostname: {request.META.get('REMOTE_ADDR')}"
             )
         return JsonResponse({"valid": is_valid})
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -1364,8 +1424,11 @@ def delete_task(request, task_id):
         task.delete()
 
         return JsonResponse({"status": "success"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 def kill_process_tree(pid):
@@ -1411,8 +1474,11 @@ def cancel_task(request, task_id):
         task.save()
 
         return JsonResponse({"status": "success"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 # Add this middleware function to process timezone from session
@@ -1437,11 +1503,14 @@ def upload_module(request):
 
     try:
         # Create iCore config directory in user's home if it doesn't exist
-        icore_dir = f"{SETTINGS_DIR}/modules"
+        icore_dir = os.path.join(SETTINGS_DIR, "modules")
         os.makedirs(icore_dir, exist_ok=True)
 
         # Save the file
-        file_path = f"{icore_dir}/{module_file.name}"
+        file_path = os.path.realpath(os.path.join(icore_dir, module_file.name))
+        if not is_path_within_directory(file_path, icore_dir):
+            return JsonResponse({"status": "error", "error": "Invalid file name"})
+
         with open(file_path, "wb+") as destination:
             for chunk in module_file.chunks():
                 destination.write(chunk)
@@ -1454,8 +1523,9 @@ def upload_module(request):
         )
 
         return JsonResponse({"status": "success"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "error": str(e)})
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse({"status": "error", "error": GENERIC_ERROR_MESSAGE})
 
 
 def get_modules(request):
@@ -1483,8 +1553,11 @@ def delete_module(request, module_id):
             os.remove(module.file_path)
         module.delete()
         return JsonResponse({"status": "success"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @require_http_methods(["POST"])
@@ -1496,8 +1569,11 @@ def toggle_module_status(request, module_id):
         module.is_active = data["is_active"]
         module.save()
         return JsonResponse({"status": "success"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @require_http_methods(["POST"])
@@ -1579,8 +1655,11 @@ def reset_deid_settings(request):
             json.dump(current_settings, f, indent=4)
 
         return JsonResponse({"status": "success"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 def root_redirect(request):

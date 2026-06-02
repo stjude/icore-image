@@ -26,7 +26,7 @@ endif
 
 test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
-	uv run pytest -v -n auto
+	uv run pytest -v -n 1
 	cd electron && npm test -- --verbose
 
 dev: external-deps
