@@ -102,7 +102,10 @@ TMP_INPUT_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, "temp_input"))
 IS_DEV = os.environ.get("ICORE_DEV") == "1"
 
 if IS_DEV:
-    ICORE_PROCESSOR_PATH = "python"
+    # Run the pipeline CLI with the same interpreter as the worker (the uv
+    # virtualenv), so it has access to all project dependencies. A bare
+    # "python" on PATH usually does not.
+    ICORE_PROCESSOR_PATH = sys.executable
     ICORE_CLI_SCRIPT = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "cli.py")
     )
@@ -1111,4 +1114,12 @@ def run_worker():
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        run_worker()
+        # In development, run the worker under Django's autoreloader so edits to
+        # the worker / pipeline orchestration code restart it automatically.
+        if os.environ.get("ICORE_DEV") == "1":
+            from django.utils import autoreload
+
+            print("Starting worker with autoreload (dev mode)")
+            autoreload.run_with_reloader(run_worker)
+        else:
+            run_worker()

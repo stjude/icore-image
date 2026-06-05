@@ -85,15 +85,18 @@ function migrateFromOldLocation(oldLocationDir, newLocationDir) {
   }
 }
 
-function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false) {
+function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false, pythonExec = 'python') {
   return new Promise((resolve, reject) => {
     let stdout = '';
     let stderr = '';
-    
+
     let migrateProcess;
     if (isDev) {
       const env = { ...process.env, ICORE_DEV: '1' };
-      migrateProcess = spawnFn('python', [managePath, 'migrate'], { env });
+      migrateProcess = spawnFn(pythonExec, [managePath, 'migrate'], {
+        env,
+        cwd: path.dirname(managePath),
+      });
     } else {
       migrateProcess = spawnFn(managePath, ['migrate']);
     }
@@ -122,18 +125,18 @@ function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false) {
 }
 
 async function initializeApp(config) {
-  const { baseDir, dbPath, settingsPath, defaultSettingsPath, managePath, spawnFn, isDev, oldLocationDir } = config;
-  
+  const { baseDir, dbPath, settingsPath, defaultSettingsPath, managePath, spawnFn, isDev, oldLocationDir, pythonExec } = config;
+
   ensureDirectories(baseDir);
-  
+
   if (oldLocationDir) {
     const configDir = path.dirname(dbPath);
     migrateFromOldLocation(oldLocationDir, configDir);
   }
-  
+
   ensureDatabase(dbPath);
   mergeSettings(settingsPath, defaultSettingsPath);
-  await runMigration(managePath, dbPath, spawnFn, isDev);
+  await runMigration(managePath, dbPath, spawnFn, isDev, pythonExec);
 }
 
 module.exports = {
