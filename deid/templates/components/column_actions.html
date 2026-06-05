@@ -1,0 +1,23 @@
+<!-- Per-column handling for an uploaded spreadsheet.
+     Populated by static/js/column_actions.js once an input file is chosen. -->
+<div id="column-actions-section">
+    <div class="text-sm text-gray-500">Column Handling</div>
+    <div class="text-xs text-gray-400 mb-2">
+        Choose an action for each column in the uploaded spreadsheet. Every column must be assigned before deidentification can run.
+    </div>
+    <div id="column-actions-status" class="text-sm text-gray-500 italic">
+        Upload an Excel (.xlsx) spreadsheet to configure its columns.
+    </div>
+    <div id="column-actions-container" class="w-full"></div>
+</div>
+
+<!-- Hidden row template (cloned per column) -->
+<div id="column-action-template" class="column-action-row flex items-center gap-3 mt-2" style="display: none;">
+    <div class="column-action-name flex-1 truncate text-sm border-b border-gray-200 pb-1"></div>
+    <select name="column_action" class="border-2 border-gray-400 p-2 bg-white" required>
+        <option value="">— Select —</option>
+        <option value="keep">Keep</option>
+        <option value="deid">Deid</option>
+        <option value="drop">Drop</option>
+    </select>
+</div>

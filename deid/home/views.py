@@ -730,6 +730,29 @@ def run_query(request):
         )
 
 
+def _remember_column_actions(column_actions):
+    """Merge the chosen per-column actions into settings so they pre-fill next time."""
+    if not column_actions:
+        return
+    try:
+        settings_path = os.path.join(SETTINGS_DIR, "settings.json")
+        try:
+            with open(settings_path, "r") as f:
+                settings = json.load(f)
+        except FileNotFoundError:
+            settings = {}
+
+        remembered = settings.get("column_actions", {})
+        remembered.update(column_actions)
+        settings["column_actions"] = remembered
+
+        with open(settings_path, "w") as f:
+            json.dump(settings, f, indent=4)
+    except Exception:
+        # Remembering is best-effort; never block a run on it.
+        logger.exception("Could not persist column actions")
+
+
 @csrf_exempt
 def run_text_deid(request):
     print("Running text deid")
@@ -757,11 +780,11 @@ def run_text_deid(request):
                 "input_file": data["input_file"],
                 "text_to_keep": data.get("text_to_keep", ""),
                 "text_to_remove": data.get("text_to_remove", ""),
-                "columns_to_deid": data.get("columns_to_deid", ""),
-                "columns_to_drop": data.get("columns_to_drop", ""),
+                "column_actions": data.get("column_actions", {}),
                 "date_shift_days": data["date_shift_days"],
             },
         )
+        _remember_column_actions(data.get("column_actions", {}))
         return JsonResponse(
             {
                 "status": "success",
@@ -942,13 +965,13 @@ def run_singleclickicore(request):
                 "sas_url": data.get("sas_url", ""),
                 "text_to_keep": data.get("text_to_keep", ""),
                 "text_to_remove": data.get("text_to_remove", ""),
-                "columns_to_deid": data.get("columns_to_deid", ""),
-                "columns_to_drop": data.get("columns_to_drop", ""),
+                "column_actions": data.get("column_actions", {}),
                 "skip_export": not data.get("export_to_azure", True),
                 "sc_pdf_output_dir": data.get("sc_pdf_output_dir", ""),
                 "use_fallback_query": data.get("use_fallback_query", False),
             },
         )
+        _remember_column_actions(data.get("column_actions", {}))
         return JsonResponse(
             {
                 "status": "success",
@@ -1037,6 +1060,43 @@ def load_settings(request):
         logger.exception("Error processing request")
         return JsonResponse(
             {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def get_spreadsheet_columns(request):
+    """Read the column headers from an uploaded Excel spreadsheet.
+
+    Used by the text-deid and single-click-iCore screens to render a
+    per-column Keep/Deid/Drop selector for the columns actually present in the
+    user's file.
+    """
+    try:
+        data = json.loads(request.body)
+        input_file = (data.get("input_file") or "").strip()
+
+        if not input_file.lower().endswith(".xlsx"):
+            return JsonResponse(
+                {"status": "error", "message": "Input file must be an .xlsx file."},
+                status=400,
+            )
+        if not os.path.isfile(input_file):
+            return JsonResponse(
+                {"status": "error", "message": "Input file could not be found."},
+                status=400,
+            )
+
+        # Read only the header row to keep this fast on large spreadsheets.
+        columns = pd.read_excel(input_file, nrows=0).columns.tolist()
+        columns = [str(col) for col in columns]
+
+        return JsonResponse({"status": "success", "columns": columns})
+    except Exception:
+        logger.exception("Error reading spreadsheet columns")
+        return JsonResponse(
+            {"status": "error", "message": "Could not read columns from the file."},
+            status=400,
         )
 
 
@@ -1637,11 +1697,14 @@ def reset_deid_settings(request):
             ]
         elif settings_type == "text_deid":
             keys_to_reset = [
-                "default_columns_to_deid",
-                "default_columns_to_drop",
                 "default_text_to_keep",
                 "default_text_to_remove",
             ]
+            # The remembered per-column actions reset to the bundled defaults.
+            if "default_column_actions" in default_settings:
+                current_settings["column_actions"] = default_settings[
+                    "default_column_actions"
+                ]
         else:
             return JsonResponse(
                 {"status": "error", "message": "Invalid settings type"}, status=400

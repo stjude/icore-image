@@ -623,8 +623,12 @@ class PresidioTextDeid(TextDeidStage):
         if self.columns_to_drop:
             df = df.drop(columns=self.columns_to_drop, errors="ignore")
 
+        # An explicit list (including an empty one) is authoritative; only a
+        # None columns_to_deid falls back to deidentifying every column.
         columns_to_process = (
-            self.columns_to_deid if self.columns_to_deid else list(df.columns)
+            self.columns_to_deid
+            if self.columns_to_deid is not None
+            else list(df.columns)
         )
         columns_to_process = [c for c in columns_to_process if c in df.columns]
 
