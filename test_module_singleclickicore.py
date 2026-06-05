@@ -44,7 +44,7 @@ def get_hipaa_test_config(user_filter_script=None):
 
 
 def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
-    """Test basic workflow: image deid from PACS + text deid + export to Azure"""
+    """Test basic workflow: image deid from PACS + text deid + export to IMAGINE"""
     os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
