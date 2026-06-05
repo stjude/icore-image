@@ -560,35 +560,16 @@ def process_text_deid(task):
 
 
 def column_actions_to_lists(task):
-    """Convert task parameters into (columns_to_deid, columns_to_drop) lists.
-
-    Prefers the new ``column_actions`` mapping ({column: keep|deid|drop});
-    "keep" columns appear in neither list and pass through untouched. Falls back
-    to the legacy newline-separated ``columns_to_deid``/``columns_to_drop``
-    strings for any tasks queued before this feature.
-    """
+    """Convert task parameters into (columns_to_deid, columns_to_drop) lists."""
     column_actions = task.parameters.get("column_actions")
-    if column_actions:
-        # The mapping is authoritative: deid exactly the "deid" columns (an
-        # empty list means deid nothing), drop the "drop" columns, keep the
-        # rest. The deid list is returned even when empty so it is not treated
-        # as the legacy "deid everything" default downstream.
-        deid_list = [col for col, action in column_actions.items() if action == "deid"]
-        drop_list = [col for col, action in column_actions.items() if action == "drop"]
-        return (deid_list, drop_list)
-
-    columns_to_deid = task.parameters.get("columns_to_deid", "")
-    columns_to_drop = task.parameters.get("columns_to_drop", "")
-    deid_list = (
-        [col.strip() for col in columns_to_deid.split("\n") if col.strip()]
-        if columns_to_deid
-        else None
-    )
-    drop_list = (
-        [col.strip() for col in columns_to_drop.split("\n") if col.strip()]
-        if columns_to_drop
-        else None
-    )
+    if column_actions is None:
+        raise Exception("Missing column_actions parameter.")
+    # The mapping is authoritative: deid exactly the "deid" columns (an
+    # empty list means deid nothing), drop the "drop" columns, keep the
+    # rest. The deid list is returned even when empty so it is not treated
+    # as the legacy "deid everything" default downstream.
+    deid_list = [col for col, action in column_actions.items() if action == "deid"]
+    drop_list = [col for col, action in column_actions.items() if action == "drop"]
     return (deid_list, drop_list)
 
 
@@ -622,7 +603,7 @@ def build_text_deid_config(task):
         }
     )
 
-    # An empty list is meaningful (deid nothing); only skip when None (legacy).
+    # An empty list is meaningful (deid nothing); only skip when None.
     if columns_to_deid_list is not None:
         config["columns_to_deid"] = columns_to_deid_list
     if columns_to_drop_list:
