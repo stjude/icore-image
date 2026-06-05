@@ -5,6 +5,11 @@
     <div class="text-xs text-gray-400 mb-2">
         Choose an action for each column in the uploaded spreadsheet. Every column must be assigned before deidentification can run.
     </div>
+    <button type="button" id="drop-unassigned-button"
+            class="mb-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100 hidden"
+            onclick="dropAllUnassigned()">
+        Drop all unassigned
+    </button>
     <div id="column-actions-status" class="text-sm text-gray-500 italic">
         Upload an Excel (.xlsx) spreadsheet to configure its columns.
     </div>
@@ -13,7 +18,7 @@
 
 <!-- Hidden row template (cloned per column) -->
 <div id="column-action-template" class="column-action-row flex items-center gap-3 mt-2" style="display: none;">
-    <div class="column-action-name flex-1 truncate text-sm border-b border-gray-200 pb-1"></div>
+    <div class="column-action-name flex-1 truncate text-sm border-b border-gray-200 pb-5"></div>
     <select name="column_action" class="border-2 border-gray-400 p-2 bg-white" required>
         <option value="">— Select —</option>
         <option value="keep">Keep</option>

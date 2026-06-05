@@ -22,6 +22,23 @@ function setColumnActionsStatus(message) {
     }
 }
 
+function setDropUnassignedVisible(visible) {
+    const button = document.getElementById('drop-unassigned-button');
+    if (!button) return;
+    button.classList.toggle('hidden', !visible);
+}
+
+// Default every column that still has no action to "drop".
+function dropAllUnassigned() {
+    document.querySelectorAll('#column-actions-container .column-action-row').forEach(row => {
+        const select = row.querySelector('select[name="column_action"]');
+        if (!select.value) {
+            select.value = 'drop';
+        }
+    });
+    notifyColumnActionsChanged();
+}
+
 // Read the uploaded spreadsheet's columns and render a selector per column,
 // pre-selecting any previously remembered action.
 async function loadColumnActions(inputPath) {
@@ -29,6 +46,7 @@ async function loadColumnActions(inputPath) {
     if (!container) return;
 
     container.innerHTML = '';
+    setDropUnassignedVisible(false);
 
     const path = (inputPath || '').trim();
     if (!path.toLowerCase().endsWith('.xlsx')) {
@@ -93,6 +111,7 @@ async function loadColumnActions(inputPath) {
     } else {
         setColumnActionsStatus('');
     }
+    setDropUnassignedVisible(columns.length > 0);
 
     notifyColumnActionsChanged();
 }
