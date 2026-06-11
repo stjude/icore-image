@@ -17,7 +17,6 @@ class Project(models.Model):
     class TaskType(models.TextChoices):
         IMAGE_DEID = "IMAGE_DEID", "Image Deidentification"
         IMAGE_QUERY = "IMAGE_QUERY", "Image Query"
-        HEADER_QUERY = "HEADER_QUERY", "Header Query"
         HEADER_EXTRACT = "HEADER_EXTRACT", "Header Extract"
         TEXT_DEID = "TEXT_DEID", "Text Deidentification"
         IMAGE_EXPORT = "IMAGE_EXPORT", "Image Export"
@@ -38,6 +37,9 @@ class Project(models.Model):
         max_length=20, choices=TaskStatus.choices, default=TaskStatus.PENDING
     )
     process_pid = models.IntegerField(null=True, blank=True)
+    # Claim marker set when the project is enqueued as a Celery task; prevents
+    # the dispatcher from enqueuing the same project twice.
+    celery_task_id = models.CharField(max_length=155, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     scheduled_time = models.DateTimeField(null=True, blank=True)

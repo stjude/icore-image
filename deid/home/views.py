@@ -345,10 +345,6 @@ class GeneralSettingsView(CommonContextMixin, TemplateView):
         return context
 
 
-class DicomHeaderQRSettingsView(CommonContextMixin, TemplateView):
-    template_name = "settings/header_query.html"
-
-
 class LocalHeaderExtractionSettingsView(CommonContextMixin, TemplateView):
     template_name = "settings/header_extraction.html"
 

@@ -47,11 +47,6 @@ urlpatterns = [
         "test_pacs_connection/", views.test_pacs_connection, name="test_pacs_connection"
     ),
     path(
-        "settings/dicom_header_qr/",
-        views.DicomHeaderQRSettingsView.as_view(),
-        name="dicom_header_qr_settings",
-    ),
-    path(
         "settings/local_header_extraction/",
         views.LocalHeaderExtractionSettingsView.as_view(),
         name="local_header_extraction_settings",
