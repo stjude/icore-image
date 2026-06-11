@@ -151,12 +151,13 @@ def detect_file_type_and_columns(input_file_path):
     enable the MRN+date fallback query).
     """
     df = pd.read_excel(input_file_path, nrows=0)
-    columns = df.columns.tolist()
+    columns: list[str] = df.columns.tolist()
+    detected: dict[str, str | None] = {}
 
     if "Acc" in columns:
-        detected = {"acc_col": "Acc"}
+        detected["acc_col"] = "Acc"
     elif "Accession Number" in columns:
-        detected = {"acc_col": "Accession Number"}
+        detected["acc_col"] = "Accession Number"
     else:
         raise ValueError(
             f"Unknown file format. Expected Primordial (Acc column) or mPower (Accession Number column). "
