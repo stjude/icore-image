@@ -95,11 +95,14 @@ DATABASES = {
 
 # Celery
 # https://docs.celeryq.dev/en/stable/django/first-steps-with-django.html
-# The sqlite database doubles as the message broker (via kombu's SQLAlchemy
-# transport) and the result backend, so no external broker is required.
+# A dedicated sqlite database serves as the message broker (via kombu's
+# SQLAlchemy transport) and the result backend, so no external broker is
+# required. Kept separate from the Django database so the worker's frequent
+# queue reads/writes never contend for Django's write lock.
 
-CELERY_BROKER_URL = f"sqla+sqlite:///{SQLITE_DB_PATH}"
-CELERY_RESULT_BACKEND = f"db+sqlite:///{SQLITE_DB_PATH}"
+CELERY_DB_PATH = os.path.join(HOME_DIR, "celery.sqlite3")
+CELERY_BROKER_URL = f"sqla+sqlite:///{CELERY_DB_PATH}"
+CELERY_RESULT_BACKEND = f"db+sqlite:///{CELERY_DB_PATH}"
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
