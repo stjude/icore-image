@@ -105,6 +105,7 @@
         try {
             const response = await fetch('/upload_module/', {
                 method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
                 body: formData
             });
             const result = await response.json();
@@ -130,6 +131,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
                 }
             });
             if (response.ok) {
@@ -149,6 +151,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
                 },
                 body: JSON.stringify({ is_active: newStatus })
             });

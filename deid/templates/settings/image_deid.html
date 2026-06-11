@@ -314,10 +314,6 @@
         filterContainer.appendChild(newFilter);
     }
 
-    function getCsrfToken() {
-        return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
-    }
-
     async function handleProtocolChange() {
         const protocolId = document.getElementById('protocol_select').value;
         if (!protocolId) return;

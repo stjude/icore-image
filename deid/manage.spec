@@ -25,7 +25,6 @@ project_datas = [
 
 # External tools used by the in-process celery worker (ctp.py, dcmtk.py,
 # pipeline/stages/export.py resolve these under _internal/ when frozen).
-# Guarded so dev machines without a toolchain can still build.
 for tool_dir in ('jre8', 'ctp', 'dcmtk', 'rclone'):
     tool_path = os.path.join(resources_path, tool_dir)
     if not os.path.exists(tool_path):

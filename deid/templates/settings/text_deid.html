@@ -176,10 +176,6 @@
         setTimeout(() => messageDiv.remove(), 3000);
     }
 
-    function getCsrfToken() {
-        return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
-    }
-
     document.getElementById('resetTextDeidBtn').addEventListener('click', async function(e) {
         e.preventDefault();
         

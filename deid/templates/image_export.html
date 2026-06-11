@@ -34,15 +34,6 @@
             const adminResponse = await fetch('/load_admin_settings/');
             adminSettings = await adminResponse.json();
 
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            fetch('/set_timezone/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ timezone: timezone })
-            });
-
             if (!adminSettings.imagine_sas_url || adminSettings.imagine_sas_url.trim() === '') {
                 document.getElementById('sasUrlRequiredModal').classList.remove('hidden');
                 document.getElementById('export_button').disabled = true;
@@ -87,11 +78,6 @@
         }
     }
     
-    function getCsrfToken() {
-        const tokenElement = document.querySelector('meta[name="csrf_token"]');
-        return tokenElement ? tokenElement.content : '';
-    }
-
     function validateExportForm() {
         const studyName = document.querySelector('[name="study_name"]').value.trim();
         const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
@@ -129,6 +115,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
                 },
                 body: JSON.stringify(data)
             });

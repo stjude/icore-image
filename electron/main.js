@@ -37,7 +37,7 @@ async function killProcessOnPort(port) {
     if (platform === 'darwin' || platform === 'linux') {
       cmd = `lsof -ti:${port} | xargs kill -9 2>/dev/null || true`;
     } else if (platform === 'win32') {
-      cmd = `FOR /F "tokens=5" %a IN ('netstat -aon ^| findstr :${port}') DO taskkill /F /PID %a`;
+      cmd = `FOR /F "tokens=5" %%a IN ('netstat -aon ^| findstr :${port}') DO taskkill /F /PID %%a`;
     }
     if (cmd) {
       await execPromise(cmd);
@@ -77,7 +77,7 @@ async function killProcessesOnCtpPorts() {
       if (platform === 'darwin' || platform === 'linux') {
         cmd = `lsof -ti:${port} | xargs kill -9 2>/dev/null || true`;
       } else if (platform === 'win32') {
-        cmd = `FOR /F "tokens=5" %a IN ('netstat -aon ^| findstr :${port}') DO taskkill /F /PID %a`;
+        cmd = `FOR /F "tokens=5" %%a IN ('netstat -aon ^| findstr :${port}') DO taskkill /F /PID %%a`;
       }
       
       if (cmd) {

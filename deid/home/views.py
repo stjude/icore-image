@@ -20,7 +20,6 @@ from django.http import (
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
@@ -484,7 +483,6 @@ def _save_and_enqueue(project, task, args):
     )
 
 
-@csrf_exempt
 def run_header_extract(request):
     print("Running header extract")
     try:
@@ -508,7 +506,6 @@ def run_header_extract(request):
         )
 
 
-@csrf_exempt
 def run_deid(request):
     print("Running deid")
     try:
@@ -547,7 +544,6 @@ def run_deid(request):
         )
 
 
-@csrf_exempt
 def run_query(request):
     print("Running query")
     try:
@@ -606,7 +602,6 @@ def _remember_column_actions(column_actions):
         logger.exception("Could not persist column actions")
 
 
-@csrf_exempt
 def run_text_deid(request):
     print("Running text deid")
     try:
@@ -632,7 +627,6 @@ def run_text_deid(request):
         )
 
 
-@csrf_exempt
 def run_export(request):
     print("Running export")
     try:
@@ -655,7 +649,6 @@ def run_export(request):
         )
 
 
-@csrf_exempt
 def run_imagedeidexport(request):
     print("Running image deid export")
     try:
@@ -694,7 +687,6 @@ def run_imagedeidexport(request):
         )
 
 
-@csrf_exempt
 def run_singleclickicore(request):
     """
     Single-Click iCore workflow: Query PACS + Image De-identification + Text De-identification + Export.
@@ -741,7 +733,6 @@ def run_singleclickicore(request):
         )
 
 
-@csrf_exempt
 def run_general_module(request):
     try:
         data = json.loads(request.body)
@@ -809,7 +800,6 @@ def load_settings(request):
         )
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def get_spreadsheet_columns(request):
     """Read the column headers from an uploaded Excel spreadsheet.
@@ -1258,7 +1248,6 @@ def kill_process_tree(pid):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt
 def cancel_task(request, task_id):
     try:
         task = get_object_or_404(Project, id=task_id)
@@ -1303,7 +1292,6 @@ def timezone_middleware(get_response):
     return middleware
 
 
-@csrf_exempt
 def upload_module(request):
     if request.method != "POST" or "module_file" not in request.FILES:
         return JsonResponse({"status": "error", "error": "No file provided"})
@@ -1353,7 +1341,6 @@ def get_modules(request):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt
 def delete_module(request, module_id):
     try:
         module = get_object_or_404(Module, id=module_id)
@@ -1370,7 +1357,6 @@ def delete_module(request, module_id):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt
 def toggle_module_status(request, module_id):
     try:
         data = json.loads(request.body)
@@ -1386,7 +1372,6 @@ def toggle_module_status(request, module_id):
 
 
 @require_http_methods(["POST"])
-@csrf_exempt
 def reset_deid_settings(request):
     try:
         data = json.loads(request.body)
