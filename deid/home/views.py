@@ -213,13 +213,6 @@ class ImageQueryView(CommonContextMixin, CreateView):
     success_url = reverse_lazy("task_list")
 
 
-class HeaderQueryView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ["name", "image_source", "output_folder", "ctp_dicom_filter"]
-    template_name = "header_query.html"
-    success_url = reverse_lazy("task_list")
-
-
 class HeaderExtractView(CommonContextMixin, CreateView):
     model = Project
     fields = ["name", "input_folder", "output_folder"]
@@ -465,57 +458,6 @@ def task_status(request, project_id):
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
-
-
-@csrf_exempt
-def run_header_query(request):
-    print("Running header query")
-    try:
-        if request.method == "POST":
-            data = json.loads(request.body)
-
-        if not validate_pacs_configuration(data.get("pacs_configs", [])):
-            return JsonResponse(
-                {
-                    "status": "error",
-                    "message": "No PACS configured. Please configure PACS settings before running a query.",
-                },
-                status=400,
-            )
-
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        project = Project.objects.create(
-            name=data["study_name"],
-            timestamp=timestamp,
-            log_path="",
-            task_type=Project.TaskType.HEADER_QUERY,
-            output_folder=data["output_folder"],
-            pacs_configs=data["pacs_configs"],
-            application_aet=data["application_aet"],
-            status=Project.TaskStatus.PENDING,
-            parameters={
-                "input_file": data["input_file"],
-                "acc_col": data["acc_col"],
-                "mrn_col": data["mrn_col"],
-                "date_col": data["date_col"],
-                "date_window": data.get("date_window", 0),
-                "general_filters": data["general_filters"],
-                "modality_filters": data["modality_filters"],
-                "use_fallback_query": data.get("use_fallback_query", False),
-            },
-        )
-        return JsonResponse(
-            {
-                "status": "success",
-                "project_id": project.id,
-                "log_path": project.log_path,
-            }
-        )
-    except Exception:
-        logger.exception("Error processing request")
-        return JsonResponse(
-            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
-        )
 
 
 @csrf_exempt

@@ -4,7 +4,6 @@ from . import views
 
 urlpatterns = [
     path("", views.root_redirect, name="root"),
-    path("headerquery/", views.HeaderQueryView.as_view(), name="header_query"),
     path("headerextract/", views.HeaderExtractView.as_view(), name="header_extract"),
     path("imagedeid/", views.ImageDeIdentificationView.as_view(), name="image_deid"),
     path("imagequery/", views.ImageQueryView.as_view(), name="image_query"),
@@ -21,7 +20,6 @@ urlpatterns = [
         name="single_click_icore",
     ),
     path("tasks/", views.TaskListView.as_view(), name="task_list"),
-    path("run_header_query/", views.run_header_query, name="run_header_query"),
     path("run_header_extract/", views.run_header_extract, name="run_header_extract"),
     path("run_deid/", views.run_deid, name="run_deid"),
     path("run_text_deid/", views.run_text_deid, name="run_text_deid"),

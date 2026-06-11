@@ -42,26 +42,6 @@
     "deid_engine": "ctp",
     "default_date_window_days": 0,
     "default_tags_to_query": "",
-    "header_query_filters": {
-        "general_filters": [
-            {
-                "tag": "BurnedInAnnotation",
-                "action": "equalsIgnoreCase",
-                "value": ""
-            },
-            {
-                "tag": "BurnedInAnnotation",
-                "action": "equalsIgnoreCase",
-                "value": ""
-            },
-            {
-                "tag": "BurnedInAnnotation",
-                "action": "equalsIgnoreCase",
-                "value": ""
-            }
-        ],
-        "modality_filters": {}
-    },
     "default_tags_to_extract": "",
     "header_extract_filters": {
         "general_filters": [],
