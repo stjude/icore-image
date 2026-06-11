@@ -8,7 +8,14 @@
         <!-- <link href="{% static 'tailwind.min.css' %}" rel="stylesheet"> -->
         <!-- <script src="{% static 'alpine.min.js' %}"></script> -->
         <script src="https://cdn.tailwindcss.com"></script>
+        {% if icore_dev %}
+        <!-- Dev: bust the browser cache so JS edits take effect on live reload. -->
+        <script src="{% static 'js/filters.js' %}?v={% now 'U' %}"></script>
+        <script src="{% static 'js/column_actions.js' %}?v={% now 'U' %}"></script>
+        {% else %}
         <script src="{% static 'js/filters.js' %}"></script>
+        <script src="{% static 'js/column_actions.js' %}"></script>
+        {% endif %}
     </head>
     <body class="bg-gray-100">
         <header class="fixed w-full z-20 p-4 flex bg-white text-white shadow">
@@ -28,7 +35,7 @@
             <a href="/imagequery" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %} sidebar-module">Image Query</a>
             <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %} sidebar-module">Image Deidentification</a>
             <a href="/textdeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/textdeid/' %}bg-gray-100{% endif %} sidebar-module">Text Deidentification</a>
-            <a href="/imageexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imageexport/' %}bg-gray-100{% endif %} sidebar-module-imagine">Secure Data Transfer</a>
+            <a href="/imageexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imageexport/' %}bg-gray-100{% endif %} sidebar-module-imagine">Transfer Data to IMAGINE</a>
             <a href="/imagedeidexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeidexport/' %}bg-gray-100{% endif %} sidebar-module">Image Deidentification / Export</a>
             <a href="/singleclickicore" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/singleclickicore/' %}bg-gray-100{% endif %} sidebar-module-imagine">Single-Click iCore</a>
             <a href="/headerextract" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/headerextract/' %}bg-gray-100{% endif %} sidebar-module">Header Extraction</a>

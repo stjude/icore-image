@@ -1,0 +1,34 @@
+<!-- Per-column handling for an uploaded spreadsheet.
+     Populated by static/js/column_actions.js once an input file is chosen. -->
+<div id="column-actions-section">
+    <div class="text-sm text-gray-500">Column Handling</div>
+    <div class="text-xs text-gray-400 mb-2">
+        Choose an action for each column in the uploaded spreadsheet. Every column must be assigned before deidentification can run.
+    </div>
+    <button type="button" id="drop-unassigned-button"
+            class="mb-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100 hidden"
+            onclick="dropAllUnassigned()">
+        Drop all unassigned
+    </button>
+    <div id="column-actions-status" class="text-sm text-gray-500 italic">
+        Upload an Excel (.xlsx) spreadsheet to configure its columns.
+    </div>
+    <div id="column-actions-container" class="w-full"></div>
+</div>
+
+<!-- Hidden row template (cloned per column). The radio group name is assigned
+     per-row in column_actions.js so columns don't interfere with each other. -->
+<div id="column-action-template" class="column-action-row flex items-center gap-3 border-b border-gray-200" style="display: none;">
+    <div class="column-action-name flex-1 truncate text-sm p-3"></div>
+    <div class="flex items-center gap-4 p-3">
+        <label class="flex items-center gap-1 text-sm cursor-pointer">
+            <input type="radio" class="column-action-radio" value="keep"> Keep
+        </label>
+        <label class="flex items-center gap-1 text-sm cursor-pointer">
+            <input type="radio" class="column-action-radio" value="deid"> Deid
+        </label>
+        <label class="flex items-center gap-1 text-sm cursor-pointer">
+            <input type="radio" class="column-action-radio" value="drop"> Drop
+        </label>
+    </div>
+</div>

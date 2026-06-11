@@ -29,14 +29,21 @@ test:
 	uv run pytest -v -n 1
 	cd electron && npm test -- --verbose
 
-dev: external-deps
-	@echo "Starting iCore in development mode..."
+dev: external-deps deps-python
+	@echo "Starting iCore in development mode (hot reload)..."
+	@echo "  - Django runserver + worker auto-reload on .py edits"
+	@echo "  - Refresh the window (Cmd/Ctrl+R) to pick up template & JS changes"
+	@if [ ! -x ".venv/bin/python" ]; then \
+		echo "Error: .venv/bin/python not found. Run 'make deps-python' first." && exit 1; \
+	fi
+	@node -e "const [a,b]=process.versions.node.split('.').map(Number); if(a<20||(a===20&&b<19)){console.error('Error: Node >= 20.19 required for Electron 42 (you have '+process.versions.node+').\\n  This repo pins it via .node-version; with nodenv run: nodenv install 22.22.2'); process.exit(1);}"
 	@if [ "$$(uname -s)" = "Linux" ]; then \
 		export JAVA_HOME=$$(pwd)/jre8; \
 	else \
 		export JAVA_HOME=$$(pwd)/jre8/Contents/Home; \
 	fi && \
 	export DCMTK_HOME=$$(pwd)/dcmtk && \
+	export ICORE_PYTHON=$$(pwd)/.venv/bin/python && \
 	cd electron && npm start
 
 deps: deps-python deps-deid deps-electron dicom-deid-rs

@@ -176,6 +176,65 @@ def test_textdeid_keeps_unspecified_columns_as_is():
         assert "[PERSONALNAME]" in str(result_df["PatientName"].tolist())
 
 
+def _columns_from_actions(column_actions):
+    """Mirror worker.column_actions_to_lists for the keep/deid/drop mapping."""
+    deid = [c for c, a in column_actions.items() if a == "deid"]
+    drop = [c for c, a in column_actions.items() if a == "drop"]
+    return deid, drop
+
+
+def test_textdeid_column_actions_keep_deid_drop():
+    """A keep/deid/drop mapping deids only deid columns, drops drop columns,
+    and leaves keep columns untouched."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_file = os.path.join(temp_dir, "input.xlsx")
+        output_dir = temp_dir
+
+        data = {
+            "Accession": ["ACC-1", "ACC-2"],
+            "PatientName": ["Patient: John SMITH", "Patient: Jane ANDERSON"],
+            "Procedure": ["X-Ray", "CT Scan"],
+        }
+        pd.DataFrame(data).to_excel(input_file, index=False)
+
+        column_actions = {
+            "Accession": "drop",
+            "PatientName": "deid",
+            "Procedure": "keep",
+        }
+        deid, drop = _columns_from_actions(column_actions)
+        textdeid(input_file, output_dir, columns_to_deid=deid, columns_to_drop=drop)
+
+        result_df = pd.read_excel(os.path.join(output_dir, "output.xlsx"))
+
+        # Drop column removed.
+        assert "Accession" not in result_df.columns
+        # Deid column scrubbed.
+        assert "SMITH" not in str(result_df["PatientName"].tolist())
+        assert "[PERSONALNAME]" in str(result_df["PatientName"].tolist())
+        # Keep column untouched.
+        assert result_df["Procedure"].tolist() == ["X-Ray", "CT Scan"]
+
+
+def test_textdeid_empty_deid_list_deids_nothing():
+    """An explicit empty deid list must deid nothing (not fall back to all),
+    so columns marked keep stay intact when no column is marked deid."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_file = os.path.join(temp_dir, "input.xlsx")
+        output_dir = temp_dir
+
+        data = {"Name": ["John SMITH"], "Phone": ["(555) 123-4567"]}
+        pd.DataFrame(data).to_excel(input_file, index=False)
+
+        # All columns "keep" -> empty deid list, empty drop list.
+        textdeid(input_file, output_dir, columns_to_deid=[], columns_to_drop=[])
+
+        result_df = pd.read_excel(os.path.join(output_dir, "output.xlsx"))
+
+        assert result_df["Name"].tolist() == ["John SMITH"]
+        assert result_df["Phone"].tolist() == ["(555) 123-4567"]
+
+
 def test_textdeid_honors_blacklist_and_whitelist():
     with tempfile.TemporaryDirectory() as temp_dir:
         input_file = os.path.join(temp_dir, "input.xlsx")

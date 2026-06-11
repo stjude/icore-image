@@ -201,15 +201,8 @@
         <!-- Text Deidentification Sub-section -->
         <div class="mb-6">
             <div class="text-md font-medium mb-2">Text Deidentification</div>
-            <div class="flex space-x-4 mt-4">
-                <div class="flex-1">
-                    <div class="text-sm text-gray-500">Columns to deid</div>
-                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="columns_to_deid"></textarea>
-                </div>
-                <div class="flex-1">
-                    <div class="text-sm text-gray-500">Columns to drop</div>
-                    <textarea class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" name="columns_to_drop"></textarea>
-                </div>
+            <div class="mt-4">
+                {% include 'components/column_actions.html' %}
             </div>
             <div class="flex space-x-4 mt-4">
                 <div class="flex-1">
@@ -227,7 +220,7 @@
 <div class="m-4">
     <div class="flex items-center mb-4">
         <input type="checkbox" id="export_to_azure" class="mr-2" checked>
-        <label for="export_to_azure">Export to Azure Blob Storage</label>
+        <label for="export_to_azure">Transfer Data to IMAGINE</label>
     </div>
     
     <div class="flex items-center mb-4">
@@ -273,12 +266,6 @@
             }
 
             // Text deid defaults
-            if (settings.default_columns_to_deid) {
-                document.querySelector('[name="columns_to_deid"]').value = settings.default_columns_to_deid;
-            }
-            if (settings.default_columns_to_drop) {
-                document.querySelector('[name="columns_to_drop"]').value = settings.default_columns_to_drop;
-            }
             if (settings.default_text_to_keep) {
                 document.querySelector('[name="text_to_keep"]').value = settings.default_text_to_keep;
             }
@@ -297,14 +284,26 @@
 
             document.querySelector('[name="study_name"]').addEventListener('input', validateForm);
             document.querySelector('[name="study_name"]').addEventListener('change', validateForm);
-            document.querySelector('[name="input_file"]').addEventListener('input', validateForm);
-            document.querySelector('[name="input_file"]').addEventListener('change', validateForm);
+            document.querySelector('[name="input_file"]').addEventListener('input', onInputFileChanged);
+            document.querySelector('[name="input_file"]').addEventListener('change', onInputFileChanged);
             validateForm();
 
         } catch (error) {
             console.error('Error loading settings:', error);
         }
     });
+
+    // Re-parse columns whenever the input file path changes (typed or drag-drop).
+    function onInputFileChanged() {
+        const inputFile = document.querySelector('[name="input_file"]').value.trim();
+        loadColumnActions(inputFile);
+        validateForm();
+    }
+
+    // Let column_actions.js re-validate the run button when selections change.
+    function revalidateColumnActionsForm() {
+        validateForm();
+    }
 
     async function validateSasUrlOnLoad(sasUrl) {
         try {
@@ -336,8 +335,8 @@
         const inputFile = document.querySelector('[name="input_file"]').value.trim();
         const button = document.getElementById('singleclick_button');
         
-        const isValid = studyName && inputFile;
-        
+        const isValid = studyName && inputFile && allColumnsAssigned();
+
         if (isValid) {
             button.disabled = false;
             button.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -448,8 +447,7 @@
             // Text deid options
             text_to_keep: document.querySelector('[name="text_to_keep"]').value,
             text_to_remove: document.querySelector('[name="text_to_remove"]').value,
-            columns_to_deid: document.querySelector('[name="columns_to_deid"]').value,
-            columns_to_drop: document.querySelector('[name="columns_to_drop"]').value,
+            column_actions: collectColumnActions(),
             // Export preference
             export_to_azure: document.getElementById('export_to_azure').checked,
             ...filters

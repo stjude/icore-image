@@ -526,7 +526,7 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
     def build_export_stage(self) -> PipelineStage | None:
         if self.skip_export:
             logging.info("=" * 80)
-            logging.info("Export to Azure Blob Storage - SKIPPED")
+            logging.info("Transfer Data to IMAGINE - SKIPPED")
             logging.info("=" * 80)
             return None
         if self.sas_url is None:

@@ -13,6 +13,40 @@ let mainWindow;
 let serverProcess;
 let workerProcess;
 
+// Resolve the Python interpreter to use in dev mode. Prefer an explicit
+// ICORE_PYTHON (set by `make dev`), then the project's uv virtualenv, then a
+// bare interpreter. A bare `python` usually lacks the project dependencies.
+function getDevPython() {
+  if (process.env.ICORE_PYTHON) {
+    return process.env.ICORE_PYTHON;
+  }
+  const repoRoot = path.join(__dirname, '..');
+  const venvPython = process.platform === 'win32'
+    ? path.join(repoRoot, '.venv', 'Scripts', 'python.exe')
+    : path.join(repoRoot, '.venv', 'bin', 'python');
+  if (fs.existsSync(venvPython)) {
+    return venvPython;
+  }
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
+
+async function killProcessOnPort(port) {
+  try {
+    const platform = process.platform;
+    let cmd;
+    if (platform === 'darwin' || platform === 'linux') {
+      cmd = `lsof -ti:${port} | xargs kill -9 2>/dev/null || true`;
+    } else if (platform === 'win32') {
+      cmd = `FOR /F "tokens=5" %a IN ('netstat -aon ^| findstr :${port}') DO taskkill /F /PID %a`;
+    }
+    if (cmd) {
+      await execPromise(cmd);
+    }
+  } catch (error) {
+    // Best effort; nothing may be listening.
+  }
+}
+
 const baseDir = path.join(os.homedir(), 'Documents', 'iCore');
 const configDir = path.join(baseDir, 'config');
 const logsDir = path.join(baseDir, 'logs', 'system');
@@ -88,6 +122,7 @@ app.on('ready', async () => {
   mainWindow.loadFile(path.join(__dirname, 'loading.html'));
 
   const isDev = process.env.ICORE_DEV === '1';
+  const devPython = getDevPython();
 
   try {
     const defaultSettingsPath = app.isPackaged
@@ -119,7 +154,8 @@ app.on('ready', async () => {
       managePath,
       spawnFn: spawn,
       isDev,
-      oldLocationDir
+      oldLocationDir,
+      pythonExec: devPython
     });
 
     fs.mkdirSync(logsDir, { recursive: true });
@@ -152,12 +188,29 @@ app.on('ready', async () => {
   await killProcessesOnCtpPorts();
   
   if (isDev) {
+    // Free port 8000 in case a previous dev server (or its autoreload child)
+    // is still holding it, then start Django + worker with hot reload.
+    await killProcessOnPort(8000);
+
     const managePyPath = path.join(__dirname, '..', 'deid', 'manage.py');
     const deidDir = path.join(__dirname, '..', 'deid');
     const env = { ...process.env, ICORE_DEV: '1' };
-    
-    serverProcess = spawn('python', [managePyPath, 'runserver'], { env, cwd: deidDir });
-    workerProcess = spawn('python', [managePyPath, 'worker'], { env, cwd: deidDir });
+
+    logWithTimestamp('main', `Dev mode: launching Django + worker with ${devPython}`);
+
+    // runserver (with autoreload) and the worker (wrapped in Django's
+    // autoreloader) restart themselves on .py edits. detached: true puts each
+    // in its own process group so we can kill their reloader children on exit.
+    serverProcess = spawn(devPython, [managePyPath, 'runserver', '127.0.0.1:8000'], {
+      env,
+      cwd: deidDir,
+      detached: true,
+    });
+    workerProcess = spawn(devPython, [managePyPath, 'worker'], {
+      env,
+      cwd: deidDir,
+      detached: true,
+    });
   } else {
     const manageBinaryPath = app.isPackaged
       ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
@@ -203,8 +256,22 @@ app.on('ready', async () => {
     logWithTimestamp('main', 'Window became unresponsive');
   });
 
+  // Retry loading until the dev server is accepting connections, so startup
+  // is robust regardless of how long the interpreter takes to boot.
+  const appUrl = 'http://127.0.0.1:8000/';
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    if (validatedURL && validatedURL.startsWith('http://127.0.0.1:8000')) {
+      logWithTimestamp('main', `Load failed (${errorCode} ${errorDescription}); retrying...`);
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadURL(appUrl);
+        }
+      }, 1000);
+    }
+  });
+
   await new Promise(resolve => setTimeout(resolve, 5000));
-  mainWindow.loadURL('http://127.0.0.1:8000/');
+  mainWindow.loadURL(appUrl);
 
   if (app.isPackaged) {
     let betaUpdates = false;
@@ -272,16 +339,30 @@ app.on('ready', async () => {
         mainWindow.isClosing = true;
         logWithTimestamp('main', 'Main window closed');
         
-        if (serverProcess) {
-          serverProcess.kill();
-          serverProcess = null;
+        // In dev the processes are detached group leaders running autoreload
+        // children; kill the whole group. In prod a plain kill suffices.
+        const stopProcess = (proc) => {
+          if (!proc) return;
+          try {
+            if (isDev && proc.pid) {
+              process.kill(-proc.pid, 'SIGKILL');
+            } else {
+              proc.kill();
+            }
+          } catch (error) {
+            // Already gone.
+          }
+        };
+
+        stopProcess(serverProcess);
+        serverProcess = null;
+        stopProcess(workerProcess);
+        workerProcess = null;
+
+        if (isDev) {
+          await killProcessOnPort(8000);
         }
-        
-        if (workerProcess) {
-          workerProcess.kill();
-          workerProcess = null;
-        }
-        
+
         await killProcessesOnCtpPorts();
         
         if (logStream) {
