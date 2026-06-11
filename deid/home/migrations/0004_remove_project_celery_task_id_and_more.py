@@ -4,24 +4,35 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('home', '0003_project_celery_task_id_alter_project_task_type'),
+        ("home", "0003_project_celery_task_id_alter_project_task_type"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='project',
-            name='celery_task_id',
+            model_name="project",
+            name="celery_task_id",
         ),
         migrations.AlterField(
-            model_name='project',
-            name='parameters',
+            model_name="project",
+            name="parameters",
             field=models.JSONField(blank=True, default=dict),
         ),
         migrations.AlterField(
-            model_name='project',
-            name='task_type',
-            field=models.CharField(choices=[('IMAGE_DEID', 'Image Deidentification'), ('IMAGE_QUERY', 'Image Query'), ('HEADER_EXTRACT', 'Header Extract'), ('TEXT_DEID', 'Text Deidentification'), ('IMAGE_EXPORT', 'Image Export'), ('IMAGE_DEID_EXPORT', 'Image Deidentification and Export'), ('SINGLE_CLICK_ICORE', 'Single Click iCore'), ('GENERAL_MODULE', 'General Module')], max_length=25),
+            model_name="project",
+            name="task_type",
+            field=models.CharField(
+                choices=[
+                    ("IMAGE_DEID", "Image Deidentification"),
+                    ("IMAGE_QUERY", "Image Query"),
+                    ("HEADER_EXTRACT", "Header Extract"),
+                    ("TEXT_DEID", "Text Deidentification"),
+                    ("IMAGE_EXPORT", "Image Export"),
+                    ("IMAGE_DEID_EXPORT", "Image Deidentification and Export"),
+                    ("SINGLE_CLICK_ICORE", "Single Click iCore"),
+                    ("GENERAL_MODULE", "General Module"),
+                ],
+                max_length=25,
+            ),
         ),
     ]

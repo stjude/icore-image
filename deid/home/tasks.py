@@ -58,7 +58,9 @@ def run_project(project_id, task_name, args):
         project.save(update_fields=["log_path", "updated_at"])
 
         task = current_app.tasks[task_name]
-        logger.info("Processing project %s (%s) with %s", project.pk, project.name, task_name)
+        logger.info(
+            "Processing project %s (%s) with %s", project.pk, project.name, task_name
+        )
         result = task({**args, "run_dirs": run_dirs})
 
         Project.objects.filter(pk=project_id, status=Project.TaskStatus.RUNNING).update(

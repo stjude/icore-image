@@ -52,7 +52,9 @@ def test_textdeid_drops_specified_columns():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        TextDeidPipeline(input_file, output_dir, columns_to_drop=["DropMe", "AlsoDropMe"]).run()
+        TextDeidPipeline(
+            input_file, output_dir, columns_to_drop=["DropMe", "AlsoDropMe"]
+        ).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -203,7 +205,9 @@ def test_textdeid_column_actions_keep_deid_drop():
             "Procedure": "keep",
         }
         deid, drop = _columns_from_actions(column_actions)
-        TextDeidPipeline(input_file, output_dir, columns_to_deid=deid, columns_to_drop=drop).run()
+        TextDeidPipeline(
+            input_file, output_dir, columns_to_deid=deid, columns_to_drop=drop
+        ).run()
 
         result_df = pd.read_excel(os.path.join(output_dir, "output.xlsx"))
 
@@ -227,7 +231,9 @@ def test_textdeid_empty_deid_list_deids_nothing():
         pd.DataFrame(data).to_excel(input_file, index=False)
 
         # All columns "keep" -> empty deid list, empty drop list.
-        TextDeidPipeline(input_file, output_dir, columns_to_deid=[], columns_to_drop=[]).run()
+        TextDeidPipeline(
+            input_file, output_dir, columns_to_deid=[], columns_to_drop=[]
+        ).run()
 
         result_df = pd.read_excel(os.path.join(output_dir, "output.xlsx"))
 

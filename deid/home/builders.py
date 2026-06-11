@@ -293,9 +293,7 @@ def build_singleclickicore(data, project, settings):
         data.get("text_to_keep", "").split("\n") if data.get("text_to_keep") else []
     )
     to_remove_list = (
-        data.get("text_to_remove", "").split("\n")
-        if data.get("text_to_remove")
-        else []
+        data.get("text_to_remove", "").split("\n") if data.get("text_to_remove") else []
     )
     return icore_tasks.singleclickicore, SingleClickIcoreArgs(
         pacs_list=_pacs_list(project),

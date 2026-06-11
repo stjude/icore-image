@@ -4,20 +4,32 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('home', '0002_add_cancelled_status_and_process_pid'),
+        ("home", "0002_add_cancelled_status_and_process_pid"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='project',
-            name='celery_task_id',
+            model_name="project",
+            name="celery_task_id",
             field=models.CharField(blank=True, max_length=155, null=True),
         ),
         migrations.AlterField(
-            model_name='project',
-            name='task_type',
-            field=models.CharField(choices=[('IMAGE_DEID', 'Image Deidentification'), ('IMAGE_QUERY', 'Image Query'), ('HEADER_QUERY', 'Header Query'), ('HEADER_EXTRACT', 'Header Extract'), ('TEXT_DEID', 'Text Deidentification'), ('IMAGE_EXPORT', 'Image Export'), ('IMAGE_DEID_EXPORT', 'Image Deidentification and Export'), ('SINGLE_CLICK_ICORE', 'Single Click iCore'), ('GENERAL_MODULE', 'General Module')], max_length=25),
+            model_name="project",
+            name="task_type",
+            field=models.CharField(
+                choices=[
+                    ("IMAGE_DEID", "Image Deidentification"),
+                    ("IMAGE_QUERY", "Image Query"),
+                    ("HEADER_QUERY", "Header Query"),
+                    ("HEADER_EXTRACT", "Header Extract"),
+                    ("TEXT_DEID", "Text Deidentification"),
+                    ("IMAGE_EXPORT", "Image Export"),
+                    ("IMAGE_DEID_EXPORT", "Image Deidentification and Export"),
+                    ("SINGLE_CLICK_ICORE", "Single Click iCore"),
+                    ("GENERAL_MODULE", "General Module"),
+                ],
+                max_length=25,
+            ),
         ),
     ]
