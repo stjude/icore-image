@@ -3,7 +3,6 @@ import json
 import os
 import shutil
 import sys
-import time
 from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlparse, parse_qs
 
@@ -11,7 +10,7 @@ import bcrypt
 import pandas as pd
 import psutil
 import pytz
-from django.db import OperationalError
+from django.db import transaction
 from django.http import (
     HttpResponse,
     HttpResponseBadRequest,
@@ -26,7 +25,9 @@ from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
 
+from . import builders
 from .models import Project, Module
+from .tasks import enqueue_project
 from grammar import get_hipaa_safe_harbor_config
 from pathutils import is_path_within_directory
 
@@ -460,40 +461,46 @@ def task_status(request, project_id):
         return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 
+def _parse_scheduled_time(data, settings):
+    if "scheduled_time" not in data:
+        return None
+    tz = pytz.timezone(settings.get("timezone", "UTC"))
+    local_dt = datetime.fromisoformat(data["scheduled_time"].replace("Z", ""))
+    return tz.localize(local_dt).astimezone(pytz.UTC)
+
+
+def _save_and_enqueue(project, task, args):
+    """Persist the project row and queue its Celery task (at eta if scheduled)."""
+    project.parameters = {"task": task.name, "args": args.model_dump()}
+    with transaction.atomic():
+        project.save()
+        enqueue_project(project, task, args)
+    return JsonResponse(
+        {
+            "status": "success",
+            "project_id": project.id,
+            "log_path": project.log_path,
+        }
+    )
+
+
 @csrf_exempt
 def run_header_extract(request):
     print("Running header extract")
     try:
-        if request.method == "POST":
-            data = json.loads(request.body)
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-
-        headers_to_extract = data.get("headers_to_extract")
-        if headers_to_extract:
-            headers_to_extract = [
-                h.strip() for h in headers_to_extract.split("\n") if h.strip()
-            ]
-
-        project = Project.objects.create(
+        data = json.loads(request.body)
+        settings = builders.load_settings()
+        project = Project(
             name=data["study_name"],
-            timestamp=timestamp,
+            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
             log_path="",
             task_type=Project.TaskType.HEADER_EXTRACT,
             input_folder=data["input_folder"],
             output_folder=data["output_folder"],
             status=Project.TaskStatus.PENDING,
-            parameters={
-                "extract_all_headers": data.get("extract_all_headers", False),
-                "headers_to_extract": headers_to_extract,
-            },
         )
-        return JsonResponse(
-            {
-                "status": "success",
-                "project_id": project.id,
-                "log_path": project.log_path,
-            }
-        )
+        task, args = builders.build_header_extract(data, project, settings)
+        return _save_and_enqueue(project, task, args)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -504,116 +511,47 @@ def run_header_extract(request):
 @csrf_exempt
 def run_deid(request):
     print("Running deid")
-    max_attempts = 3
-    attempt = 0
+    try:
+        data = json.loads(request.body)
 
-    while attempt < max_attempts:
-        try:
-            if request.method == "POST":
-                data = json.loads(request.body)
-
-            if data.get("image_source") == "PACS":
-                if not validate_pacs_configuration(data.get("pacs_configs", [])):
-                    return JsonResponse(
-                        {
-                            "status": "error",
-                            "message": "No PACS configured. Please configure PACS settings before running a query.",
-                        },
-                        status=400,
-                    )
-
-            scheduled_time = None
-            if "scheduled_time" in data:
-                settings = json.load(open(os.path.join(SETTINGS_DIR, "settings.json")))
-                timezone = settings.get("timezone", "UTC")
-                timezone = pytz.timezone(timezone)
-                local_dt = datetime.fromisoformat(
-                    data["scheduled_time"].replace("Z", "")
+        if data.get("image_source") == "PACS":
+            if not validate_pacs_configuration(data.get("pacs_configs", [])):
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": "No PACS configured. Please configure PACS settings before running a query.",
+                    },
+                    status=400,
                 )
-                scheduled_time = timezone.localize(local_dt)
-                scheduled_time = scheduled_time.astimezone(pytz.UTC)
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            project = Project.objects.create(
-                name=data["study_name"],
-                timestamp=timestamp,
-                log_path="",
-                task_type=Project.TaskType.IMAGE_DEID,
-                image_source=data["image_source"],
-                input_folder=data["input_folder"],
-                output_folder=data["output_folder"],
-                pacs_configs=data["pacs_configs"],
-                application_aet=data["application_aet"],
-                status=Project.TaskStatus.PENDING,
-                scheduled_time=scheduled_time,
-                parameters={
-                    "input_file": data["input_file"],
-                    "acc_col": data["acc_col"],
-                    "mrn_col": data["mrn_col"],
-                    "date_col": data["date_col"],
-                    "date_window": data.get("date_window", 0),
-                    "general_filters": data["general_filters"],
-                    "modality_filters": data["modality_filters"],
-                    "tags_to_keep": data["tags_to_keep"],
-                    "tags_to_dateshift": data["tags_to_dateshift"],
-                    "tags_to_randomize": data["tags_to_randomize"],
-                    "date_shift_days": data["date_shift_days"],
-                    "mapping_file_path": data.get("mapping_file_path", ""),
-                    "use_mapping_file": data.get("use_mapping_file", False),
-                    "deid_pixels": data.get("deid_pixels", False),
-                    "remove_unspecified": data.get("remove_unspecified", False),
-                    "remove_overlays": data.get("remove_overlays", False),
-                    "remove_curves": data.get("remove_curves", False),
-                    "remove_private": data.get("remove_private", False),
-                    "apply_default_ctp_filter_script": data.get(
-                        "apply_default_ctp_filter_script", True
-                    ),
-                    "deid_engine": data.get("deid_engine", "ctp"),
-                    "site_id": data["site_id"],
-                    "sc_pdf_output_dir": data.get("sc_pdf_output_dir", ""),
-                    "use_fallback_query": data.get("use_fallback_query", False),
-                },
-            )
-            return JsonResponse(
-                {
-                    "status": "success",
-                    "project_id": project.id,
-                    "log_path": project.log_path,
-                }
-            )
 
-        except OperationalError as e:
-            if "database is locked" in str(e):
-                attempt += 1
-                if attempt == max_attempts:
-                    logger.exception(
-                        f"Database locked, failed after {max_attempts} attempts"
-                    )
-                    return JsonResponse(
-                        {
-                            "status": "error",
-                            "message": "Database is locked. Please try again.",
-                        },
-                        status=503,
-                    )  # 503 Service Unavailable
-                print(
-                    f"Database locked, attempt {attempt} of {max_attempts}. Waiting..."
-                )
-                time.sleep(0.5 * attempt)  # Increasing backoff
-            else:
-                raise
-        except Exception:
-            logger.exception("Error processing request")
-            return JsonResponse(
-                {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
-            )
+        settings = builders.load_settings()
+        project = Project(
+            name=data["study_name"],
+            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
+            log_path="",
+            task_type=Project.TaskType.IMAGE_DEID,
+            image_source=data["image_source"],
+            input_folder=data["input_folder"],
+            output_folder=data["output_folder"],
+            pacs_configs=data["pacs_configs"],
+            application_aet=data["application_aet"],
+            status=Project.TaskStatus.PENDING,
+            scheduled_time=_parse_scheduled_time(data, settings),
+        )
+        task, args = builders.build_image_deid(data, project, settings)
+        return _save_and_enqueue(project, task, args)
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
+        )
 
 
 @csrf_exempt
 def run_query(request):
     print("Running query")
     try:
-        if request.method == "POST":
-            data = json.loads(request.body)
+        data = json.loads(request.body)
 
         if not validate_pacs_configuration(data.get("pacs_configs", [])):
             return JsonResponse(
@@ -624,43 +562,20 @@ def run_query(request):
                 status=400,
             )
 
-        scheduled_time = None
-        if "scheduled_time" in data:
-            settings = json.load(open(os.path.join(SETTINGS_DIR, "settings.json")))
-            timezone = settings.get("timezone", "UTC")
-            timezone = pytz.timezone(timezone)
-            local_dt = datetime.fromisoformat(data["scheduled_time"].replace("Z", ""))
-            scheduled_time = timezone.localize(local_dt)
-            scheduled_time = scheduled_time.astimezone(pytz.UTC)
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        project = Project.objects.create(
+        settings = builders.load_settings()
+        project = Project(
             name=data["study_name"],
-            timestamp=timestamp,
+            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
             log_path="",
             task_type=Project.TaskType.IMAGE_QUERY,
             output_folder=data["output_folder"],
             pacs_configs=data["pacs_configs"],
             application_aet=data["application_aet"],
             status=Project.TaskStatus.PENDING,
-            parameters={
-                "input_file": data["input_file"],
-                "acc_col": data["acc_col"],
-                "mrn_col": data["mrn_col"],
-                "date_col": data["date_col"],
-                "date_window": data.get("date_window", 0),
-                "general_filters": data["general_filters"],
-                "modality_filters": data["modality_filters"],
-                "use_fallback_query": data.get("use_fallback_query", False),
-            },
+            scheduled_time=_parse_scheduled_time(data, settings),
         )
-
-        return JsonResponse(
-            {
-                "status": "success",
-                "project_id": project.id,
-                "log_path": project.log_path,
-            }
-        )
+        task, args = builders.build_image_query(data, project, settings)
+        return _save_and_enqueue(project, task, args)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -695,41 +610,21 @@ def _remember_column_actions(column_actions):
 def run_text_deid(request):
     print("Running text deid")
     try:
-        if request.method == "POST":
-            data = json.loads(request.body)
-        scheduled_time = None
-        if "scheduled_time" in data:
-            settings = json.load(open(os.path.join(SETTINGS_DIR, "settings.json")))
-            timezone = settings.get("timezone", "UTC")
-            timezone = pytz.timezone(timezone)
-            local_dt = datetime.fromisoformat(data["scheduled_time"].replace("Z", ""))
-            scheduled_time = timezone.localize(local_dt)
-            scheduled_time = scheduled_time.astimezone(pytz.UTC)
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        project = Project.objects.create(
+        data = json.loads(request.body)
+        settings = builders.load_settings()
+        project = Project(
             name=data["study_name"],
-            timestamp=timestamp,
+            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
             log_path="",
             task_type=Project.TaskType.TEXT_DEID,
             output_folder=data["output_folder"],
             status=Project.TaskStatus.PENDING,
-            scheduled_time=scheduled_time,
-            parameters={
-                "input_file": data["input_file"],
-                "text_to_keep": data.get("text_to_keep", ""),
-                "text_to_remove": data.get("text_to_remove", ""),
-                "column_actions": data.get("column_actions", {}),
-                "date_shift_days": data["date_shift_days"],
-            },
+            scheduled_time=_parse_scheduled_time(data, settings),
         )
+        task, args = builders.build_text_deid(data, project, settings)
+        response = _save_and_enqueue(project, task, args)
         _remember_column_actions(data.get("column_actions", {}))
-        return JsonResponse(
-            {
-                "status": "success",
-                "project_id": project.id,
-                "log_path": project.log_path,
-            }
-        )
+        return response
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -741,27 +636,18 @@ def run_text_deid(request):
 def run_export(request):
     print("Running export")
     try:
-        if request.method == "POST":
-            data = json.loads(request.body)
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        project = Project.objects.create(
+        data = json.loads(request.body)
+        settings = builders.load_settings()
+        project = Project(
             name=data["study_name"],
-            timestamp=timestamp,
+            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
             log_path="",
             task_type=Project.TaskType.IMAGE_EXPORT,
             input_folder=data["input_folder"],
             status=Project.TaskStatus.PENDING,
-            parameters={
-                "sas_url": data["sas_url"],
-            },
         )
-        return JsonResponse(
-            {
-                "status": "success",
-                "project_id": project.id,
-                "log_path": project.log_path,
-            }
-        )
+        task, args = builders.build_image_export(data, project, settings)
+        return _save_and_enqueue(project, task, args)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -785,19 +671,10 @@ def run_imagedeidexport(request):
                 status=400,
             )
 
-        scheduled_time = None
-        if "scheduled_time" in data:
-            settings = json.load(open(os.path.join(SETTINGS_DIR, "settings.json")))
-            timezone_str = settings.get("timezone", "UTC")
-            tz = pytz.timezone(timezone_str)
-            local_dt = datetime.fromisoformat(data["scheduled_time"].replace("Z", ""))
-            scheduled_time = tz.localize(local_dt)
-            scheduled_time = scheduled_time.astimezone(pytz.UTC)
-
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        project = Project.objects.create(
+        settings = builders.load_settings()
+        project = Project(
             name=data["study_name"],
-            timestamp=timestamp,
+            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
             log_path="",
             task_type=Project.TaskType.IMAGE_DEID_EXPORT,
             image_source="PACS",
@@ -806,43 +683,10 @@ def run_imagedeidexport(request):
             pacs_configs=data["pacs_configs"],
             application_aet=data["application_aet"],
             status=Project.TaskStatus.PENDING,
-            scheduled_time=scheduled_time,
-            parameters={
-                "input_file": data["input_file"],
-                "acc_col": data["acc_col"],
-                "mrn_col": data["mrn_col"],
-                "date_col": data["date_col"],
-                "date_window": data.get("date_window", 0),
-                "general_filters": data["general_filters"],
-                "modality_filters": data["modality_filters"],
-                "tags_to_keep": data["tags_to_keep"],
-                "tags_to_dateshift": data["tags_to_dateshift"],
-                "tags_to_randomize": data["tags_to_randomize"],
-                "date_shift_days": data["date_shift_days"],
-                "mapping_file_path": data.get("mapping_file_path", ""),
-                "use_mapping_file": data.get("use_mapping_file", False),
-                "deid_pixels": data.get("deid_pixels", False),
-                "remove_unspecified": data.get("remove_unspecified", False),
-                "remove_overlays": data.get("remove_overlays", False),
-                "remove_curves": data.get("remove_curves", False),
-                "remove_private": data.get("remove_private", False),
-                "apply_default_ctp_filter_script": data.get(
-                    "apply_default_ctp_filter_script", True
-                ),
-                "deid_engine": data.get("deid_engine", "ctp"),
-                "site_id": data["site_id"],
-                "sas_url": data["sas_url"],
-                "sc_pdf_output_dir": data.get("sc_pdf_output_dir", ""),
-                "use_fallback_query": data.get("use_fallback_query", False),
-            },
+            scheduled_time=_parse_scheduled_time(data, settings),
         )
-        return JsonResponse(
-            {
-                "status": "success",
-                "project_id": project.id,
-                "log_path": project.log_path,
-            }
-        )
+        task, args = builders.build_image_deid_export(data, project, settings)
+        return _save_and_enqueue(project, task, args)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -872,19 +716,10 @@ def run_singleclickicore(request):
                 status=400,
             )
 
-        scheduled_time = None
-        if "scheduled_time" in data:
-            settings = json.load(open(os.path.join(SETTINGS_DIR, "settings.json")))
-            timezone_str = settings.get("timezone", "UTC")
-            tz = pytz.timezone(timezone_str)
-            local_dt = datetime.fromisoformat(data["scheduled_time"].replace("Z", ""))
-            scheduled_time = tz.localize(local_dt)
-            scheduled_time = scheduled_time.astimezone(pytz.UTC)
-
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        project = Project.objects.create(
+        settings = builders.load_settings()
+        project = Project(
             name=data["study_name"],
-            timestamp=timestamp,
+            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
             log_path="",
             task_type=Project.TaskType.SINGLE_CLICK_ICORE,
             image_source="PACS",
@@ -893,30 +728,12 @@ def run_singleclickicore(request):
             pacs_configs=data["pacs_configs"],
             application_aet=data["application_aet"],
             status=Project.TaskStatus.PENDING,
-            scheduled_time=scheduled_time,
-            parameters={
-                "input_file": data["input_file"],
-                "general_filters": data.get("general_filters", []),
-                "modality_filters": data.get("modality_filters", {}),
-                "mapping_file_path": data.get("mapping_file_path", ""),
-                "use_mapping_file": data.get("use_mapping_file", False),
-                "sas_url": data.get("sas_url", ""),
-                "text_to_keep": data.get("text_to_keep", ""),
-                "text_to_remove": data.get("text_to_remove", ""),
-                "column_actions": data.get("column_actions", {}),
-                "skip_export": not data.get("export_to_azure", True),
-                "sc_pdf_output_dir": data.get("sc_pdf_output_dir", ""),
-                "use_fallback_query": data.get("use_fallback_query", False),
-            },
+            scheduled_time=_parse_scheduled_time(data, settings),
         )
+        task, args = builders.build_singleclickicore(data, project, settings)
+        response = _save_and_enqueue(project, task, args)
         _remember_column_actions(data.get("column_actions", {}))
-        return JsonResponse(
-            {
-                "status": "success",
-                "project_id": project.id,
-                "log_path": project.log_path,
-            }
-        )
+        return response
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -927,28 +744,19 @@ def run_singleclickicore(request):
 @csrf_exempt
 def run_general_module(request):
     try:
-        if request.method == "POST":
-            data = json.loads(request.body)
-
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        project = Project.objects.create(
+        data = json.loads(request.body)
+        settings = builders.load_settings()
+        project = Project(
             name=data["study_name"],
-            timestamp=timestamp,
+            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
             log_path="",
             task_type=Project.TaskType.GENERAL_MODULE,
             input_folder=data["input_folder"],
             output_folder=data["output_folder"],
             status=Project.TaskStatus.PENDING,
-            parameters={"module_name": data["module_name"], "config": data["config"]},
         )
-
-        return JsonResponse(
-            {
-                "status": "success",
-                "project_id": project.id,
-                "log_path": project.log_path,
-            }
-        )
+        task, args = builders.build_general_module(data, project, settings)
+        return _save_and_enqueue(project, task, args)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -1467,6 +1275,9 @@ def cancel_task(request, task_id):
         if task.status == Project.TaskStatus.RUNNING and task.process_pid:
             kill_process_tree(task.process_pid)
 
+        # No celery revoke: the sqlite broker transport doesn't support
+        # control commands. Setting CANCELLED is enough — run_project's
+        # PENDING -> RUNNING claim skips the queued message when it arrives.
         task.status = Project.TaskStatus.CANCELLED
         task.process_pid = None
         task.save()

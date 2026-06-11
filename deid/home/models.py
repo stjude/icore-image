@@ -37,13 +37,12 @@ class Project(models.Model):
         max_length=20, choices=TaskStatus.choices, default=TaskStatus.PENDING
     )
     process_pid = models.IntegerField(null=True, blank=True)
-    # Claim marker set when the project is enqueued as a Celery task; prevents
-    # the dispatcher from enqueuing the same project twice.
-    celery_task_id = models.CharField(max_length=155, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     scheduled_time = models.DateTimeField(null=True, blank=True)
-    parameters = models.JSONField()
+    # Snapshot of the enqueued Celery task: {"task": <name>, "args": <dump>}.
+    # Audit trail, and lets the worker re-enqueue lost scheduled messages.
+    parameters = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return self.name

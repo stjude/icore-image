@@ -106,20 +106,6 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_IMPORTS = ("tasks",)
 
-# Beat (embedded in the worker, see `manage.py worker`) periodically triggers
-# the dispatcher that enqueues due PENDING projects, replacing the legacy
-# polling task manager.
-CELERY_BEAT_SCHEDULE = {
-    "dispatch-pending-projects": {
-        "task": "home.tasks.dispatch_projects",
-        "schedule": 5.0,
-        # Drop ticks that pile up behind a long-running task instead of
-        # replaying them all when the worker frees up.
-        "options": {"expires": 10.0},
-    },
-}
-CELERY_BEAT_SCHEDULE_FILENAME = os.path.join(HOME_DIR, "celerybeat-schedule")
-
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators

@@ -1,13 +1,9 @@
 """Run the Celery worker that processes iCore tasks.
 
-This command replaces the legacy custom task manager that polled the Project
-table and shelled out to the iCore CLI. Processing now runs as Celery tasks
-(see ``home/tasks.py`` and the top-level ``tasks`` module), with the sqlite
-database serving as the broker. Beat runs embedded in the worker and triggers
-``home.tasks.dispatch_projects``, which enqueues due PENDING projects.
-
-The command keeps the ``manage.py worker`` entry point so the Electron app
-and the packaged ``manage`` binary continue to work unchanged.
+Views enqueue tasks directly (see ``home/tasks.py``); the worker just consumes
+the queue, with the sqlite database serving as the broker. The command keeps
+the ``manage.py worker`` entry point so the Electron app and the packaged
+``manage`` binary continue to work unchanged.
 """
 
 import os
@@ -21,18 +17,16 @@ def run_worker():
     app.worker_main(
         [
             "worker",
-            "--beat",
             "--loglevel=INFO",
-            # One task at a time, matching the legacy worker's sequential
-            # processing: pipelines bind fixed ports (e.g. storescp) and are
-            # resource-heavy, so they must not run concurrently.
+            # One task at a time: pipelines bind fixed ports (e.g. storescp)
+            # and are resource-heavy, so they must not run concurrently.
             "--concurrency=1",
         ]
     )
 
 
 class Command(BaseCommand):
-    help = "Run the Celery worker (with embedded beat) that processes iCore tasks."
+    help = "Run the Celery worker that processes iCore tasks."
 
     def handle(self, *args, **options):
         # In development, run the worker under Django's autoreloader so edits to
