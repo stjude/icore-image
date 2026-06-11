@@ -20,7 +20,7 @@ from pydicom.uid import (
 
 from ctp import CTPServer, CTPPipeline, PIPELINE_TEMPLATES
 from dcmtk import move_study, start_storescp, stop_storescp
-from module_imagedeid_local import imagedeid_local
+from pipeline import ImageDeidLocalPipeline
 from test_utils import Fixtures
 
 
@@ -1615,14 +1615,14 @@ def test_imagedeid_local_handles_all_transfer_syntaxes(tmp_path, deid_pixels):
     save_dicoms_for_all_transfer_syntaxes(input_dir)
     time.sleep(2)
 
-    result = imagedeid_local(
+    result = ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=BASIC_ANONYMIZER_SCRIPT,
         deid_pixels=deid_pixels,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     total = result["num_images_saved"] + result["num_images_quarantined"]
     assert total == TOTAL_TRANSFER_SYNTAX_FILES, (

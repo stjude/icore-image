@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 import pydicom
 
-from module_imageqr import imageqr
+from pipeline.imageqr import imageqr
 from test_utils import (
     OrthancServer,
     _create_test_dicom,
@@ -257,9 +257,9 @@ def test_imageqr_filter_script_generation(tmp_path):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch("module_imageqr.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imageqr.move_studies_from_study_pacs_map") as mock_get,
-        patch("module_imageqr.CTPPipeline") as mock_pipeline_class,
+        patch("pipeline.imageqr.find_studies_from_pacs_list") as mock_find_studies,
+        patch("pipeline.imageqr.move_studies_from_study_pacs_map") as mock_get,
+        patch("pipeline.imageqr.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})
@@ -852,9 +852,9 @@ def test_imageqr_cleans_up_dicom_retrieval(tmp_path):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch("module_imageqr.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imageqr.move_studies_from_study_pacs_map") as mock_get,
-        patch("module_imageqr.CTPPipeline") as mock_pipeline_class,
+        patch("pipeline.imageqr.find_studies_from_pacs_list") as mock_find_studies,
+        patch("pipeline.imageqr.move_studies_from_study_pacs_map") as mock_get,
+        patch("pipeline.imageqr.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})
@@ -898,9 +898,9 @@ def test_imageqr_cleans_up_dicom_retrieval_on_error(tmp_path):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch("module_imageqr.find_studies_from_pacs_list") as mock_find_studies,
-        patch("module_imageqr.move_studies_from_study_pacs_map") as mock_get,
-        patch("module_imageqr.CTPPipeline") as mock_pipeline_class,
+        patch("pipeline.imageqr.find_studies_from_pacs_list") as mock_find_studies,
+        patch("pipeline.imageqr.move_studies_from_study_pacs_map") as mock_get,
+        patch("pipeline.imageqr.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})
@@ -1331,9 +1331,9 @@ def test_imageqr_filter_with_fallback(tmp_path):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch("module_imageqr.find_studies_from_pacs_list") as mock_find,
-        patch("module_imageqr.move_studies_from_study_pacs_map") as mock_get,
-        patch("module_imageqr.CTPPipeline") as mock_pipeline_class,
+        patch("pipeline.imageqr.find_studies_from_pacs_list") as mock_find,
+        patch("pipeline.imageqr.move_studies_from_study_pacs_map") as mock_get,
+        patch("pipeline.imageqr.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})

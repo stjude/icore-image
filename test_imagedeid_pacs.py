@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 import pydicom
 
-from module_imagedeid_pacs import imagedeid_pacs
+from pipeline import ImageDeidPacsPipeline
 from test_utils import (
     _create_test_dicom,
     _upload_dicom_to_orthanc,
@@ -82,7 +82,7 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
 
     filter_script = 'Modality.contains("CT") * SliceThickness.isGreaterThan("1") * SliceThickness.isLessThan("5")'
 
-    result = imagedeid_pacs(
+    result = ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -93,7 +93,7 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 .dcm files, found {len(output_files)}"
@@ -269,7 +269,7 @@ def test_continuous_audit_log_saving(tmp_path, orthanc):
     monitor_thread = threading.Thread(target=monitor_files, daemon=True)
     monitor_thread.start()
 
-    imagedeid_pacs(
+    ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -279,7 +279,7 @@ def test_continuous_audit_log_saving(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     stop_monitoring.set()
     monitor_thread.join(timeout=2)
@@ -322,7 +322,7 @@ def test_imagedeid_failures_reported(tmp_path, orthanc):
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
 
-    result = imagedeid_pacs(
+    result = ImageDeidPacsPipeline(
         pacs_list=[invalid_pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -332,7 +332,7 @@ def test_imagedeid_failures_reported(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
     assert result["failed_query_indices"] == [0, 1, 2], (
@@ -376,7 +376,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
             str(query_file), acc_col="AccessionNumber"
         )
 
-        imagedeid_pacs(
+        ImageDeidPacsPipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -384,7 +384,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
         call_kwargs = mock_pipeline_class.call_args[1]
         expected_filter = (
@@ -414,7 +414,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
             date_col="StudyDate",
         )
 
-        imagedeid_pacs(
+        ImageDeidPacsPipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -422,7 +422,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
         call_kwargs = mock_pipeline_class.call_args[1]
         expected_filter = '(PatientID.contains("MRN001") * StudyDate.isGreaterThan("20241231") * StudyDate.isLessThan("20250102")) + (PatientID.contains("MRN002") * StudyDate.isGreaterThan("20250114") * StudyDate.isLessThan("20250116"))'
@@ -436,7 +436,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
 
         user_filter = 'Modality.contains("CT")'
 
-        imagedeid_pacs(
+        ImageDeidPacsPipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -445,7 +445,7 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
             filter_script=user_filter,
             apply_default_filter_script=False,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
         call_kwargs = mock_pipeline_class.call_args[1]
         expected_combined = '(Modality.contains("CT")) * ((PatientID.contains("MRN001") * StudyDate.isGreaterThan("20241231") * StudyDate.isLessThan("20250102")) + (PatientID.contains("MRN002") * StudyDate.isGreaterThan("20250114") * StudyDate.isLessThan("20250116")))'
@@ -505,7 +505,7 @@ def test_imagedeid_multiple_pacs(tmp_path):
             ),
         ]
 
-        result = imagedeid_pacs(
+        result = ImageDeidPacsPipeline(
             pacs_list=pacs_configs,
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -514,7 +514,7 @@ def test_imagedeid_multiple_pacs(tmp_path):
             apply_default_filter_script=False,
             storescp_port=storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
         assert result["num_studies_found"] == 4, (
             f"Should find 4 studies (2 from each PACS), found {result['num_studies_found']}"
@@ -581,7 +581,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imagedeid_pacs(
+    result = ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet_valid,
         application_aet="TEST_AET",
@@ -590,7 +590,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 3, (
         f"Should find 3 studies, found {result['num_studies_found']}"
@@ -624,7 +624,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
     )
 
     with pytest.raises(ValueError, match="StudyDate must be in Excel date format"):
-        imagedeid_pacs(
+        ImageDeidPacsPipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet_invalid,
             application_aet="TEST_AET",
@@ -632,7 +632,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
             appdata_dir=str(appdata_dir),
             storescp_port=orthanc.storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
 
 def test_imagedeid_pacs_date_window(tmp_path, orthanc):
@@ -744,7 +744,7 @@ def test_imagedeid_pacs_date_window(tmp_path, orthanc):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
 
-    result = imagedeid_pacs(
+    result = ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -755,7 +755,7 @@ def test_imagedeid_pacs_date_window(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
 
@@ -806,7 +806,7 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imagedeid_pacs(
+    result = ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -816,7 +816,7 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1, (
         f"Should find 1 study, found {result['num_studies_found']}"
@@ -906,7 +906,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
-    result_without_filter = imagedeid_pacs(
+    result_without_filter = ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -916,7 +916,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result_without_filter["num_images_saved"] == 2, (
         "Without default filter, both images should be saved"
@@ -935,7 +935,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
         for file in quarantine_dir.rglob("*.dcm"):
             file.unlink()
 
-    result_with_filter = imagedeid_pacs(
+    result_with_filter = ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -945,7 +945,7 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
         apply_default_filter_script=True,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result_with_filter["num_images_saved"] == 1, (
         "With default filter, only primary CT should be saved"
@@ -1013,7 +1013,7 @@ def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
 <e en="T" t="00080050" n="AccessionNumber">@keep()</e>
 </script>"""
 
-    imagedeid_pacs(
+    ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -1024,7 +1024,7 @@ def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
@@ -1095,7 +1095,7 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
 
-    imagedeid_pacs(
+    ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -1106,7 +1106,7 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
@@ -1189,7 +1189,7 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
 
-    imagedeid_pacs(
+    ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -1200,7 +1200,7 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 2, f"Expected 2 output files, got {len(output_files)}"
@@ -1264,7 +1264,7 @@ def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
 <e en="T" t="00080050" n="AccessionNumber">@empty()</e>
 </script>"""
 
-    imagedeid_pacs(
+    ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -1275,7 +1275,7 @@ def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
@@ -1343,7 +1343,7 @@ def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
 <e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
 </script>"""
 
-    imagedeid_pacs(
+    ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -1354,7 +1354,7 @@ def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 2, (
@@ -1416,7 +1416,7 @@ def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
-    imagedeid_pacs(
+    ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -1427,7 +1427,7 @@ def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
@@ -1485,7 +1485,7 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, o
 <e en="T" t="00080050" n="AccessionNumber">@lookup(this,AccessionNumber,keep)</e>
 </script>"""
 
-    imagedeid_pacs(
+    ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -1497,7 +1497,7 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, o
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 1, f"Expected 1 output file, got {len(output_files)}"
@@ -1545,7 +1545,7 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
             str(query_file), acc_col="AccessionNumber"
         )
 
-        imagedeid_pacs(
+        ImageDeidPacsPipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -1553,7 +1553,7 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
             appdata_dir=str(appdata_dir),
             apply_default_filter_script=False,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
         dicom_retrieval = appdata_dir / "dicom_retrieval"
         assert not dicom_retrieval.exists(), (
@@ -1594,7 +1594,7 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
         )
 
         with pytest.raises(RuntimeError, match="Pipeline failure"):
-            imagedeid_pacs(
+            ImageDeidPacsPipeline(
                 pacs_list=[pacs_config],
                 query_spreadsheet=query_spreadsheet,
                 application_aet="TEST_AET",
@@ -1602,7 +1602,7 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
                 appdata_dir=str(appdata_dir),
                 apply_default_filter_script=False,
                 cmove_batch_size=CMOVE_BATCH_SIZE,
-            )
+            ).run()
 
         dicom_retrieval = appdata_dir / "dicom_retrieval"
         assert not dicom_retrieval.exists(), (
@@ -1645,7 +1645,7 @@ def test_imagedeid_pacs_saves_failed_queries_csv(tmp_path, orthanc):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
-    result = imagedeid_pacs(
+    result = ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -1655,7 +1655,7 @@ def test_imagedeid_pacs_saves_failed_queries_csv(tmp_path, orthanc):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1
     assert len(result["failed_query_indices"]) == 1

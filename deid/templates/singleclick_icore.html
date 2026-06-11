@@ -273,15 +273,6 @@
                 document.querySelector('[name="text_to_remove"]').value = settings.default_text_to_remove;
             }
 
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            fetch('/set_timezone/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ timezone: timezone })
-            });
-
             document.querySelector('[name="study_name"]').addEventListener('input', validateForm);
             document.querySelector('[name="study_name"]').addEventListener('change', validateForm);
             document.querySelector('[name="input_file"]').addEventListener('input', onInputFileChanged);
@@ -325,11 +316,6 @@
         }
     }
     
-    function getCsrfToken() {
-        const tokenElement = document.querySelector('meta[name="csrf_token"]');
-        return tokenElement ? tokenElement.content : '';
-    }
-
     function validateForm() {
         const studyName = document.querySelector('[name="study_name"]').value.trim();
         const inputFile = document.querySelector('[name="input_file"]').value.trim();
@@ -472,6 +458,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
                 },
                 body: JSON.stringify(data)
             });

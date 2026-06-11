@@ -1,5 +1,5 @@
 .PHONY: all signed clean deps deps-python deps-deid deps-electron test dev
-.PHONY: external-deps jre8 dcmtk rclone build-binaries build-icorecli build-django-app
+.PHONY: external-deps jre8 dcmtk rclone build-binaries build-django-app
 .PHONY: prepare-assets build-dmg build-dmg-signed dicom-deid-rs
 
 .DEFAULT_GOAL := all
@@ -133,22 +133,17 @@ dicom-deid-rs:
 
 external-deps: jre8 dcmtk rclone
 
-build-icorecli:
-	rm -rf dist
-	PYINSTALLER_TARGET_ARCH=$(PYINSTALLER_ARCH) uv run pyinstaller --clean -y icorecli.spec
-
 build-django-app:
 	cd deid && \
 		PYINSTALLER_TARGET_ARCH=$(PYINSTALLER_ARCH) uv run pyinstaller --clean -y manage.spec && \
 		PYINSTALLER_TARGET_ARCH=$(PYINSTALLER_ARCH) uv run pyinstaller --clean -y initialize_admin_password.spec
 
-build-binaries: build-icorecli build-django-app
+build-binaries: build-django-app
 
 prepare-assets:
 	rm -rf electron/assets/dist
 	cp deid/home/settings.json electron/assets
 	ditto deid/dist electron/assets/dist
-	ditto dist/icorecli electron/assets/dist/icorecli
 
 build-dmg:
 	cd electron && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac $(ELECTRON_ARCH_FLAG)

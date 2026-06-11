@@ -4,7 +4,7 @@ import pytest
 import pydicom
 from pydicom.filebase import DicomBytesIO
 
-from module_image_export import image_export
+from pipeline import ImageExportPipeline
 from test_utils import _create_test_dicom
 
 
@@ -27,12 +27,12 @@ def test_image_export_single_file(tmp_path, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    image_export(
+    ImageExportPipeline(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,
         appdata_dir=str(appdata_dir),
-    )
+    ).run()
 
     blobs = azurite.list_blobs(container_name)
     assert len(blobs) == 1
@@ -73,12 +73,12 @@ def test_image_export_preserves_folder_structure(tmp_path, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    image_export(
+    ImageExportPipeline(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,
         appdata_dir=str(appdata_dir),
-    )
+    ).run()
 
     blobs = azurite.list_blobs(container_name)
     assert len(blobs) == 3
@@ -108,12 +108,12 @@ def test_image_export_invalid_sas_token(tmp_path):
     invalid_sas_url = "http://invalid.blob.core.windows.net/container?invalidtoken"
 
     with pytest.raises(Exception) as exc_info:
-        image_export(
+        ImageExportPipeline(
             input_dir=str(input_dir),
             sas_url=invalid_sas_url,
             project_name="TestProject",
             appdata_dir=str(appdata_dir),
-        )
+        ).run()
 
     # rclone errors can be various messages, just verify an exception was raised
     error_msg = str(exc_info.value).lower()
@@ -133,12 +133,12 @@ def test_image_export_empty_folder(tmp_path, azurite):
     project_name = "TestProject"
 
     with pytest.raises(Exception) as exc_info:
-        image_export(
+        ImageExportPipeline(
             input_dir=str(input_dir),
             sas_url=sas_url,
             project_name=project_name,
             appdata_dir=str(appdata_dir),
-        )
+        ).run()
 
     error_msg = str(exc_info.value)
     assert "empty" in error_msg.lower()
@@ -163,12 +163,12 @@ def test_image_export_multiple_file_types(tmp_path, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    image_export(
+    ImageExportPipeline(
         input_dir=str(input_dir),
         sas_url=sas_url,
         project_name=project_name,
         appdata_dir=str(appdata_dir),
-    )
+    ).run()
 
     blobs = azurite.list_blobs(container_name)
     assert len(blobs) == 3

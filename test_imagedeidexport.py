@@ -8,6 +8,7 @@ import pydicom
 import pytest
 from pydicom.filebase import DicomBytesIO
 
+from pipeline import ImageDeidExportPipeline
 from test_utils import (
     _create_test_dicom,
     _upload_dicom_to_orthanc,
@@ -63,9 +64,7 @@ def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    from module_imagedeidexport import imagedeidexport
-
-    result = imagedeidexport(
+    result = ImageDeidExportPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -77,7 +76,7 @@ def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 2
     assert result["num_images_exported"] == 2
@@ -139,9 +138,7 @@ def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurit
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    from module_imagedeidexport import imagedeidexport
-
-    imagedeidexport(
+    ImageDeidExportPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -153,7 +150,7 @@ def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurit
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     metadata_files = ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]
     for metadata_file in metadata_files:
@@ -207,10 +204,8 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    from module_imagedeidexport import imagedeidexport
-
     with get_free_port() as storescp_port:
-        result = imagedeidexport(
+        result = ImageDeidExportPipeline(
             pacs_list=[invalid_pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -222,7 +217,7 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
             apply_default_filter_script=False,
             storescp_port=storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
     assert result["num_studies_found"] == 0
     assert result["num_images_exported"] == 0
@@ -268,10 +263,8 @@ def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
     )
     project_name = "TestProject"
 
-    from module_imagedeidexport import imagedeidexport
-
     with pytest.raises(Exception) as exc_info:
-        imagedeidexport(
+        ImageDeidExportPipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -283,7 +276,7 @@ def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
             apply_default_filter_script=False,
             storescp_port=orthanc.storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
     error_msg = str(exc_info.value).lower()
     assert "rclone" in error_msg or "error" in error_msg
@@ -329,9 +322,7 @@ def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    from module_imagedeidexport import imagedeidexport
-
-    result = imagedeidexport(
+    result = ImageDeidExportPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -344,7 +335,7 @@ def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 3
     assert result["num_images_exported"] == 1
@@ -400,9 +391,7 @@ def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    from module_imagedeidexport import imagedeidexport
-
-    result = imagedeidexport(
+    result = ImageDeidExportPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -415,7 +404,7 @@ def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 2
     assert result["num_images_exported"] == 2
@@ -490,9 +479,7 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
         sas_url = azurite.get_sas_url(container_name)
         project_name = "TestProject"
 
-        from module_imagedeidexport import imagedeidexport
-
-        result = imagedeidexport(
+        result = ImageDeidExportPipeline(
             pacs_list=pacs_configs,
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -504,7 +491,7 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
             apply_default_filter_script=False,
             storescp_port=storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
         assert result["num_studies_found"] == 4
         assert result["num_images_exported"] == 4
@@ -559,9 +546,7 @@ def test_imagedeidexport_saves_failed_queries_csv(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    from module_imagedeidexport import imagedeidexport
-
-    result = imagedeidexport(
+    result = ImageDeidExportPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -573,7 +558,7 @@ def test_imagedeidexport_saves_failed_queries_csv(tmp_path, orthanc, azurite):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1
     assert len(result["failed_query_indices"]) == 1

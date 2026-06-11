@@ -17,13 +17,11 @@ class Project(models.Model):
     class TaskType(models.TextChoices):
         IMAGE_DEID = "IMAGE_DEID", "Image Deidentification"
         IMAGE_QUERY = "IMAGE_QUERY", "Image Query"
-        HEADER_QUERY = "HEADER_QUERY", "Header Query"
         HEADER_EXTRACT = "HEADER_EXTRACT", "Header Extract"
         TEXT_DEID = "TEXT_DEID", "Text Deidentification"
         IMAGE_EXPORT = "IMAGE_EXPORT", "Image Export"
         IMAGE_DEID_EXPORT = "IMAGE_DEID_EXPORT", "Image Deidentification and Export"
         SINGLE_CLICK_ICORE = "SINGLE_CLICK_ICORE", "Single Click iCore"
-        GENERAL_MODULE = "GENERAL_MODULE", "General Module"
 
     task_type = models.CharField(max_length=25, choices=TaskType.choices)
 
@@ -41,24 +39,12 @@ class Project(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     scheduled_time = models.DateTimeField(null=True, blank=True)
-    parameters = models.JSONField()
+    # Snapshot of the enqueued Celery task: {"task": <name>, "args": <dump>}.
+    # Audit trail, and lets the worker re-enqueue lost scheduled messages.
+    parameters = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return self.name
 
     class Meta:
         db_table = "deid_tasks"
-
-
-class Module(models.Model):
-    name = models.CharField(max_length=255)
-    file_path = models.CharField(max_length=512)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
-    version = models.CharField(max_length=50, null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.name} (v{self.version})"
-
-    class Meta:
-        ordering = ["-uploaded_at"]

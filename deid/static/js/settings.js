@@ -1,8 +1,4 @@
 // Common settings functionality
-function getCsrfToken() {
-    return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
-}
-
 function addFilterToModality(modalityId) {
     const filterContainer = document.getElementById(`filter-container-${modalityId}`);
     const template = document.querySelector('#filter-template');

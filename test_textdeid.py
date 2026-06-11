@@ -1,7 +1,7 @@
 import os
 import tempfile
 import pandas as pd
-from module_textdeid import textdeid
+from pipeline import TextDeidPipeline
 
 
 def test_textdeid_removes_phi():
@@ -21,7 +21,7 @@ def test_textdeid_removes_phi():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir)
+        TextDeidPipeline(input_file, output_dir).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         assert os.path.exists(output_file)
@@ -52,7 +52,9 @@ def test_textdeid_drops_specified_columns():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_drop=["DropMe", "AlsoDropMe"])
+        TextDeidPipeline(
+            input_file, output_dir, columns_to_drop=["DropMe", "AlsoDropMe"]
+        ).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -81,7 +83,7 @@ def test_textdeid_deids_only_specified_columns():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_deid=["PatientName"])
+        TextDeidPipeline(input_file, output_dir, columns_to_deid=["PatientName"]).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -104,7 +106,7 @@ def test_textdeid_deids_all_columns_when_none_specified():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_deid=None)
+        TextDeidPipeline(input_file, output_dir, columns_to_deid=None).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -123,7 +125,7 @@ def test_textdeid_drops_no_columns_when_none_specified():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_drop=None)
+        TextDeidPipeline(input_file, output_dir, columns_to_drop=None).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -143,7 +145,7 @@ def test_textdeid_preserves_header_row():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir)
+        TextDeidPipeline(input_file, output_dir).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -165,7 +167,7 @@ def test_textdeid_keeps_unspecified_columns_as_is():
         df = pd.DataFrame(data)
         df.to_excel(input_file, index=False)
 
-        textdeid(input_file, output_dir, columns_to_deid=["PatientName"])
+        TextDeidPipeline(input_file, output_dir, columns_to_deid=["PatientName"]).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)
@@ -203,7 +205,9 @@ def test_textdeid_column_actions_keep_deid_drop():
             "Procedure": "keep",
         }
         deid, drop = _columns_from_actions(column_actions)
-        textdeid(input_file, output_dir, columns_to_deid=deid, columns_to_drop=drop)
+        TextDeidPipeline(
+            input_file, output_dir, columns_to_deid=deid, columns_to_drop=drop
+        ).run()
 
         result_df = pd.read_excel(os.path.join(output_dir, "output.xlsx"))
 
@@ -227,7 +231,9 @@ def test_textdeid_empty_deid_list_deids_nothing():
         pd.DataFrame(data).to_excel(input_file, index=False)
 
         # All columns "keep" -> empty deid list, empty drop list.
-        textdeid(input_file, output_dir, columns_to_deid=[], columns_to_drop=[])
+        TextDeidPipeline(
+            input_file, output_dir, columns_to_deid=[], columns_to_drop=[]
+        ).run()
 
         result_df = pd.read_excel(os.path.join(output_dir, "output.xlsx"))
 
@@ -254,12 +260,12 @@ def test_textdeid_honors_blacklist_and_whitelist():
         to_keep_list = ["boston", "chicago"]
         to_remove_list = ["radiology"]
 
-        textdeid(
+        TextDeidPipeline(
             input_file,
             output_dir,
             to_keep_list=to_keep_list,
             to_remove_list=to_remove_list,
-        )
+        ).run()
 
         output_file = os.path.join(output_dir, "output.xlsx")
         result_df = pd.read_excel(output_file)

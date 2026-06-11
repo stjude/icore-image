@@ -199,9 +199,6 @@
         }
     }
     
-    function getCsrfToken() {
-        return document.querySelector('meta[name="csrf_token"]').getAttribute('content');
-    }
     
     async function cancelTask() {
         if (!confirm('Are you sure you want to cancel this task?')) {

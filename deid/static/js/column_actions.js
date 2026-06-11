@@ -79,7 +79,7 @@ async function loadColumnActions(inputPath) {
     try {
         const response = await fetch('/get_spreadsheet_columns/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ input_file: path })
         });
         const result = await response.json();

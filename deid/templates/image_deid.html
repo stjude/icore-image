@@ -374,16 +374,6 @@
                 loadFiltersFromSettings(settings.deid_filters);
             }
 
-            // Get timezone and send to server
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            fetch('/set_timezone/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ timezone: timezone })
-            });
-
             // Add validation listeners
             document.querySelector('[name="study_name"]').addEventListener('input', validateImageDeidForm);
             document.querySelector('[name="study_name"]').addEventListener('change', validateImageDeidForm);
@@ -723,6 +713,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
                 },
                 body: JSON.stringify(data)
             });
