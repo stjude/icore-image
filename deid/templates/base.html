@@ -8,8 +8,14 @@
         <!-- <link href="{% static 'tailwind.min.css' %}" rel="stylesheet"> -->
         <!-- <script src="{% static 'alpine.min.js' %}"></script> -->
         <script src="https://cdn.tailwindcss.com"></script>
+        {% if icore_dev %}
+        <!-- Dev: bust the browser cache so JS edits take effect on live reload. -->
+        <script src="{% static 'js/filters.js' %}?v={% now 'U' %}"></script>
+        <script src="{% static 'js/column_actions.js' %}?v={% now 'U' %}"></script>
+        {% else %}
         <script src="{% static 'js/filters.js' %}"></script>
         <script src="{% static 'js/column_actions.js' %}"></script>
+        {% endif %}
     </head>
     <body class="bg-gray-100">
         <header class="fixed w-full z-20 p-4 flex bg-white text-white shadow">
