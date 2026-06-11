@@ -32,8 +32,6 @@ dependencies = [
     "pytz>=2025.2",
     "pyyaml>=6.0.3",
     "requests>=2.32.5",
-    "ruamel-yaml>=0.19.1",
-    "ruamel-yaml-clib>=0.2.15",
     "six>=1.17.0",
     "spacy>=3.8.11",
     "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",

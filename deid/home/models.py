@@ -22,7 +22,6 @@ class Project(models.Model):
         IMAGE_EXPORT = "IMAGE_EXPORT", "Image Export"
         IMAGE_DEID_EXPORT = "IMAGE_DEID_EXPORT", "Image Deidentification and Export"
         SINGLE_CLICK_ICORE = "SINGLE_CLICK_ICORE", "Single Click iCore"
-        GENERAL_MODULE = "GENERAL_MODULE", "General Module"
 
     task_type = models.CharField(max_length=25, choices=TaskType.choices)
 
@@ -49,17 +48,3 @@ class Project(models.Model):
 
     class Meta:
         db_table = "deid_tasks"
-
-
-class Module(models.Model):
-    name = models.CharField(max_length=255)
-    file_path = models.CharField(max_length=512)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
-    version = models.CharField(max_length=50, null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.name} (v{self.version})"
-
-    class Meta:
-        ordering = ["-uploaded_at"]

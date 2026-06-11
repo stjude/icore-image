@@ -31,7 +31,6 @@ urlpatterns = [
         views.run_singleclickicore,
         name="run_single_click_icore",
     ),
-    path("run_general_module/", views.run_general_module, name="run_general_module"),
     path("task_progress/", views.TaskProgressView.as_view(), name="task_progress"),
     path("get_log_content/", views.get_log_content, name="get_log_content"),
     path("api/task_status/<int:project_id>/", views.task_status, name="task_status"),
@@ -65,7 +64,6 @@ urlpatterns = [
         name="text_deid_settings",
     ),
     path("settings/admin/", views.AdminSettingsView.as_view(), name="admin_settings"),
-    path("settings/new_module/", views.NewModuleView.as_view(), name="new_module"),
     path("save_settings/", views.save_settings, name="save_settings"),
     path("load_settings/", views.load_settings, name="load_settings"),
     path(
@@ -89,16 +87,5 @@ urlpatterns = [
     path("task_list/", views.TaskListView.as_view(), name="task_list"),
     path("delete_task/<int:task_id>/", views.delete_task, name="delete_task"),
     path("cancel_task/<int:task_id>/", views.cancel_task, name="cancel_task"),
-    path("upload_module/", views.upload_module, name="upload_module"),
-    path("get_modules/", views.get_modules, name="get_modules"),
     path("reset_deid_settings/", views.reset_deid_settings, name="reset_deid_settings"),
-    path("delete_module/<int:module_id>/", views.delete_module, name="delete_module"),
-    path(
-        "toggle_module_status/<int:module_id>/",
-        views.toggle_module_status,
-        name="toggle_module_status",
-    ),
-    path(
-        "<str:module_name>/", views.GeneralModuleView.as_view(), name="general_module"
-    ),
 ]

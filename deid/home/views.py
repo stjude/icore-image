@@ -25,7 +25,7 @@ from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
 
 from . import builders
-from .models import Project, Module
+from .models import Project
 from .tasks import enqueue_project
 from grammar import get_hipaa_safe_harbor_config
 from pathutils import is_path_within_directory
@@ -177,7 +177,6 @@ class CommonContextMixin:
         return {
             "dicom_fields": get_dicom_fields(),
             "modalities": ["MR", "CT", "US", "DX", "MG", "PT", "NM", "XA", "RF", "CR"],
-            "modules": Module.objects.all().filter(is_active=True),
         }
 
     def get_context_data(self, **kwargs):
@@ -309,18 +308,6 @@ class ProfileView(CommonContextMixin, TemplateView):
         return context
 
 
-class GeneralModuleView(CommonContextMixin, TemplateView):
-    template_name = "general_module.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # Get module name from URL parameter
-        module_name = self.kwargs.get("module_name")
-        # Fetch the specific module or return 404 if not found
-        context["module"] = get_object_or_404(Module, name=module_name)
-        return context
-
-
 class TaskListView(CommonContextMixin, ListView):
     model = Project
     template_name = "task_list.html"
@@ -358,10 +345,6 @@ class ImageDeIdentificationSettingsView(CommonContextMixin, TemplateView):
 
 class TextDeIdentificationSettingsView(CommonContextMixin, TemplateView):
     template_name = "settings/text_deid.html"
-
-
-class NewModuleView(CommonContextMixin, TemplateView):
-    template_name = "settings/new_module.html"
 
 
 class AdminSettingsView(CommonContextMixin, TemplateView):
@@ -726,28 +709,6 @@ def run_singleclickicore(request):
         response = _save_and_enqueue(project, task, args)
         _remember_column_actions(data.get("column_actions", {}))
         return response
-    except Exception:
-        logger.exception("Error processing request")
-        return JsonResponse(
-            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
-        )
-
-
-def run_general_module(request):
-    try:
-        data = json.loads(request.body)
-        settings = builders.load_settings()
-        project = Project(
-            name=data["study_name"],
-            timestamp=datetime.now().strftime("%Y%m%d%H%M%S"),
-            log_path="",
-            task_type=Project.TaskType.GENERAL_MODULE,
-            input_folder=data["input_folder"],
-            output_folder=data["output_folder"],
-            status=Project.TaskStatus.PENDING,
-        )
-        task, args = builders.build_general_module(data, project, settings)
-        return _save_and_enqueue(project, task, args)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -1290,85 +1251,6 @@ def timezone_middleware(get_response):
         return get_response(request)
 
     return middleware
-
-
-def upload_module(request):
-    if request.method != "POST" or "module_file" not in request.FILES:
-        return JsonResponse({"status": "error", "error": "No file provided"})
-
-    module_file = request.FILES["module_file"]
-
-    try:
-        # Create iCore config directory in user's home if it doesn't exist
-        icore_dir = os.path.join(SETTINGS_DIR, "modules")
-        os.makedirs(icore_dir, exist_ok=True)
-
-        # Save the file
-        file_path = os.path.realpath(os.path.join(icore_dir, module_file.name))
-        if not is_path_within_directory(file_path, icore_dir):
-            return JsonResponse({"status": "error", "error": "Invalid file name"})
-
-        with open(file_path, "wb+") as destination:
-            for chunk in module_file.chunks():
-                destination.write(chunk)
-
-        module_name = module_file.name.split(".")[0]
-        os.chmod(file_path, 0o777)
-
-        Module.objects.update_or_create(
-            name=module_name, defaults={"file_path": str(file_path), "is_active": True}
-        )
-
-        return JsonResponse({"status": "success"})
-    except Exception:
-        logger.exception("Error processing request")
-        return JsonResponse({"status": "error", "error": GENERIC_ERROR_MESSAGE})
-
-
-def get_modules(request):
-    modules = Module.objects.all()
-    module_list = [
-        {
-            "id": module.id,
-            "name": module.name,
-            "version": module.version,
-            "is_active": module.is_active,
-            "uploaded_at": module.uploaded_at.isoformat(),
-        }
-        for module in modules
-    ]
-    return JsonResponse({"modules": module_list})
-
-
-@require_http_methods(["POST"])
-def delete_module(request, module_id):
-    try:
-        module = get_object_or_404(Module, id=module_id)
-        # Delete the actual file
-        if os.path.exists(module.file_path):
-            os.remove(module.file_path)
-        module.delete()
-        return JsonResponse({"status": "success"})
-    except Exception:
-        logger.exception("Error processing request")
-        return JsonResponse(
-            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
-        )
-
-
-@require_http_methods(["POST"])
-def toggle_module_status(request, module_id):
-    try:
-        data = json.loads(request.body)
-        module = get_object_or_404(Module, id=module_id)
-        module.is_active = data["is_active"]
-        module.save()
-        return JsonResponse({"status": "success"})
-    except Exception:
-        logger.exception("Error processing request")
-        return JsonResponse(
-            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=400
-        )
 
 
 @require_http_methods(["POST"])
