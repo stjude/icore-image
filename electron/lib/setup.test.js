@@ -407,23 +407,6 @@ describe('initializeApp', () => {
   });
 });
 
-describe('binary path resolution', () => {
-  it('validates icorecli path can be resolved relative to manage binary', () => {
-    const assetsDir = '/test/assets/dist';
-    const manageBinaryPath = path.join(assetsDir, 'manage', 'manage');
-    const expectedIcoreCliPath = path.join(assetsDir, 'icorecli', 'icorecli');
-    
-    const computedIcoreCliPath = path.resolve(
-      path.dirname(manageBinaryPath),
-      '..',
-      'icorecli',
-      'icorecli'
-    );
-    
-    expect(computedIcoreCliPath).toBe(expectedIcoreCliPath);
-  });
-});
-
 describe('migrateFromOldLocation', () => {
   let tempDir;
   let oldLocationDir;

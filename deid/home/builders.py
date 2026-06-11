@@ -142,23 +142,37 @@ def column_actions_to_lists(data):
     return (deid_list, drop_list)
 
 
+# Recognized study-date column names (lowercased). Deliberately exact matches:
+# a contains-"date" heuristic would pick up Date of Birth columns.
+_DATE_COLUMN_NAMES = {"study date", "studydate", "exam date", "service date", "date"}
+
+
 def detect_file_type_and_columns(input_file_path):
     """
-    Detect file type (Primordial vs mPower) based on column names
-    Returns dict with acc_col and mrn_col
+    Detect file type (Primordial vs mPower) based on column names.
+    Returns dict with acc_col, plus mrn_col/date_col when present (these
+    enable the MRN+date fallback query).
     """
     df = pd.read_excel(input_file_path, nrows=0)
     columns = df.columns.tolist()
 
     if "Acc" in columns:
-        return {"acc_col": "Acc"}
+        detected = {"acc_col": "Acc"}
     elif "Accession Number" in columns:
-        return {"acc_col": "Accession Number"}
+        detected = {"acc_col": "Accession Number"}
     else:
         raise ValueError(
             f"Unknown file format. Expected Primordial (Acc column) or mPower (Accession Number column). "
             f"Found columns: {', '.join(columns)}"
         )
+
+    detected["mrn_col"] = next(
+        (col for col in columns if "mrn" in col.strip().lower()), None
+    )
+    detected["date_col"] = next(
+        (col for col in columns if col.strip().lower() in _DATE_COLUMN_NAMES), None
+    )
+    return detected
 
 
 def build_image_deid(data, project, settings):
@@ -288,9 +302,7 @@ def build_singleclickicore(data, project, settings):
     )
     return icore_tasks.singleclickicore, SingleClickIcoreArgs(
         pacs_list=_pacs_list(project),
-        query_spreadsheet=SpreadsheetArgs(
-            path=input_file, acc_col=detected_columns["acc_col"]
-        ),
+        query_spreadsheet=SpreadsheetArgs(path=input_file, **detected_columns),
         application_aet=project.application_aet,
         sas_url=data.get("sas_url", ""),
         project_name=project.name,
@@ -315,6 +327,8 @@ def build_singleclickicore(data, project, settings):
         columns_to_drop=columns_to_drop or None,
         skip_export=not data.get("export_to_azure", True),
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
+        use_fallback_query=data.get("use_fallback_query", False),
+        date_window_days=data.get("date_window", 0),
         deid_engine=settings.get("deid_engine", "ctp"),
         debug=settings.get("debug_logging", False),
     )

@@ -2,14 +2,7 @@ from pydantic import BaseModel
 
 from celery import shared_task
 
-from module_headerextract_local import headerextract_local as _headerextract_local
-from module_image_export import image_export as _image_export
-from module_imagedeid_local import imagedeid_local as _imagedeid_local
-from module_imagedeid_pacs import imagedeid_pacs as _imagedeid_pacs
-from module_imagedeidexport import imagedeidexport as _imagedeidexport
-from module_imageqr import imageqr as _imageqr
-from module_singleclickicore import singleclickicore as _singleclickicore
-from module_textdeid import textdeid as _textdeid
+import pipeline
 from utils import (
     DeidEngine,
     DeidExportResult,
@@ -152,39 +145,39 @@ def _pacs_kwargs(args: ImageQrArgs) -> dict:
 
 @shared_task(pydantic=True)
 def headerextract_local(args: HeaderExtractLocalArgs) -> HeaderExtractResult:
-    return _headerextract_local(**args.model_dump())
+    return pipeline.headerextract_local(**args.model_dump())
 
 
 @shared_task(pydantic=True)
 def image_export(args: ImageExportArgs) -> dict[str, str]:
-    return _image_export(**args.model_dump())
+    return pipeline.ImageExportPipeline(**args.model_dump()).run()
 
 
 @shared_task(pydantic=True)
 def imagedeid_local(args: ImageDeidLocalArgs) -> ImageDeidLocalResult:
-    return _imagedeid_local(**args.model_dump())
+    return pipeline.ImageDeidLocalPipeline(**args.model_dump()).run()
 
 
 @shared_task(pydantic=True)
 def imagedeid_pacs(args: ImageDeidPacsArgs) -> PacsQueryResult:
-    return _imagedeid_pacs(**_pacs_kwargs(args))
+    return pipeline.ImageDeidPacsPipeline(**_pacs_kwargs(args)).run()
 
 
 @shared_task(pydantic=True)
 def imagedeidexport(args: ImageDeidExportArgs) -> DeidExportResult:
-    return _imagedeidexport(**_pacs_kwargs(args))
+    return pipeline.ImageDeidExportPipeline(**_pacs_kwargs(args)).run()
 
 
 @shared_task(pydantic=True)
 def imageqr(args: ImageQrArgs) -> PacsQueryResult:
-    return _imageqr(**_pacs_kwargs(args))
+    return pipeline.imageqr(**_pacs_kwargs(args))
 
 
 @shared_task(pydantic=True)
 def singleclickicore(args: SingleClickIcoreArgs) -> SingleClickResult:
-    return _singleclickicore(**_pacs_kwargs(args))
+    return pipeline.SingleClickIcorePipeline(**_pacs_kwargs(args)).run()
 
 
 @shared_task(pydantic=True)
 def textdeid(args: TextDeidArgs) -> TextDeidResult:
-    return _textdeid(**args.model_dump())
+    return pipeline.TextDeidPipeline(**args.model_dump()).run()

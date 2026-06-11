@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 import pydicom
 
-from module_imagedeid_local import (
-    imagedeid_local,
+from pipeline import ImageDeidLocalPipeline
+from pipeline.stages.image_deid import (
     _apply_default_filter_script,
     _combine_with_sc_pdf,
     _generate_lookup_table_content,
@@ -133,14 +133,14 @@ def test_imagedeid_local(tmp_path):
 
     filter_script = 'Modality.contains("CT") * SliceThickness.isGreaterThan("1") * SliceThickness.isLessThan("5")'
 
-    result = imagedeid_local(
+    result = ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         filter_script=filter_script,
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 .dcm files, found {len(output_files)}"
@@ -304,14 +304,14 @@ def test_imagedeid_local_pixel(tmp_path):
 <e en="T" t="00080060" n="Modality">@keep()</e>
 </script>"""
 
-    result = imagedeid_local(
+    result = ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         deid_pixels=True,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 10, f"Expected 10 output files, got {len(output_files)}"
@@ -395,13 +395,13 @@ def test_continuous_audit_log_saving(tmp_path):
     monitor_thread = threading.Thread(target=monitor_files, daemon=True)
     monitor_thread.start()
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     stop_monitoring.set()
     monitor_thread.join(timeout=2)
@@ -433,13 +433,13 @@ def test_imagedeid_failures_reported(tmp_path):
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
 
-    result = imagedeid_local(
+    result = ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     assert result["num_images_saved"] == 0, (
         "No images should be saved from empty directory"
@@ -509,13 +509,13 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
-    result_without_filter = imagedeid_local(
+    result_without_filter = ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     assert result_without_filter["num_images_saved"] == 2, (
         "Without default filter, both images should be saved"
@@ -532,13 +532,13 @@ def test_imagedeid_local_apply_default_filter_script(tmp_path):
     for file in (appdata_dir / "quarantine").rglob("*.dcm"):
         file.unlink()
 
-    result_with_filter = imagedeid_local(
+    result_with_filter = ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=True,
-    )
+    ).run()
 
     assert result_with_filter["num_images_saved"] == 1, (
         "With default filter, only primary CT should be saved"
@@ -653,14 +653,14 @@ def test_imagedeid_local_with_mapping_file_basic(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@keep()</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
@@ -721,14 +721,14 @@ def test_imagedeid_local_with_mapping_file_multiple_tags(tmp_path):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
@@ -801,14 +801,14 @@ def test_imagedeid_local_date_format_conversion(tmp_path):
 <e en="T" t="00080020" n="StudyDate">@keep()</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 2, f"Expected 2 output files, got {len(output_files)}"
@@ -901,14 +901,14 @@ def test_imagedeid_local_fallback_to_simple_action(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@empty()</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
@@ -966,14 +966,14 @@ def test_imagedeid_local_complex_function_falls_back_to_keep(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 2, (
@@ -1025,14 +1025,14 @@ def test_imagedeid_local_tag_not_in_script(tmp_path):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, f"Expected 3 output files, got {len(output_files)}"
@@ -1080,7 +1080,7 @@ def test_explicit_lookup_table_overrides_mapping_file(tmp_path):
 <e en="T" t="00080050" n="AccessionNumber">@lookup(this,AccessionNumber,keep)</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
@@ -1088,7 +1088,7 @@ def test_explicit_lookup_table_overrides_mapping_file(tmp_path):
         lookup_table=explicit_lookup_table,
         mapping_file_path=str(mapping_file),
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 1, f"Expected 1 output file, got {len(output_files)}"
@@ -1165,14 +1165,14 @@ def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
     # quarantine our generic-manufacturer CT fixture).
     sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         filter_script=sc_pdf_only_filter,
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 1, (
@@ -1226,14 +1226,14 @@ def test_sc_pdf_routed_to_custom_path(tmp_path):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=True,
         sc_pdf_output_dir=str(custom_sc_dir),
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 1, (
@@ -1280,13 +1280,13 @@ def test_sc_pdf_normal_images_not_affected(tmp_path):
 <e en="T" t="00080060" n="Modality">@keep()</e>
 </script>"""
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 3, (
@@ -1331,14 +1331,14 @@ def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
 
     sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         filter_script=sc_pdf_only_filter,
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 1, (
@@ -1382,14 +1382,14 @@ def test_sc_pdf_burned_in_annotation_quarantined(tmp_path):
 
     sc_pdf_only_filter = f"!({generate_sc_pdf_filter()})"
 
-    imagedeid_local(
+    ImageDeidLocalPipeline(
         input_dir=str(input_dir),
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
         filter_script=sc_pdf_only_filter,
         anonymizer_script=anonymizer_script,
         apply_default_filter_script=False,
-    )
+    ).run()
 
     output_files = list(output_dir.rglob("*.dcm"))
     assert len(output_files) == 1, (

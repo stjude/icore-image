@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from pipeline import SingleClickIcorePipeline
 from test_utils import (
     _create_test_dicom,
     _upload_dicom_to_orthanc,
@@ -92,9 +93,7 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    from module_singleclickicore import singleclickicore
-
-    result = singleclickicore(
+    result = SingleClickIcorePipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -109,7 +108,7 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
         apply_default_filter_script=hipaa_config["apply_default_filter_script"],
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     # Verify image deid results
     assert result["num_studies_found"] == 2
@@ -202,9 +201,7 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "FilteredProject"
 
-    from module_singleclickicore import singleclickicore
-
-    result = singleclickicore(
+    result = SingleClickIcorePipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -218,7 +215,7 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     # Only 1 image should pass filter (3.0 slice thickness)
     assert result["num_studies_found"] == 3
@@ -276,9 +273,7 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "ColumnTest"
 
-    from module_singleclickicore import singleclickicore
-
-    singleclickicore(
+    SingleClickIcorePipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -293,7 +288,7 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_xlsx = output_dir / "output.xlsx"
     result_df = pd.read_excel(output_xlsx)
@@ -342,10 +337,8 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "FailedProject"
 
-    from module_singleclickicore import singleclickicore
-
     with get_free_port() as storescp_port:
-        result = singleclickicore(
+        result = SingleClickIcorePipeline(
             pacs_list=[invalid_pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -358,7 +351,7 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
             apply_default_filter_script=False,
             storescp_port=storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
     # PACS queries should fail
     assert result["num_studies_found"] == 0
@@ -415,10 +408,8 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
     )
     project_name = "ExportFail"
 
-    from module_singleclickicore import singleclickicore
-
     with pytest.raises(Exception) as exc_info:
-        singleclickicore(
+        SingleClickIcorePipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -431,7 +422,7 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
             apply_default_filter_script=False,
             storescp_port=orthanc.storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
     # Should raise an rclone error
     error_msg = str(exc_info.value).lower()
@@ -477,9 +468,7 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
 
-    from module_singleclickicore import singleclickicore
-
-    result = singleclickicore(
+    result = SingleClickIcorePipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -493,7 +482,7 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
         skip_export=True,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1
     assert result["num_images_exported"] == 1
@@ -543,9 +532,7 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "DefaultExportProject"
 
-    from module_singleclickicore import singleclickicore
-
-    result = singleclickicore(
+    result = SingleClickIcorePipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -558,7 +545,7 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
         apply_default_filter_script=False,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["export_performed"]
 
@@ -601,9 +588,7 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
 
-    from module_singleclickicore import singleclickicore
-
-    result = singleclickicore(
+    result = SingleClickIcorePipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -617,7 +602,7 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
         skip_export=True,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1
     assert result["num_images_exported"] == 1
@@ -664,9 +649,7 @@ def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
-    from module_singleclickicore import singleclickicore
-
-    result = singleclickicore(
+    result = SingleClickIcorePipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=Spreadsheet.from_file(
             str(input_file), acc_col="AccessionNumber"
@@ -683,7 +666,7 @@ def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
         skip_export=True,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1
     assert len(result["failed_query_indices"]) == 1
