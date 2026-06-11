@@ -83,12 +83,28 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
+SQLITE_DB_PATH = os.path.join(HOME_DIR, "db.sqlite3")
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.path.join(HOME_DIR, "db.sqlite3"),
+        "NAME": SQLITE_DB_PATH,
     }
 }
+
+
+# Celery
+# https://docs.celeryq.dev/en/stable/django/first-steps-with-django.html
+# The sqlite database doubles as the message broker (via kombu's SQLAlchemy
+# transport) and the result backend, so no external broker is required.
+
+CELERY_BROKER_URL = f"sqla+sqlite:///{SQLITE_DB_PATH}"
+CELERY_RESULT_BACKEND = f"db+sqlite:///{SQLITE_DB_PATH}"
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_IMPORTS = ("tasks",)
 
 
 # Password validation
