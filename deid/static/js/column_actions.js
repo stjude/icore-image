@@ -28,16 +28,33 @@ function setDropUnassignedVisible(visible) {
     button.classList.toggle('hidden', !visible);
 }
 
+// Currently selected action for a row ('' if none chosen).
+function getRowAction(row) {
+    const checked = row.querySelector('input.column-action-radio:checked');
+    return checked ? checked.value : '';
+}
+
+// Select the radio matching `value` in a row (no-op for an unknown value).
+function setRowAction(row, value) {
+    row.querySelectorAll('input.column-action-radio').forEach(radio => {
+        radio.checked = radio.value === value;
+    });
+}
+
 // Default every column that still has no action to "drop".
 function dropAllUnassigned() {
     document.querySelectorAll('#column-actions-container .column-action-row').forEach(row => {
-        const select = row.querySelector('select[name="column_action"]');
-        if (!select.value) {
-            select.value = 'drop';
+        if (!getRowAction(row)) {
+            setRowAction(row, 'drop');
         }
     });
     notifyColumnActionsChanged();
 }
+
+// Tracks the most recent loadColumnActions() call. The input field's drag-drop
+// dispatches both 'input' and 'change', so this can fire twice concurrently;
+// only the latest run is allowed to render, preventing duplicated rows.
+let _columnActionsLoadSeq = 0;
 
 // Read the uploaded spreadsheet's columns and render a selector per column,
 // pre-selecting any previously remembered action.
@@ -45,6 +62,7 @@ async function loadColumnActions(inputPath) {
     const container = document.getElementById('column-actions-container');
     if (!container) return;
 
+    const seq = ++_columnActionsLoadSeq;
     container.innerHTML = '';
     setDropUnassignedVisible(false);
 
@@ -65,6 +83,7 @@ async function loadColumnActions(inputPath) {
             body: JSON.stringify({ input_file: path })
         });
         const result = await response.json();
+        if (seq !== _columnActionsLoadSeq) return; // superseded by a newer call
         if (result.status !== 'success') {
             setColumnActionsStatus(result.message || 'Could not read columns from the file.');
             notifyColumnActionsChanged();
@@ -72,6 +91,7 @@ async function loadColumnActions(inputPath) {
         }
         columns = result.columns || [];
     } catch (error) {
+        if (seq !== _columnActionsLoadSeq) return;
         console.error('Error reading spreadsheet columns:', error);
         setColumnActionsStatus('Could not read columns from the file.');
         notifyColumnActionsChanged();
@@ -87,9 +107,10 @@ async function loadColumnActions(inputPath) {
     } catch (error) {
         console.error('Error loading settings:', error);
     }
+    if (seq !== _columnActionsLoadSeq) return; // superseded while awaiting settings
 
     const template = document.getElementById('column-action-template');
-    columns.forEach(column => {
+    columns.forEach((column, index) => {
         const row = template.cloneNode(true);
         row.removeAttribute('id');
         row.style.display = 'flex';
@@ -98,10 +119,18 @@ async function loadColumnActions(inputPath) {
         nameEl.textContent = column;
         nameEl.setAttribute('title', column);
 
-        const select = row.querySelector('select[name="column_action"]');
+        // Give this row's radios a unique group name so they're mutually
+        // exclusive within the row but independent of other columns.
+        const groupName = `column_action_${index}`;
+        row.querySelectorAll('input.column-action-radio').forEach(radio => {
+            radio.name = groupName;
+            radio.addEventListener('change', notifyColumnActionsChanged);
+        });
+
         const saved = savedActions[column];
-        select.value = COLUMN_ACTION_OPTIONS.includes(saved) ? saved : '';
-        select.addEventListener('change', notifyColumnActionsChanged);
+        if (COLUMN_ACTION_OPTIONS.includes(saved)) {
+            setRowAction(row, saved);
+        }
 
         container.appendChild(row);
     });
@@ -121,7 +150,7 @@ function collectColumnActions() {
     const actions = {};
     document.querySelectorAll('#column-actions-container .column-action-row').forEach(row => {
         const name = row.querySelector('.column-action-name').textContent;
-        const value = row.querySelector('select[name="column_action"]').value;
+        const value = getRowAction(row);
         if (name && value) {
             actions[name] = value;
         }
@@ -133,7 +162,5 @@ function collectColumnActions() {
 function allColumnsAssigned() {
     const rows = document.querySelectorAll('#column-actions-container .column-action-row');
     if (rows.length === 0) return false;
-    return Array.from(rows).every(
-        row => row.querySelector('select[name="column_action"]').value
-    );
+    return Array.from(rows).every(row => getRowAction(row));
 }
