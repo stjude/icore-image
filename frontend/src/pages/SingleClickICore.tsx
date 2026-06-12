@@ -1,25 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { ApiError, getJson, postJson } from '../api/client';
+import { getJson } from '../api/client';
 import { loadSettings } from '../api/endpoints';
-import type { RunResponse, Settings } from '../api/types';
+import { submitRun } from '../api/run';
+import type { Settings } from '../api/types';
 import { ColumnActions, type ColumnActionsState } from '../components/ColumnActions';
-import { buildFiltersPayload, FilterList, type Filter } from '../components/filters';
+import { FilterList, ModalityFilterSection, useFilters, type SavedFilters } from '../components/filters';
 import { PathInput } from '../components/PathInput';
+import { SasUrlRequiredModal, validateSasUrlOnLoad } from '../components/SasUrlRequiredModal';
 import { ScheduleInput } from '../components/ScheduleInput';
 import { useConstants } from '../hooks/useConstants';
-
-interface DeidFiltersSettings {
-  general_filters?: Filter[];
-  modality_filters?: Record<string, Filter[]>;
-}
 
 /** Extra free-form settings keys this page reads (legacy reads them straight
  * off the /load_settings/ JSON). */
 interface SingleClickSettings extends Settings {
   mapping_file_path?: string;
   use_mapping_file?: boolean;
-  deid_filters?: DeidFiltersSettings;
+  deid_filters?: SavedFilters;
   default_text_to_keep?: string;
   default_text_to_remove?: string;
 }
@@ -27,22 +24,6 @@ interface SingleClickSettings extends Settings {
 interface AdminSettings {
   imagine_sas_url?: string;
   [key: string]: unknown;
-}
-
-interface ValidateSasUrlResponse {
-  valid: boolean;
-  error?: string;
-}
-
-/** Legacy validateSasUrlOnLoad(): POST the SAS URL for server-side checking,
- * treating transport errors as an invalid result. */
-async function validateSasUrl(sasUrl: string): Promise<ValidateSasUrlResponse> {
-  try {
-    return await postJson<ValidateSasUrlResponse>('/validate_sas_url/', { sas_url: sasUrl });
-  } catch (error) {
-    console.error('Error validating SAS URL:', error);
-    return { valid: false, error: 'Error validating SAS URL' };
-  }
 }
 
 /** The green check icon repeated next to each enforced HIPAA setting. */
@@ -55,68 +36,6 @@ function EnforcedCheckIcon() {
         clipRule="evenodd"
       />
     </svg>
-  );
-}
-
-/** The "SAS URL Required" modal (modals/sas_url_required.html). The legacy
- * markup ships hidden and toggles the `hidden` class; here it is rendered
- * only while shown. */
-function SasUrlRequiredModal({ onClose }: { onClose: () => void }) {
-  return (
-    <div
-      id="sasUrlRequiredModal"
-      className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50"
-    >
-      <div className="relative top-20 mx-auto p-6 border w-[600px] shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          <div className="flex items-center justify-center mb-4">
-            <div className="flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-              <svg
-                className="h-6 w-6 text-red-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-          </div>
-          <h3 className="text-lg leading-6 font-medium text-gray-900 text-center mb-2">
-            SAS URL Required
-          </h3>
-          <div className="mt-2 px-7 py-3">
-            <p className="text-sm text-gray-700 text-center mb-4">
-              SAS URL must be configured in Admin Settings before using this module.
-            </p>
-            <p className="text-sm text-gray-600 text-center">
-              Please contact your administrator or navigate to Admin Settings to configure the
-              Azure Blob Storage SAS URL for data transfer to IMAGINE.
-            </p>
-          </div>
-          <div className="items-center px-4 py-3 flex justify-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-gray-300 text-gray-700 text-base font-medium rounded-md shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                window.location.href = '/settings/admin/';
-              }}
-              className="px-6 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            >
-              Go to Admin Settings
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -140,16 +59,8 @@ export function SingleClickICore() {
 
   const [deidOptionsOpen, setDeidOptionsOpen] = useState(false);
 
-  const [generalFilters, setGeneralFilters] = useState<Filter[]>([]);
-  const [modalityFilterEnabled, setModalityFilterEnabled] = useState(false);
-  const [checkedModalities, setCheckedModalities] = useState<Record<string, boolean>>({});
-  // Legacy created each modality's filter UI on first check and never tore it
-  // down; unchecking only hides it. Initialized sections keep their filters.
-  const [initializedModalities, setInitializedModalities] = useState<Record<string, boolean>>(
-    {},
-  );
-  const initializedModalitiesRef = useRef(new Set<string>());
-  const [modalityFilters, setModalityFilters] = useState<Record<string, Filter[]>>({});
+  const filters = useFilters('deid_filters');
+  const { applyFromSettings } = filters;
 
   const [useMappingFile, setUseMappingFile] = useState(false);
   const [mappingFilePath, setMappingFilePath] = useState('');
@@ -170,26 +81,6 @@ export function SingleClickICore() {
   const [scheduledTime, setScheduledTime] = useState('');
 
   const [showSasUrlRequiredModal, setShowSasUrlRequiredModal] = useState(false);
-
-  // Legacy loadFiltersFromSettings(): replaces the general filter rows, and
-  // replaces filters only for modalities whose containers already exist
-  // (i.e. modalities the user has checked at least once). Saved filters for
-  // not-yet-initialized modalities are silently dropped, exactly as before.
-  const applyFiltersFromSettings = useCallback((filters: DeidFiltersSettings) => {
-    setGeneralFilters(filters.general_filters ?? []);
-    const modalityFiltersFromSettings = filters.modality_filters;
-    if (modalityFiltersFromSettings) {
-      setModalityFilters((prev) => {
-        const next = { ...prev };
-        Object.entries(modalityFiltersFromSettings).forEach(([modality, list]) => {
-          if (initializedModalitiesRef.current.has(modality)) {
-            next[modality] = list;
-          }
-        });
-        return next;
-      });
-    }
-  }, []);
 
   // Pre-fill from saved settings, as the legacy DOMContentLoaded handler did
   // (user settings, then admin settings for the IMAGINE SAS URL).
@@ -214,7 +105,7 @@ export function SingleClickICore() {
         }
 
         if (loaded.deid_filters) {
-          applyFiltersFromSettings(loaded.deid_filters);
+          applyFromSettings(loaded.deid_filters);
         }
 
         // Text deid defaults
@@ -228,32 +119,8 @@ export function SingleClickICore() {
         console.error('Error loading settings:', error);
       }
     })();
-  }, [applyFiltersFromSettings]);
-
-  // Legacy handleModalitySelection(): the first time a modality is checked,
-  // its filter UI is created and that modality's saved filters are loaded via
-  // a fresh /load_settings/ fetch. Re-checking later just unhides the section.
-  const handleModalitySelection = (modality: string, checked: boolean) => {
-    setCheckedModalities((prev) => ({ ...prev, [modality]: checked }));
-    if (checked && !initializedModalitiesRef.current.has(modality)) {
-      initializedModalitiesRef.current.add(modality);
-      setInitializedModalities((prev) => ({ ...prev, [modality]: true }));
-      void loadSettings()
-        .then((loaded) => {
-          const saved =
-            (loaded as SingleClickSettings).deid_filters?.modality_filters?.[modality] ?? [];
-          if (saved.length > 0) {
-            setModalityFilters((prev) => ({
-              ...prev,
-              [modality]: [...(prev[modality] ?? []), ...saved],
-            }));
-          }
-        })
-        .catch((error: unknown) => {
-          console.error('Error loading settings:', error);
-        });
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount, as the legacy DOMContentLoaded handler did
+  }, []);
 
   // Legacy validateForm(): project name, input file, and every spreadsheet
   // column assigned an action (allColumnsAssigned()).
@@ -265,31 +132,18 @@ export function SingleClickICore() {
     : 'Pull Images, Deidentify, and Export';
 
   const runSingleClickICore = async () => {
-    const exportEnabled = exportToAzure;
-
-    if (exportEnabled) {
+    if (exportToAzure) {
       const sasUrl = adminSettings.imagine_sas_url;
       if (!sasUrl || sasUrl.trim() === '') {
         setShowSasUrlRequiredModal(true);
         return;
       }
-      const sasValidation = await validateSasUrl(sasUrl);
+      const sasValidation = await validateSasUrlOnLoad(sasUrl);
       if (!sasValidation.valid) {
         setShowSasUrlRequiredModal(true);
         return;
       }
     }
-
-    const filters = buildFiltersPayload(
-      generalFilters,
-      modalityFilterEnabled,
-      modalities.filter((modality) => checkedModalities[modality]),
-      modalityFilters,
-    );
-    const isScheduled = scheduleEnabled;
-
-    const scPdfCustom = scPdfDestination === 'custom';
-    const scPdfPath = scPdfOutputDir;
 
     const data: Record<string, unknown> = {
       study_name: studyName,
@@ -302,14 +156,14 @@ export function SingleClickICore() {
       pacs_configs: settings.pacs_configs || [],
       application_aet: settings.application_aet || '',
       sas_url: adminSettings.imagine_sas_url || '',
-      sc_pdf_output_dir: scPdfCustom && scPdfPath ? scPdfPath : '',
+      sc_pdf_output_dir: scPdfDestination === 'custom' && scPdfOutputDir ? scPdfOutputDir : '',
       // Text deid options
       text_to_keep: textToKeep,
       text_to_remove: textToRemove,
       column_actions: columnState.actions,
       // Export preference
       export_to_azure: exportToAzure,
-      ...filters,
+      ...filters.payload(modalities),
     };
 
     if (!inputFile.endsWith('.xlsx')) {
@@ -317,7 +171,7 @@ export function SingleClickICore() {
       return;
     }
 
-    if (isScheduled) {
+    if (scheduleEnabled) {
       if (!scheduledTime) {
         alert('Please select a scheduled time');
         return;
@@ -325,31 +179,10 @@ export function SingleClickICore() {
       data.scheduled_time = scheduledTime;
     }
 
-    try {
-      const result = await postJson<RunResponse>('/run_singleclickicore/', data);
-      if (result.status === 'success') {
-        if (isScheduled) {
-          window.location.href = '/task_list';
-        } else {
-          window.location.href = `/task_progress?project_id=${result.project_id}`;
-        }
-      } else {
-        alert(result.message || 'Error starting Single-Click iCore');
-        console.error('Error:', result);
-      }
-    } catch (error) {
-      if (error instanceof ApiError) {
-        // Legacy parsed error responses as JSON and alerted the
-        // server-provided message; postJson surfaces that as an ApiError.
-        alert(error.message || 'Error starting Single-Click iCore');
-        console.error('Error:', error);
-      } else {
-        alert(
-          `Error starting Single-Click iCore: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        console.error('Error:', error);
-      }
-    }
+    await submitRun('/run_singleclickicore/', data, {
+      scheduled: scheduleEnabled,
+      errorPrefix: 'Error starting Single-Click iCore',
+    });
   };
 
   return (
@@ -462,73 +295,10 @@ export function SingleClickICore() {
             <div className="mb-4">
               <div className="text-sm text-gray-600 mb-2">General Filters</div>
               <div className="text-sm text-gray-400 mb-2">Only include images where</div>
-              <FilterList filters={generalFilters} onChange={setGeneralFilters} />
+              <FilterList filters={filters.generalFilters} onChange={filters.setGeneralFilters} />
             </div>
 
-            <div className="mt-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="modality-filter-toggle"
-                  className="mr-2"
-                  checked={modalityFilterEnabled}
-                  onChange={(event) => {
-                    // Legacy toggleModalityFilters() also cleared the (always
-                    // empty) #modality-filters-container; per-modality filter
-                    // state is intentionally preserved across toggles.
-                    setModalityFilterEnabled(event.target.checked);
-                  }}
-                />
-                <label htmlFor="modality-filter-toggle">Filter by Modality</label>
-              </div>
-
-              <div
-                id="modality-options"
-                className={modalityFilterEnabled ? 'ml-4 mt-2' : 'ml-4 mt-2 hidden'}
-              >
-                <div className="grid grid-cols-1 gap-2">
-                  {modalities.map((modality) => (
-                    <div key={modality}>
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id={`modality-${modality}`}
-                          value={modality}
-                          className="modality-checkbox mr-2"
-                          checked={checkedModalities[modality] ?? false}
-                          onChange={(event) => {
-                            handleModalitySelection(modality, event.target.checked);
-                          }}
-                        />
-                        <label htmlFor={`modality-${modality}`}>{modality}</label>
-                      </div>
-                      <div
-                        id={`filters-${modality}`}
-                        className={
-                          checkedModalities[modality] ? 'ml-4 mt-2' : 'ml-4 mt-2 hidden'
-                        }
-                      >
-                        {initializedModalities[modality] && (
-                          <FilterList
-                            filters={modalityFilters[modality] ?? []}
-                            onChange={(filters) => {
-                              setModalityFilters((prev) => ({
-                                ...prev,
-                                [modality]: filters,
-                              }));
-                            }}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Container for modality-specific filters (unused; kept from the
-                  legacy template, where nothing was ever appended to it) */}
-              <div id="modality-filters-container" className="ml-4 mt-2"></div>
-            </div>
+            <ModalityFilterSection modalities={modalities} filters={filters} />
 
             <div className="mt-6 bg-gray-50 border border-gray-300 rounded p-4">
               <div className="text-md mb-3 font-medium text-gray-900">

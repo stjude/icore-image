@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useOutletContext } from 'react-router';
 
 import { getJson, postForm, postJson } from '../../api/client';
@@ -35,7 +34,7 @@ const SAS_TONE_CLASSES: Record<SasValidationState['tone'], string> = {
 };
 
 export function AdminSettings() {
-  const { registerSaveHandler } = useOutletContext<SettingsOutletContext>();
+  const { registerSaveHandler, showSaveMessage } = useOutletContext<SettingsOutletContext>();
 
   // Password gate (legacy shows the modal on DOMContentLoaded and reveals
   // #settings-content only after /verify_admin_password/ succeeds).
@@ -57,11 +56,6 @@ export function AdminSettings() {
   // SAS URL validation UI.
   const [sasValidating, setSasValidating] = useState(false);
   const [sasValidation, setSasValidation] = useState<SasValidationState | null>(null);
-
-  // Save feedback message appended next to the layout's #saveSettingsBtn,
-  // mirroring legacy showSaveMessage().
-  const [saveMessage, setSaveMessage] = useState<{ text: string; isError: boolean } | null>(null);
-  const saveMessageTimeout = useRef<number | undefined>(undefined);
 
   const protocolFileInput = useRef<HTMLInputElement>(null);
 
@@ -91,20 +85,6 @@ export function AdminSettings() {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
-
-  useEffect(() => {
-    return () => {
-      window.clearTimeout(saveMessageTimeout.current);
-    };
-  }, []);
-
-  const showSaveMessage = useCallback((message: string, isError = false) => {
-    window.clearTimeout(saveMessageTimeout.current);
-    setSaveMessage({ text: message, isError });
-    saveMessageTimeout.current = window.setTimeout(() => {
-      setSaveMessage(null);
-    }, 3000);
-  }, []);
 
   const verifyPassword = useCallback(async () => {
     try {
@@ -193,10 +173,6 @@ export function AdminSettings() {
       setSasValidating(false);
     }
   }, [imagineSasUrl]);
-
-  const saveButtonParent = saveMessage
-    ? document.getElementById('saveSettingsBtn')?.parentElement
-    : null;
 
   return (
     <>
@@ -363,19 +339,6 @@ export function AdminSettings() {
           </div>
         </div>
       </div>
-
-      {saveMessage && saveButtonParent
-        ? createPortal(
-            <div
-              className={`settings-message mt-4 ml-4 ${
-                saveMessage.isError ? 'text-red-500' : 'text-green-500'
-              }`}
-            >
-              {saveMessage.text}
-            </div>,
-            saveButtonParent,
-          )
-        : null}
     </>
   );
 }

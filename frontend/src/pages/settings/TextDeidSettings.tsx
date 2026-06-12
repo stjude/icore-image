@@ -23,26 +23,8 @@ function capitalize(action: string): string {
   return action.charAt(0).toUpperCase() + action.slice(1);
 }
 
-/** Legacy showSaveMessage(): the message div lives next to the layout's
- * "Save Settings" button, outside this page's subtree, so it is appended via
- * the DOM exactly as the legacy script did. */
-function showSaveMessage(message: string, isError = false) {
-  const saveButton = document.getElementById('saveSettingsBtn');
-  if (!saveButton?.parentNode) return;
-
-  const existingMessage = document.querySelector('.settings-message');
-  if (existingMessage) existingMessage.remove();
-
-  const messageDiv = document.createElement('div');
-  messageDiv.textContent = message;
-  messageDiv.className = `settings-message mt-4 ml-4 ${isError ? 'text-red-500' : 'text-green-500'}`;
-  saveButton.parentNode.appendChild(messageDiv);
-
-  setTimeout(() => messageDiv.remove(), 3000);
-}
-
 export function TextDeidSettings() {
-  const { registerSaveHandler } = useOutletContext<SettingsOutletContext>();
+  const { registerSaveHandler, showSaveMessage } = useOutletContext<SettingsOutletContext>();
 
   const [groups, setGroups] = useState<ColumnGroups>({ keep: [], deid: [], drop: [] });
   const [textToKeep, setTextToKeep] = useState('');

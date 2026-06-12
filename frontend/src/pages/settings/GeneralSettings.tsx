@@ -19,7 +19,7 @@ interface PacsRow {
 const EMPTY_PACS_ROW: PacsRow = { ip: '', port: '', ae: '' };
 
 export function GeneralSettings() {
-  const { registerSaveHandler } = useOutletContext<SettingsOutletContext>();
+  const { registerSaveHandler, showSaveMessage } = useOutletContext<SettingsOutletContext>();
   const constants = useConstants();
 
   const [pacsConfigs, setPacsConfigs] = useState<PacsRow[]>([EMPTY_PACS_ROW]);
@@ -34,8 +34,7 @@ export function GeneralSettings() {
   const [defaultDateWindowDays, setDefaultDateWindowDays] = useState('0');
   const [defaultOutputFolder, setDefaultOutputFolder] = useState('');
   const [debugLogging, setDebugLogging] = useState(false);
-  const [pacsResultVisible, setPacsResultVisible] = useState(false);
-  const [pacsResultMessage, setPacsResultMessage] = useState('');
+  const [pacsResultMessage, setPacsResultMessage] = useState<string | null>(null);
 
   // The legacy template baked the timezone <select> options in server-side,
   // so the first US/* timezone was selected (and saved) whenever no timezone
@@ -142,7 +141,6 @@ export function GeneralSettings() {
     } catch (error) {
       setPacsResultMessage('Error testing PACS connection: ' + String(error));
     }
-    setPacsResultVisible(true);
   };
 
   const persistSettings = async () => {
@@ -167,18 +165,7 @@ export function GeneralSettings() {
 
     try {
       await saveSettings(data);
-      // The legacy page appended a transient "Settings Saved" toast next to
-      // the layout-owned save button; recreate it the same way since the
-      // button lives in SettingsLayout, outside this component's tree.
-      const saveButton = document.getElementById('saveSettingsBtn');
-      document.querySelector('.settings-saved-message')?.remove();
-      const successMessage = document.createElement('div');
-      successMessage.textContent = 'Settings Saved';
-      successMessage.className = 'settings-saved-message text-green-500 mt-4 ml-4';
-      saveButton?.parentNode?.appendChild(successMessage);
-      setTimeout(() => {
-        successMessage.remove();
-      }, 3000);
+      showSaveMessage('Settings Saved');
     } catch (error) {
       console.error('Error saving settings:', error);
     }
@@ -458,7 +445,7 @@ export function GeneralSettings() {
 
       <div
         id="pacs-connection-result"
-        className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center${pacsResultVisible ? '' : ' hidden'}`}
+        className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center${pacsResultMessage !== null ? '' : ' hidden'}`}
         style={{ zIndex: 1000 }}
       >
         <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -471,7 +458,7 @@ export function GeneralSettings() {
           <div className="flex justify-end">
             <button
               onClick={() => {
-                setPacsResultVisible(false);
+                setPacsResultMessage(null);
               }}
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >

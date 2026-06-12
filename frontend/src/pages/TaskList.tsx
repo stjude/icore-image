@@ -31,10 +31,13 @@ export function TaskList() {
     }
   };
 
-  const handleDelete = async (taskId: number) => {
-    if (!confirm('Are you sure you want to delete this project?')) return;
+  const handleDelete = async (task: TaskSummary) => {
+    const message = task.output_dir
+      ? `Are you sure you want to delete this project?\n\nThis will also permanently delete its output folder:\n${task.output_dir}`
+      : 'Are you sure you want to delete this project?';
+    if (!confirm(message)) return;
     try {
-      await deleteTask(taskId);
+      await deleteTask(task.id);
       refresh();
     } catch (error) {
       alert(`Failed to delete project: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -122,7 +125,7 @@ export function TaskList() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => void handleDelete(task.id)}
+                          onClick={() => void handleDelete(task)}
                           className="text-red-600 hover:text-red-900"
                         >
                           Delete

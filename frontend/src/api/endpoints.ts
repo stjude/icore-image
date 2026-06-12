@@ -17,6 +17,8 @@ export interface TaskSummary {
   task_type_display: string;
   created_at: string;
   scheduled_time: string | null;
+  /** The task's output folder on disk, deleted along with the project. */
+  output_dir: string;
 }
 
 export function getTasks(): Promise<{ tasks: TaskSummary[] }> {

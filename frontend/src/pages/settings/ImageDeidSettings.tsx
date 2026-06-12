@@ -83,26 +83,8 @@ function generateActionString(action: string): string {
   return action;
 }
 
-/** Legacy showSaveMessage(): appends a transient status div next to the
- * layout's #saveSettingsBtn. That button lives in SettingsLayout (outside this
- * page's tree), so this stays imperative DOM, exactly as before. */
-function showSaveMessage(message: string, isError = false) {
-  const saveButton = document.getElementById('saveSettingsBtn');
-  const existingMessage = document.querySelector('.settings-message');
-  if (existingMessage) existingMessage.remove();
-
-  const messageDiv = document.createElement('div');
-  messageDiv.textContent = message;
-  messageDiv.className = `settings-message mt-4 ml-4 ${isError ? 'text-red-500' : 'text-green-500'}`;
-  saveButton?.parentNode?.appendChild(messageDiv);
-
-  setTimeout(() => {
-    messageDiv.remove();
-  }, 3000);
-}
-
 export function ImageDeidSettings() {
-  const { registerSaveHandler } = useOutletContext<SettingsOutletContext>();
+  const { registerSaveHandler, showSaveMessage } = useOutletContext<SettingsOutletContext>();
   const constants = useConstants();
   const modalities = constants?.modalities ?? [];
 

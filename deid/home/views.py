@@ -200,27 +200,12 @@ def task_status(request, project_id):
 
         logs_folder = ""
         appdata_folder = ""
-        actual_output_folder = ""
 
         if task.log_path:
             logs_folder = os.path.dirname(task.log_path)
 
             timestamp = os.path.basename(logs_folder)
             appdata_folder = os.path.join(ICORE_BASE_DIR, "appdata", timestamp)
-
-        if task.output_folder and task.name and task.timestamp:
-            if task.task_type in [
-                "IMAGE_DEID",
-                "TEXT_DEID",
-                "IMAGE_DEID_EXPORT",
-                "SINGLE_CLICK_ICORE",
-            ]:
-                prefix = "DeID"
-            else:
-                prefix = "PHI"
-            actual_output_folder = os.path.join(
-                task.output_folder, f"{prefix}_{task.name}_{task.timestamp}"
-            )
 
         return JsonResponse(
             {
@@ -230,7 +215,7 @@ def task_status(request, project_id):
                 "task_type": task.task_type,
                 "task_type_display": task.get_task_type_display(),
                 "logs_folder": logs_folder,
-                "output_folder": actual_output_folder,
+                "output_folder": task.output_dir(),
                 "appdata_folder": appdata_folder,
             }
         )
@@ -974,9 +959,19 @@ def delete_task(request, task_id):
     try:
         task = get_object_or_404(Project, id=task_id)
 
-        # Optionally, delete associated files
-        if os.path.exists(task.output_folder):
-            shutil.rmtree(task.output_folder)
+        # Delete the task's own output subfolder (DeID_/PHI_...), never
+        # task.output_folder itself: that is the user-selected base directory
+        # (e.g. ~/Downloads) and deleting it would destroy unrelated files.
+        # The containment check also defuses path traversal via a crafted
+        # project name (realpath + commonpath, symlink-safe).
+        output_dir = task.output_dir()
+        if (
+            output_dir
+            and os.path.realpath(output_dir) != os.path.realpath(task.output_folder)
+            and is_path_within_directory(output_dir, task.output_folder)
+            and os.path.exists(output_dir)
+        ):
+            shutil.rmtree(output_dir)
         task.delete()
 
         return JsonResponse({"status": "success"})
@@ -1140,6 +1135,9 @@ def api_tasks(request):
             "scheduled_time": task.scheduled_time.isoformat()
             if task.scheduled_time
             else None,
+            # Shown in the delete confirmation: deleting a project also
+            # removes this folder.
+            "output_dir": task.output_dir(),
         }
         for task in Project.objects.order_by("-created_at")
     ]
@@ -1154,7 +1152,16 @@ def api_constants(request):
             "dicom_fields": get_dicom_fields(),
             "modalities": ["MR", "CT", "US", "DX", "MG", "PT", "NM", "XA", "RF", "CR"],
             "export_modalities": [
-                "CT", "MR", "PT", "US", "CR", "DX", "MG", "NM", "RF", "XA",
+                "CT",
+                "MR",
+                "PT",
+                "US",
+                "CR",
+                "DX",
+                "MG",
+                "NM",
+                "RF",
+                "XA",
             ],
             "timezones": [tz for tz in pytz.all_timezones if tz.startswith("US/")],
             "hipaa": {
@@ -1183,9 +1190,7 @@ def spa_index(request):
     react-router owns everything path-level from here. Served as a plain file
     read (not a Django template) since the HTML is bundler-generated.
     """
-    index_path = os.path.join(
-        django_settings.STATICFILES_DIRS[0], "app", "index.html"
-    )
+    index_path = os.path.join(django_settings.STATICFILES_DIRS[0], "app", "index.html")
     try:
         with open(index_path, "rb") as f:
             return HttpResponse(f.read())

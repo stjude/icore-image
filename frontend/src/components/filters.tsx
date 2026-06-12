@@ -1,3 +1,6 @@
+import { useRef, useState } from 'react';
+
+import { loadSettings } from '../api/endpoints';
 import { useConstants } from '../hooks/useConstants';
 
 export interface Filter {
@@ -159,6 +162,175 @@ export function ModalityFilters({ modalities, value, onChange }: ModalityFilters
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+export interface SavedFilters {
+  general_filters?: Filter[];
+  modality_filters?: Record<string, Filter[]>;
+}
+
+/** Consolidated filter state for the run pages: general filters plus the
+ * modality toggle/checkbox/per-modality lists, with the legacy behaviors —
+ * a modality's filter UI is created on first check (loading that modality's
+ * saved filters from `settings[savedFiltersKey]` via a fresh fetch) and only
+ * hidden on uncheck.
+ */
+export function useFilters(savedFiltersKey: string) {
+  const [generalFilters, setGeneralFilters] = useState<Filter[]>([]);
+  const [modalityEnabled, setModalityEnabled] = useState(false);
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [initialized, setInitialized] = useState<Record<string, boolean>>({});
+  const initializedRef = useRef(new Set<string>());
+  const [modalityFilters, setModalityFilters] = useState<Record<string, Filter[]>>({});
+
+  const handleModalitySelection = (modality: string, isChecked: boolean) => {
+    setChecked((prev) => ({ ...prev, [modality]: isChecked }));
+    if (isChecked && !initializedRef.current.has(modality)) {
+      initializedRef.current.add(modality);
+      setInitialized((prev) => ({ ...prev, [modality]: true }));
+      void loadSettings()
+        .then((settings) => {
+          const saved =
+            (settings[savedFiltersKey] as SavedFilters | undefined)?.modality_filters?.[
+              modality
+            ] ?? [];
+          if (saved.length > 0) {
+            setModalityFilters((prev) => ({
+              ...prev,
+              [modality]: [...(prev[modality] ?? []), ...saved],
+            }));
+          }
+        })
+        .catch((error: unknown) => {
+          console.error('Error loading settings:', error);
+        });
+    }
+  };
+
+  /** Legacy loadFiltersFromSettings(): replaces the general filter rows, and
+   * replaces filters only for modalities whose containers already exist.
+   * Saved filters for not-yet-initialized modalities are silently dropped. */
+  const applyFromSettings = (filters: SavedFilters) => {
+    setGeneralFilters(filters.general_filters ?? []);
+    const saved = filters.modality_filters;
+    if (saved) {
+      setModalityFilters((prev) => {
+        const next = { ...prev };
+        Object.entries(saved).forEach(([modality, list]) => {
+          if (initializedRef.current.has(modality)) {
+            next[modality] = list;
+          }
+        });
+        return next;
+      });
+    }
+  };
+
+  const payload = (modalities: string[]) =>
+    buildFiltersPayload(
+      generalFilters,
+      modalityEnabled,
+      modalities.filter((modality) => checked[modality]),
+      modalityFilters,
+    );
+
+  return {
+    generalFilters,
+    setGeneralFilters,
+    modalityEnabled,
+    setModalityEnabled,
+    checked,
+    initialized,
+    modalityFilters,
+    setModalityFilters,
+    handleModalitySelection,
+    applyFromSettings,
+    payload,
+  };
+}
+
+interface ModalityFilterSectionProps {
+  modalities: string[];
+  filters: ReturnType<typeof useFilters>;
+  disabled?: boolean;
+}
+
+/** "Filter by Modality" toggle + per-modality checkbox/filter lists, shared
+ * verbatim by the query/deid/export/single-click pages. */
+export function ModalityFilterSection({
+  modalities,
+  filters,
+  disabled = false,
+}: ModalityFilterSectionProps) {
+  return (
+    <div className="mt-4">
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          id="modality-filter-toggle"
+          className="mr-2"
+          checked={filters.modalityEnabled}
+          disabled={disabled}
+          onChange={(event) => {
+            // Legacy toggleModalityFilters() also cleared the (always empty)
+            // #modality-filters-container; per-modality filter state is
+            // intentionally preserved across toggles.
+            filters.setModalityEnabled(event.target.checked);
+          }}
+        />
+        <label htmlFor="modality-filter-toggle">Filter by Modality</label>
+      </div>
+
+      {/* Modality options */}
+      <div
+        id="modality-options"
+        className={filters.modalityEnabled ? 'ml-4 mt-2' : 'ml-4 mt-2 hidden'}
+      >
+        <div className="grid grid-cols-1 gap-2">
+          {modalities.map((modality) => (
+            <div key={modality}>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`modality-${modality}`}
+                  value={modality}
+                  className="modality-checkbox mr-2"
+                  checked={filters.checked[modality] ?? false}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    filters.handleModalitySelection(modality, event.target.checked);
+                  }}
+                />
+                <label htmlFor={`modality-${modality}`}>{modality}</label>
+              </div>
+              <div
+                id={`filters-${modality}`}
+                className={filters.checked[modality] ? 'ml-4 mt-2' : 'ml-4 mt-2 hidden'}
+              >
+                {filters.initialized[modality] && (
+                  <fieldset disabled={disabled} className="m-0 p-0 border-0 min-w-0">
+                    <FilterList
+                      filters={filters.modalityFilters[modality] ?? []}
+                      onChange={(updated) => {
+                        filters.setModalityFilters((prev) => ({
+                          ...prev,
+                          [modality]: updated,
+                        }));
+                      }}
+                    />
+                  </fieldset>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Container for modality-specific filters (unused; kept from the
+          legacy template, where nothing was ever appended to it) */}
+      <div id="modality-filters-container" className="ml-4 mt-2"></div>
     </div>
   );
 }

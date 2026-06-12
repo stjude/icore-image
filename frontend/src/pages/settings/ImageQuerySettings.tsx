@@ -67,7 +67,7 @@ function normalizeSavedFilter(filter: Filter): Filter {
 }
 
 export function ImageQuerySettings() {
-  const { registerSaveHandler } = useOutletContext<SettingsOutletContext>();
+  const { registerSaveHandler, showSaveMessage } = useOutletContext<SettingsOutletContext>();
   const constants = useConstants();
   // Server context `modalities` (baked into the legacy template via json_script).
   const modalities = constants?.modalities ?? [];
@@ -120,23 +120,7 @@ export function ImageQuerySettings() {
 
     try {
       await saveSettings({ filters: filterData });
-
-      // The save button (and the message it anchors) lives in SettingsLayout,
-      // which we cannot modify; reproduce the legacy DOM insertion verbatim.
-      const saveButton = document.getElementById('saveSettingsBtn');
-      const existingMessage = document.querySelector('.settings-saved-message');
-      if (existingMessage) {
-        existingMessage.remove();
-      }
-      const successMessage = document.createElement('div');
-      successMessage.textContent = 'Settings Saved';
-      successMessage.className = 'settings-saved-message text-green-500 mt-4';
-      saveButton?.parentNode?.appendChild(successMessage);
-
-      // Remove message after 3 seconds
-      setTimeout(() => {
-        successMessage.remove();
-      }, 3000);
+      showSaveMessage('Settings Saved');
     } catch (error) {
       console.error('Error saving settings:', error);
     }

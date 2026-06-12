@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router';
 
 const TABS = [
@@ -16,16 +16,30 @@ export interface SettingsOutletContext {
    * button invokes it (the React replacement for the legacy convention of a
    * page-global saveSettings() called by base_settings.html). */
   registerSaveHandler: (handler: SaveHandler | null) => void;
+  /** Transient status text next to the Save button (legacy showSaveMessage,
+   * which every tab used to re-implement with imperative DOM). */
+  showSaveMessage: (message: string, isError?: boolean) => void;
 }
 
 export function SettingsLayout() {
   const { pathname } = useLocation();
   const current = pathname.endsWith('/') ? pathname : `${pathname}/`;
   const saveHandler = useRef<SaveHandler | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{ text: string; isError: boolean } | null>(
+    null,
+  );
+  const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const context: SettingsOutletContext = {
     registerSaveHandler: (handler) => {
       saveHandler.current = handler;
+    },
+    showSaveMessage: (message, isError = false) => {
+      if (messageTimer.current) clearTimeout(messageTimer.current);
+      setSaveMessage({ text: message, isError });
+      messageTimer.current = setTimeout(() => {
+        setSaveMessage(null);
+      }, 3000);
     },
   };
 
@@ -64,6 +78,13 @@ export function SettingsLayout() {
         >
           Save Settings
         </button>
+        {saveMessage && (
+          <div
+            className={`settings-message mt-4 ml-4 ${saveMessage.isError ? 'text-red-500' : 'text-green-500'}`}
+          >
+            {saveMessage.text}
+          </div>
+        )}
       </div>
     </>
   );
