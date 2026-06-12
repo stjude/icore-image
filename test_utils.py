@@ -1190,7 +1190,7 @@ def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
         patch("time.sleep"),
     ):
         mock_start.return_value = Mock(poll=Mock(return_value=None))
-        mock_find.return_value = [{"SOPInstanceUID": f"uid_{i}"} for i in range(5)]
+        mock_find.return_value = [{"NumberOfStudyRelatedInstances": "5"}]
         mock_move.return_value = {
             "success": True,
             "num_completed": -1,
