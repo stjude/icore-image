@@ -1174,10 +1174,6 @@ def verify_admin_password(request):
 def delete_task(request, task_id):
     try:
         task = get_object_or_404(Project, id=task_id)
-
-        # Optionally, delete associated files
-        if os.path.exists(task.output_folder):
-            shutil.rmtree(task.output_folder)
         task.delete()
 
         return JsonResponse({"status": "success"})
