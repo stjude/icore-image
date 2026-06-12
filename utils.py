@@ -641,9 +641,7 @@ def move_studies_from_study_pacs_map(
                 logging.info(f"Retrieved {processed} / {total_studies} studies")
                 logging.debug(f"Processing study from Excel row {query_index + 1}")
                 if progress_callback:
-                    progress_callback(
-                        batch_num, total_batches, study_idx, len(batch)
-                    )
+                    progress_callback(batch_num, total_batches, study_idx, len(batch))
 
                 try:
                     result = move_study(
