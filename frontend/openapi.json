@@ -1,0 +1,1033 @@
+{
+  "components": {
+    "schemas": {
+      "FilterEntry": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          },
+          "value": {
+            "default": "",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag",
+          "action"
+        ],
+        "title": "FilterEntry",
+        "type": "object"
+      },
+      "PacsConfigEntry": {
+        "description": "An entry of settings.json's pacs_configs (forwarded by the frontend);\nextra keys are tolerated since the settings file is free-form.",
+        "properties": {
+          "ae": {
+            "title": "Ae",
+            "type": "string"
+          },
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Port"
+          }
+        },
+        "required": [
+          "ip",
+          "port",
+          "ae"
+        ],
+        "title": "PacsConfigEntry",
+        "type": "object"
+      },
+      "RunDeidRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acc_col": {
+            "title": "Acc Col",
+            "type": "string"
+          },
+          "application_aet": {
+            "title": "Application Aet",
+            "type": "string"
+          },
+          "apply_default_ctp_filter_script": {
+            "default": true,
+            "title": "Apply Default Ctp Filter Script",
+            "type": "boolean"
+          },
+          "date_col": {
+            "title": "Date Col",
+            "type": "string"
+          },
+          "date_shift_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Date Shift Days"
+          },
+          "date_window": {
+            "default": 0,
+            "title": "Date Window",
+            "type": "integer"
+          },
+          "deid_engine": {
+            "default": "ctp",
+            "enum": [
+              "ctp",
+              "rust"
+            ],
+            "title": "Deid Engine",
+            "type": "string"
+          },
+          "deid_pixels": {
+            "default": false,
+            "title": "Deid Pixels",
+            "type": "boolean"
+          },
+          "general_filters": {
+            "items": {
+              "$ref": "#/components/schemas/FilterEntry"
+            },
+            "title": "General Filters",
+            "type": "array"
+          },
+          "image_source": {
+            "enum": [
+              "LOCAL",
+              "PACS"
+            ],
+            "title": "Image Source",
+            "type": "string"
+          },
+          "input_file": {
+            "title": "Input File",
+            "type": "string"
+          },
+          "input_folder": {
+            "title": "Input Folder",
+            "type": "string"
+          },
+          "mapping_file_path": {
+            "default": "",
+            "title": "Mapping File Path",
+            "type": "string"
+          },
+          "modality_filters": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/FilterEntry"
+              },
+              "type": "array"
+            },
+            "title": "Modality Filters",
+            "type": "object"
+          },
+          "mrn_col": {
+            "title": "Mrn Col",
+            "type": "string"
+          },
+          "output_folder": {
+            "title": "Output Folder",
+            "type": "string"
+          },
+          "pacs_configs": {
+            "items": {
+              "$ref": "#/components/schemas/PacsConfigEntry"
+            },
+            "title": "Pacs Configs",
+            "type": "array"
+          },
+          "remove_curves": {
+            "default": false,
+            "title": "Remove Curves",
+            "type": "boolean"
+          },
+          "remove_overlays": {
+            "default": false,
+            "title": "Remove Overlays",
+            "type": "boolean"
+          },
+          "remove_private": {
+            "default": false,
+            "title": "Remove Private",
+            "type": "boolean"
+          },
+          "remove_unspecified": {
+            "default": false,
+            "title": "Remove Unspecified",
+            "type": "boolean"
+          },
+          "sc_pdf_output_dir": {
+            "default": "",
+            "title": "Sc Pdf Output Dir",
+            "type": "string"
+          },
+          "scheduled_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scheduled Time"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "study_name": {
+            "title": "Study Name",
+            "type": "string"
+          },
+          "tags_to_dateshift": {
+            "title": "Tags To Dateshift",
+            "type": "string"
+          },
+          "tags_to_keep": {
+            "title": "Tags To Keep",
+            "type": "string"
+          },
+          "tags_to_randomize": {
+            "title": "Tags To Randomize",
+            "type": "string"
+          },
+          "use_fallback_query": {
+            "default": false,
+            "title": "Use Fallback Query",
+            "type": "boolean"
+          },
+          "use_mapping_file": {
+            "default": false,
+            "title": "Use Mapping File",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tags_to_keep",
+          "tags_to_dateshift",
+          "tags_to_randomize",
+          "date_shift_days",
+          "site_id",
+          "pacs_configs",
+          "application_aet",
+          "input_file",
+          "acc_col",
+          "mrn_col",
+          "date_col",
+          "general_filters",
+          "modality_filters",
+          "study_name",
+          "image_source",
+          "input_folder",
+          "output_folder"
+        ],
+        "title": "RunDeidRequest",
+        "type": "object"
+      },
+      "RunExportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "input_folder": {
+            "title": "Input Folder",
+            "type": "string"
+          },
+          "sas_url": {
+            "title": "Sas Url",
+            "type": "string"
+          },
+          "study_name": {
+            "title": "Study Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_name",
+          "input_folder",
+          "sas_url"
+        ],
+        "title": "RunExportRequest",
+        "type": "object"
+      },
+      "RunHeaderExtractRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "extract_all_headers": {
+            "default": false,
+            "title": "Extract All Headers",
+            "type": "boolean"
+          },
+          "headers_to_extract": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Headers To Extract"
+          },
+          "input_folder": {
+            "title": "Input Folder",
+            "type": "string"
+          },
+          "output_folder": {
+            "title": "Output Folder",
+            "type": "string"
+          },
+          "study_name": {
+            "title": "Study Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_name",
+          "input_folder",
+          "output_folder"
+        ],
+        "title": "RunHeaderExtractRequest",
+        "type": "object"
+      },
+      "RunImageDeidExportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acc_col": {
+            "title": "Acc Col",
+            "type": "string"
+          },
+          "application_aet": {
+            "title": "Application Aet",
+            "type": "string"
+          },
+          "apply_default_ctp_filter_script": {
+            "default": true,
+            "title": "Apply Default Ctp Filter Script",
+            "type": "boolean"
+          },
+          "date_col": {
+            "title": "Date Col",
+            "type": "string"
+          },
+          "date_shift_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Date Shift Days"
+          },
+          "date_window": {
+            "default": 0,
+            "title": "Date Window",
+            "type": "integer"
+          },
+          "deid_engine": {
+            "default": "ctp",
+            "enum": [
+              "ctp",
+              "rust"
+            ],
+            "title": "Deid Engine",
+            "type": "string"
+          },
+          "deid_pixels": {
+            "default": false,
+            "title": "Deid Pixels",
+            "type": "boolean"
+          },
+          "general_filters": {
+            "items": {
+              "$ref": "#/components/schemas/FilterEntry"
+            },
+            "title": "General Filters",
+            "type": "array"
+          },
+          "input_file": {
+            "title": "Input File",
+            "type": "string"
+          },
+          "mapping_file_path": {
+            "default": "",
+            "title": "Mapping File Path",
+            "type": "string"
+          },
+          "modality_filters": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/FilterEntry"
+              },
+              "type": "array"
+            },
+            "title": "Modality Filters",
+            "type": "object"
+          },
+          "mrn_col": {
+            "title": "Mrn Col",
+            "type": "string"
+          },
+          "output_folder": {
+            "title": "Output Folder",
+            "type": "string"
+          },
+          "pacs_configs": {
+            "items": {
+              "$ref": "#/components/schemas/PacsConfigEntry"
+            },
+            "title": "Pacs Configs",
+            "type": "array"
+          },
+          "remove_curves": {
+            "default": false,
+            "title": "Remove Curves",
+            "type": "boolean"
+          },
+          "remove_overlays": {
+            "default": false,
+            "title": "Remove Overlays",
+            "type": "boolean"
+          },
+          "remove_private": {
+            "default": false,
+            "title": "Remove Private",
+            "type": "boolean"
+          },
+          "remove_unspecified": {
+            "default": false,
+            "title": "Remove Unspecified",
+            "type": "boolean"
+          },
+          "sas_url": {
+            "title": "Sas Url",
+            "type": "string"
+          },
+          "sc_pdf_output_dir": {
+            "default": "",
+            "title": "Sc Pdf Output Dir",
+            "type": "string"
+          },
+          "scheduled_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scheduled Time"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "study_name": {
+            "title": "Study Name",
+            "type": "string"
+          },
+          "tags_to_dateshift": {
+            "title": "Tags To Dateshift",
+            "type": "string"
+          },
+          "tags_to_keep": {
+            "title": "Tags To Keep",
+            "type": "string"
+          },
+          "tags_to_randomize": {
+            "title": "Tags To Randomize",
+            "type": "string"
+          },
+          "use_fallback_query": {
+            "default": false,
+            "title": "Use Fallback Query",
+            "type": "boolean"
+          },
+          "use_mapping_file": {
+            "default": false,
+            "title": "Use Mapping File",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tags_to_keep",
+          "tags_to_dateshift",
+          "tags_to_randomize",
+          "date_shift_days",
+          "site_id",
+          "pacs_configs",
+          "application_aet",
+          "input_file",
+          "acc_col",
+          "mrn_col",
+          "date_col",
+          "general_filters",
+          "modality_filters",
+          "study_name",
+          "output_folder",
+          "sas_url"
+        ],
+        "title": "RunImageDeidExportRequest",
+        "type": "object"
+      },
+      "RunQueryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acc_col": {
+            "title": "Acc Col",
+            "type": "string"
+          },
+          "application_aet": {
+            "title": "Application Aet",
+            "type": "string"
+          },
+          "date_col": {
+            "title": "Date Col",
+            "type": "string"
+          },
+          "date_window": {
+            "default": 0,
+            "title": "Date Window",
+            "type": "integer"
+          },
+          "general_filters": {
+            "items": {
+              "$ref": "#/components/schemas/FilterEntry"
+            },
+            "title": "General Filters",
+            "type": "array"
+          },
+          "input_file": {
+            "title": "Input File",
+            "type": "string"
+          },
+          "modality_filters": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/FilterEntry"
+              },
+              "type": "array"
+            },
+            "title": "Modality Filters",
+            "type": "object"
+          },
+          "mrn_col": {
+            "title": "Mrn Col",
+            "type": "string"
+          },
+          "output_folder": {
+            "title": "Output Folder",
+            "type": "string"
+          },
+          "pacs_configs": {
+            "items": {
+              "$ref": "#/components/schemas/PacsConfigEntry"
+            },
+            "title": "Pacs Configs",
+            "type": "array"
+          },
+          "scheduled_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scheduled Time"
+          },
+          "study_name": {
+            "title": "Study Name",
+            "type": "string"
+          },
+          "use_fallback_query": {
+            "default": false,
+            "title": "Use Fallback Query",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pacs_configs",
+          "application_aet",
+          "input_file",
+          "acc_col",
+          "mrn_col",
+          "date_col",
+          "general_filters",
+          "modality_filters",
+          "study_name",
+          "output_folder"
+        ],
+        "title": "RunQueryRequest",
+        "type": "object"
+      },
+      "RunResponse": {
+        "properties": {
+          "log_path": {
+            "title": "Log Path",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Message"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "success",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "project_id",
+          "log_path"
+        ],
+        "title": "RunResponse",
+        "type": "object"
+      },
+      "RunSingleClickRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "application_aet": {
+            "title": "Application Aet",
+            "type": "string"
+          },
+          "apply_default_ctp_filter_script": {
+            "default": true,
+            "title": "Apply Default Ctp Filter Script",
+            "type": "boolean"
+          },
+          "column_actions": {
+            "additionalProperties": {
+              "enum": [
+                "keep",
+                "deid",
+                "drop"
+              ],
+              "type": "string"
+            },
+            "title": "Column Actions",
+            "type": "object"
+          },
+          "date_window": {
+            "default": 0,
+            "title": "Date Window",
+            "type": "integer"
+          },
+          "export_to_azure": {
+            "default": true,
+            "title": "Export To Azure",
+            "type": "boolean"
+          },
+          "general_filters": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FilterEntry"
+            },
+            "title": "General Filters",
+            "type": "array"
+          },
+          "input_file": {
+            "title": "Input File",
+            "type": "string"
+          },
+          "mapping_file_path": {
+            "default": "",
+            "title": "Mapping File Path",
+            "type": "string"
+          },
+          "modality_filters": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/FilterEntry"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "title": "Modality Filters",
+            "type": "object"
+          },
+          "output_folder": {
+            "title": "Output Folder",
+            "type": "string"
+          },
+          "pacs_configs": {
+            "items": {
+              "$ref": "#/components/schemas/PacsConfigEntry"
+            },
+            "title": "Pacs Configs",
+            "type": "array"
+          },
+          "sas_url": {
+            "default": "",
+            "title": "Sas Url",
+            "type": "string"
+          },
+          "sc_pdf_output_dir": {
+            "default": "",
+            "title": "Sc Pdf Output Dir",
+            "type": "string"
+          },
+          "scheduled_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scheduled Time"
+          },
+          "study_name": {
+            "title": "Study Name",
+            "type": "string"
+          },
+          "text_to_keep": {
+            "default": "",
+            "title": "Text To Keep",
+            "type": "string"
+          },
+          "text_to_remove": {
+            "default": "",
+            "title": "Text To Remove",
+            "type": "string"
+          },
+          "use_fallback_query": {
+            "default": false,
+            "title": "Use Fallback Query",
+            "type": "boolean"
+          },
+          "use_mapping_file": {
+            "default": false,
+            "title": "Use Mapping File",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "study_name",
+          "input_file",
+          "output_folder",
+          "pacs_configs",
+          "application_aet",
+          "column_actions"
+        ],
+        "title": "RunSingleClickRequest",
+        "type": "object"
+      },
+      "RunTextDeidRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "column_actions": {
+            "additionalProperties": {
+              "enum": [
+                "keep",
+                "deid",
+                "drop"
+              ],
+              "type": "string"
+            },
+            "title": "Column Actions",
+            "type": "object"
+          },
+          "date_shift_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": 0,
+            "title": "Date Shift Days"
+          },
+          "input_file": {
+            "title": "Input File",
+            "type": "string"
+          },
+          "output_folder": {
+            "title": "Output Folder",
+            "type": "string"
+          },
+          "scheduled_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scheduled Time"
+          },
+          "study_name": {
+            "title": "Study Name",
+            "type": "string"
+          },
+          "text_to_keep": {
+            "default": "",
+            "title": "Text To Keep",
+            "type": "string"
+          },
+          "text_to_remove": {
+            "default": "",
+            "title": "Text To Remove",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_name",
+          "input_file",
+          "output_folder",
+          "column_actions"
+        ],
+        "title": "RunTextDeidRequest",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Generated from home/api_models.py \u2014 do not edit.",
+    "title": "iCore job-creation API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/run_deid/": {
+      "post": {
+        "operationId": "runDeid",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunDeidRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Job created"
+          }
+        }
+      }
+    },
+    "/run_export/": {
+      "post": {
+        "operationId": "runExport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Job created"
+          }
+        }
+      }
+    },
+    "/run_header_extract/": {
+      "post": {
+        "operationId": "runHeaderExtract",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunHeaderExtractRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Job created"
+          }
+        }
+      }
+    },
+    "/run_imagedeidexport/": {
+      "post": {
+        "operationId": "runImageDeidExport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunImageDeidExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Job created"
+          }
+        }
+      }
+    },
+    "/run_query/": {
+      "post": {
+        "operationId": "runQuery",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Job created"
+          }
+        }
+      }
+    },
+    "/run_singleclickicore/": {
+      "post": {
+        "operationId": "runSingleClickICore",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunSingleClickRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Job created"
+          }
+        }
+      }
+    },
+    "/run_text_deid/": {
+      "post": {
+        "operationId": "runTextDeid",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunTextDeidRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Job created"
+          }
+        }
+      }
+    }
+  }
+}

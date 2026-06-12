@@ -19,3 +19,5 @@ output
 appdata
 .cursor
 config.yml
+.baselines/
+deid/static/app/

@@ -12,6 +12,7 @@ const execPromise = util.promisify(exec);
 let mainWindow;
 let serverProcess;
 let workerProcess;
+let frontendProcess;
 
 // Resolve the Python interpreter to use in dev mode. Prefer an explicit
 // ICORE_PYTHON (set by `make dev`), then the project's uv virtualenv, then a
@@ -188,12 +189,14 @@ app.on('ready', async () => {
   await killProcessesOnCtpPorts();
   
   if (isDev) {
-    // Free port 8000 in case a previous dev server (or its autoreload child)
-    // is still holding it, then start Django + worker with hot reload.
+    // Free ports in case a previous dev session is still holding them, then
+    // start Django + worker + the Rsbuild HMR dev server.
     await killProcessOnPort(8000);
+    await killProcessOnPort(3000);
 
     const managePyPath = path.join(__dirname, '..', 'deid', 'manage.py');
     const deidDir = path.join(__dirname, '..', 'deid');
+    const frontendDir = path.join(__dirname, '..', 'frontend');
     const env = { ...process.env, ICORE_DEV: '1' };
 
     logWithTimestamp('main', `Dev mode: launching Django + worker with ${devPython}`);
@@ -210,6 +213,22 @@ app.on('ready', async () => {
       env,
       cwd: deidDir,
       detached: true,
+    });
+    // Rsbuild dev server: hot-reloads React components, proxies API calls to
+    // the Django server on :8000. The window loads :3000 in dev.
+    frontendProcess = spawn('npm', ['run', 'dev'], {
+      env,
+      cwd: frontendDir,
+      detached: true,
+    });
+    frontendProcess.stdout.on('data', (data) => {
+      logWithTimestamp('frontend', data.toString().trim());
+    });
+    frontendProcess.stderr.on('data', (data) => {
+      logWithTimestamp('frontend', data.toString().trim());
+    });
+    frontendProcess.on('error', (err) => {
+      logWithTimestamp('frontend', `Process error: ${err}`);
     });
   } else {
     const manageBinaryPath = app.isPackaged
@@ -257,10 +276,14 @@ app.on('ready', async () => {
   });
 
   // Retry loading until the dev server is accepting connections, so startup
-  // is robust regardless of how long the interpreter takes to boot.
-  const appUrl = 'http://127.0.0.1:8000/';
+  // is robust regardless of how long the interpreter takes to boot. In dev
+  // the window loads the Rsbuild HMR server, which proxies API calls to
+  // Django on :8000.
+  const appUrl = isDev
+    ? (process.env.ICORE_UI_URL || 'http://127.0.0.1:3000/')
+    : 'http://127.0.0.1:8000/';
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    if (validatedURL && validatedURL.startsWith('http://127.0.0.1:8000')) {
+    if (validatedURL && validatedURL.startsWith(appUrl.replace(/\/$/, ''))) {
       logWithTimestamp('main', `Load failed (${errorCode} ${errorDescription}); retrying...`);
       setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -358,9 +381,12 @@ app.on('ready', async () => {
         serverProcess = null;
         stopProcess(workerProcess);
         workerProcess = null;
+        stopProcess(frontendProcess);
+        frontendProcess = null;
 
         if (isDev) {
           await killProcessOnPort(8000);
+          await killProcessOnPort(3000);
         }
 
         await killProcessesOnCtpPorts();
