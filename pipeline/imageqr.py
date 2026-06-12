@@ -4,11 +4,13 @@ import shutil
 import time
 
 from ctp import CTPPipeline
+from pipeline.progress import ProgressReporter
 from utils import (
     PacsConfiguration,
     PacsQueryResult,
     RunDirs,
     Spreadsheet,
+    count_dicom_files,
     generate_queries_and_filter,
     combine_filters,
     validate_date_window_days,
@@ -41,6 +43,22 @@ def _log_progress(pipeline: CTPPipeline) -> None:
             )
 
         logging.info(progress_msg)
+
+
+def _report_processing(
+    progress: ProgressReporter, pipeline: CTPPipeline, total: int
+) -> None:
+    if not pipeline.metrics:
+        return
+    received = pipeline.metrics.files_received
+    if total:
+        status = (
+            f"Processing {format_number_with_commas(received)} of "
+            f"{format_number_with_commas(total)} images"
+        )
+        progress.update("process", received / total, status)
+    else:
+        progress.update("process", 0.0, "Processing images…")
 
 
 def imageqr(
@@ -77,6 +95,32 @@ def imageqr(
 
     validate_date_window_days(date_window_days)
 
+    # Drives the task-progress bar: a retrieval stage (query 0→1/3, C-MOVE
+    # 1/3→1) followed by the CTP processing pass over the retrieved files.
+    progress = ProgressReporter(
+        run_dirs["log_dir"],
+        [
+            ("gather", "Retrieving images from PACS"),
+            ("process", "Processing images"),
+        ],
+    )
+
+    def on_query(done: int, total: int) -> None:
+        if total:
+            progress.update("gather", (done / total) / 3.0, "Querying for images")
+
+    def on_retrieve(
+        batch_num: int, total_batches: int, study_idx: int, batch_len: int
+    ) -> None:
+        if total_batches and batch_len:
+            within = (batch_num - 1 + study_idx / batch_len) / total_batches
+            progress.update(
+                "gather",
+                1.0 / 3.0 + (2.0 / 3.0) * within,
+                f"Batch {batch_num} of {total_batches} — "
+                f"retrieving study {study_idx} of {batch_len}",
+            )
+
     query_params_list, expected_values_list, generated_filter = (
         generate_queries_and_filter(
             query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query
@@ -94,6 +138,7 @@ def imageqr(
             expected_values_list,
             fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
             fallback_date_window_days=date_window_days,
+            progress_callback=on_query,
         )
     )
 
@@ -114,11 +159,14 @@ def imageqr(
                 deferred_delivery=deferred_delivery,
                 deferred_delivery_timeout=deferred_delivery_timeout,
                 cmove_batch_size=cmove_batch_size,
+                progress_callback=on_retrieve,
             )
         )
 
         # Wait briefly to ensure all files are written
         time.sleep(2)
+
+        total_retrieved = count_dicom_files(dicom_retrieval_dir)
 
         with CTPPipeline(
             pipeline_type="imageqr",
@@ -148,6 +196,7 @@ def imageqr(
                         use_fallback_query=use_fallback_query,
                     )
                     _log_progress(pipeline)
+                    _report_processing(progress, pipeline, total_retrieved)
                     last_save_time = current_time
 
                 time.sleep(1)
