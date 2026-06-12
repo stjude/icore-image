@@ -1,7 +1,6 @@
 import logging
 import json
 import os
-import shutil
 import sys
 from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlparse, parse_qs
