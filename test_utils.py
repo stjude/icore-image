@@ -42,6 +42,21 @@ def get_free_port() -> Generator[int, None, None]:
         yield s.getsockname()[1]
 
 
+# A free host port can be claimed by another parallel worker between selection
+# and the moment `docker run` actually binds it. Retry on that bind conflict
+# with a freshly allocated port rather than failing the test.
+PORT_BIND_ATTEMPTS = 5
+
+
+def _is_port_conflict(stderr: str) -> bool:
+    s = (stderr or "").lower()
+    return (
+        "address already in use" in s
+        or "port is already allocated" in s
+        or "failed to bind" in s
+    )
+
+
 def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thickness):
     ds = Fixtures.create_minimal_dicom(
         patient_id=patient_id,
@@ -71,9 +86,9 @@ def _create_test_dicom(accession, patient_id, patient_name, modality, slice_thic
 def _upload_dicom_to_orthanc(ds, orthanc):
     with tempfile.NamedTemporaryFile(suffix=".dcm") as tmp:
         ds.save_as(tmp.name)
+        # Orthanc's POST /instances stores and indexes synchronously, so the
+        # instance is queryable as soon as it returns — no sleep needed.
         orthanc.upload_dicom(tmp.name)
-    # Give time for the DICOM to be uploaded to Orthanc
-    time.sleep(2)
 
 
 def _create_secondary_capture_dicom(
@@ -453,8 +468,6 @@ class OrthancServer:
             )
 
     def start(self):
-        container_name = f"orthanc_test_{uuid.uuid4().hex[:8]}"
-
         # Reuse a single Docker network across all test OrthancServer instances
         self._ensure_shared_network()
         self.network = None  # not owned by this instance
@@ -481,36 +494,50 @@ class OrthancServer:
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
 
-        # Release reserved sockets right before starting up Docker to minimize
-        # risk of other processes grabbing the ports in between
-        self._release_sockets()
-
-        # Run Orthanc on custom network with port mapping
-        subprocess.run(
-            [
-                "docker",
-                "run",
-                "-d",
-                "--name",
-                container_name,
-                "--network",
-                self._shared_network,
-                # This is necessary to support the use of host.docker.internal DNS resolution in non-macOS systems
-                "--add-host=host.docker.internal:host-gateway",
-                "-p",
-                f"{self.http_port}:8042",
-                "-p",
-                f"{self.dicom_port}:4242",
-                "-v",
-                f"{self.config_dir}:/etc/orthanc:ro",
-                "orthancteam/orthanc:latest",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-
-        self.container = container_name
+        # Run Orthanc on custom network with port mapping, retrying on a host-port
+        # bind conflict (another worker grabbed the port first) with fresh ports.
+        last_error = None
+        for attempt in range(PORT_BIND_ATTEMPTS):
+            container_name = f"orthanc_test_{uuid.uuid4().hex[:8]}"
+            # Release reserved sockets right before Docker binds them.
+            self._release_sockets()
+            result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--name",
+                    container_name,
+                    "--network",
+                    self._shared_network,
+                    # This is necessary to support the use of host.docker.internal DNS resolution in non-macOS systems
+                    "--add-host=host.docker.internal:host-gateway",
+                    "-p",
+                    f"{self.http_port}:8042",
+                    "-p",
+                    f"{self.dicom_port}:4242",
+                    "-v",
+                    f"{self.config_dir}:/etc/orthanc:ro",
+                    "orthancteam/orthanc:latest",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                self.container = container_name
+                break
+            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
+            last_error = result.stderr
+            if not _is_port_conflict(result.stderr):
+                raise RuntimeError(f"Orthanc docker run failed: {result.stderr}")
+            self.http_port = self._allocate_port()
+            self.dicom_port = self._allocate_port()
+            self.base_url = f"http://localhost:{self.http_port}"
+        else:
+            raise RuntimeError(
+                f"Orthanc failed to bind host ports after {PORT_BIND_ATTEMPTS} "
+                f"attempts: {last_error}"
+            )
 
         # Wait for Orthanc to be ready
         for i in range(30):
@@ -623,33 +650,50 @@ class AzuriteServer:
 
     def start(self):
         """Start the Azurite Docker container"""
-        container_name = f"azurite_test_{uuid.uuid4().hex[:8]}"
+        # Retry on a host-port bind conflict (another worker grabbed the port
+        # between selection and Docker binding it) with a freshly chosen port.
+        last_error = None
+        for attempt in range(PORT_BIND_ATTEMPTS):
+            container_name = f"azurite_test_{uuid.uuid4().hex[:8]}"
+            result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--name",
+                    container_name,
+                    "-p",
+                    f"{self.blob_port}:10000",
+                    "mcr.microsoft.com/azure-storage/azurite:latest",
+                    "azurite-blob",
+                    "--blobHost",
+                    "0.0.0.0",
+                    "--skipApiVersionCheck",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                self.container = container_name
+                break
+            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
+            last_error = result.stderr
+            if not _is_port_conflict(result.stderr):
+                raise RuntimeError(f"Azurite docker run failed: {result.stderr}")
+            self.blob_port = self._get_free_port()
+            self.connection_string = (
+                f"DefaultEndpointsProtocol=http;"
+                f"AccountName={self.account_name};"
+                f"AccountKey={self.account_key};"
+                f"BlobEndpoint=http://127.0.0.1:{self.blob_port}/{self.account_name};"
+            )
+        else:
+            raise RuntimeError(
+                f"Azurite failed to bind host port after {PORT_BIND_ATTEMPTS} "
+                f"attempts: {last_error}"
+            )
 
-        subprocess.run(
-            [
-                "docker",
-                "run",
-                "-d",
-                "--name",
-                container_name,
-                "-p",
-                f"{self.blob_port}:10000",
-                "mcr.microsoft.com/azure-storage/azurite:latest",
-                "azurite-blob",
-                "--blobHost",
-                "0.0.0.0",
-                "--skipApiVersionCheck",
-            ],
-            check=True,
-            capture_output=True,
-        )
-
-        self.container = container_name
-
-        # Wait for Azurite to be ready
-        time.sleep(2)
-
-        # Verify connection
+        # Verify connection (the readiness poll below also covers startup time)
         from azure.storage.blob import BlobServiceClient
 
         for attempt in range(30):

@@ -1,3 +1,4 @@
+import logging
 import os
 import platform
 import re
@@ -13,6 +14,18 @@ from threading import Thread, Lock
 
 import psutil
 import requests
+
+# How often the background monitor polls CTP's status page. Completion is
+# declared after ``stable_count > 3`` (4 consecutive stable polls), so this
+# also sets the post-processing settle time (~4 * interval). Overridable via
+# env so CI/tests can poll faster than the production default.
+MONITOR_POLL_INTERVAL = float(os.environ.get("ICORE_CTP_POLL_INTERVAL", "1.0"))
+
+# CTP picks an ephemeral port, but its Java process doesn't bind it until
+# several seconds later during JVM boot — a TOCTOU window in which a parallel
+# worker can claim the same port. CTP then exits on the bind conflict; we pick
+# a fresh port and retry rather than failing the run.
+PORT_BIND_ATTEMPTS = 5
 
 
 def _get_default_ctp_source_dir():
@@ -40,15 +53,6 @@ def _get_default_java_home():
         else:
             java_home = base_jre_path
     return java_home
-
-
-def is_port_available(port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(("localhost", port))
-            return True
-        except OSError:
-            return False
 
 
 def ctp_get(url, port, timeout=3):
@@ -363,7 +367,7 @@ class CTPServer:
     def _monitor_loop(self):
         try:
             while self._monitor_running:
-                time.sleep(3)
+                time.sleep(MONITOR_POLL_INTERVAL)
                 self._update_metrics()
 
                 if self.metrics.time_since_last_change() > self.stall_timeout:
@@ -896,25 +900,6 @@ class CTPPipeline:
         if self.sc_pdf_output_dir:
             os.makedirs(self.sc_pdf_output_dir, exist_ok=True)
 
-        config_template = PIPELINE_TEMPLATES[self.pipeline_type]
-        config_xml = config_template.format(
-            input_dir=os.path.abspath(self.input_dir) if self.input_dir else "",
-            output_dir=os.path.abspath(self.output_dir),
-            tempdir=os.path.abspath(self._tempdir),
-            port=self.port,
-            application_aet=self.application_aet if self.application_aet else "",
-        )
-
-        # Rewrite all quarantine paths in the template to the single quarantine dir.
-        config_xml = re.sub(
-            r'quarantine="[^"]*"',
-            f'quarantine="{os.path.abspath(self.quarantine_dir)}"',
-            config_xml,
-        )
-
-        with open(os.path.join(ctp_workspace, "config.xml"), "w") as f:
-            f.write(config_xml)
-
         scripts_dir = os.path.join(ctp_workspace, "scripts")
         os.makedirs(scripts_dir, exist_ok=True)
 
@@ -932,10 +917,51 @@ class CTPPipeline:
             with open(os.path.join(scripts_dir, "LookupTable.properties"), "w") as f:
                 f.write("")
 
-        self.server = CTPServer(ctp_workspace, stall_timeout=self.stall_timeout)
-        self.server.start()
+        config_template = PIPELINE_TEMPLATES[self.pipeline_type]
+        config_path = os.path.join(ctp_workspace, "config.xml")
 
-        return self
+        # Select the port as late as possible and retry on a bind conflict: CTP
+        # exits if another process grabbed the port between selection and bind.
+        last_error = None
+        for attempt in range(PORT_BIND_ATTEMPTS):
+            self.port = self._find_available_port()
+            config_xml = config_template.format(
+                input_dir=os.path.abspath(self.input_dir) if self.input_dir else "",
+                output_dir=os.path.abspath(self.output_dir),
+                tempdir=os.path.abspath(self._tempdir),
+                port=self.port,
+                application_aet=self.application_aet if self.application_aet else "",
+            )
+
+            # Rewrite all quarantine paths in the template to the single quarantine dir.
+            config_xml = re.sub(
+                r'quarantine="[^"]*"',
+                f'quarantine="{os.path.abspath(self.quarantine_dir)}"',
+                config_xml,
+            )
+
+            with open(config_path, "w") as f:
+                f.write(config_xml)
+
+            self.server = CTPServer(ctp_workspace, stall_timeout=self.stall_timeout)
+            try:
+                self.server.start()
+                return self
+            except RuntimeError as e:
+                last_error = e
+                logging.warning(
+                    "CTP failed to start on port %s (attempt %d/%d); retrying on a "
+                    "new port: %s",
+                    self.port,
+                    attempt + 1,
+                    PORT_BIND_ATTEMPTS,
+                    e,
+                )
+                self.server = None
+
+        raise RuntimeError(
+            f"CTP failed to start after {PORT_BIND_ATTEMPTS} port attempts"
+        ) from last_error
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.server:
