@@ -732,6 +732,77 @@ def move_studies_from_study_pacs_map(
     return successful_moves, failed_query_indices, failure_details
 
 
+def query_and_retrieve_studies(
+    pacs_list,
+    query_params_list,
+    expected_values_list,
+    application_aet,
+    retrieval_dir,
+    storescp_port,
+    cmove_batch_size,
+    fallback_spreadsheet=None,
+    fallback_date_window_days=0,
+    deferred_delivery=False,
+    deferred_delivery_timeout=172800,
+    progress=None,
+):
+    """Query PACS for studies, then C-MOVE them into ``retrieval_dir``.
+
+    Shared by the PACS gather stage and the image-query module. When a
+    ``progress`` reporter is supplied, reports gather progress under the
+    ``"gather"`` stage: the query phase fills the first third, C-MOVE the
+    remaining two thirds (advancing per study).
+
+    Returns ``(study_pacs_map, failed_query_indices, failure_details)``.
+    """
+
+    def on_query(done, total):
+        if progress and total:
+            progress.update("gather", (done / total) / 3.0, "Querying for images")
+
+    def on_retrieve(batch_num, total_batches, study_idx, batch_len):
+        if progress and total_batches and batch_len:
+            within = (batch_num - 1 + study_idx / batch_len) / total_batches
+            progress.update(
+                "gather",
+                1.0 / 3.0 + (2.0 / 3.0) * within,
+                f"Batch {batch_num} of {total_batches} — "
+                f"retrieving study {study_idx} of {batch_len}",
+            )
+
+    valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
+
+    study_pacs_map, failed_find_indices, find_failure_details = (
+        find_studies_from_pacs_list(
+            valid_pacs_list,
+            query_params_list,
+            application_aet,
+            expected_values_list,
+            fallback_spreadsheet=fallback_spreadsheet,
+            fallback_date_window_days=fallback_date_window_days,
+            progress_callback=on_query,
+        )
+    )
+
+    _, failed_move_indices, move_failure_details = move_studies_from_study_pacs_map(
+        study_pacs_map,
+        application_aet,
+        retrieval_dir,
+        storescp_port,
+        cmove_batch_size=cmove_batch_size,
+        deferred_delivery=deferred_delivery,
+        deferred_delivery_timeout=deferred_delivery_timeout,
+        progress_callback=on_retrieve,
+    )
+
+    # Wait briefly to ensure all files are written
+    time.sleep(2)
+
+    failed_query_indices = list(set(failed_find_indices + failed_move_indices))
+    failure_details = {**find_failure_details, **move_failure_details}
+    return study_pacs_map, failed_query_indices, failure_details
+
+
 def setup_run_directories() -> RunDirs:
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 

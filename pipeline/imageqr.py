@@ -14,9 +14,7 @@ from utils import (
     generate_queries_and_filter,
     combine_filters,
     validate_date_window_days,
-    find_valid_pacs_list,
-    find_studies_from_pacs_list,
-    move_studies_from_study_pacs_map,
+    query_and_retrieve_studies,
     setup_run_directories,
     configure_run_logging,
     format_number_with_commas,
@@ -105,22 +103,6 @@ def imageqr(
         ],
     )
 
-    def on_query(done: int, total: int) -> None:
-        if total:
-            progress.update("gather", (done / total) / 3.0, "Querying for images")
-
-    def on_retrieve(
-        batch_num: int, total_batches: int, study_idx: int, batch_len: int
-    ) -> None:
-        if total_batches and batch_len:
-            within = (batch_num - 1 + study_idx / batch_len) / total_batches
-            progress.update(
-                "gather",
-                1.0 / 3.0 + (2.0 / 3.0) * within,
-                f"Batch {batch_num} of {total_batches} — "
-                f"retrieving study {study_idx} of {batch_len}",
-            )
-
     query_params_list, expected_values_list, generated_filter = (
         generate_queries_and_filter(
             query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query
@@ -128,43 +110,31 @@ def imageqr(
     )
     combined_filter = combine_filters(filter_script, generated_filter)
 
-    valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
-
-    study_pacs_map, failed_find_indices, find_failure_details = (
-        find_studies_from_pacs_list(
-            valid_pacs_list,
-            query_params_list,
-            application_aet,
-            expected_values_list,
-            fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
-            fallback_date_window_days=date_window_days,
-            progress_callback=on_query,
-        )
-    )
-
-    # Create directory for storescp to write retrieved DICOM files
+    # Directory for storescp to write retrieved DICOM files into.
     dicom_retrieval_dir = os.path.join(appdata_dir, "dicom_retrieval")
     os.makedirs(dicom_retrieval_dir, exist_ok=True)
 
     try:
         ctp_log_level = "DEBUG" if debug else None
 
-        # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-        successful_moves, failed_move_indices, move_failure_details = (
-            move_studies_from_study_pacs_map(
-                study_pacs_map,
+        # Retrieve files BEFORE starting CTP so ArchiveImportService finds them
+        # on initial scan.
+        study_pacs_map, failed_query_indices, combined_failure_details = (
+            query_and_retrieve_studies(
+                pacs_list,
+                query_params_list,
+                expected_values_list,
                 application_aet,
                 dicom_retrieval_dir,
                 storescp_port,
+                cmove_batch_size,
+                fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
+                fallback_date_window_days=date_window_days,
                 deferred_delivery=deferred_delivery,
                 deferred_delivery_timeout=deferred_delivery_timeout,
-                cmove_batch_size=cmove_batch_size,
-                progress_callback=on_retrieve,
+                progress=progress,
             )
         )
-
-        # Wait briefly to ensure all files are written
-        time.sleep(2)
 
         total_retrieved = count_dicom_files(dicom_retrieval_dir)
 
@@ -178,9 +148,6 @@ def imageqr(
             log_level=ctp_log_level,
             quarantine_dir=quarantine_dir,
         ) as pipeline:
-            failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-            combined_failure_details = {**find_failure_details, **move_failure_details}
-
             save_interval = 5
             last_save_time = 0
 
