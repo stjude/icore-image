@@ -333,6 +333,8 @@ class ImageDeidExecutor(ImageDeidStage):
     to the chosen engine.
     """
 
+    progress_marker = ("image_deid", "De-identifying metadata and pixels")
+
     def __init__(
         self,
         engine: Literal["rust", "ctp"],
@@ -422,6 +424,24 @@ class ImageDeidExecutor(ImageDeidStage):
             f"Files quarantined: {format_number_with_commas(ctx.images_quarantined)}"
         )
 
+    # --- progress ---
+
+    def _report_progress(self, ctx: PipelineContext, pipeline: CTPPipeline) -> None:
+        if not ctx.progress or not pipeline.metrics:
+            return
+        received = pipeline.metrics.files_received
+        total = ctx.total_files
+        if total:
+            fraction = received / total
+            status = (
+                f"Processing {format_number_with_commas(received)} of "
+                f"{format_number_with_commas(total)} images"
+            )
+        else:
+            fraction = 0.0
+            status = f"Processing {format_number_with_commas(received)} images"
+        ctx.progress.update("image_deid", fraction, status)
+
     # --- engine dispatchers ---
 
     def _run_rust(
@@ -434,6 +454,11 @@ class ImageDeidExecutor(ImageDeidStage):
         quarantine_dir: str,
     ) -> None:
         from deid_rs import DeidRsPipeline
+
+        # The Rust engine exposes no incremental progress, so the bar sits at
+        # the stage start until the run completes and the next stage advances.
+        if ctx.progress:
+            ctx.progress.update("image_deid", 0.0, "Processing images…")
 
         if final_filter_script:
             logging.info(
@@ -501,6 +526,7 @@ class ImageDeidExecutor(ImageDeidStage):
                 if current_time - last_save_time >= save_interval:
                     _save_metadata_files(pipeline, ctx.appdata_dir)
                     _log_progress(pipeline, ctx.total_files)
+                    self._report_progress(ctx, pipeline)
                     last_save_time = current_time
 
                 time.sleep(1)

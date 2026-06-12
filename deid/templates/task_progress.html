@@ -46,41 +46,81 @@
             </div>
         </div>
     </div>
-    <pre class="bg-black text-white p-4 font-mono text-xs h-[calc(100vh-13rem-45px)] overflow-y-auto whitespace-pre-wrap" id="logContent">
-    </pre>
+    <div class="bg-white p-10 rounded-b">
+        <div id="progressBar" class="flex items-center p-4"></div>
+        <p id="progressStatus" class="text-center text-sm text-gray-500 mt-8 pt-8">Starting…</p>
+    </div>
 </div>
 
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     const projectId = urlParams.get('project_id');
-    let logPath = null;
     let logsFolder = null;
     let outputFolder = null;
     let appdataFolder = null;
-    let previousContent = '';
-    let sameContentCount = 0;
-    let pollInterval;
     let statusInterval;
     let hasError = false;
     let taskStatus = null;
-    
-    // List of error messages from validate_config
-    const errorMessages = [
-        "Config file unable to load or invalid.",
-        "Module not specified in config file.",
-        "Module invalid or not implemented.",
-        "Input directory not found.",
-        "Output directory must be empty.",
-        "Pacs details missing in config file.",
-        "Either the accession column name or mrn + date column names are required.",
-        "Can only query using one of accession or mrn + date. Not both.",
-        "Date window must be an integer.",
-        "No DICOM files found in input directory.",
-        "Input directory must contain input.xlsx file.",
-        "Invalid CTP filters.",
-        "Invalid CTP anonymizer.",
-        "Invalid excel file."
-    ];
+
+    function renderProgress(status, progress) {
+        const bar = document.getElementById('progressBar');
+        const caption = document.getElementById('progressStatus');
+        const completed = status === 'COMPLETED';
+
+        const stages = (progress && progress.stages) || [];
+        if (stages.length === 0 && !completed) {
+            bar.innerHTML = '';
+            caption.textContent = 'Starting…';
+            return;
+        }
+
+        // The applicable stages plus the always-present terminal point.
+        const markers = stages.concat([{ key: 'ready', label: 'Ready for QC' }]);
+        const readyIndex = markers.length - 1;
+
+        let currentIndex = progress ? markers.findIndex(m => m.key === progress.current_stage) : -1;
+        let fraction = progress ? progress.fraction : 0;
+        if (completed) {
+            currentIndex = readyIndex;
+            fraction = 0;
+        }
+
+        // Segment i sits between marker i and marker i+1.
+        const segmentFill = (i) => {
+            if (completed || i < currentIndex) return 100;
+            if (i === currentIndex) return Math.round(fraction * 100);
+            return 0;
+        };
+        // A point is "reached" once we've started its stage (or finished, for COMPLETED).
+        const pointReached = (i) => completed || i <= currentIndex;
+
+        let html = '';
+        markers.forEach((marker, i) => {
+            const reached = pointReached(i);
+            const dotColor = reached ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300';
+            const labelColor = reached ? 'text-gray-900 font-medium' : 'text-gray-400';
+            html += `
+                <div class="relative flex flex-col items-center" style="flex: 0 0 auto;">
+                    <div class="w-4 h-4 rounded-full border-2 ${dotColor}"></div>
+                    <div class="absolute top-6 w-32 text-center text-xs ${labelColor}">${marker.label}</div>
+                </div>`;
+            if (i < markers.length - 1) {
+                html += `
+                    <div class="flex-1 h-1 bg-gray-200 mx-1 rounded">
+                        <div class="h-1 bg-blue-600 rounded" style="width: ${segmentFill(i)}%;"></div>
+                    </div>`;
+            }
+        });
+        bar.innerHTML = html;
+
+        if (completed) {
+            caption.textContent = 'Ready for QC';
+        } else if (progress && progress.status_text) {
+            caption.textContent = progress.status_text;
+        } else {
+            caption.textContent = 'Starting…';
+        }
+    }
 
     async function checkTaskStatus() {
         if (hasError) return;
@@ -88,14 +128,9 @@
         try {
             const response = await fetch(`/api/task_status/${projectId}`);
             const data = await response.json();
-            
+
             taskStatus = data.status;
-            
-            if (data.log_path && data.log_path !== '' && data.log_path !== logPath) {
-                logPath = data.log_path;
-                console.log('Log path updated to:', logPath);
-            }
-            
+
             if (data.logs_folder) {
                 logsFolder = data.logs_folder;
             }
@@ -105,35 +140,38 @@
             if (data.appdata_folder) {
                 appdataFolder = data.appdata_folder;
             }
-            
+
             updateFolderLinks();
             updateCancelButton();
-            
+            renderProgress(data.status, data.progress);
+
             if (data.status === 'FAILED') {
                 hasError = true;
                 document.getElementById('errorMessage').textContent = "Task has failed. Please check the logs for details.";
                 document.getElementById('errorPopup').classList.remove('hidden');
-                clearInterval(pollInterval);
                 clearInterval(statusInterval);
                 return;
             }
-            
+
             if (data.status === 'CANCELLED') {
                 hasError = true;
                 document.getElementById('cancelledMessage').textContent = "Task has been cancelled.";
                 document.getElementById('cancelledPopup').classList.remove('hidden');
-                clearInterval(pollInterval);
                 clearInterval(statusInterval);
                 setTimeout(() => {
                     window.location.href = '/task_list';
                 }, 3000);
                 return;
             }
+
+            if (data.status === 'COMPLETED') {
+                clearInterval(statusInterval);
+            }
         } catch (error) {
             console.error('Error checking task status:', error);
         }
     }
-    
+
     function updateFolderLinks() {
         const folderLinksDiv = document.getElementById('folderLinks');
         const openLogsBtn = document.getElementById('openLogsFolder');
@@ -161,7 +199,7 @@
             openLogsErrorBtn.disabled = true;
             openLogsErrorBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
-        
+
         if (outputFolder) {
             openOutputBtn.onclick = async () => {
                 if (window.electronAPI && window.electronAPI.openFolder) {
@@ -174,7 +212,7 @@
             openOutputBtn.disabled = true;
             openOutputBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
-        
+
         if (appdataFolder) {
             openAppdataBtn.onclick = async () => {
                 if (window.electronAPI && window.electronAPI.openFolder) {
@@ -188,23 +226,23 @@
             openAppdataBtn.classList.add('opacity-50', 'cursor-not-allowed');
         }
     }
-    
+
     function updateCancelButton() {
         const cancelBtn = document.getElementById('cancelTask');
-        
+
         if (taskStatus === 'PENDING' || taskStatus === 'RUNNING') {
             cancelBtn.classList.remove('hidden');
         } else {
             cancelBtn.classList.add('hidden');
         }
     }
-    
-    
+
+
     async function cancelTask() {
         if (!confirm('Are you sure you want to cancel this task?')) {
             return;
         }
-        
+
         try {
             const response = await fetch(`/cancel_task/${projectId}/`, {
                 method: 'POST',
@@ -212,13 +250,12 @@
                     'X-CSRFToken': getCsrfToken(),
                 },
             });
-            
+
             if (response.ok) {
                 hasError = true;
                 document.getElementById('cancelledTitle').textContent = "Cancelling Task";
                 document.getElementById('cancelledMessage').textContent = "Task is being cancelled...";
                 document.getElementById('cancelledPopup').classList.remove('hidden');
-                clearInterval(pollInterval);
                 clearInterval(statusInterval);
                 setTimeout(() => {
                     window.location.href = '/task_list';
@@ -230,37 +267,6 @@
         } catch (error) {
             console.error('Error:', error);
             alert('Failed to cancel task: ' + error.message);
-        }
-    }
-    
-    async function fetchLogContent() {
-        if (hasError) return;
-        
-        if (!logPath || logPath === '') {
-            document.getElementById('logContent').textContent = 'Loading. Please wait...';
-            return;
-        }
-        
-        try {
-            const response = await fetch(`/get_log_content?log_path=${encodeURIComponent(logPath)}`);
-            const data = await response.text();
-            const logContent = document.getElementById('logContent');
-            
-            if (data === previousContent) {
-                sameContentCount++;
-                if (sameContentCount >= 200) {
-                    clearInterval(pollInterval);
-                    clearInterval(statusInterval);
-                }
-                return;
-            }
-            
-            sameContentCount = 0;
-            previousContent = data;
-            logContent.textContent = data;
-            logContent.scrollTop = logContent.scrollHeight;
-        } catch (error) {
-            console.error('Error fetching log:', error);
         }
     }
 
@@ -276,18 +282,12 @@
         document.getElementById('errorPopup').classList.add('hidden');
         window.history.back(); // Return to previous page
     });
-    
+
     // Handle cancel button click
     document.getElementById('cancelTask').addEventListener('click', cancelTask);
 
-    // Initial fetch
-    fetchLogContent();
+    // Initial fetch + poll for status/progress
     checkTaskStatus();
-
-    // Poll every second for log content
-    pollInterval = setInterval(fetchLogContent, 1000);
-    
-    // Check task status every 5 seconds
-    statusInterval = setInterval(checkTaskStatus, 5000);
+    statusInterval = setInterval(checkTaskStatus, 1000);
 </script>
 {% endblock %}

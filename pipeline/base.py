@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from pipeline.context import PipelineContext
+from pipeline.progress import ProgressReporter
 
 
 class PipelineStage(ABC):
@@ -10,6 +11,11 @@ class PipelineStage(ABC):
     Stages mutate a shared ``PipelineContext`` rather than returning values,
     so later stages can read the outputs of earlier ones.
     """
+
+    # ``(stage_key, label)`` shown on the task-progress bar, or ``None`` for
+    # stages that contribute no marker (e.g. instant local file gather, export
+    # which is folded into the terminal "Ready for QC" point).
+    progress_marker: tuple[str, str] | None = None
 
     @abstractmethod
     def execute(self, ctx: PipelineContext) -> None: ...
@@ -61,6 +67,12 @@ class Pipeline(ABC):
             self.build_text_deid_stage(),
             self.build_export_stage(),
         ]
+        markers = [
+            s.progress_marker
+            for s in stages
+            if s is not None and s.progress_marker is not None
+        ]
+        ctx.progress = ProgressReporter(ctx.run_dirs["log_dir"], markers)
         try:
             for stage in stages:
                 if stage is not None:

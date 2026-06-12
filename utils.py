@@ -271,6 +271,7 @@ def find_studies_from_pacs_list(
     expected_values_list=None,
     fallback_spreadsheet=None,
     fallback_date_window_days=0,
+    progress_callback=None,
 ):
     study_pacs_map = {}
     failed_query_indices = []
@@ -295,6 +296,8 @@ def find_studies_from_pacs_list(
         for i, query_params in enumerate(query_params_list):
             logging.info(f"Queried {i} / {total_queries} rows")
             logging.debug(f"Processing Excel row {i + 1}")
+            if progress_callback:
+                progress_callback(i, total_queries)
 
             try:
                 return_tags = ["StudyInstanceUID", "StudyDate"]
@@ -601,6 +604,7 @@ def move_studies_from_study_pacs_map(
     cmove_batch_size: int,
     deferred_delivery=False,
     deferred_delivery_timeout=172800,
+    progress_callback=None,
 ):
     """Retrieve multiple studies from PACS using C-MOVE based on a study-to-PACS mapping.
 
@@ -633,9 +637,13 @@ def move_studies_from_study_pacs_map(
 
             logging.info(f"Processing C-MOVE batch {batch_num} / {total_batches}")
 
-            for study_uid, (pacs, query_index) in batch:
+            for study_idx, (study_uid, (pacs, query_index)) in enumerate(batch):
                 logging.info(f"Retrieved {processed} / {total_studies} studies")
                 logging.debug(f"Processing study from Excel row {query_index + 1}")
+                if progress_callback:
+                    progress_callback(
+                        batch_num, total_batches, study_idx, len(batch)
+                    )
 
                 try:
                     result = move_study(

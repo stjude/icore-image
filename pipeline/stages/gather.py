@@ -57,6 +57,8 @@ class PacsQueryGather(GatherStage):
     :attr:`gather_filter_override`.
     """
 
+    progress_marker = ("gather", "Retrieving images from PACS")
+
     def __init__(
         self,
         pacs_list: list[PacsConfiguration],
@@ -98,6 +100,26 @@ class PacsQueryGather(GatherStage):
 
         valid_pacs_list = find_valid_pacs_list(self.pacs_list, self.application_aet)
 
+        # The query phase fills the first third of the gather bar; retrieval
+        # fills the remaining two thirds, advancing per completed C-MOVE batch.
+        def on_query(done: int, total: int) -> None:
+            if ctx.progress and total:
+                ctx.progress.update(
+                    "gather", (done / total) / 3.0, "Querying for images"
+                )
+
+        def on_retrieve(
+            batch_num: int, total_batches: int, study_idx: int, batch_len: int
+        ) -> None:
+            if ctx.progress and total_batches and batch_len:
+                within = (batch_num - 1 + study_idx / batch_len) / total_batches
+                ctx.progress.update(
+                    "gather",
+                    1.0 / 3.0 + (2.0 / 3.0) * within,
+                    f"Batch {batch_num} of {total_batches} — "
+                    f"retrieving study {study_idx} of {batch_len}",
+                )
+
         study_pacs_map, failed_find_indices, failed_find_details = (
             find_studies_from_pacs_list(
                 valid_pacs_list,
@@ -108,6 +130,7 @@ class PacsQueryGather(GatherStage):
                     self.query_spreadsheet if self.use_fallback_query else None
                 ),
                 fallback_date_window_days=self.date_window_days,
+                progress_callback=on_query,
             )
         )
 
@@ -122,6 +145,7 @@ class PacsQueryGather(GatherStage):
             cmove_batch_size=self.cmove_batch_size,
             deferred_delivery=self.deferred_delivery,
             deferred_delivery_timeout=self.deferred_delivery_timeout,
+            progress_callback=on_retrieve,
         )
 
         # Wait briefly to ensure all files are written
