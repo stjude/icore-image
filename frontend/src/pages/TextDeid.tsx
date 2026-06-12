@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { postJson } from '../api/client';
+import type { JobRequest } from '../api/run';
 import { loadSettings } from '../api/endpoints';
 import type { RunResponse } from '../api/types';
 import { ColumnActions, type ColumnActionsState } from '../components/ColumnActions';
@@ -56,7 +57,7 @@ export function TextDeid() {
   const formValid = Boolean(studyName.trim() && inputFile.trim() && columnState.allAssigned);
 
   const runDeid = async () => {
-    const data = {
+    const data: JobRequest<'/run_text_deid/'> = {
       study_name: studyName,
       input_file: inputFile,
       output_folder: outputFolder,

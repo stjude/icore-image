@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { getJson } from '../api/client';
 import { loadSettings } from '../api/endpoints';
-import { submitRun } from '../api/run';
+import { submitRun, type JobRequest } from '../api/run';
 import {
   DeidOptionsSection,
   useDeidOptions,
@@ -110,7 +110,7 @@ export function ImageDeidExport() {
     : 'Pull Images, Deidentify and Export';
 
   const runImageDeidExport = async () => {
-    const data: Record<string, unknown> = {
+    const data: JobRequest<'/run_imagedeidexport/'> = {
       study_name: studyName,
       input_file: inputFile,
       output_folder: outputFolder,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { loadSettings } from '../api/endpoints';
-import { submitRun } from '../api/run';
+import { submitRun, type JobRequest } from '../api/run';
 import type { Settings } from '../api/types';
 import {
   FilterList,
@@ -69,12 +69,12 @@ export function ImageQuery() {
   const formValid = Boolean(studyName.trim() && inputFile.trim());
 
   const runQuery = async () => {
-    const data: Record<string, unknown> = {
+    const data: JobRequest<'/run_query/'> = {
       study_name: studyName,
       output_folder: outputFolder,
       input_file: inputFile,
-      pacs_configs: settings.pacs_configs,
-      application_aet: settings.application_aet,
+      pacs_configs: settings.pacs_configs ?? [],
+      application_aet: settings.application_aet ?? '',
       ...filters.payload(modalities),
       ...query.payload(),
     };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { ApiError, postJson } from '../api/client';
+import type { JobRequest } from '../api/run';
 import { loadSettings } from '../api/endpoints';
 import type { RunResponse } from '../api/types';
 import { PathInput } from '../components/PathInput';
@@ -54,7 +55,7 @@ export function HeaderExtract() {
       return;
     }
 
-    const data = {
+    const data: JobRequest<'/run_header_extract/'> = {
       study_name: trimmedStudyName,
       input_folder: trimmedInputFolder,
       output_folder: trimmedOutputFolder,

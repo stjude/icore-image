@@ -14,6 +14,16 @@ export interface QueryColumns {
   dateWindow: string;
 }
 
+/** The request-payload slice this hook contributes (a subset of the
+ * generated PacsQueryFields contract). */
+export interface QueryColumnsPayload {
+  acc_col: string;
+  mrn_col: string;
+  date_col: string;
+  date_window: number;
+  use_fallback_query?: boolean;
+}
+
 /** Consolidated state for the PACS query-method UI shared by the Image
  * Query / Image Deid / Image Deid+Export pages, plus the payload fragment
  * those pages' submit functions all build identically. */
@@ -49,23 +59,23 @@ export function useQueryColumns() {
   /** acc_col / mrn_col / date_col / date_window / use_fallback_query exactly
    * as every legacy run*() built them. The query keys are sent even when the
    * page is in LOCAL mode, matching legacy. */
-  const payload = () => {
-    const data: Record<string, unknown> = { mrn_col: columns.mrnColumn };
+  const payload = (): QueryColumnsPayload => {
+    const parsedWindow = parseInt(columns.dateWindow) || 0;
     if (columns.queryType === 'accession') {
-      data.acc_col = columns.accessionColumn;
-      data.date_col = '';
-      data.date_window = 0;
-      if (columns.useFallbackQuery) {
-        data.use_fallback_query = true;
-        data.date_col = columns.dateColumn;
-        data.date_window = parseInt(columns.dateWindow) || 0;
-      }
-    } else {
-      data.acc_col = '';
-      data.date_col = columns.dateColumn;
-      data.date_window = parseInt(columns.dateWindow) || 0;
+      return {
+        mrn_col: columns.mrnColumn,
+        acc_col: columns.accessionColumn,
+        date_col: columns.useFallbackQuery ? columns.dateColumn : '',
+        date_window: columns.useFallbackQuery ? parsedWindow : 0,
+        ...(columns.useFallbackQuery ? { use_fallback_query: true } : {}),
+      };
     }
-    return data;
+    return {
+      mrn_col: columns.mrnColumn,
+      acc_col: '',
+      date_col: columns.dateColumn,
+      date_window: parsedWindow,
+    };
   };
 
   return { columns, set, prefill, payload };

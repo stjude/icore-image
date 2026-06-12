@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { getJson, postJson } from '../api/client';
+import type { JobRequest } from '../api/run';
 import { loadSettings } from '../api/endpoints';
 import type { RunResponse } from '../api/types';
 import { PathInput } from '../components/PathInput';
@@ -51,7 +52,7 @@ export function ImageExport() {
   const isValid = Boolean(studyName.trim() && inputFolder.trim() && sasUrl);
 
   const runExport = async () => {
-    const data = {
+    const data: JobRequest<'/run_export/'> = {
       study_name: studyName.trim(),
       input_folder: inputFolder.trim(),
       sas_url: sasUrl,

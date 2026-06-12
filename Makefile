@@ -1,5 +1,5 @@
 .PHONY: all signed clean deps deps-python deps-electron deps-frontend test dev
-.PHONY: external-deps jre8 dcmtk rclone build-binaries build-django-app build-frontend
+.PHONY: external-deps jre8 dcmtk rclone build-binaries build-django-app build-frontend generate-api
 .PHONY: prepare-assets build-dmg build-dmg-signed dicom-deid-rs
 
 .DEFAULT_GOAL := all
@@ -26,9 +26,18 @@ endif
 
 test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
+	$(MAKE) generate-api
+	@git diff --exit-code frontend/openapi.json frontend/src/api/generated.ts || \
+		(echo "Error: generated API types are stale. Commit the regenerated files." && exit 1)
 	uv run pytest -v -n 1
 	cd electron && npm test -- --verbose
 	cd frontend && npm run check
+
+# Regenerate the OpenAPI document and TypeScript API types from the Pydantic
+# request models (home/api_models.py). Run after changing those models.
+generate-api:
+	cd deid && uv run python manage.py generate_openapi
+	cd frontend && npm run generate:api
 
 dev: external-deps deps-python
 	@echo "Starting iCore in development mode (hot reload)..."

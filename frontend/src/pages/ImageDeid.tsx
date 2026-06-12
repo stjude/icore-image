@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { getJson } from '../api/client';
 import { loadSettings } from '../api/endpoints';
-import { submitRun } from '../api/run';
+import { submitRun, type JobRequest } from '../api/run';
 import {
   DeidOptionsSection,
   useDeidOptions,
@@ -150,7 +150,7 @@ export function ImageDeid() {
       : 'Deidentify';
 
   const runDeid = async () => {
-    const data: Record<string, unknown> = {
+    const data: JobRequest<'/run_deid/'> = {
       study_name: studyName,
       image_source: imageSource,
       input_folder: inputFolder,

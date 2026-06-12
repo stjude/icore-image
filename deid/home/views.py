@@ -22,7 +22,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from . import builders
+from . import api_models, builders
 from .models import Project
 from .tasks import enqueue_project
 from grammar import get_hipaa_safe_harbor_config
@@ -253,6 +253,11 @@ def run_header_extract(request):
     print("Running header extract")
     try:
         data = json.loads(request.body)
+        validation_error = api_models.validate_payload(api_models.RunHeaderExtractRequest, data)
+        if validation_error:
+            return JsonResponse(
+                {"status": "error", "message": validation_error}, status=400
+            )
         settings = builders.load_settings()
         project = Project(
             name=data["study_name"],
@@ -276,6 +281,11 @@ def run_deid(request):
     print("Running deid")
     try:
         data = json.loads(request.body)
+        validation_error = api_models.validate_payload(api_models.RunDeidRequest, data)
+        if validation_error:
+            return JsonResponse(
+                {"status": "error", "message": validation_error}, status=400
+            )
 
         if data.get("image_source") == "PACS":
             if not validate_pacs_configuration(data.get("pacs_configs", [])):
@@ -314,6 +324,11 @@ def run_query(request):
     print("Running query")
     try:
         data = json.loads(request.body)
+        validation_error = api_models.validate_payload(api_models.RunQueryRequest, data)
+        if validation_error:
+            return JsonResponse(
+                {"status": "error", "message": validation_error}, status=400
+            )
 
         if not validate_pacs_configuration(data.get("pacs_configs", [])):
             return JsonResponse(
@@ -372,6 +387,11 @@ def run_text_deid(request):
     print("Running text deid")
     try:
         data = json.loads(request.body)
+        validation_error = api_models.validate_payload(api_models.RunTextDeidRequest, data)
+        if validation_error:
+            return JsonResponse(
+                {"status": "error", "message": validation_error}, status=400
+            )
         settings = builders.load_settings()
         project = Project(
             name=data["study_name"],
@@ -397,6 +417,11 @@ def run_export(request):
     print("Running export")
     try:
         data = json.loads(request.body)
+        validation_error = api_models.validate_payload(api_models.RunExportRequest, data)
+        if validation_error:
+            return JsonResponse(
+                {"status": "error", "message": validation_error}, status=400
+            )
         settings = builders.load_settings()
         project = Project(
             name=data["study_name"],
@@ -420,6 +445,11 @@ def run_imagedeidexport(request):
     try:
         if request.method == "POST":
             data = json.loads(request.body)
+        validation_error = api_models.validate_payload(api_models.RunImageDeidExportRequest, data)
+        if validation_error:
+            return JsonResponse(
+                {"status": "error", "message": validation_error}, status=400
+            )
 
         if not validate_pacs_configuration(data.get("pacs_configs", [])):
             return JsonResponse(
@@ -464,6 +494,11 @@ def run_singleclickicore(request):
     try:
         if request.method == "POST":
             data = json.loads(request.body)
+        validation_error = api_models.validate_payload(api_models.RunSingleClickRequest, data)
+        if validation_error:
+            return JsonResponse(
+                {"status": "error", "message": validation_error}, status=400
+            )
 
         if not validate_pacs_configuration(data.get("pacs_configs", [])):
             return JsonResponse(

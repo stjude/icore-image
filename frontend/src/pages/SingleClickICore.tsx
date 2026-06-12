@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { getJson } from '../api/client';
 import { loadSettings } from '../api/endpoints';
-import { submitRun } from '../api/run';
+import { submitRun, type JobRequest } from '../api/run';
 import type { Settings } from '../api/types';
 import { ColumnActions, type ColumnActionsState } from '../components/ColumnActions';
 import { FilterList, ModalityFilterSection, useFilters, type SavedFilters } from '../components/filters';
@@ -145,7 +145,7 @@ export function SingleClickICore() {
       }
     }
 
-    const data: Record<string, unknown> = {
+    const data: JobRequest<'/run_singleclickicore/'> = {
       study_name: studyName,
       input_file: inputFile,
       output_folder: outputFolder,

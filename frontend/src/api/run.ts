@@ -1,5 +1,13 @@
 import { ApiError, postJson } from './client';
+import type { paths } from './generated';
 import type { RunResponse } from './types';
+
+/** Job-creation endpoints and their request-body types, generated from the
+ * backend's Pydantic models (home/api_models.py → openapi.json → generated.ts).
+ * Payloads are checked against the server contract at compile time. */
+export type JobPath = keyof paths;
+export type JobRequest<P extends JobPath> =
+  paths[P]['post']['requestBody']['content']['application/json'];
 
 interface SubmitOptions {
   /** Navigate to the task list instead of task progress on success. */
@@ -10,9 +18,9 @@ interface SubmitOptions {
 
 /** Shared submit flow for every run form: POST, navigate on success, alert
  * with the legacy wording on failure. */
-export async function submitRun(
-  url: string,
-  data: Record<string, unknown>,
+export async function submitRun<P extends JobPath>(
+  url: P,
+  data: JobRequest<P>,
   { scheduled, errorPrefix }: SubmitOptions,
 ): Promise<void> {
   try {

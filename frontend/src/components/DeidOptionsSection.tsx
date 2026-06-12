@@ -116,7 +116,7 @@ export function useDeidOptions() {
     remove_curves: options.removeCurves,
     remove_private: options.removePrivate,
     apply_default_ctp_filter_script: options.applyDefaultCtpFilterScript,
-    deid_engine: options.deidEngineRust ? 'rust' : 'ctp',
+    deid_engine: options.deidEngineRust ? ('rust' as const) : ('ctp' as const),
     date_shift_days: settings.date_shift_range || 0,
     site_id: settings.site_id || '',
     pacs_configs: settings.pacs_configs || [],
