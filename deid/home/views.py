@@ -10,6 +10,7 @@ import bcrypt
 import pandas as pd
 import psutil
 import pytz
+from django.conf import settings as django_settings
 from django.db import transaction
 from django.http import (
     HttpResponse,
@@ -17,12 +18,9 @@ from django.http import (
     HttpResponseNotFound,
     JsonResponse,
 )
-from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
-from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
-from django.views.generic import ListView, TemplateView
-from django.views.generic.edit import CreateView
 
 from . import builders
 from .models import Project
@@ -172,207 +170,6 @@ if not settings.get("default_output_folder", "").strip():
         json.dump(settings, f, indent=4)
 
 
-class CommonContextMixin:
-    def get_common_context(self):
-        return {
-            "dicom_fields": get_dicom_fields(),
-            "modalities": ["MR", "CT", "US", "DX", "MG", "PT", "NM", "XA", "RF", "CR"],
-        }
-
-    def get_context_data(self, **kwargs):
-        # ty can't resolve get_context_data through Django's MRO (CommonContextMixin + CreateView)
-        context = super().get_context_data(**kwargs)  # ty: ignore[unresolved-attribute]
-        context.update(self.get_common_context())
-        return context
-
-
-class ImageDeIdentificationView(CommonContextMixin, CreateView):
-    model = Project
-    fields = [
-        "name",
-        "image_source",
-        "input_folder",
-        "output_folder",
-        "ctp_dicom_filter",
-    ]
-    template_name = "image_deid.html"
-    success_url = reverse_lazy("task_list")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["protocols"] = get_unique_protocols()
-        print(context["protocols"])
-        return context
-
-
-class ImageQueryView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ["name", "image_source", "output_folder", "ctp_dicom_filter"]
-    template_name = "image_query.html"
-    success_url = reverse_lazy("task_list")
-
-
-class HeaderExtractView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ["name", "input_folder", "output_folder"]
-    template_name = "header_extract.html"
-    success_url = reverse_lazy("task_list")
-
-
-class TextDeIdentificationView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ["name", "output_folder"]
-    template_name = "text_deid.html"
-    success_url = reverse_lazy("task_list")
-
-
-class ImageExportView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ["name", "input_folder"]
-    template_name = "image_export.html"
-    success_url = reverse_lazy("task_list")
-
-
-class ImageDeidExportView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ["name"]
-    template_name = "image_deid_export.html"
-    success_url = reverse_lazy("task_list")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["modalities"] = [
-            "CT",
-            "MR",
-            "PT",
-            "US",
-            "CR",
-            "DX",
-            "MG",
-            "NM",
-            "RF",
-            "XA",
-        ]
-        return context
-
-
-class SingleClickICoreView(CommonContextMixin, CreateView):
-    model = Project
-    fields = ["name"]
-    template_name = "singleclick_icore.html"
-    success_url = reverse_lazy("task_list")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["modalities"] = [
-            "CT",
-            "MR",
-            "PT",
-            "US",
-            "CR",
-            "DX",
-            "MG",
-            "NM",
-            "RF",
-            "XA",
-        ]
-
-        # For single-click iCore, populate de-identification options from HIPAA Safe Harbor config
-        # The UI will display these as read-only to enforce HIPAA compliance
-        hipaa_config = get_hipaa_safe_harbor_config()
-
-        # Use standard parameter names (not HIPAA-specific) to keep backend generic
-        context["tags_to_keep"] = [name for _, name in hipaa_config["tags_to_keep"]]
-
-        # Combine date-shift and time-keep tags for display
-        dateshift_names = [name for _, name in hipaa_config["tags_to_dateshift"]]
-        timekeep_names = [name for _, name in hipaa_config["tags_to_keep_time"]]
-        context["tags_to_dateshift"] = dateshift_names + timekeep_names
-
-        context["tags_to_randomize"] = [
-            name for _, name in hipaa_config["tags_to_randomize"]
-        ]
-
-        return context
-
-
-class ProfileView(CommonContextMixin, TemplateView):
-    template_name = "profile.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        settings_path = os.path.join(SETTINGS_DIR, "settings.json")
-        with open(settings_path, "r") as f:
-            settings = json.load(f)
-        context["current_usecase"] = settings.get("icore_usecase", "")
-        return context
-
-
-class TaskListView(CommonContextMixin, ListView):
-    model = Project
-    template_name = "task_list.html"
-    context_object_name = "tasks"
-    ordering = ["-created_at"]
-
-
-class GeneralSettingsView(CommonContextMixin, TemplateView):
-    template_name = "settings/general.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        american_timezones = [tz for tz in pytz.all_timezones if tz.startswith("US/")]
-        context["timezones"] = american_timezones
-        return context
-
-
-class LocalHeaderExtractionSettingsView(CommonContextMixin, TemplateView):
-    template_name = "settings/header_extraction.html"
-
-
-class ImageQRSettingsView(CommonContextMixin, TemplateView):
-    template_name = "settings/image_query.html"
-
-
-class ImageDeIdentificationSettingsView(CommonContextMixin, TemplateView):
-    template_name = "settings/image_deid.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["protocols"] = get_unique_protocols()
-        print(context["protocols"])
-        return context
-
-
-class TextDeIdentificationSettingsView(CommonContextMixin, TemplateView):
-    template_name = "settings/text_deid.html"
-
-
-class AdminSettingsView(CommonContextMixin, TemplateView):
-    template_name = "settings/admin_settings.html"
-
-
-class TaskProgressView(TemplateView):
-    template_name = "task_progress.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        project_id = self.request.GET.get("project_id")
-
-        if project_id:
-            try:
-                project = Project.objects.get(id=project_id)
-                context["project_name"] = project.name
-                context["module_name"] = project.get_task_type_display()
-            except Project.DoesNotExist:
-                context["project_name"] = "Unknown"
-                context["module_name"] = "Task"
-        else:
-            context["project_name"] = "Unknown"
-            context["module_name"] = "Task"
-
-        return context
-
-
 def get_log_content(request):
     try:
         log_path = request.GET.get("log_path")
@@ -431,6 +228,7 @@ def task_status(request, project_id):
                 "log_path": task.log_path,
                 "name": task.name,
                 "task_type": task.task_type,
+                "task_type_display": task.get_task_type_display(),
                 "logs_folder": logs_folder,
                 "output_folder": actual_output_folder,
                 "appdata_folder": appdata_folder,
@@ -746,6 +544,7 @@ def save_settings(request):
 
 
 @require_http_methods(["GET"])
+@ensure_csrf_cookie
 def load_settings(request):
     try:
         settings_path = os.path.join(SETTINGS_DIR, "settings.json")
@@ -1240,19 +1039,6 @@ def cancel_task(request, task_id):
         )
 
 
-# Add this middleware function to process timezone from session
-def timezone_middleware(get_response):
-    def middleware(request):
-        tzname = request.session.get("django_timezone")
-        if tzname:
-            timezone.activate(pytz.timezone(tzname))
-        else:
-            timezone.deactivate()
-        return get_response(request)
-
-    return middleware
-
-
 @require_http_methods(["POST"])
 def reset_deid_settings(request):
     try:
@@ -1341,17 +1127,71 @@ def reset_deid_settings(request):
         )
 
 
-def root_redirect(request):
-    settings_path = os.path.join(SETTINGS_DIR, "settings.json")
+def api_tasks(request):
+    """Project list for the SPA task table (replaces the TaskListView page)."""
+    tasks = [
+        {
+            "id": task.id,
+            "name": task.name,
+            "status": task.status,
+            "status_display": task.get_status_display(),
+            "task_type_display": task.get_task_type_display(),
+            "created_at": task.created_at.isoformat(),
+            "scheduled_time": task.scheduled_time.isoformat()
+            if task.scheduled_time
+            else None,
+        }
+        for task in Project.objects.order_by("-created_at")
+    ]
+    return JsonResponse({"tasks": tasks})
+
+
+def api_constants(request):
+    """Static lists the template engine used to bake into pages."""
+    hipaa_config = get_hipaa_safe_harbor_config()
+    return JsonResponse(
+        {
+            "dicom_fields": get_dicom_fields(),
+            "modalities": ["MR", "CT", "US", "DX", "MG", "PT", "NM", "XA", "RF", "CR"],
+            "export_modalities": [
+                "CT", "MR", "PT", "US", "CR", "DX", "MG", "NM", "RF", "XA",
+            ],
+            "timezones": [tz for tz in pytz.all_timezones if tz.startswith("US/")],
+            "hipaa": {
+                "tags_to_keep": [name for _, name in hipaa_config["tags_to_keep"]],
+                "tags_to_dateshift": (
+                    [name for _, name in hipaa_config["tags_to_dateshift"]]
+                    + [name for _, name in hipaa_config["tags_to_keep_time"]]
+                ),
+                "tags_to_randomize": [
+                    name for _, name in hipaa_config["tags_to_randomize"]
+                ],
+            },
+        }
+    )
+
+
+def api_protocols(request):
+    return JsonResponse({"protocols": get_unique_protocols()})
+
+
+@ensure_csrf_cookie
+def spa_index(request):
+    """Serve the built React app for any URL not claimed by an earlier route.
+
+    The bundle is emitted by `make build-frontend` (frontend/ → static/app/);
+    react-router owns everything path-level from here. Served as a plain file
+    read (not a Django template) since the HTML is bundler-generated.
+    """
+    index_path = os.path.join(
+        django_settings.STATICFILES_DIRS[0], "app", "index.html"
+    )
     try:
-        with open(settings_path, "r") as f:
-            settings = json.load(f)
-
-        icore_usecase = settings.get("icore_usecase", "internal")
-
-        if icore_usecase == "imagine":
-            return redirect("single_click_icore")
-        else:
-            return redirect("image_query")
-    except Exception:
-        return redirect("image_query")
+        with open(index_path, "rb") as f:
+            return HttpResponse(f.read())
+    except FileNotFoundError:
+        return HttpResponse(
+            "Frontend build not found. Run `make build-frontend`.",
+            status=503,
+            content_type="text/plain",
+        )

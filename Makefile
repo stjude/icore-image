@@ -1,5 +1,5 @@
-.PHONY: all signed clean deps deps-python deps-deid deps-electron test dev
-.PHONY: external-deps jre8 dcmtk rclone build-binaries build-django-app
+.PHONY: all signed clean deps deps-python deps-electron deps-frontend test dev
+.PHONY: external-deps jre8 dcmtk rclone build-binaries build-django-app build-frontend
 .PHONY: prepare-assets build-dmg build-dmg-signed dicom-deid-rs
 
 .DEFAULT_GOAL := all
@@ -28,11 +28,12 @@ test:
 	@docker info > /dev/null 2>&1 || (echo "Error: Docker is not running. Please start Docker and try again." && exit 1)
 	uv run pytest -v -n 1
 	cd electron && npm test -- --verbose
+	cd frontend && npm run check
 
 dev: external-deps deps-python
 	@echo "Starting iCore in development mode (hot reload)..."
 	@echo "  - Django runserver + worker auto-reload on .py edits"
-	@echo "  - Refresh the window (Cmd/Ctrl+R) to pick up template & JS changes"
+	@echo "  - React app served with hot reload from the Rsbuild dev server (:3000)"
 	@if [ ! -x ".venv/bin/python" ]; then \
 		echo "Error: .venv/bin/python not found. Run 'make deps-python' first." && exit 1; \
 	fi
@@ -46,17 +47,20 @@ dev: external-deps deps-python
 	export ICORE_PYTHON=$$(pwd)/.venv/bin/python && \
 	cd electron && npm start
 
-deps: deps-python deps-deid deps-electron dicom-deid-rs
+deps: deps-python deps-electron deps-frontend dicom-deid-rs
 
 deps-python:
 	uv --version || (echo "uv is not installed. Please install uv and try again." && exit 1)
 	uv sync
 
-deps-deid:
-	cd deid && npm install
-
 deps-electron:
 	cd electron && npm install
+
+deps-frontend:
+	cd frontend && npm install
+
+build-frontend:
+	cd frontend && npm run build
 
 # Note: jre8 is always installed as x64 since it predates apple silicon. It is run through rosetta on arm64 macs.
 jre8:
@@ -138,7 +142,9 @@ build-django-app:
 		PYINSTALLER_TARGET_ARCH=$(PYINSTALLER_ARCH) uv run pyinstaller --clean -y manage.spec && \
 		PYINSTALLER_TARGET_ARCH=$(PYINSTALLER_ARCH) uv run pyinstaller --clean -y initialize_admin_password.spec
 
-build-binaries: build-django-app
+# build-frontend must precede build-django-app: the PyInstaller bundle picks
+# up deid/static/app/ as data files.
+build-binaries: build-frontend build-django-app
 
 prepare-assets:
 	rm -rf electron/assets/dist

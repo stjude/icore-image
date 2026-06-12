@@ -17,7 +17,6 @@ resources_path = os.path.dirname(project_path)  # Go up one level to repo root
 project_datas = [
     (os.path.join(project_path, 'config'), 'config'),  # Project configuration directory
     (os.path.join(project_path, 'home'), 'home'),  # Application directory
-    (os.path.join(project_path, 'templates'), 'templates'),  # Templates
     (os.path.join(project_path, 'static'), 'static'),  # Static files
     (os.path.join(resources_path, 'resources', 'dictionary.xml'), 'resources'),  # Dictionary files
     (os.path.join(resources_path, 'resources', 'pydicom_ctp_tag_dictionary.xml'), 'resources'),  # CTP tag mapping

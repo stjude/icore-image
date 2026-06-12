@@ -1,25 +1,8 @@
-from django.urls import path
+from django.urls import path, re_path
 
 from . import views
 
 urlpatterns = [
-    path("", views.root_redirect, name="root"),
-    path("headerextract/", views.HeaderExtractView.as_view(), name="header_extract"),
-    path("imagedeid/", views.ImageDeIdentificationView.as_view(), name="image_deid"),
-    path("imagequery/", views.ImageQueryView.as_view(), name="image_query"),
-    path("textdeid/", views.TextDeIdentificationView.as_view(), name="text_deid"),
-    path("imageexport/", views.ImageExportView.as_view(), name="image_export"),
-    path(
-        "imagedeidexport/",
-        views.ImageDeidExportView.as_view(),
-        name="image_deid_export",
-    ),
-    path(
-        "singleclickicore/",
-        views.SingleClickICoreView.as_view(),
-        name="single_click_icore",
-    ),
-    path("tasks/", views.TaskListView.as_view(), name="task_list"),
     path("run_header_extract/", views.run_header_extract, name="run_header_extract"),
     path("run_deid/", views.run_deid, name="run_deid"),
     path("run_text_deid/", views.run_text_deid, name="run_text_deid"),
@@ -31,39 +14,11 @@ urlpatterns = [
         views.run_singleclickicore,
         name="run_single_click_icore",
     ),
-    path("task_progress/", views.TaskProgressView.as_view(), name="task_progress"),
     path("get_log_content/", views.get_log_content, name="get_log_content"),
     path("api/task_status/<int:project_id>/", views.task_status, name="task_status"),
-    path("profile/", views.ProfileView.as_view(), name="profile"),
-    path(
-        "settings/general/",
-        views.GeneralSettingsView.as_view(),
-        name="general_settings",
-    ),
     path(
         "test_pacs_connection/", views.test_pacs_connection, name="test_pacs_connection"
     ),
-    path(
-        "settings/local_header_extraction/",
-        views.LocalHeaderExtractionSettingsView.as_view(),
-        name="local_header_extraction_settings",
-    ),
-    path(
-        "settings/image_qr/",
-        views.ImageQRSettingsView.as_view(),
-        name="image_qr_settings",
-    ),
-    path(
-        "settings/image_deid/",
-        views.ImageDeIdentificationSettingsView.as_view(),
-        name="image_deid_settings",
-    ),
-    path(
-        "settings/text_deid/",
-        views.TextDeIdentificationSettingsView.as_view(),
-        name="text_deid_settings",
-    ),
-    path("settings/admin/", views.AdminSettingsView.as_view(), name="admin_settings"),
     path("save_settings/", views.save_settings, name="save_settings"),
     path("load_settings/", views.load_settings, name="load_settings"),
     path(
@@ -84,8 +39,19 @@ urlpatterns = [
         views.verify_admin_password,
         name="verify_admin_password",
     ),
-    path("task_list/", views.TaskListView.as_view(), name="task_list"),
     path("delete_task/<int:task_id>/", views.delete_task, name="delete_task"),
     path("cancel_task/<int:task_id>/", views.cancel_task, name="cancel_task"),
     path("reset_deid_settings/", views.reset_deid_settings, name="reset_deid_settings"),
+    path("api/tasks/", views.api_tasks, name="api_tasks"),
+    path("api/constants/", views.api_constants, name="api_constants"),
+    path("api/protocols/", views.api_protocols, name="api_protocols"),
+    # SPA routes: pages owned by react-router. Listed explicitly (rather than
+    # a blanket catch-all) so that slash-less requests to Django-owned URLs
+    # still get APPEND_SLASH redirects during the template->React migration.
+    # Add each page's path here when its Django URL entry is deleted.
+    re_path(
+        r"^(?:|tasks/?|task_list/?|task_progress/?|headerextract/?|imageexport/?|textdeid/?|profile/?|imagequery/?|imagedeid/?|imagedeidexport/?|singleclickicore/?|settings/[a-z_]+/?)$",
+        views.spa_index,
+        name="spa_index",
+    ),
 ]
