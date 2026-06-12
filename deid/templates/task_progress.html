@@ -3,6 +3,36 @@
 {% block title %}{{ module_name }} ({{ project_name }}){% endblock %}
 
 {% block content %}
+<style>
+    /* Barber-pole stripe that scrolls to signal an in-progress stage. */
+    .progress-stripe {
+        background-image: linear-gradient(
+            -45deg,
+            rgba(255, 255, 255, 0.35) 25%,
+            transparent 25%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.35) 50%,
+            rgba(255, 255, 255, 0.35) 75%,
+            transparent 75%,
+            transparent
+        );
+        background-size: 1rem 1rem;
+        animation: progress-stripe-move 0.8s linear infinite;
+    }
+    @keyframes progress-stripe-move {
+        from { background-position: 0 0; }
+        to { background-position: 1rem 0; }
+    }
+    /* The dot of the stage currently being worked on gently pulses, so
+       activity is visible even when the filled width is near zero. */
+    .progress-dot-active {
+        animation: progress-dot-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes progress-dot-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.5); }
+        50% { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0); }
+    }
+</style>
 <div class="px-4">
     <h1 class="text-xl flex-1">{{ module_name }} ({{ project_name }})</h1>
     <div id="folderLinks" class="mt-4 bg-white p-3 rounded-t text-xs hidden flex justify-between">
@@ -62,6 +92,11 @@
     let hasError = false;
     let taskStatus = null;
 
+    // Cached bar "shape" so we only rebuild the DOM when it actually changes.
+    // Rebuilding on every poll would restart the CSS animations each second
+    // and make the stripe/pulse stutter.
+    let lastShapeKey = null;
+
     function renderProgress(status, progress) {
         const bar = document.getElementById('progressBar');
         const caption = document.getElementById('progressStatus');
@@ -69,7 +104,10 @@
 
         const stages = (progress && progress.stages) || [];
         if (stages.length === 0 && !completed) {
-            bar.innerHTML = '';
+            if (lastShapeKey !== 'starting') {
+                bar.innerHTML = '';
+                lastShapeKey = 'starting';
+            }
             caption.textContent = 'Starting…';
             return;
         }
@@ -94,24 +132,43 @@
         // A point is "reached" once we've started its stage (or finished, for COMPLETED).
         const pointReached = (i) => completed || i <= currentIndex;
 
-        let html = '';
-        markers.forEach((marker, i) => {
-            const reached = pointReached(i);
-            const dotColor = reached ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300';
-            const labelColor = reached ? 'text-gray-900 font-medium' : 'text-gray-400';
-            html += `
-                <div class="relative flex flex-col items-center" style="flex: 0 0 auto;">
-                    <div class="w-4 h-4 rounded-full border-2 ${dotColor}"></div>
-                    <div class="absolute top-6 w-32 text-center text-xs ${labelColor}">${marker.label}</div>
-                </div>`;
-            if (i < markers.length - 1) {
-                html += `
-                    <div class="flex-1 h-1 bg-gray-200 mx-1 rounded">
-                        <div class="h-1 bg-blue-600 rounded" style="width: ${segmentFill(i)}%;"></div>
-                    </div>`;
+        // The stage currently being worked on (not yet finished).
+        const isActive = (i) => !completed && i === currentIndex;
+
+        // Only the active fill's width changes between polls within a stage —
+        // update it in place so the animations keep running. Rebuild the whole
+        // bar only when the shape (stages / active stage / completion) changes.
+        const shapeKey = JSON.stringify({ keys: markers.map(m => m.key), currentIndex, completed });
+        if (shapeKey === lastShapeKey) {
+            const activeFill = document.getElementById('activeFill');
+            if (activeFill) {
+                activeFill.style.width = segmentFill(currentIndex) + '%';
             }
-        });
-        bar.innerHTML = html;
+        } else {
+            let html = '';
+            markers.forEach((marker, i) => {
+                const reached = pointReached(i);
+                const dotColor = reached ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300';
+                const dotPulse = isActive(i) ? ' progress-dot-active' : '';
+                const labelColor = reached ? 'text-gray-900 font-medium' : 'text-gray-400';
+                html += `
+                    <div class="relative flex flex-col items-center" style="flex: 0 0 auto;">
+                        <div class="w-4 h-4 rounded-full border-2 ${dotColor}${dotPulse}"></div>
+                        <div class="absolute top-6 w-32 text-center text-xs ${labelColor}">${marker.label}</div>
+                    </div>`;
+                if (i < markers.length - 1) {
+                    // The fill leaving the active stage gets the moving stripe.
+                    const stripe = isActive(i) ? ' progress-stripe' : '';
+                    const fillId = isActive(i) ? ' id="activeFill"' : '';
+                    html += `
+                        <div class="flex-1 h-1 bg-gray-200 mx-1 rounded">
+                            <div${fillId} class="h-1 bg-blue-600 rounded${stripe}" style="width: ${segmentFill(i)}%;"></div>
+                        </div>`;
+                }
+            });
+            bar.innerHTML = html;
+            lastShapeKey = shapeKey;
+        }
 
         if (completed) {
             caption.textContent = 'Ready for QC';

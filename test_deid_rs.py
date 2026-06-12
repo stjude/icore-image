@@ -122,6 +122,30 @@ class TestDeidRsPipeline:
 
     @patch("deid_rs.subprocess.Popen")
     @patch("deid_rs.subprocess.run")
+    def test_progress_callback(self, mock_run, mock_popen_cls):
+        mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
+        mock_popen_cls.return_value = _mock_popen(
+            stdout="  Files processed:  3\n  Files blacklisted: 0\n  Files skipped:    0\n",
+            stderr=(
+                "Processing 3 files\n"
+                "Progress: 1/3 files (1 processed, 0 blacklisted, 0 skipped)\n"
+                "Progress: 2/3 files (2 processed, 0 blacklisted, 0 skipped)\n"
+                "Progress: 3/3 files (3 processed, 0 blacklisted, 0 skipped)\n"
+            ),
+        )
+        calls = []
+        pipeline = DeidRsPipeline(
+            input_dir="/tmp/in",
+            output_dir="/tmp/out",
+            binary_path="/usr/bin/dicom-deid-rs",
+            progress_callback=lambda done, total: calls.append((done, total)),
+        )
+        pipeline.run()
+
+        assert calls == [(0, 3), (1, 3), (2, 3), (3, 3)]
+
+    @patch("deid_rs.subprocess.Popen")
+    @patch("deid_rs.subprocess.run")
     def test_error_handling(self, mock_run, mock_popen_cls):
         mock_run.return_value = _mock_translate_run(stderr=TRANSLATE_STDERR)
         mock_popen_cls.return_value = _mock_popen(

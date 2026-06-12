@@ -455,10 +455,17 @@ class ImageDeidExecutor(ImageDeidStage):
     ) -> None:
         from deid_rs import DeidRsPipeline
 
-        # The Rust engine exposes no incremental progress, so the bar sits at
-        # the stage start until the run completes and the next stage advances.
-        if ctx.progress:
-            ctx.progress.update("image_deid", 0.0, "Processing images…")
+        def on_progress(done: int, total: int) -> None:
+            if not ctx.progress:
+                return
+            if total:
+                status = (
+                    f"Processing {format_number_with_commas(done)} of "
+                    f"{format_number_with_commas(total)} images"
+                )
+                ctx.progress.update("image_deid", done / total, status)
+            else:
+                ctx.progress.update("image_deid", 0.0, "Processing images…")
 
         if final_filter_script:
             logging.info(
@@ -476,6 +483,7 @@ class ImageDeidExecutor(ImageDeidStage):
             deid_pixels=self.deid_pixels,
             lookup_table=lookup_table,
             quarantine_dir=quarantine_dir,
+            progress_callback=on_progress,
         )
         result = rs_pipeline.run()
 

@@ -58,6 +58,7 @@ class DeidRsPipeline:
         lookup_table: str | None = None,
         quarantine_dir: str | None = None,
         binary_path: str | None = None,
+        progress_callback=None,
     ):
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -68,6 +69,9 @@ class DeidRsPipeline:
         self.lookup_table = lookup_table
         self.quarantine_dir = quarantine_dir
         self.binary_path = binary_path or _get_default_binary_path()
+        # Called as progress_callback(done, total) as the engine streams
+        # "Processing N files" / "Progress: X/Y files" lines on stderr.
+        self.progress_callback = progress_callback
 
     def run(self) -> ImageDeidLocalResult:
         """Run the de-identification pipeline.
@@ -164,6 +168,7 @@ class DeidRsPipeline:
                     line = line.rstrip("\n")
                     if stream is proc_stderr:
                         stderr_lines.append(line)
+                        self._report_progress(line)
                         logging.info(f"[dicom-deid-rs] {line}")
                     else:
                         stdout_lines.append(line)
@@ -222,6 +227,23 @@ class DeidRsPipeline:
                     os.unlink(path)
                 except OSError:
                     pass
+
+    def _report_progress(self, line: str) -> None:
+        """Forward a streamed engine line to ``progress_callback`` as (done, total).
+
+        Recognizes the engine's non-interactive output:
+          * ``Processing {total} files`` (emitted once at start)
+          * ``Progress: {done}/{total} files (...)`` (emitted periodically)
+        """
+        if not self.progress_callback:
+            return
+        m = _PROGRESS_RE.search(line)
+        if m:
+            self.progress_callback(int(m.group(1)), int(m.group(2)))
+            return
+        m = _PROCESSING_RE.search(line)
+        if m:
+            self.progress_callback(0, int(m.group(1)))
 
     def _translate_ctp_scripts(
         self, temp_files: list[str]
@@ -324,6 +346,8 @@ class DeidRsPipeline:
 
 
 _REPORT_RE = re.compile(r"Files (\w+):\s*(\d+)")
+_PROGRESS_RE = re.compile(r"Progress:\s*(\d+)/(\d+)\s*files")
+_PROCESSING_RE = re.compile(r"Processing\s+(\d+)\s+files")
 
 
 def _parse_report(stdout: str) -> dict[str, int]:
