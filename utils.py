@@ -271,6 +271,7 @@ def find_studies_from_pacs_list(
     expected_values_list=None,
     fallback_spreadsheet=None,
     fallback_date_window_days=0,
+    progress_callback=None,
 ):
     study_pacs_map = {}
     failed_query_indices = []
@@ -289,12 +290,17 @@ def find_studies_from_pacs_list(
             failure_details[i] = "Failed to find images"
         return study_pacs_map, failed_query_indices, failure_details
 
+    total_queries_for_all_pacs = total_queries * len(pacs_list)
+    overall_query_idx = 0
     for pacs in pacs_list:
         logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
 
         for i, query_params in enumerate(query_params_list):
             logging.info(f"Queried {i} / {total_queries} rows")
             logging.debug(f"Processing Excel row {i + 1}")
+            if progress_callback:
+                progress_callback(overall_query_idx, total_queries_for_all_pacs)
+            overall_query_idx += 1
 
             try:
                 return_tags = ["StudyInstanceUID", "StudyDate"]
@@ -346,7 +352,9 @@ def find_studies_from_pacs_list(
                     failed_query_indices.append(i)
                     failure_details[i] = f"Failed to find images: {str(e)}"
 
-        logging.info(f"Queried {total_queries} / {total_queries} rows")
+        logging.info(
+            f"Queried {total_queries} / {total_queries} rows for PACS {pacs.host}:{pacs.port}"
+        )
 
     query_indices_with_studies = set(
         query_index for _, query_index in study_pacs_map.values()
@@ -601,6 +609,7 @@ def move_studies_from_study_pacs_map(
     cmove_batch_size: int,
     deferred_delivery=False,
     deferred_delivery_timeout=172800,
+    progress_callback=None,
 ):
     """Retrieve multiple studies from PACS using C-MOVE based on a study-to-PACS mapping.
 
@@ -627,15 +636,17 @@ def move_studies_from_study_pacs_map(
 
         studies = list(study_pacs_map.items())
         for batch_start in range(0, total_studies, cmove_batch_size):
-            batch_num = (batch_start // cmove_batch_size) + 1
+            batch_num = batch_start // cmove_batch_size
             batch_end = min(batch_start + cmove_batch_size, total_studies)
             batch = studies[batch_start:batch_end]
 
-            logging.info(f"Processing C-MOVE batch {batch_num} / {total_batches}")
+            logging.info(f"Processing C-MOVE batch {batch_num + 1} / {total_batches}")
 
-            for study_uid, (pacs, query_index) in batch:
+            for study_idx, (study_uid, (pacs, query_index)) in enumerate(batch):
                 logging.info(f"Retrieved {processed} / {total_studies} studies")
                 logging.debug(f"Processing study from Excel row {query_index + 1}")
+                if progress_callback:
+                    progress_callback(batch_num, total_batches, study_idx, len(batch))
 
                 try:
                     result = move_study(
@@ -722,6 +733,74 @@ def move_studies_from_study_pacs_map(
         stop_storescp(storescp_process)
 
     return successful_moves, failed_query_indices, failure_details
+
+
+def query_and_retrieve_studies(
+    pacs_list,
+    query_params_list,
+    expected_values_list,
+    application_aet,
+    retrieval_dir,
+    storescp_port,
+    cmove_batch_size,
+    fallback_spreadsheet=None,
+    fallback_date_window_days=0,
+    deferred_delivery=False,
+    deferred_delivery_timeout=172800,
+    progress=None,
+):
+    """Query PACS for studies, then C-MOVE them into ``retrieval_dir``.
+
+    Shared by the PACS gather stage and the image-query module. When a
+    ``progress`` reporter is supplied, reports gather progress under the
+    ``"gather"`` stage: the query phase fills the first third, C-MOVE the
+    remaining two thirds (advancing per study).
+
+    Returns ``(study_pacs_map, failed_query_indices, failure_details)``.
+    """
+
+    def on_query(done, total):
+        if progress and total:
+            progress.update("gather", (done / total) / 3.0, "Querying for images")
+
+    def on_retrieve(batch_num, total_batches, study_idx, batch_len):
+        if progress and total_batches and batch_len:
+            within = (batch_num + study_idx / batch_len) / total_batches
+            progress.update(
+                "gather",
+                1.0 / 3.0 + (2.0 / 3.0) * within,
+                f"Batch {batch_num + 1} of {total_batches} — "
+                f"retrieving study {study_idx + 1} of {batch_len}",
+            )
+
+    valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
+
+    study_pacs_map, failed_find_indices, find_failure_details = (
+        find_studies_from_pacs_list(
+            valid_pacs_list,
+            query_params_list,
+            application_aet,
+            expected_values_list,
+            fallback_spreadsheet=fallback_spreadsheet,
+            fallback_date_window_days=fallback_date_window_days,
+            progress_callback=on_query,
+        )
+    )
+
+    _, failed_move_indices, move_failure_details = move_studies_from_study_pacs_map(
+        study_pacs_map,
+        application_aet,
+        retrieval_dir,
+        storescp_port,
+        cmove_batch_size=cmove_batch_size,
+        deferred_delivery=deferred_delivery,
+        deferred_delivery_timeout=deferred_delivery_timeout,
+        progress_callback=on_retrieve,
+    )
+
+    failed_query_indices = list(set(failed_find_indices + failed_move_indices))
+    failure_details = {**find_failure_details, **move_failure_details}
+    return study_pacs_map, failed_query_indices, failure_details
 
 
 def setup_run_directories() -> RunDirs:

@@ -4,17 +4,17 @@ import shutil
 import time
 
 from ctp import CTPPipeline
+from pipeline.progress import ProgressReporter
 from utils import (
     PacsConfiguration,
     PacsQueryResult,
     RunDirs,
     Spreadsheet,
+    count_dicom_files,
     generate_queries_and_filter,
     combine_filters,
     validate_date_window_days,
-    find_valid_pacs_list,
-    find_studies_from_pacs_list,
-    move_studies_from_study_pacs_map,
+    query_and_retrieve_studies,
     setup_run_directories,
     configure_run_logging,
     format_number_with_commas,
@@ -41,6 +41,22 @@ def _log_progress(pipeline: CTPPipeline) -> None:
             )
 
         logging.info(progress_msg)
+
+
+def _report_processing(
+    progress: ProgressReporter, pipeline: CTPPipeline, total: int
+) -> None:
+    if not pipeline.metrics:
+        return
+    received = pipeline.metrics.files_received
+    if total:
+        status = (
+            f"Processing {format_number_with_commas(received)} of "
+            f"{format_number_with_commas(total)} images"
+        )
+        progress.update("process", received / total, status)
+    else:
+        progress.update("process", 0.0, "Processing images…")
 
 
 def imageqr(
@@ -77,6 +93,16 @@ def imageqr(
 
     validate_date_window_days(date_window_days)
 
+    # Drives the task-progress bar: a retrieval stage (query 0→1/3, C-MOVE
+    # 1/3→1) followed by the CTP processing pass over the retrieved files.
+    progress = ProgressReporter(
+        run_dirs["log_dir"],
+        [
+            ("gather", "Retrieving images from PACS"),
+            ("process", "Processing images"),
+        ],
+    )
+
     query_params_list, expected_values_list, generated_filter = (
         generate_queries_and_filter(
             query_spreadsheet, date_window_days, use_fallback_query=use_fallback_query
@@ -84,41 +110,33 @@ def imageqr(
     )
     combined_filter = combine_filters(filter_script, generated_filter)
 
-    valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
-
-    study_pacs_map, failed_find_indices, find_failure_details = (
-        find_studies_from_pacs_list(
-            valid_pacs_list,
-            query_params_list,
-            application_aet,
-            expected_values_list,
-            fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
-            fallback_date_window_days=date_window_days,
-        )
-    )
-
-    # Create directory for storescp to write retrieved DICOM files
+    # Directory for storescp to write retrieved DICOM files into.
     dicom_retrieval_dir = os.path.join(appdata_dir, "dicom_retrieval")
     os.makedirs(dicom_retrieval_dir, exist_ok=True)
 
     try:
         ctp_log_level = "DEBUG" if debug else None
 
-        # Retrieve files BEFORE starting CTP so ArchiveImportService finds them on initial scan
-        successful_moves, failed_move_indices, move_failure_details = (
-            move_studies_from_study_pacs_map(
-                study_pacs_map,
+        # Retrieve files BEFORE starting CTP so ArchiveImportService finds them
+        # on initial scan.
+        study_pacs_map, failed_query_indices, combined_failure_details = (
+            query_and_retrieve_studies(
+                pacs_list,
+                query_params_list,
+                expected_values_list,
                 application_aet,
                 dicom_retrieval_dir,
                 storescp_port,
+                cmove_batch_size,
+                fallback_spreadsheet=query_spreadsheet if use_fallback_query else None,
+                fallback_date_window_days=date_window_days,
                 deferred_delivery=deferred_delivery,
                 deferred_delivery_timeout=deferred_delivery_timeout,
-                cmove_batch_size=cmove_batch_size,
+                progress=progress,
             )
         )
 
-        # Wait briefly to ensure all files are written
-        time.sleep(2)
+        total_retrieved = count_dicom_files(dicom_retrieval_dir)
 
         with CTPPipeline(
             pipeline_type="imageqr",
@@ -130,9 +148,6 @@ def imageqr(
             log_level=ctp_log_level,
             quarantine_dir=quarantine_dir,
         ) as pipeline:
-            failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-            combined_failure_details = {**find_failure_details, **move_failure_details}
-
             save_interval = 5
             last_save_time = 0
 
@@ -148,6 +163,7 @@ def imageqr(
                         use_fallback_query=use_fallback_query,
                     )
                     _log_progress(pipeline)
+                    _report_processing(progress, pipeline, total_retrieved)
                     last_save_time = current_time
 
                 time.sleep(1)

@@ -1,7 +1,6 @@
 import logging
 import os
 import shutil
-import time
 from abc import ABC
 
 from pipeline.base import PipelineStage
@@ -11,11 +10,9 @@ from utils import (
     Spreadsheet,
     combine_filters,
     count_dicom_files,
-    find_studies_from_pacs_list,
-    find_valid_pacs_list,
     format_number_with_commas,
     generate_queries_and_filter,
-    move_studies_from_study_pacs_map,
+    query_and_retrieve_studies,
     save_failed_queries_csv,
     validate_date_window_days,
 )
@@ -57,6 +54,8 @@ class PacsQueryGather(GatherStage):
     :attr:`gather_filter_override`.
     """
 
+    progress_marker = ("gather", "Retrieving images from PACS")
+
     def __init__(
         self,
         pacs_list: list[PacsConfiguration],
@@ -96,44 +95,33 @@ class PacsQueryGather(GatherStage):
             self.filter_script_seed, generated_filter
         )
 
-        valid_pacs_list = find_valid_pacs_list(self.pacs_list, self.application_aet)
+        retrieval_dir = os.path.join(ctx.appdata_dir, "dicom_retrieval")
+        self._retrieval_dir = retrieval_dir
 
-        study_pacs_map, failed_find_indices, failed_find_details = (
-            find_studies_from_pacs_list(
-                valid_pacs_list,
+        study_pacs_map, failed_query_indices, failure_details = (
+            query_and_retrieve_studies(
+                self.pacs_list,
                 query_params_list,
-                self.application_aet,
                 expected_values_list,
+                self.application_aet,
+                retrieval_dir,
+                self.storescp_port,
+                self.cmove_batch_size,
                 fallback_spreadsheet=(
                     self.query_spreadsheet if self.use_fallback_query else None
                 ),
                 fallback_date_window_days=self.date_window_days,
+                deferred_delivery=self.deferred_delivery,
+                deferred_delivery_timeout=self.deferred_delivery_timeout,
+                progress=ctx.progress,
             )
         )
 
-        retrieval_dir = os.path.join(ctx.appdata_dir, "dicom_retrieval")
-        self._retrieval_dir = retrieval_dir
-
-        _, failed_move_indices, failed_move_details = move_studies_from_study_pacs_map(
-            study_pacs_map,
-            self.application_aet,
-            retrieval_dir,
-            self.storescp_port,
-            cmove_batch_size=self.cmove_batch_size,
-            deferred_delivery=self.deferred_delivery,
-            deferred_delivery_timeout=self.deferred_delivery_timeout,
-        )
-
-        # Wait briefly to ensure all files are written
-        time.sleep(2)
-
-        failed_query_indices = list(set(failed_find_indices + failed_move_indices))
-        combined_failure_details = {**failed_find_details, **failed_move_details}
         save_failed_queries_csv(
             failed_query_indices,
             self.query_spreadsheet,
             ctx.appdata_dir,
-            combined_failure_details,
+            failure_details,
             use_fallback_query=self.use_fallback_query,
         )
 

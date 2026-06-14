@@ -1579,24 +1579,32 @@ def test_ctp_server_stall_timeout(tmp_path):
 
     source_ctp = Path(__file__).parent / "ctp"
 
+    # Stub metric collection so the pipeline never reaches a "complete" state
+    # and its metrics never change — this is the genuine stall the timeout
+    # guards against. Doing it this way makes the test independent of the
+    # monitor poll cadence (an empty input dir would otherwise legitimately
+    # *complete*, racing the stall instead of triggering it).
+    from unittest.mock import patch
+
     with pytest.raises(
-        TimeoutError, match="CTP metrics have not changed for 10 seconds"
+        TimeoutError, match="CTP metrics have not changed for 5 seconds"
     ):
-        with CTPPipeline(
-            pipeline_type="imagecopy_local",
-            output_dir=str(output_dir),
-            input_dir=str(input_dir),
-            source_ctp_dir=str(source_ctp),
-            stall_timeout=10,
-        ) as pipeline:
-            start_time = time.time()
-            safety_timeout = 30
-            while not pipeline.is_complete():
-                if time.time() - start_time > safety_timeout:
-                    raise AssertionError(
-                        f"Stall timeout did not trigger within {safety_timeout} seconds"
-                    )
-                time.sleep(1)
+        with patch("ctp.CTPServer._update_metrics", return_value=None):
+            with CTPPipeline(
+                pipeline_type="imagecopy_local",
+                output_dir=str(output_dir),
+                input_dir=str(input_dir),
+                source_ctp_dir=str(source_ctp),
+                stall_timeout=5,
+            ) as pipeline:
+                start_time = time.time()
+                safety_timeout = 30
+                while not pipeline.is_complete():
+                    if time.time() - start_time > safety_timeout:
+                        raise AssertionError(
+                            f"Stall timeout did not trigger within {safety_timeout} seconds"
+                        )
+                    time.sleep(1)
 
 
 @pytest.mark.parametrize(

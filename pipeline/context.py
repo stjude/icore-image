@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from utils import RunDirs
+
+if TYPE_CHECKING:
+    from pipeline.progress import ProgressReporter
 
 
 @dataclass
@@ -17,6 +21,9 @@ class PipelineContext:
     output_dir: str
     appdata_dir: str
     debug: bool = False
+
+    # Structured progress signal for the task-progress UI; set by Pipeline.run.
+    progress: "ProgressReporter | None" = None
 
     # Stage-1 (Gather) outputs
     dicom_input_dir: str | None = None

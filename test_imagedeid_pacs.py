@@ -354,10 +354,8 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch(
-            "pipeline.stages.gather.find_studies_from_pacs_list"
-        ) as mock_find_studies,
-        patch("pipeline.stages.gather.move_studies_from_study_pacs_map") as mock_get,
+        patch("utils.find_studies_from_pacs_list") as mock_find_studies,
+        patch("utils.move_studies_from_study_pacs_map") as mock_get,
         patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
@@ -1523,10 +1521,8 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch(
-            "pipeline.stages.gather.find_studies_from_pacs_list"
-        ) as mock_find_studies,
-        patch("pipeline.stages.gather.move_studies_from_study_pacs_map") as mock_get,
+        patch("utils.find_studies_from_pacs_list") as mock_find_studies,
+        patch("utils.move_studies_from_study_pacs_map") as mock_get,
         patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
@@ -1573,10 +1569,8 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
     with (
-        patch(
-            "pipeline.stages.gather.find_studies_from_pacs_list"
-        ) as mock_find_studies,
-        patch("pipeline.stages.gather.move_studies_from_study_pacs_map") as mock_get,
+        patch("utils.find_studies_from_pacs_list") as mock_find_studies,
+        patch("utils.move_studies_from_study_pacs_map") as mock_get,
         patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})

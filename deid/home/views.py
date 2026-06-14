@@ -1,7 +1,6 @@
 import logging
 import json
 import os
-import shutil
 import sys
 from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlparse, parse_qs
@@ -397,6 +396,22 @@ def get_log_content(request):
         return HttpResponse("An internal server error occurred.", status=500)
 
 
+def _read_progress(logs_folder):
+    """Read the pipeline's progress.json from the run's log directory.
+
+    Returns the parsed payload, or ``None`` if it's missing/unreadable (e.g.
+    the job hasn't reported progress yet).
+    """
+    progress_path = os.path.join(logs_folder, "progress.json")
+    if not is_path_within_directory(progress_path, LOGS_DIR):
+        return None
+    try:
+        with open(progress_path, "r") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
 def task_status(request, project_id):
     try:
         task = Project.objects.get(id=project_id)
@@ -404,12 +419,15 @@ def task_status(request, project_id):
         logs_folder = ""
         appdata_folder = ""
         actual_output_folder = ""
+        progress = None
 
         if task.log_path:
             logs_folder = os.path.dirname(task.log_path)
 
             timestamp = os.path.basename(logs_folder)
             appdata_folder = os.path.join(ICORE_BASE_DIR, "appdata", timestamp)
+
+            progress = _read_progress(logs_folder)
 
         if task.output_folder and task.name and task.timestamp:
             if task.task_type in [
@@ -434,6 +452,7 @@ def task_status(request, project_id):
                 "logs_folder": logs_folder,
                 "output_folder": actual_output_folder,
                 "appdata_folder": appdata_folder,
+                "progress": progress,
             }
         )
     except Project.DoesNotExist:
@@ -1174,10 +1193,6 @@ def verify_admin_password(request):
 def delete_task(request, task_id):
     try:
         task = get_object_or_404(Project, id=task_id)
-
-        # Optionally, delete associated files
-        if os.path.exists(task.output_folder):
-            shutil.rmtree(task.output_folder)
         task.delete()
 
         return JsonResponse({"status": "success"})

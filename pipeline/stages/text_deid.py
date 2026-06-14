@@ -408,6 +408,7 @@ def scrub(
     analyzer: AnalyzerEngine,
     anonymizer: AnonymizerEngine,
     medical_preserve: set[str],
+    progress_callback=None,
 ) -> list[str]:
     entities = [
         "PERSON",
@@ -466,6 +467,8 @@ def scrub(
 
     results = []
     for _, text_item in enumerate(data):
+        if progress_callback:
+            progress_callback()
         text = str(text_item) if text_item is not None else ""
         text = "".join(c for c in text if c in string.printable)
 
@@ -596,6 +599,8 @@ class TextDeidStage(PipelineStage, ABC):
 class PresidioTextDeid(TextDeidStage):
     """Concrete text-deid stage backed by Presidio + custom recognizers."""
 
+    progress_marker = ("text_deid", "De-identifying reports")
+
     def __init__(
         self,
         to_keep_list: list[str] | None = None,
@@ -637,6 +642,22 @@ class PresidioTextDeid(TextDeidStage):
         _register_blacklist_recognizers(analyzer, self.to_remove_list or [])
         medical_preserve = _build_medical_preserve(self.to_keep_list or [])
 
+        # Processing is column-major (all rows of a column, then the next), so
+        # we report the running cell count across rows × columns. With a single
+        # text column this is exactly "report N of total".
+        total_cells = len(df) * len(columns_to_process)
+        cells_done = 0
+
+        def on_cell() -> None:
+            nonlocal cells_done
+            cells_done += 1
+            if ctx.progress and total_cells:
+                ctx.progress.update(
+                    "text_deid",
+                    cells_done / total_cells,
+                    f"Processing {cells_done} of {total_cells} reports",
+                )
+
         result_df = df.copy()
         for column in columns_to_process:
             logging.info(f"Processing: {column}")
@@ -645,6 +666,7 @@ class PresidioTextDeid(TextDeidStage):
                 analyzer,
                 anonymizer,
                 medical_preserve,
+                progress_callback=on_cell,
             )
 
         os.makedirs(ctx.output_dir, exist_ok=True)
