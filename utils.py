@@ -290,6 +290,8 @@ def find_studies_from_pacs_list(
             failure_details[i] = "Failed to find images"
         return study_pacs_map, failed_query_indices, failure_details
 
+    total_queries_for_all_pacs = total_queries * len(pacs_list)
+    overall_query_idx = 0
     for pacs in pacs_list:
         logging.info(f"Querying PACS: {pacs.host}:{pacs.port} (AE: {pacs.aet})")
 
@@ -297,7 +299,8 @@ def find_studies_from_pacs_list(
             logging.info(f"Queried {i} / {total_queries} rows")
             logging.debug(f"Processing Excel row {i + 1}")
             if progress_callback:
-                progress_callback(i, total_queries)
+                progress_callback(overall_query_idx, total_queries_for_all_pacs)
+            overall_query_idx += 1
 
             try:
                 return_tags = ["StudyInstanceUID", "StudyDate"]
@@ -349,7 +352,9 @@ def find_studies_from_pacs_list(
                     failed_query_indices.append(i)
                     failure_details[i] = f"Failed to find images: {str(e)}"
 
-        logging.info(f"Queried {total_queries} / {total_queries} rows")
+        logging.info(
+            f"Queried {total_queries} / {total_queries} rows for PACS {pacs.host}:{pacs.port}"
+        )
 
     query_indices_with_studies = set(
         query_index for _, query_index in study_pacs_map.values()
@@ -631,11 +636,11 @@ def move_studies_from_study_pacs_map(
 
         studies = list(study_pacs_map.items())
         for batch_start in range(0, total_studies, cmove_batch_size):
-            batch_num = (batch_start // cmove_batch_size) + 1
+            batch_num = (batch_start // cmove_batch_size)
             batch_end = min(batch_start + cmove_batch_size, total_studies)
             batch = studies[batch_start:batch_end]
 
-            logging.info(f"Processing C-MOVE batch {batch_num} / {total_batches}")
+            logging.info(f"Processing C-MOVE batch {batch_num + 1} / {total_batches}")
 
             for study_idx, (study_uid, (pacs, query_index)) in enumerate(batch):
                 logging.info(f"Retrieved {processed} / {total_studies} studies")
@@ -760,12 +765,12 @@ def query_and_retrieve_studies(
 
     def on_retrieve(batch_num, total_batches, study_idx, batch_len):
         if progress and total_batches and batch_len:
-            within = (batch_num - 1 + study_idx / batch_len) / total_batches
+            within = (batch_num + study_idx / batch_len) / total_batches
             progress.update(
                 "gather",
                 1.0 / 3.0 + (2.0 / 3.0) * within,
-                f"Batch {batch_num} of {total_batches} — "
-                f"retrieving study {study_idx} of {batch_len}",
+                f"Batch {batch_num + 1} of {total_batches} — "
+                f"retrieving study {study_idx + 1} of {batch_len}",
             )
 
     valid_pacs_list = find_valid_pacs_list(pacs_list, application_aet)
@@ -792,9 +797,6 @@ def query_and_retrieve_studies(
         deferred_delivery_timeout=deferred_delivery_timeout,
         progress_callback=on_retrieve,
     )
-
-    # Wait briefly to ensure all files are written
-    time.sleep(2)
 
     failed_query_indices = list(set(failed_find_indices + failed_move_indices))
     failure_details = {**find_failure_details, **move_failure_details}
