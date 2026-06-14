@@ -636,7 +636,7 @@ def move_studies_from_study_pacs_map(
 
         studies = list(study_pacs_map.items())
         for batch_start in range(0, total_studies, cmove_batch_size):
-            batch_num = (batch_start // cmove_batch_size)
+            batch_num = batch_start // cmove_batch_size
             batch_end = min(batch_start + cmove_batch_size, total_studies)
             batch = studies[batch_start:batch_end]
 
