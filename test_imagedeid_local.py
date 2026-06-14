@@ -12,7 +12,6 @@ import pydicom
 from pipeline import ImageDeidLocalPipeline
 from pipeline.stages.image_deid import (
     _apply_default_filter_script,
-    _combine_with_sc_pdf,
     _generate_lookup_table_content,
     _get_sc_pdf_blacklist,
 )
@@ -53,24 +52,6 @@ class TestApplyDefaultFilterScript:
         # Stanford filter present
         assert "KONICA" in result or "SIEMENS" in result
 
-    def test_combine_with_sc_pdf_merges_inverted_exclusion(self):
-        user_filter = 'Modality.equals("CT")'
-        result = _combine_with_sc_pdf(user_filter, True)
-        assert result is not None
-        assert 'Modality.equals("CT")' in result
-        # SC/PDF exclusion is inverted
-        assert "!(" in result
-        # SC/PDF filter conditions
-        assert "1.2.840.10008.5.1.4.1.1.7" in result  # Secondary Capture
-        assert "1.2.840.10008.5.1.4.1.1.88" in result  # Structured Reports
-        assert "1.2.840.10008.5.1.4.1.1.11" in result  # Presentation States
-        assert "BurnedInAnnotation" in result
-
-    def test_combine_with_sc_pdf_disabled_is_identity(self):
-        user_filter = 'Modality.equals("CT")'
-        assert _combine_with_sc_pdf(user_filter, False) == user_filter
-        assert _combine_with_sc_pdf(None, False) is None
-
     def test_get_sc_pdf_blacklist_returns_uninverted_filter(self):
         result = _get_sc_pdf_blacklist(True)
         assert result is not None
@@ -84,7 +65,6 @@ class TestApplyDefaultFilterScript:
 
 
 def test_imagedeid_local(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -193,8 +173,8 @@ def test_imagedeid_local(tmp_path):
     assert "Original AccessionNumber" in linker_df.columns, (
         "Linker should have Original AccessionNumber column"
     )
-    assert "Trial AccessionNumber" in linker_df.columns, (
-        "Linker should have Trial AccessionNumber column"
+    assert "Deidentified AccessionNumber" in linker_df.columns, (
+        "Linker should have Deidentified AccessionNumber column"
     )
 
     original_accessions_in_linker = set()
@@ -212,7 +192,7 @@ def test_imagedeid_local(tmp_path):
 
     for _, row in linker_df.iterrows():
         trial_acc = (
-            str(row["Trial AccessionNumber"])
+            str(row["Deidentified AccessionNumber"])
             .strip()
             .strip('="')
             .strip("(")
@@ -255,7 +235,6 @@ def test_imagedeid_local(tmp_path):
 
 
 def test_imagedeid_local_pixel(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -343,83 +322,7 @@ def test_imagedeid_local_pixel(tmp_path):
     assert linker_path.exists(), "linker.xlsx should exist"
 
     assert result["num_images_saved"] == 10
-
-
-def test_continuous_audit_log_saving(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    for i in range(5):
-        ds = _create_test_dicom(
-            f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", "3.0"
-        )
-        ds.InstanceNumber = i + 1
-        filepath = input_dir / f"f{i + 1:03d}.dcm"
-        ds.save_as(str(filepath), write_like_original=False)
-
-    time.sleep(2)
-
-    anonymizer_script = """<script>
-<e en="T" t="00100010" n="PatientName">@empty()</e>
-<e en="T" t="00100020" n="PatientID">@empty()</e>
-<e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
-</script>"""
-
-    file_write_times = {}
-    lock = threading.Lock()
-    stop_monitoring = threading.Event()
-
-    def monitor_files():
-        while not stop_monitoring.is_set():
-            for filename in ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]:
-                filepath = appdata_dir / filename
-                if filepath.exists():
-                    mtime = os.path.getmtime(filepath)
-                    with lock:
-                        if filename not in file_write_times:
-                            file_write_times[filename] = []
-                        if (
-                            not file_write_times[filename]
-                            or mtime != file_write_times[filename][-1]
-                        ):
-                            file_write_times[filename].append(mtime)
-            time.sleep(1)
-
-    monitor_thread = threading.Thread(target=monitor_files, daemon=True)
-    monitor_thread.start()
-
-    ImageDeidLocalPipeline(
-        input_dir=str(input_dir),
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-    ).run()
-
-    stop_monitoring.set()
-    monitor_thread.join(timeout=2)
-
-    with lock:
-        for filename in ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]:
-            write_count = len(file_write_times.get(filename, []))
-            assert write_count >= 2, (
-                f"{filename} should have been written multiple times (found {write_count} writes), indicating continuous saving"
-            )
-
-    assert (appdata_dir / "metadata.xlsx").exists()
-    assert (appdata_dir / "deid_metadata.xlsx").exists()
-    assert (appdata_dir / "linker.xlsx").exists()
-
-
 def test_imagedeid_failures_reported(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -450,7 +353,6 @@ def test_imagedeid_failures_reported(tmp_path):
 
 
 def test_imagedeid_local_apply_default_filter_script(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -620,7 +522,6 @@ def test_generate_lookup_table_content_with_dates(tmp_path):
 
 
 def test_imagedeid_local_with_mapping_file_basic(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -676,7 +577,6 @@ def test_imagedeid_local_with_mapping_file_basic(tmp_path):
 
 
 def test_imagedeid_local_with_mapping_file_multiple_tags(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -766,7 +666,6 @@ def test_imagedeid_local_with_mapping_file_multiple_tags(tmp_path):
 
 
 def test_imagedeid_local_date_format_conversion(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -864,7 +763,6 @@ def test_mapping_file_inconsistent_date_types(tmp_path):
 
 
 def test_imagedeid_local_fallback_to_simple_action(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -937,7 +835,6 @@ def test_imagedeid_local_complex_function_falls_back_to_keep(tmp_path):
     fallback action, so we degrade gracefully to ``keep`` (and log a
     warning) — unmapped values pass through unchanged rather than
     breaking the script."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -993,7 +890,6 @@ def test_imagedeid_local_complex_function_falls_back_to_keep(tmp_path):
 
 
 def test_imagedeid_local_tag_not_in_script(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1050,7 +946,6 @@ def test_imagedeid_local_tag_not_in_script(tmp_path):
 
 
 def test_explicit_lookup_table_overrides_mapping_file(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1133,9 +1028,8 @@ def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
     Uses an explicit SC/PDF-only filter (rather than the full default bundle)
     to isolate this test from the Stanford device-whitelisting filter.
     """
-    from ctp import generate_sc_pdf_filter
+    from pipeline.stages.image_deid import generate_sc_pdf_filter
 
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1199,7 +1093,6 @@ def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
 )
 def test_sc_pdf_routed_to_custom_path(tmp_path):
     """SC and PDF files go to custom path when sc_pdf_output_dir is provided."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1257,7 +1150,6 @@ def test_sc_pdf_routed_to_custom_path(tmp_path):
 
 def test_sc_pdf_normal_images_not_affected(tmp_path):
     """CT/MR images pass through de-identification normally."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1302,9 +1194,8 @@ def test_sc_pdf_normal_images_not_affected(tmp_path):
 
 def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
     """Encapsulated PDF files are quarantined by the SC/PDF filter."""
-    from ctp import generate_sc_pdf_filter
+    from pipeline.stages.image_deid import generate_sc_pdf_filter
 
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -1354,9 +1245,8 @@ def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
 
 def test_sc_pdf_burned_in_annotation_quarantined(tmp_path):
     """Files with BurnedInAnnotation=YES are quarantined by the SC/PDF filter."""
-    from ctp import generate_sc_pdf_filter
+    from pipeline.stages.image_deid import generate_sc_pdf_filter
 
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"

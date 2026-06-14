@@ -15,7 +15,7 @@ from test_utils import (
 )
 from utils import PacsConfiguration, Spreadsheet
 from deid.grammar import generate_hipaa_safe_harbor_script
-from ctp import generate_sc_pdf_filter
+from pipeline.stages.image_deid import generate_sc_pdf_filter
 
 
 logging.basicConfig(level=logging.INFO)
@@ -46,7 +46,6 @@ def get_hipaa_test_config(user_filter_script=None):
 
 def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
     """Test basic workflow: image deid from PACS + text deid + export to IMAGINE"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -155,7 +154,6 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
 
 def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
     """Test that filter scripts work for image deid"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -232,7 +230,6 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
 
 def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
     """Test that columns_to_deid and columns_to_drop work"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -306,7 +303,6 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
 
 def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
     """Test that PACS failures are handled gracefully"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -372,7 +368,6 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
 
 def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
     """Test that export failures raise appropriate errors"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -438,7 +433,6 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
 
 def test_singleclickicore_skip_export_option(tmp_path, orthanc):
     """Test that skip_export=True prevents Azure upload but preserves local files"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -498,7 +492,6 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
 
 def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
     """Test that export happens by default when skip_export is not specified"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -558,7 +551,6 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
 
 def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
     """Test that SAS URL is not required when skip_export=True"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -617,7 +609,6 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
 
 def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
     """Test that failed_queries.csv is created via imagedeid_pacs"""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"

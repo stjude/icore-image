@@ -14,7 +14,6 @@ logging.basicConfig(level=logging.INFO)
 
 
 def test_headerextract_basic(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -89,7 +88,6 @@ def test_headerextract_basic(tmp_path):
 
 
 def test_headerextract_extract_all_headers(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -134,7 +132,6 @@ def test_headerextract_extract_all_headers(tmp_path):
 
 
 def test_headerextract_study_level_aggregation(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -195,7 +192,6 @@ def test_headerextract_study_level_aggregation(tmp_path):
 
 
 def test_headerextract_concatenates_multiple_values(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -253,7 +249,6 @@ def test_headerextract_concatenates_multiple_values(tmp_path):
 
 
 def test_headerextract_custom_tags(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -297,7 +292,6 @@ def test_headerextract_custom_tags(tmp_path):
 
 
 def test_headerextract_no_headers_raises_error(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"

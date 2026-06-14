@@ -24,7 +24,6 @@ logging.basicConfig(level=logging.INFO)
 
 
 def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -102,7 +101,6 @@ def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
 
 
 def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurite):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -176,7 +174,6 @@ def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurit
 
 
 def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -228,7 +225,6 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
 
 
 def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -283,7 +279,6 @@ def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
 
 
 def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -346,7 +341,6 @@ def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
 
 
 def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -419,7 +413,6 @@ def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
 
 
 def test_imagedeidexport_with_multiple_pacs(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"
@@ -511,7 +504,6 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
 
 
 def test_imagedeidexport_saves_failed_queries_csv(tmp_path, orthanc, azurite):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     appdata_dir = tmp_path / "appdata"

@@ -182,7 +182,6 @@ def build_image_deid(data, project, settings):
         apply_default_filter_script=data.get("apply_default_ctp_filter_script", True),
         mapping_file_path=_mapping_file_path(data),
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
-        deid_engine=data.get("deid_engine", "ctp"),
         debug=settings.get("debug_logging", False),
     )
     if project.image_source == "PACS":
@@ -209,7 +208,6 @@ def build_image_query(data, project, settings):
         application_aet=project.application_aet,
         output_dir=_output_dir(project, "PHI"),
         cmove_batch_size=CMOVE_BATCH_SIZE,
-        filter_script=_filter_script(data),
         date_window_days=date_window_days,
         use_fallback_query=use_fallback_query,
         debug=settings.get("debug_logging", False),
@@ -280,7 +278,6 @@ def build_image_deid_export(data, project, settings):
         apply_default_filter_script=data.get("apply_default_ctp_filter_script", True),
         mapping_file_path=_mapping_file_path(data),
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
-        deid_engine=data.get("deid_engine", "ctp"),
         debug=settings.get("debug_logging", False),
     )
 
@@ -325,6 +322,5 @@ def build_singleclickicore(data, project, settings):
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
         use_fallback_query=data.get("use_fallback_query", False),
         date_window_days=data.get("date_window", 0),
-        deid_engine=settings.get("deid_engine", "ctp"),
         debug=settings.get("debug_logging", False),
     )

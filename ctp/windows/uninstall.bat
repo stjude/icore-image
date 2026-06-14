@@ -1,1 +1,0 @@
-CTP.exe //DS//CTP 

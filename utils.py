@@ -7,7 +7,7 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TypedDict, Literal
+from typing import TypedDict
 
 import pandas as pd
 from openpyxl import Workbook
@@ -43,7 +43,6 @@ class Spreadsheet:
 
 class RunDirs(TypedDict):
     log_dir: str
-    ctp_log_path: str
     run_log_path: str
     appdata_dir: str
 
@@ -85,9 +84,6 @@ class SingleClickResult(TypedDict):
     num_rows_processed: int
     output_file: str
     export_performed: bool
-
-
-type DeidEngine = Literal["ctp", "rust"]
 
 
 def _build_mrn_date_query_and_filter(mrn, study_date, date_window_days):
@@ -813,12 +809,10 @@ def setup_run_directories() -> RunDirs:
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(appdata_dir, exist_ok=True)
 
-    ctp_log_path = os.path.join(log_dir, "ctp.txt")
     run_log_path = os.path.join(log_dir, "run.txt")
 
     return {
         "log_dir": log_dir,
-        "ctp_log_path": ctp_log_path,
         "run_log_path": run_log_path,
         "appdata_dir": appdata_dir,
     }
