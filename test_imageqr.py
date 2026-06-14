@@ -1,9 +1,7 @@
 import logging
 import os
-import time
-import threading
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pandas as pd
 import pytest

@@ -1,7 +1,5 @@
 import json
 import logging
-import os
-from pathlib import Path
 
 import pandas as pd
 from pydicom.uid import generate_uid
