@@ -4,7 +4,6 @@ from celery import shared_task
 
 import pipeline
 from utils import (
-    DeidEngine,
     DeidExportResult,
     HeaderExtractResult,
     ImageDeidLocalResult,
@@ -79,7 +78,6 @@ class ImageDeidLocalArgs(BaseModel):
     apply_default_filter_script: bool = True
     mapping_file_path: str | None = None
     sc_pdf_output_dir: str | None = None
-    deid_engine: DeidEngine = "ctp"
 
 
 class ImageQrArgs(BaseModel):
@@ -89,7 +87,6 @@ class ImageQrArgs(BaseModel):
     output_dir: str
     cmove_batch_size: int
     appdata_dir: str | None = None
-    filter_script: str | None = None
     date_window_days: int = 0
     debug: bool = False
     run_dirs: RunDirs | None = None
@@ -100,13 +97,13 @@ class ImageQrArgs(BaseModel):
 
 
 class ImageDeidPacsArgs(ImageQrArgs):
+    filter_script: str | None = None
     anonymizer_script: str | None = None
     deid_pixels: bool = False
     lookup_table: str | None = None
     apply_default_filter_script: bool = True
     mapping_file_path: str | None = None
     sc_pdf_output_dir: str | None = None
-    deid_engine: DeidEngine = "ctp"
 
 
 class ImageDeidExportArgs(ImageDeidPacsArgs):

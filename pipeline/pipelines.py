@@ -13,7 +13,6 @@ from pipeline.stages.gather import (
 from pipeline.stages.image_deid import ImageDeidExecutor
 from pipeline.stages.text_deid import PresidioTextDeid
 from utils import (
-    DeidEngine,
     DeidExportResult,
     ImageDeidLocalResult,
     PacsConfiguration,
@@ -54,7 +53,7 @@ def _prepare_run(
 
 
 # ---------------------------------------------------------------------------
-# ImageDeidLocalPipeline — local filesystem → CTP/Rust
+# ImageDeidLocalPipeline — local filesystem → dicom-deid-rs
 # ---------------------------------------------------------------------------
 
 
@@ -73,7 +72,6 @@ class ImageDeidLocalPipeline(Pipeline):
         apply_default_filter_script: bool = True,
         mapping_file_path: str | None = None,
         sc_pdf_output_dir: str | None = None,
-        deid_engine: DeidEngine = "ctp",
     ) -> None:
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -87,17 +85,15 @@ class ImageDeidLocalPipeline(Pipeline):
         self.apply_default_filter_script = apply_default_filter_script
         self.mapping_file_path = mapping_file_path
         self.sc_pdf_output_dir = sc_pdf_output_dir
-        self.deid_engine = deid_engine
 
     def _build_context(self) -> PipelineContext:
         run_dirs, appdata_dir = _prepare_run(
             self.run_dirs_arg, self.debug, self.appdata_dir_arg, self.output_dir
         )
 
-        engine_label = (
-            "dicom-deid-rs (Rust)" if self.deid_engine == "rust" else "CTP (Java)"
+        logging.info(
+            "Starting image deidentification using dicom-deid-rs (Rust) engine"
         )
-        logging.info(f"Starting image deidentification using {engine_label} engine")
         logging.info(f"Output directory: {self.output_dir}")
         if self.filter_script:
             logging.info(f"Filter script: {self.filter_script}")
@@ -123,7 +119,6 @@ class ImageDeidLocalPipeline(Pipeline):
 
     def build_image_deid_stage(self) -> PipelineStage:
         return ImageDeidExecutor(
-            engine=self.deid_engine,
             anonymizer_script=self.anonymizer_script,
             filter_script=self.filter_script,
             lookup_table=self.lookup_table,
@@ -142,7 +137,7 @@ class ImageDeidLocalPipeline(Pipeline):
 
 
 # ---------------------------------------------------------------------------
-# ImageDeidPacsPipeline — PACS query/retrieve → CTP/Rust
+# ImageDeidPacsPipeline — PACS query/retrieve → dicom-deid-rs
 # ---------------------------------------------------------------------------
 
 
@@ -169,7 +164,6 @@ class ImageDeidPacsPipeline(Pipeline):
         storescp_port: int = 50001,
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
-        deid_engine: DeidEngine = "ctp",
     ) -> None:
         self.pacs_list = pacs_list
         self.query_spreadsheet = query_spreadsheet
@@ -190,7 +184,6 @@ class ImageDeidPacsPipeline(Pipeline):
         self.storescp_port = storescp_port
         self.deferred_delivery = deferred_delivery
         self.deferred_delivery_timeout = deferred_delivery_timeout
-        self.deid_engine = deid_engine
         self.cmove_batch_size = cmove_batch_size
 
     def _build_context(self) -> PipelineContext:
@@ -198,11 +191,8 @@ class ImageDeidPacsPipeline(Pipeline):
             self.run_dirs_arg, self.debug, self.appdata_dir_arg, self.output_dir
         )
 
-        engine_label = (
-            "dicom-deid-rs (Rust)" if self.deid_engine == "rust" else "CTP (Java)"
-        )
         logging.info(
-            f"Running imagedeid_pacs using {engine_label} engine "
+            "Running imagedeid_pacs using dicom-deid-rs (Rust) engine "
             f"(use_fallback_query={self.use_fallback_query})"
         )
 
@@ -232,7 +222,6 @@ class ImageDeidPacsPipeline(Pipeline):
         # ``ctx.gather_filter_override`` during execute(); ImageDeidExecutor
         # picks it up from there at its own execute() time.
         return ImageDeidExecutor(
-            engine=self.deid_engine,
             anonymizer_script=self.anonymizer_script,
             filter_script=self.filter_script,
             lookup_table=self.lookup_table,
@@ -240,7 +229,6 @@ class ImageDeidPacsPipeline(Pipeline):
             deid_pixels=self.deid_pixels,
             apply_default_filter_script=self.apply_default_filter_script,
             sc_pdf_output_dir=self.sc_pdf_output_dir,
-            application_aet=self.application_aet,
         )
 
     def _to_result(self, ctx: PipelineContext) -> Any:
@@ -387,7 +375,6 @@ class ImageDeidExportPipeline(ImageDeidPacsPipeline):
         storescp_port: int = 50001,
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
-        deid_engine: DeidEngine = "ctp",
     ) -> None:
         super().__init__(
             pacs_list=pacs_list,
@@ -410,7 +397,6 @@ class ImageDeidExportPipeline(ImageDeidPacsPipeline):
             storescp_port=storescp_port,
             deferred_delivery=deferred_delivery,
             deferred_delivery_timeout=deferred_delivery_timeout,
-            deid_engine=deid_engine,
         )
         self.sas_url = sas_url
         self.project_name = project_name
@@ -470,7 +456,6 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
         storescp_port: int = 50001,
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
-        deid_engine: DeidEngine = "ctp",
         to_keep_list: list[str] | None = None,
         to_remove_list: list[str] | None = None,
         columns_to_drop: list[str] | None = None,
@@ -498,7 +483,6 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
             deferred_delivery=deferred_delivery,
             deferred_delivery_timeout=deferred_delivery_timeout,
             cmove_batch_size=cmove_batch_size,
-            deid_engine=deid_engine,
         )
         self.sas_url = sas_url
         self.project_name = project_name

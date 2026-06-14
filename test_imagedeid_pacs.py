@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,6 @@ logging.basicConfig(level=logging.INFO)
 
 
 def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -146,8 +145,8 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
     assert "Original AccessionNumber" in linker_df.columns, (
         "Linker should have Original AccessionNumber column"
     )
-    assert "Trial AccessionNumber" in linker_df.columns, (
-        "Linker should have Trial AccessionNumber column"
+    assert "Deidentified AccessionNumber" in linker_df.columns, (
+        "Linker should have Deidentified AccessionNumber column"
     )
 
     original_accessions_in_linker = set()
@@ -165,7 +164,7 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
 
     for _, row in linker_df.iterrows():
         trial_acc = (
-            str(row["Trial AccessionNumber"])
+            str(row["Deidentified AccessionNumber"])
             .strip()
             .strip('="')
             .strip("(")
@@ -191,7 +190,13 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
     quarantine_dir = appdata_dir / "quarantine"
     assert quarantine_dir.exists(), "Quarantine directory should exist in appdata"
 
-    quarantined_files = list(quarantine_dir.rglob("*.dcm"))
+    # storescp-retrieved inputs have no .dcm extension; the engine quarantines
+    # copies of the raw inputs, so match any file here.
+    quarantined_files = [
+        p
+        for p in quarantine_dir.rglob("*")
+        if p.is_file() and p.name != "blacklisted_files.txt"
+    ]
     assert len(quarantined_files) == 6, (
         f"Expected 6 quarantined files, found {len(quarantined_files)}"
     )
@@ -208,96 +213,7 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
             assert ds.Modality == "MR", "Non-CT quarantined file should be MR"
 
 
-def test_continuous_audit_log_saving(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    for i in range(5):
-        ds = _create_test_dicom(
-            f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", "3.0"
-        )
-        ds.InstanceNumber = i + 1
-        _upload_dicom_to_orthanc(ds, orthanc)
-
-    time.sleep(2)
-
-    query_file = appdata_dir / "query.xlsx"
-    query_df = pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(5)]})
-    query_df.to_excel(query_file, index=False)
-
-    query_spreadsheet = Spreadsheet.from_file(
-        str(query_file), acc_col="AccessionNumber"
-    )
-    pacs_config = PacsConfiguration(
-        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
-    )
-
-    anonymizer_script = """<script>
-<e en="T" t="00100010" n="PatientName">@empty()</e>
-<e en="T" t="00100020" n="PatientID">@empty()</e>
-<e en="T" t="00080050" n="AccessionNumber">@hashPtID(@UID(),13)</e>
-</script>"""
-
-    import threading
-
-    file_write_times = {}
-    lock = threading.Lock()
-    stop_monitoring = threading.Event()
-
-    def monitor_files():
-        while not stop_monitoring.is_set():
-            for filename in ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]:
-                filepath = appdata_dir / filename
-                if filepath.exists():
-                    mtime = os.path.getmtime(filepath)
-                    with lock:
-                        if filename not in file_write_times:
-                            file_write_times[filename] = []
-                        if (
-                            not file_write_times[filename]
-                            or mtime != file_write_times[filename][-1]
-                        ):
-                            file_write_times[filename].append(mtime)
-            time.sleep(1)
-
-    monitor_thread = threading.Thread(target=monitor_files, daemon=True)
-    monitor_thread.start()
-
-    ImageDeidPacsPipeline(
-        pacs_list=[pacs_config],
-        query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        anonymizer_script=anonymizer_script,
-        apply_default_filter_script=False,
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
-    ).run()
-
-    stop_monitoring.set()
-    monitor_thread.join(timeout=2)
-
-    with lock:
-        for filename in ["metadata.xlsx", "deid_metadata.xlsx", "linker.xlsx"]:
-            write_count = len(file_write_times.get(filename, []))
-            assert write_count >= 2, (
-                f"{filename} should have been written multiple times (found {write_count} writes), indicating continuous saving"
-            )
-
-    assert (appdata_dir / "metadata.xlsx").exists()
-    assert (appdata_dir / "deid_metadata.xlsx").exists()
-    assert (appdata_dir / "linker.xlsx").exists()
-
-
 def test_imagedeid_failures_reported(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -343,7 +259,6 @@ def test_imagedeid_failures_reported(tmp_path, orthanc):
 
 
 def test_imagedeid_filter_script_generation(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -356,16 +271,14 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
     with (
         patch("utils.find_studies_from_pacs_list") as mock_find_studies,
         patch("utils.move_studies_from_study_pacs_map") as mock_get,
-        patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
+        patch("deid_rs.DeidRsPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})
-        mock_pipeline_instance = MagicMock()
-        mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
-        mock_pipeline_instance.is_complete.return_value = True
-        mock_pipeline_instance.metrics = MagicMock(files_saved=0, files_quarantined=0)
-        mock_pipeline_instance.get_audit_log_csv.return_value = None
-        mock_pipeline_instance.get_idmap_csv.return_value = None
+        mock_pipeline_class.return_value.run.return_value = {
+            "num_images_saved": 0,
+            "num_images_quarantined": 0,
+        }
 
         query_file = appdata_dir / "query_acc.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
@@ -453,7 +366,6 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
 
 
 def test_imagedeid_multiple_pacs(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -532,7 +444,6 @@ def test_imagedeid_multiple_pacs(tmp_path):
 
 
 def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -634,7 +545,6 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_date_window(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -777,7 +687,6 @@ def test_imagedeid_pacs_date_window(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -834,7 +743,6 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -930,8 +838,9 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
         file.unlink()
     quarantine_dir = appdata_dir / "quarantine"
     if quarantine_dir.exists():
-        for file in quarantine_dir.rglob("*.dcm"):
-            file.unlink()
+        for file in quarantine_dir.rglob("*"):
+            if file.is_file():
+                file.unlink()
 
     result_with_filter = ImageDeidPacsPipeline(
         pacs_list=[pacs_config],
@@ -958,7 +867,13 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
     output_ds = pydicom.dcmread(output_files[0])
     assert "ORIGINAL" in output_ds.ImageType, "Output file should be the primary CT"
 
-    quarantine_files = list(quarantine_dir.rglob("*.dcm"))
+    # Files retrieved via storescp have no .dcm extension, and the engine
+    # quarantines a copy of the raw input, so match any file here.
+    quarantine_files = [
+        p
+        for p in quarantine_dir.rglob("*")
+        if p.is_file() and p.name != "blacklisted_files.txt"
+    ]
     assert len(quarantine_files) == 1, "One DICOM file should be quarantined"
 
     quarantine_ds = pydicom.dcmread(quarantine_files[0])
@@ -968,7 +883,6 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1038,7 +952,6 @@ def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1142,7 +1055,6 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1215,7 +1127,6 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1302,7 +1213,6 @@ def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
     fallback action, so we degrade gracefully to ``keep`` (and log a
     warning) — unmapped values pass through unchanged rather than
     breaking the script."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1372,7 +1282,6 @@ def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1443,7 +1352,6 @@ def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1510,7 +1418,6 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, o
 
 
 def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1523,16 +1430,14 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
     with (
         patch("utils.find_studies_from_pacs_list") as mock_find_studies,
         patch("utils.move_studies_from_study_pacs_map") as mock_get,
-        patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
+        patch("deid_rs.DeidRsPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})
-        mock_pipeline_instance = MagicMock()
-        mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
-        mock_pipeline_instance.is_complete.return_value = True
-        mock_pipeline_instance.metrics = MagicMock(files_saved=0, files_quarantined=0)
-        mock_pipeline_instance.get_audit_log_csv.return_value = None
-        mock_pipeline_instance.get_idmap_csv.return_value = None
+        mock_pipeline_class.return_value.run.return_value = {
+            "num_images_saved": 0,
+            "num_images_quarantined": 0,
+        }
 
         query_file = appdata_dir / "query.xlsx"
         query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
@@ -1558,7 +1463,6 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1571,12 +1475,11 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
     with (
         patch("utils.find_studies_from_pacs_list") as mock_find_studies,
         patch("utils.move_studies_from_study_pacs_map") as mock_get,
-        patch("pipeline.stages.image_deid.CTPPipeline") as mock_pipeline_class,
+        patch("deid_rs.DeidRsPipeline") as mock_pipeline_class,
     ):
         mock_find_studies.return_value = ({}, [], {})
         mock_get.return_value = (0, [], {})
-        mock_pipeline_class.return_value.__enter__.return_value = MagicMock()
-        mock_pipeline_class.return_value.__exit__.side_effect = RuntimeError(
+        mock_pipeline_class.return_value.run.side_effect = RuntimeError(
             "Pipeline failure"
         )
 
@@ -1605,7 +1508,6 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
 
 
 def test_imagedeid_pacs_saves_failed_queries_csv(tmp_path, orthanc):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"

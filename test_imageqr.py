@@ -1,9 +1,7 @@
 import logging
 import os
-import time
-import threading
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -30,9 +28,9 @@ from utils import (
 logging.basicConfig(level=logging.INFO)
 
 
-def test_imageqr_pacs_with_accession_filter(tmp_path, orthanc):
-    """Test imageqr with filter script that filters by modality and slice thickness."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
+def test_imageqr_pacs_retrieves_all_queried_studies(tmp_path, orthanc):
+    """imageqr is pure query/retrieve: every study matching the query is
+    pulled into output_dir unchanged, with no filtering or quarantine."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -74,136 +72,27 @@ def test_imageqr_pacs_with_accession_filter(tmp_path, orthanc):
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    filter_script = 'Modality.contains("CT") * SliceThickness.isGreaterThan("1") * SliceThickness.isLessThan("5")'
-
     result = imageqr(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
         output_dir=str(output_dir),
         appdata_dir=str(appdata_dir),
-        filter_script=filter_script,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
-    images_dir = output_dir / "images"
-    output_files = list(images_dir.rglob("*.dcm"))
-    assert len(output_files) == 3, f"Expected 3 .dcm files, found {len(output_files)}"
+    # All 9 queried studies are retrieved unchanged — no filtering happens here.
+    output_files = [p for p in output_dir.rglob("*") if p.is_file()]
+    assert len(output_files) == 9, f"Expected 9 .dcm files, found {len(output_files)}"
 
-    for file in output_files:
-        ds = pydicom.dcmread(file)
-        assert ds.Modality == "CT", "Modality should be CT"
-        assert float(ds.SliceThickness) > 1 and float(ds.SliceThickness) < 5, (
-            "SliceThickness should be between 1 and 5"
-        )
-
-    metadata_path = appdata_dir / "metadata.xlsx"
-    assert metadata_path.exists(), "metadata.xlsx should exist"
-
-    metadata_df = pd.read_excel(metadata_path)
-    assert len(metadata_df) >= 3, "metadata.xlsx should have at least 3 rows"
-
-    assert result["num_studies_found"] >= 3
-    assert result["num_images_saved"] == 3
-
-    quarantine_dir = appdata_dir / "quarantine"
-    assert quarantine_dir.exists(), "Quarantine directory should exist in appdata"
-
-    quarantined_files = list(quarantine_dir.rglob("*.dcm"))
-    assert len(quarantined_files) == 6, (
-        f"Expected 6 quarantined files, found {len(quarantined_files)}"
-    )
-
-    for file in quarantined_files:
-        ds = pydicom.dcmread(file)
-        assert ds.Modality in ["CT", "MR"], "Quarantined file should be either CT or MR"
-        if ds.Modality == "CT":
-            slice_thickness = float(ds.SliceThickness)
-            assert slice_thickness <= 1.0 or slice_thickness >= 5.0, (
-                f"Quarantined CT should have slice thickness <=1 or >=5, got {slice_thickness}"
-            )
-        else:
-            assert ds.Modality == "MR", "Non-CT quarantined file should be MR"
-
-
-def test_continuous_audit_log_saving(tmp_path, orthanc):
-    """Test that metadata file is saved continuously during processing."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    for i in range(5):
-        ds = _create_test_dicom(
-            f"ACC{i:03d}", f"MRN{i:04d}", f"Patient{i}", "CT", "3.0"
-        )
-        ds.InstanceNumber = i + 1
-        _upload_dicom_to_orthanc(ds, orthanc)
-
-    query_file = appdata_dir / "query.xlsx"
-    query_df = pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(5)]})
-    query_df.to_excel(query_file, index=False)
-
-    query_spreadsheet = Spreadsheet.from_file(
-        str(query_file), acc_col="AccessionNumber"
-    )
-
-    pacs_config = PacsConfiguration(
-        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
-    )
-
-    file_write_times = {}
-    lock = threading.Lock()
-    stop_monitoring = threading.Event()
-
-    def monitor_files():
-        while not stop_monitoring.is_set():
-            filepath = appdata_dir / "metadata.xlsx"
-            if filepath.exists():
-                mtime = os.path.getmtime(filepath)
-                with lock:
-                    if "metadata.xlsx" not in file_write_times:
-                        file_write_times["metadata.xlsx"] = []
-                    if (
-                        not file_write_times["metadata.xlsx"]
-                        or mtime != file_write_times["metadata.xlsx"][-1]
-                    ):
-                        file_write_times["metadata.xlsx"].append(mtime)
-            time.sleep(1)
-
-    monitor_thread = threading.Thread(target=monitor_files, daemon=True)
-    monitor_thread.start()
-
-    imageqr(
-        pacs_list=[pacs_config],
-        query_spreadsheet=query_spreadsheet,
-        application_aet="TEST_AET",
-        output_dir=str(output_dir),
-        appdata_dir=str(appdata_dir),
-        storescp_port=orthanc.storescp_port,
-        cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
-
-    stop_monitoring.set()
-    monitor_thread.join(timeout=2)
-
-    with lock:
-        write_count = len(file_write_times.get("metadata.xlsx", []))
-        assert write_count >= 2, (
-            f"metadata.xlsx should have been written multiple times (found {write_count} writes), indicating continuous saving"
-        )
-
-    assert (appdata_dir / "metadata.xlsx").exists()
+    assert result["num_studies_found"] == 9
+    assert result["num_images_saved"] == 9
+    assert result["num_images_quarantined"] == 0
 
 
 def test_imageqr_failures_reported(tmp_path):
     """Test that failures are properly reported when PACS is unreachable."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -243,115 +132,8 @@ def test_imageqr_failures_reported(tmp_path):
     assert result["num_images_saved"] == 0, "No images should be saved"
 
 
-def test_imageqr_filter_script_generation(tmp_path):
-    """Test that filter scripts are correctly generated from query spreadsheets."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
-
-    with (
-        patch("utils.find_studies_from_pacs_list") as mock_find_studies,
-        patch("utils.move_studies_from_study_pacs_map") as mock_get,
-        patch("pipeline.imageqr.CTPPipeline") as mock_pipeline_class,
-    ):
-        mock_find_studies.return_value = ({}, [], {})
-        mock_get.return_value = (0, [], {})
-        mock_pipeline_instance = MagicMock()
-        mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
-        mock_pipeline_instance.is_complete.return_value = True
-        mock_pipeline_instance.metrics = MagicMock(files_saved=0, files_quarantined=0)
-        mock_pipeline_instance.get_audit_log_csv.return_value = None
-
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
-        query_df.to_excel(query_file, index=False)
-
-        query_spreadsheet = Spreadsheet.from_file(
-            str(query_file), acc_col="AccessionNumber"
-        )
-
-        imageqr(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
-
-        call_kwargs = mock_pipeline_class.call_args[1]
-        expected_filter = (
-            'AccessionNumber.contains("ACC001") + AccessionNumber.contains("ACC002")'
-        )
-        assert call_kwargs["filter_script"] == expected_filter, (
-            f"Expected filter: {expected_filter}, got: {call_kwargs['filter_script']}"
-        )
-
-        mock_pipeline_class.reset_mock()
-        mock_find_studies.reset_mock()
-        mock_get.reset_mock()
-
-        query_file = appdata_dir / "query2.xlsx"
-        query_df = pd.DataFrame(
-            {
-                "PatientID": ["MRN001", "MRN002"],
-                "StudyDate": [pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-15")],
-            }
-        )
-        query_df.to_excel(query_file, index=False)
-
-        query_spreadsheet = Spreadsheet.from_file(
-            str(query_file), mrn_col="PatientID", date_col="StudyDate"
-        )
-
-        imageqr(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
-
-        call_kwargs = mock_pipeline_class.call_args[1]
-        expected_filter = '(PatientID.contains("MRN001") * StudyDate.isGreaterThan("20241231") * StudyDate.isLessThan("20250102")) + (PatientID.contains("MRN002") * StudyDate.isGreaterThan("20250114") * StudyDate.isLessThan("20250116"))'
-        assert call_kwargs["filter_script"] == expected_filter, (
-            f"Expected filter: {expected_filter}, got: {call_kwargs['filter_script']}"
-        )
-
-        mock_pipeline_class.reset_mock()
-        mock_find_studies.reset_mock()
-        mock_get.reset_mock()
-
-        user_filter = 'Modality.contains("CT")'
-
-        imageqr(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            filter_script=user_filter,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
-
-        call_kwargs = mock_pipeline_class.call_args[1]
-        expected_combined = '(Modality.contains("CT")) * ((PatientID.contains("MRN001") * StudyDate.isGreaterThan("20241231") * StudyDate.isLessThan("20250102")) + (PatientID.contains("MRN002") * StudyDate.isGreaterThan("20250114") * StudyDate.isLessThan("20250116")))'
-        assert call_kwargs["filter_script"] == expected_combined, (
-            f"Expected filter: {expected_combined}, got: {call_kwargs['filter_script']}"
-        )
-
-
 def test_imageqr_multiple_pacs(tmp_path):
     """Test querying from multiple PACS servers simultaneously."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -408,8 +190,7 @@ def test_imageqr_multiple_pacs(tmp_path):
             f"Should save 4 images, saved {result['num_images_saved']}"
         )
 
-        images_dir = output_dir / "images"
-        output_files = list(images_dir.rglob("*.dcm"))
+        output_files = [p for p in output_dir.rglob("*") if p.is_file()]
         assert len(output_files) == 4, (
             f"Expected 4 .dcm files, found {len(output_files)}"
         )
@@ -421,7 +202,6 @@ def test_imageqr_multiple_pacs(tmp_path):
 
 def test_imageqr_pacs_mrn_study_date_fallback(tmp_path, orthanc):
     """Test fallback to MRN/StudyDate query when accession is missing."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -483,8 +263,7 @@ def test_imageqr_pacs_mrn_study_date_fallback(tmp_path, orthanc):
         f"Should save 3 images, saved {result['num_images_saved']}"
     )
 
-    images_dir = output_dir / "images"
-    output_files = list(images_dir.rglob("*.dcm"))
+    output_files = [p for p in output_dir.rglob("*") if p.is_file()]
     assert len(output_files) == 3, f"Expected 3 .dcm files, found {len(output_files)}"
 
     query_file_invalid = appdata_dir / "query_invalid.xlsx"
@@ -524,7 +303,6 @@ def test_imageqr_pacs_date_window(tmp_path, orthanc):
     """Test date window functionality for MRN/date queries."""
     import numpy as np
 
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -625,8 +403,7 @@ def test_imageqr_pacs_date_window(tmp_path, orthanc):
         cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
-    images_dir = output_dir / "images"
-    output_files = list(images_dir.rglob("*.dcm"))
+    output_files = [p for p in output_dir.rglob("*") if p.is_file()]
 
     study_dates_found = set()
     for file in output_files:
@@ -649,7 +426,6 @@ def test_imageqr_pacs_date_window(tmp_path, orthanc):
 
 def test_imageqr_accession_wildcard_filtering(tmp_path, orthanc):
     """Test that accession number matching uses wildcards correctly."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -696,8 +472,7 @@ def test_imageqr_accession_wildcard_filtering(tmp_path, orthanc):
         cmove_batch_size=CMOVE_BATCH_SIZE,
     )
 
-    images_dir = output_dir / "images"
-    output_files = list(images_dir.rglob("*.dcm"))
+    output_files = [p for p in output_dir.rglob("*") if p.is_file()]
 
     assert result["num_studies_found"] == 2, (
         f"Should find exactly 2 studies (with exact match and whitespace), found {result['num_studies_found']}"
@@ -716,7 +491,6 @@ def test_imageqr_accession_wildcard_filtering(tmp_path, orthanc):
 
 def test_imageqr_saves_failed_queries_csv_on_find_failure(tmp_path, orthanc):
     """Test that failed queries are saved to CSV with appropriate failure reasons."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -770,7 +544,6 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path, orthanc):
     """Test that failed queries CSV works with MRN/Date columns."""
     import numpy as np
 
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -840,101 +613,8 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path, orthanc):
     assert df.loc[0, "Failure Reason"] == "Failed to find images"
 
 
-def test_imageqr_cleans_up_dicom_retrieval(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
-
-    with (
-        patch("utils.find_studies_from_pacs_list") as mock_find_studies,
-        patch("utils.move_studies_from_study_pacs_map") as mock_get,
-        patch("pipeline.imageqr.CTPPipeline") as mock_pipeline_class,
-    ):
-        mock_find_studies.return_value = ({}, [], {})
-        mock_get.return_value = (0, [], {})
-        mock_pipeline_instance = MagicMock()
-        mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
-        mock_pipeline_instance.is_complete.return_value = True
-        mock_pipeline_instance.metrics = MagicMock(files_saved=0, files_quarantined=0)
-        mock_pipeline_instance.get_audit_log_csv.return_value = None
-
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
-        query_df.to_excel(query_file, index=False)
-        query_spreadsheet = Spreadsheet.from_file(
-            str(query_file), acc_col="AccessionNumber"
-        )
-
-        imageqr(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
-
-        dicom_retrieval = appdata_dir / "dicom_retrieval"
-        assert not dicom_retrieval.exists(), (
-            "dicom_retrieval should be removed after successful completion"
-        )
-
-
-def test_imageqr_cleans_up_dicom_retrieval_on_error(tmp_path):
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
-
-    with (
-        patch("utils.find_studies_from_pacs_list") as mock_find_studies,
-        patch("utils.move_studies_from_study_pacs_map") as mock_get,
-        patch("pipeline.imageqr.CTPPipeline") as mock_pipeline_class,
-    ):
-        mock_find_studies.return_value = ({}, [], {})
-        mock_get.return_value = (0, [], {})
-        mock_pipeline_class.return_value.__enter__.return_value = MagicMock()
-        mock_pipeline_class.return_value.__exit__.side_effect = RuntimeError(
-            "Pipeline failure"
-        )
-
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame({"AccessionNumber": ["ACC001"]})
-        query_df.to_excel(query_file, index=False)
-        query_spreadsheet = Spreadsheet.from_file(
-            str(query_file), acc_col="AccessionNumber"
-        )
-
-        with pytest.raises(RuntimeError, match="Pipeline failure"):
-            imageqr(
-                pacs_list=[pacs_config],
-                query_spreadsheet=query_spreadsheet,
-                application_aet="TEST_AET",
-                output_dir=str(output_dir),
-                appdata_dir=str(appdata_dir),
-                cmove_batch_size=CMOVE_BATCH_SIZE,
-            )
-
-        dicom_retrieval = appdata_dir / "dicom_retrieval"
-        assert not dicom_retrieval.exists(), (
-            "dicom_retrieval should be removed even when pipeline raises"
-        )
-
-
 def test_imageqr_continues_despite_move_failures(tmp_path, capsys, orthanc):
     """Test that imageqr job continues despite C-MOVE failures and zero file retrievals."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1257,7 +937,6 @@ def test_save_failed_queries_csv_with_fallback(tmp_path):
 
 def test_imageqr_with_fallback_query(tmp_path, orthanc):
     """Integration test: imageqr with fallback recovers studies when accession doesn't match."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1317,68 +996,8 @@ def test_imageqr_with_fallback_query(tmp_path, orthanc):
     )
 
 
-def test_imageqr_filter_with_fallback(tmp_path):
-    """Test that CTP filter includes both accession and MRN+date conditions when fallback enabled."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
-    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
-
-    pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
-
-    with (
-        patch("utils.find_studies_from_pacs_list") as mock_find,
-        patch("utils.move_studies_from_study_pacs_map") as mock_get,
-        patch("pipeline.imageqr.CTPPipeline") as mock_pipeline_class,
-    ):
-        mock_find.return_value = ({}, [], {})
-        mock_get.return_value = (0, [], {})
-        mock_pipeline_instance = MagicMock()
-        mock_pipeline_class.return_value.__enter__.return_value = mock_pipeline_instance
-        mock_pipeline_instance.is_complete.return_value = True
-        mock_pipeline_instance.metrics = MagicMock(files_saved=0, files_quarantined=0)
-        mock_pipeline_instance.get_audit_log_csv.return_value = None
-
-        query_file = appdata_dir / "query.xlsx"
-        query_df = pd.DataFrame(
-            {
-                "AccessionNumber": ["ACC001"],
-                "PatientID": ["MRN001"],
-                "StudyDate": [pd.Timestamp("2025-01-15")],
-            }
-        )
-        query_df.to_excel(query_file, index=False)
-
-        query_spreadsheet = Spreadsheet.from_file(
-            str(query_file),
-            acc_col="AccessionNumber",
-            mrn_col="PatientID",
-            date_col="StudyDate",
-        )
-
-        imageqr(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet,
-            application_aet="TEST_AET",
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            use_fallback_query=True,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
-
-        call_kwargs = mock_pipeline_class.call_args[1]
-        filter_script = call_kwargs["filter_script"]
-        assert 'AccessionNumber.contains("ACC001")' in filter_script
-        assert 'PatientID.contains("MRN001")' in filter_script
-
-
 def test_imageqr_deferred_delivery_retrieves_all_files(tmp_path, orthanc):
     """Test that deferred delivery retrieves all instances from a 7-instance series."""
-    os.environ["JAVA_HOME"] = str(Path(__file__).parent / "jre8" / "Contents" / "Home")
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     output_dir = tmp_path / "output"
@@ -1429,6 +1048,5 @@ def test_imageqr_deferred_delivery_retrieves_all_files(tmp_path, orthanc):
 
     assert result["num_studies_found"] == 1
     # All 7 instances should be saved
-    images_dir = output_dir / "images"
-    output_files = list(images_dir.rglob("*.dcm"))
+    output_files = [p for p in output_dir.rglob("*") if p.is_file()]
     assert len(output_files) == 7, f"Expected 7 files, found {len(output_files)}"

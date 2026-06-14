@@ -1,5 +1,5 @@
 .PHONY: all signed clean deps deps-python deps-deid deps-electron test dev
-.PHONY: external-deps jre8 dcmtk rclone build-binaries build-django-app
+.PHONY: external-deps dcmtk rclone build-binaries build-django-app
 .PHONY: prepare-assets build-dmg build-dmg-signed dicom-deid-rs
 
 .DEFAULT_GOAL := all
@@ -37,12 +37,7 @@ dev: external-deps deps-python
 		echo "Error: .venv/bin/python not found. Run 'make deps-python' first." && exit 1; \
 	fi
 	@node -e "const [a,b]=process.versions.node.split('.').map(Number); if(a<20||(a===20&&b<19)){console.error('Error: Node >= 20.19 required for Electron 42 (you have '+process.versions.node+').\\n  This repo pins it via .node-version; with nodenv run: nodenv install 22.22.2'); process.exit(1);}"
-	@if [ "$$(uname -s)" = "Linux" ]; then \
-		export JAVA_HOME=$$(pwd)/jre8; \
-	else \
-		export JAVA_HOME=$$(pwd)/jre8/Contents/Home; \
-	fi && \
-	export DCMTK_HOME=$$(pwd)/dcmtk && \
+	@export DCMTK_HOME=$$(pwd)/dcmtk && \
 	export ICORE_PYTHON=$$(pwd)/.venv/bin/python && \
 	cd electron && npm start
 
@@ -57,29 +52,6 @@ deps-deid:
 
 deps-electron:
 	cd electron && npm install
-
-# Note: jre8 is always installed as x64 since it predates apple silicon. It is run through rosetta on arm64 macs.
-jre8:
-	@if [ ! -d "jre8" ]; then \
-		echo "Downloading JRE8..."; \
-		if [ "$$(uname -s)" = "Linux" ]; then \
-			curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=linux&architecture=x64&image_type=jre&jvm_impl=hotspot" \
-			| jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
-			| head -n1 \
-			| xargs curl -L \
-			| tar -xz; \
-			mv jdk8*-jre jre8; \
-		else \
-			curl -s "https://api.adoptium.net/v3/assets/feature_releases/8/ga?os=mac&architecture=x64&image_type=jre&jvm_impl=hotspot" \
-			| jq -r '.[] | .binaries[] | select(.image_type=="jre") | .package.link' \
-			| head -n1 \
-			| xargs curl -L \
-			| tar -xj; \
-			mv jdk8*-jre jre8; \
-		fi; \
-	else \
-		echo "JRE8 already exists"; \
-	fi
 
 dcmtk:
 	@if [ ! -d "dcmtk" ]; then \
@@ -131,7 +103,7 @@ dicom-deid-rs:
 		echo "Rust/cargo not installed, skipping dicom-deid-rs build"; \
 	fi
 
-external-deps: jre8 dcmtk rclone
+external-deps: dcmtk rclone
 
 build-django-app:
 	cd deid && \

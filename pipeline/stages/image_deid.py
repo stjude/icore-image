@@ -1,13 +1,10 @@
 import logging
 import os
-import time
 import xml.etree.ElementTree as ET
 from abc import ABC
-from typing import Literal
 
 import pandas as pd
 
-from ctp import CTPPipeline, generate_sc_pdf_filter
 from pipeline.base import PipelineStage
 from pipeline.context import PipelineContext
 from utils import (
@@ -21,41 +18,8 @@ from utils import (
 
 
 # ---------------------------------------------------------------------------
-# Metadata save / progress helpers (shared by CTP monitor loop)
+# Metadata save helpers
 # ---------------------------------------------------------------------------
-
-
-def _save_metadata_files(pipeline: CTPPipeline, appdata_dir: str) -> None:
-    audit_log_csv = pipeline.get_audit_log_csv("AuditLog")
-    if audit_log_csv:
-        csv_string_to_xlsx(audit_log_csv, os.path.join(appdata_dir, "metadata.xlsx"))
-
-    deid_audit_log_csv = pipeline.get_audit_log_csv("DeidAuditLog")
-    if deid_audit_log_csv:
-        csv_string_to_xlsx(
-            deid_audit_log_csv, os.path.join(appdata_dir, "deid_metadata.xlsx")
-        )
-
-    linker_csv = pipeline.get_idmap_csv()
-    if linker_csv:
-        csv_string_to_xlsx(linker_csv, os.path.join(appdata_dir, "linker.xlsx"))
-
-
-def _log_progress(pipeline: CTPPipeline, total_files: int | None = None) -> None:
-    if not pipeline.metrics:
-        return
-    received = pipeline.metrics.files_received
-    quarantined = pipeline.metrics.files_quarantined
-    if total_files is not None:
-        msg = (
-            f"Processed {format_number_with_commas(received)} / "
-            f"{format_number_with_commas(total_files)} files"
-        )
-    else:
-        msg = f"Processed {format_number_with_commas(received)} files"
-    if quarantined > 0:
-        msg += f" ({format_number_with_commas(quarantined)} quarantined)"
-    logging.info(msg)
 
 
 def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
@@ -63,7 +27,7 @@ def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
 
     The Rust engine writes metadata/deid_metadata/linker CSVs into the
     output directory alongside the de-identified DICOMs; we lift them into
-    appdata_dir as .xlsx to match the CTP engine's layout.
+    appdata_dir as .xlsx for the app to consume.
     """
     for csv_name, xlsx_name in [
         ("metadata.csv", "metadata.xlsx"),
@@ -83,23 +47,53 @@ def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def generate_sc_pdf_filter() -> str:
+    """Build a filter that matches SC, PDF, and other embedded-content types.
+
+    Files matching this filter contain PHI that cannot be safely
+    de-identified, so they are routed to the engine's blacklist.
+
+    Note: some malformed DICOM files have a mismatched Transfer Syntax
+    (file_meta says Explicit VR but the dataset is Implicit VR), which can
+    prevent reading dataset tags like SOPClassUID. We also check
+    MediaStorageSOPClassUID [0002,0002] from file_meta as a fallback.
+    """
+    filter_parts = [
+        # SOPClassUID [0008,0016] from dataset
+        '[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.1")',  # Encapsulated PDF
+        '[0008,0016].equals("1.2.840.10008.5.1.4.1.1.104.2")',  # Encapsulated CDA
+        '[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.7")',  # Secondary Capture
+        '[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.88")',  # Structured Reports
+        '[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.8")',  # Key Object Selection
+        '[0008,0016].startsWith("1.2.840.10008.5.1.4.1.1.11")',  # Presentation States
+        # MediaStorageSOPClassUID [0002,0002] from file_meta (malformed fallback)
+        '[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.1")',
+        '[0002,0002].equals("1.2.840.10008.5.1.4.1.1.104.2")',
+        '[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.7")',
+        '[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.88")',
+        '[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.8")',
+        '[0002,0002].startsWith("1.2.840.10008.5.1.4.1.1.11")',
+        # Other indicators
+        'BurnedInAnnotation.equalsIgnoreCase("YES")',
+        "[0042,0011].exists()",  # EncapsulatedDocument tag
+    ]
+    return "\n+ ".join(filter_parts)
+
+
 def _apply_default_filter_script(
     filter_script: str | None, apply_default_filter_script: bool
 ) -> str | None:
     """Merge the Stanford device-whitelisting filter into the user's filter.
 
-    The Stanford filter (from ``ctp/scripts/stanford-filter.script``) acts as
-    a whitelist: files must match a known-safe device signature to pass.
+    The Stanford filter (from ``recipes/stanford-filter.script``) acts as a
+    whitelist: files must match a known-safe device signature to pass.
 
     When *apply_default_filter_script* is ``False``, the user's filter is
     returned unchanged.
 
     **Note:** the SC/PDF exclusion filter (:func:`generate_sc_pdf_filter`)
-    is NOT merged here.  CTP callers add it inline via
-    :func:`_combine_with_sc_pdf` (a CTP-syntax boolean expression).  The
-    Rust recipe format expresses this as a separate ``%filter blacklist``
-    section because the recipe's filter translator cannot correctly flatten
-    CTP's deeply nested boolean AND/OR.
+    is NOT merged here. It is passed to the Rust engine as a separate
+    ``%filter blacklist`` section via :func:`_get_sc_pdf_blacklist`.
     """
     if not apply_default_filter_script:
         return filter_script
@@ -108,8 +102,7 @@ def _apply_default_filter_script(
 
     stanford_filter_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        "ctp",
-        "scripts",
+        "recipes",
         "stanford-filter.script",
     )
     if os.path.exists(stanford_filter_path):
@@ -120,16 +113,6 @@ def _apply_default_filter_script(
         logging.warning(f"Stanford filter script not found at {stanford_filter_path}")
 
     return result
-
-
-def _combine_with_sc_pdf(
-    filter_script: str | None, apply_default_filter_script: bool
-) -> str | None:
-    """AND-merge the SC/PDF exclusion into a filter for CTP consumption."""
-    if not apply_default_filter_script:
-        return filter_script
-    sc_pdf_exclusion = f"!({generate_sc_pdf_filter()})"
-    return combine_filters(filter_script, sc_pdf_exclusion)
 
 
 def _get_sc_pdf_blacklist(apply_default_filter_script: bool) -> str | None:
@@ -325,19 +308,18 @@ class ImageDeidStage(PipelineStage, ABC):
 
 
 class ImageDeidExecutor(ImageDeidStage):
-    """Concrete image-deid stage supporting both CTP and Rust engines.
+    """Concrete image-deid stage backed by the dicom-deid-rs engine.
 
     ``filter_script`` is the user+query filter *before* default-filter
     composition. This stage applies the Stanford whitelist and the SC/PDF
-    blacklist according to ``apply_default_filter_script``, then dispatches
-    to the chosen engine.
+    blacklist according to ``apply_default_filter_script``, then runs the
+    Rust engine.
     """
 
     progress_marker = ("image_deid", "De-identifying metadata and pixels")
 
     def __init__(
         self,
-        engine: Literal["rust", "ctp"],
         anonymizer_script: str | None = None,
         filter_script: str | None = None,
         lookup_table: str | None = None,
@@ -345,9 +327,7 @@ class ImageDeidExecutor(ImageDeidStage):
         deid_pixels: bool = False,
         apply_default_filter_script: bool = True,
         sc_pdf_output_dir: str | None = None,
-        application_aet: str | None = None,
     ) -> None:
-        self.engine = engine
         self.anonymizer_script = anonymizer_script
         self.filter_script = filter_script
         self.lookup_table = lookup_table
@@ -355,9 +335,10 @@ class ImageDeidExecutor(ImageDeidStage):
         self.deid_pixels = deid_pixels
         self.apply_default_filter_script = apply_default_filter_script
         self.sc_pdf_output_dir = sc_pdf_output_dir
-        self.application_aet = application_aet
 
     def execute(self, ctx: PipelineContext) -> None:
+        from deid_rs import DeidRsPipeline
+
         input_dir = ctx.dicom_input_dir
         if input_dir is None:
             raise RuntimeError(
@@ -365,8 +346,7 @@ class ImageDeidExecutor(ImageDeidStage):
                 "GatherStage first."
             )
 
-        engine_label = "dicom-deid-rs (Rust)" if self.engine == "rust" else "CTP (Java)"
-        logging.info(f"Image deidentification using {engine_label} engine")
+        logging.info("Image deidentification using dicom-deid-rs (Rust) engine")
 
         quarantine_dir = os.path.join(ctx.appdata_dir, "quarantine")
         os.makedirs(quarantine_dir, exist_ok=True)
@@ -394,66 +374,6 @@ class ImageDeidExecutor(ImageDeidStage):
         final_filter_script = _apply_default_filter_script(
             base_filter_script, self.apply_default_filter_script
         )
-
-        if self.engine == "rust":
-            self._run_rust(
-                ctx,
-                input_dir,
-                anonymizer_script,
-                final_filter_script,
-                lookup_table,
-                quarantine_dir,
-            )
-        else:
-            self._run_ctp(
-                ctx,
-                input_dir,
-                anonymizer_script,
-                final_filter_script,
-                lookup_table,
-                quarantine_dir,
-            )
-
-        logging.info("Deidentification complete")
-        logging.info(
-            "Total files processed: "
-            f"{format_number_with_commas(ctx.images_saved + ctx.images_quarantined)}"
-        )
-        logging.info(f"Files saved: {format_number_with_commas(ctx.images_saved)}")
-        logging.info(
-            f"Files quarantined: {format_number_with_commas(ctx.images_quarantined)}"
-        )
-
-    # --- progress ---
-
-    def _report_progress(self, ctx: PipelineContext, pipeline: CTPPipeline) -> None:
-        if not ctx.progress or not pipeline.metrics:
-            return
-        received = pipeline.metrics.files_received
-        total = ctx.total_files
-        if total:
-            fraction = received / total
-            status = (
-                f"Processing {format_number_with_commas(received)} of "
-                f"{format_number_with_commas(total)} images"
-            )
-        else:
-            fraction = 0.0
-            status = f"Processing {format_number_with_commas(received)} images"
-        ctx.progress.update("image_deid", fraction, status)
-
-    # --- engine dispatchers ---
-
-    def _run_rust(
-        self,
-        ctx: PipelineContext,
-        input_dir: str,
-        anonymizer_script: str | None,
-        final_filter_script: str | None,
-        lookup_table: str | None,
-        quarantine_dir: str,
-    ) -> None:
-        from deid_rs import DeidRsPipeline
 
         def on_progress(done: int, total: int) -> None:
             if not ctx.progress:
@@ -492,72 +412,15 @@ class ImageDeidExecutor(ImageDeidStage):
         ctx.images_saved = result["num_images_saved"]
         ctx.images_quarantined = result["num_images_quarantined"]
 
-    def _run_ctp(
-        self,
-        ctx: PipelineContext,
-        input_dir: str,
-        anonymizer_script: str | None,
-        final_filter_script: str | None,
-        lookup_table: str | None,
-        quarantine_dir: str,
-    ) -> None:
-        pipeline_type = self._select_pipeline_type()
-        ctp_log_level = "DEBUG" if ctx.debug else None
-
-        ctp_kwargs = {
-            "pipeline_type": pipeline_type,
-            "input_dir": input_dir,
-            "output_dir": ctx.output_dir,
-            "filter_script": _combine_with_sc_pdf(
-                final_filter_script, self.apply_default_filter_script
-            ),
-            "anonymizer_script": anonymizer_script,
-            "lookup_table": lookup_table,
-            "log_path": ctx.run_dirs["ctp_log_path"],
-            "log_level": ctp_log_level,
-            "quarantine_dir": quarantine_dir,
-            "sc_pdf_output_dir": self.sc_pdf_output_dir,
-        }
-        if self.application_aet is not None:
-            ctp_kwargs["application_aet"] = self.application_aet
-
-        with CTPPipeline(**ctp_kwargs) as pipeline:
-            # Give the Java pipeline time to register ArchiveImportService
-            # before we start polling for metrics.
-            time.sleep(3)
-
-            save_interval = 5
-            last_save_time = 0.0
-
-            while not pipeline.is_complete():
-                current_time = time.time()
-                if current_time - last_save_time >= save_interval:
-                    _save_metadata_files(pipeline, ctx.appdata_dir)
-                    _log_progress(pipeline, ctx.total_files)
-                    self._report_progress(ctx, pipeline)
-                    last_save_time = current_time
-
-                time.sleep(1)
-
-            _save_metadata_files(pipeline, ctx.appdata_dir)
-
-            ctx.images_saved = pipeline.metrics.files_saved if pipeline.metrics else 0
-            ctx.images_quarantined = (
-                pipeline.metrics.files_quarantined if pipeline.metrics else 0
-            )
-
-    # --- helpers ---
-
-    def _select_pipeline_type(self) -> str:
-        """Pick the CTP pipeline template matching our engine context.
-
-        When we have an ``application_aet`` the caller is the PACS pipeline,
-        which uses the ``imagedeid_pacs[_pixel]`` XML template; otherwise it
-        is the local pipeline, which uses ``imagedeid_local[_pixel]``.
-        """
-        if self.application_aet is not None:
-            return "imagedeid_pacs_pixel" if self.deid_pixels else "imagedeid_pacs"
-        return "imagedeid_local_pixel" if self.deid_pixels else "imagedeid_local"
+        logging.info("Deidentification complete")
+        logging.info(
+            "Total files processed: "
+            f"{format_number_with_commas(ctx.images_saved + ctx.images_quarantined)}"
+        )
+        logging.info(f"Files saved: {format_number_with_commas(ctx.images_saved)}")
+        logging.info(
+            f"Files quarantined: {format_number_with_commas(ctx.images_quarantined)}"
+        )
 
     def _resolve_default_anonymizer(self, anonymizer_script: str | None) -> str | None:
         """Load the default DicomAnonymizer.script when a mapping file is
@@ -566,8 +429,7 @@ class ImageDeidExecutor(ImageDeidStage):
             return anonymizer_script
         default_script_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "ctp",
-            "scripts",
+            "recipes",
             "DicomAnonymizer.script",
         )
         if os.path.exists(default_script_path):

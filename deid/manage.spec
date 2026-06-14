@@ -21,11 +21,14 @@ project_datas = [
     (os.path.join(project_path, 'static'), 'static'),  # Static files
     (os.path.join(resources_path, 'resources', 'dictionary.xml'), 'resources'),  # Dictionary files
     (os.path.join(resources_path, 'resources', 'pydicom_ctp_tag_dictionary.xml'), 'resources'),  # CTP tag mapping
+    # CTP-format recipe scripts (default anonymizer/pixel/filter). deid_rs.py
+    # and pipeline/stages/image_deid.py resolve these under _internal/recipes.
+    (os.path.join(resources_path, 'recipes'), 'recipes'),
 ]
 
-# External tools used by the in-process celery worker (ctp.py, dcmtk.py,
+# External tools used by the in-process celery worker (dcmtk.py and
 # pipeline/stages/export.py resolve these under _internal/ when frozen).
-for tool_dir in ('jre8', 'ctp', 'dcmtk', 'rclone'):
+for tool_dir in ('dcmtk', 'rclone'):
     tool_path = os.path.join(resources_path, tool_dir)
     if not os.path.exists(tool_path):
         raise Exception("Missing " + tool_path)
@@ -70,7 +73,7 @@ processing_datas.append(
 a = Analysis(
     [os.path.join(project_path, 'manage.py')],
     # Repo root: lets the analysis resolve the worker's processing imports
-    # (pipeline/, utils.py, ctp.py, dcmtk.py) reached from tasks.py.
+    # (pipeline/, utils.py, deid_rs.py, dcmtk.py) reached from tasks.py.
     pathex=[resources_path],
     binaries=binaries,
     datas=django_datas + project_datas + gdal_datas + openpyxl_datas + pandas_datas

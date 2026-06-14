@@ -31,9 +31,9 @@ def _get_default_binary_path() -> str:
 
 
 def _get_default_pixel_script_path() -> str | None:
-    """Return the path to the default CTP pixel anonymizer script."""
+    """Return the path to the default pixel anonymizer script."""
     script_path = os.path.join(
-        os.path.dirname(__file__), "ctp", "scripts", "DicomPixelAnonymizer.script"
+        os.path.dirname(__file__), "recipes", "DicomPixelAnonymizer.script"
     )
     if os.path.exists(script_path):
         return script_path

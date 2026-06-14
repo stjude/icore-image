@@ -39,7 +39,6 @@
     "default_accession_header": "AccessionNumber",
     "default_mrn_header": "PatientID",
     "default_date_header": "StudyDate",
-    "deid_engine": "ctp",
     "default_date_window_days": 0,
     "default_tags_to_query": "",
     "default_tags_to_extract": "",
