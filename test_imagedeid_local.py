@@ -322,6 +322,8 @@ def test_imagedeid_local_pixel(tmp_path):
     assert linker_path.exists(), "linker.xlsx should exist"
 
     assert result["num_images_saved"] == 10
+
+
 def test_imagedeid_failures_reported(tmp_path):
 
     input_dir = tmp_path / "input"
@@ -1030,7 +1032,6 @@ def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
     """
     from pipeline.stages.image_deid import generate_sc_pdf_filter
 
-
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
     appdata_dir = tmp_path / "appdata"
@@ -1196,7 +1197,6 @@ def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
     """Encapsulated PDF files are quarantined by the SC/PDF filter."""
     from pipeline.stages.image_deid import generate_sc_pdf_filter
 
-
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
     appdata_dir = tmp_path / "appdata"
@@ -1246,7 +1246,6 @@ def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
 def test_sc_pdf_burned_in_annotation_quarantined(tmp_path):
     """Files with BurnedInAnnotation=YES are quarantined by the SC/PDF filter."""
     from pipeline.stages.image_deid import generate_sc_pdf_filter
-
 
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"

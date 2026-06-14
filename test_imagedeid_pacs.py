@@ -211,6 +211,8 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
             )
         else:
             assert ds.Modality == "MR", "Non-CT quarantined file should be MR"
+
+
 def test_imagedeid_failures_reported(tmp_path, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
