@@ -34,7 +34,6 @@ urlpatterns = [
     path("task_progress/", views.TaskProgressView.as_view(), name="task_progress"),
     path("get_log_content/", views.get_log_content, name="get_log_content"),
     path("api/task_status/<int:project_id>/", views.task_status, name="task_status"),
-    path("profile/", views.ProfileView.as_view(), name="profile"),
     path(
         "settings/general/",
         views.GeneralSettingsView.as_view(),

@@ -33,97 +33,48 @@
             </div>
             <div class="flex-initial my-auto text-sm text-gray-700">
                 <a href="/task_list" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/task_list/' %}bg-gray-100{% endif %}">Projects</a>
-                <a href="/profile" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/profile/' %}bg-gray-100{% endif %}">Profile</a>
                 <a href="/settings/general" class="rounded mx-2 px-2 py-1 hover:bg-gray-100 {% if request.path == '/settings/general/' %}bg-gray-100{% endif %}">Settings</a>
             </div>
         </header>
         <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24" id="sidebar">
-            <a href="/imagequery" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %} sidebar-module">Image Query</a>
-            <a href="/imagedeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %} sidebar-module">Image Deidentification</a>
-            <a href="/textdeid" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/textdeid/' %}bg-gray-100{% endif %} sidebar-module">Text Deidentification</a>
-            <a href="/imageexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imageexport/' %}bg-gray-100{% endif %} sidebar-module-imagine">Transfer Data to IMAGINE</a>
-            <a href="/imagedeidexport" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagedeidexport/' %}bg-gray-100{% endif %} sidebar-module">Image Deidentification / Export</a>
-            <a href="/singleclickicore" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/singleclickicore/' %}bg-gray-100{% endif %} sidebar-module-imagine">Single-Click iCore</a>
-            <a href="/headerextract" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/headerextract/' %}bg-gray-100{% endif %} sidebar-module">Header Extraction</a>
+            <a href="/singleclickicore" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/singleclickicore/' %}bg-gray-100{% endif %}">IMAGINE Workflow</a>
+            <button type="button" id="advancedToggle" class="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-100">
+                <span>Advanced</span>
+                <svg id="advancedChevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="advancedModules" class="hidden">
+                <a href="/imagequery" class="block px-4 py-2 pl-8 hover:bg-gray-100 {% if request.path == '/imagequery/' %}bg-gray-100{% endif %}">Image Query only</a>
+                <a href="/imagedeid" class="block px-4 py-2 pl-8 hover:bg-gray-100 {% if request.path == '/imagedeid/' %}bg-gray-100{% endif %}">Image Deidentification only</a>
+                <a href="/headerextract" class="block px-4 py-2 pl-8 hover:bg-gray-100 {% if request.path == '/headerextract/' %}bg-gray-100{% endif %}">Image Header Extraction</a>
+                <a href="/textdeid" class="block px-4 py-2 pl-8 hover:bg-gray-100 {% if request.path == '/textdeid/' %}bg-gray-100{% endif %}">Text Deidentification</a>
+                <a href="/imageexport" class="block px-4 py-2 pl-8 hover:bg-gray-100 {% if request.path == '/imageexport/' %}bg-gray-100{% endif %}">Secure Data Transfer</a>
+                <a href="/imagedeidexport" class="block px-4 py-2 pl-8 hover:bg-gray-100 {% if request.path == '/imagedeidexport/' %}bg-gray-100{% endif %}">Image Deidentification / Export</a>
+            </div>
         </section>
         <section class="w-full h-screen pt-24 pl-64">
             <div class="max-w-4xl mx-auto mb-10">
                 {% block content %}{% endblock %}
             </div>
         </section>
-        
-        {% include 'modals/usecase_setup.html' %}
-        
+
         <script>
-            async function checkAndShowUsecaseSetup() {
-                try {
-                    const response = await fetch('/load_settings/');
-                    const settings = await response.json();
-                    
-                    if (!settings.icore_usecase) {
-                        document.getElementById('usecaseModal').classList.remove('hidden');
-                    } else {
-                        applyModuleFiltering(settings.icore_usecase);
-                    }
-                } catch (error) {
-                    console.error('Error checking usecase setup:', error);
-                }
-            }
-            
-            function applyModuleFiltering(usecase) {
-                if (usecase === 'imagine') {
-                    const allModules = document.querySelectorAll('.sidebar-module');
-                    allModules.forEach(module => {
-                        module.style.display = 'none';
-                    });
-                } else {
-                    const allModules = document.querySelectorAll('.sidebar-module, .sidebar-module-imagine');
-                    allModules.forEach(module => {
-                        module.style.display = 'block';
-                    });
-                }
-            }
-            
-            async function saveUsecase(usecase) {
-                try {
-                    const response = await fetch('/load_settings/');
-                    const settings = await response.json();
-                    
-                    settings.icore_usecase = usecase;
-                    
-                    await fetch('/save_settings/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('meta[name="csrf_token"]').content
-                        },
-                        body: JSON.stringify(settings)
-                    });
-                    
-                    applyModuleFiltering(usecase);
-                    
-                    return true;
-                } catch (error) {
-                    console.error('Error saving usecase:', error);
-                    return false;
-                }
-            }
-            
             document.addEventListener('DOMContentLoaded', () => {
-                checkAndShowUsecaseSetup();
-                
-                const usecaseSubmitBtn = document.getElementById('usecaseSubmitBtn');
-                if (usecaseSubmitBtn) {
-                    usecaseSubmitBtn.addEventListener('click', async () => {
-                        const selectedUsecase = document.querySelector('input[name="usecase"]:checked').value;
-                        const success = await saveUsecase(selectedUsecase);
-                        
-                        if (success) {
-                            document.getElementById('usecaseModal').classList.add('hidden');
-                        }
-                    });
+                const advancedToggle = document.getElementById('advancedToggle');
+                const advancedModules = document.getElementById('advancedModules');
+                const advancedChevron = document.getElementById('advancedChevron');
+
+                function setAdvanced(open) {
+                    advancedModules.classList.toggle('hidden', !open);
+                    advancedChevron.classList.toggle('-rotate-180', open);
                 }
-                
+
+                // Closed by default, but open if the current page is an advanced module.
+                setAdvanced(advancedModules.querySelector('.bg-gray-100') !== null);
+
+                advancedToggle.addEventListener('click', () => {
+                    setAdvanced(advancedModules.classList.contains('hidden'));
+                });
+
                 const inputBoxes = document.querySelectorAll('input[type="text"]');
 
                 // Loop through each input box and attach event listeners
