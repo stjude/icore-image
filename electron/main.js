@@ -112,6 +112,8 @@ app.on('ready', async () => {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
+    // Match the app's bg-gray-100 so cross-page navigation never flashes white.
+    backgroundColor: '#f3f4f6',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -290,39 +292,8 @@ app.on('ready', async () => {
     });
   }
 
-  mainWindow.webContents.on('did-finish-load', () => {
-    if (mainWindow.webContents.navigationHistory.canGoBack) {
-      mainWindow.setBackgroundColor('#FFFFFF');
-      mainWindow.webContents.executeJavaScript(`
-        const menuBar = document.createElement('div');
-        menuBar.style.position = 'fixed';
-        menuBar.style.top = '0';
-        menuBar.style.left = '0';
-        menuBar.style.width = '100%';
-        menuBar.style.height = '40px';
-        menuBar.style.backgroundColor = '#f8f9fa';
-        menuBar.style.borderBottom = '1px solid #dee2e6';
-        menuBar.style.zIndex = '9999';
-        menuBar.style.display = 'flex';
-        menuBar.style.alignItems = 'center';
-        menuBar.style.padding = '0 10px';
-
-        const backButton = document.createElement('button');
-        backButton.innerHTML = '←';
-        backButton.style.padding = '5px 10px';
-        backButton.style.marginRight = '10px';
-        backButton.style.border = 'none';
-        backButton.style.backgroundColor = 'transparent';
-        backButton.style.cursor = 'pointer';
-        backButton.onclick = () => window.history.back();
-        
-        menuBar.appendChild(backButton);
-        document.body.appendChild(menuBar);
-        
-        document.body.style.paddingTop = '40px';
-      `);
-    }
-  });
+  // The back button is rendered by the app's own header (see base.html), so it
+  // paints with the page instead of being injected late and shifting the layout.
 
   mainWindow.on('close', async (e) => {
     if (!mainWindow.isClosing) {
