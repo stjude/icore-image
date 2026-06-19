@@ -54,16 +54,17 @@ function requirementTitle(r, el) {
 
 // Mark a requirement on its field. The "(Required)" suffix on the title stays visible
 // while the requirement applies — red when the field is empty, black once it's filled —
-// and only the red ring (the "still missing" highlight) is removed when met. A
-// requirement with `show: false` is suppressed entirely (suffix hidden, ring cleared).
-// The suffix span is created once and reused (idempotent across re-validations).
+// and the empty field gets a red left line + gentle red background (matching the column
+// rows), cleared once it's filled. A requirement with `show: false` is suppressed
+// entirely. The suffix span is created once and reused (idempotent across re-validations).
 function markField(r) {
     const show = r.show !== false;
     const el = requirementField(r);
     if (el) {
         const highlight = show && !r.met;
-        el.classList.toggle('ring-2', highlight);
-        el.classList.toggle('ring-red-500', highlight);
+        el.classList.toggle('!border-l-4', highlight);
+        el.classList.toggle('!border-l-red-600', highlight);
+        el.classList.toggle('bg-red-50', highlight);
     }
 
     const title = requirementTitle(r, el);
