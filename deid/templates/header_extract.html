@@ -44,9 +44,10 @@
 </div>
 
 <div class="m-4">
-    <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runHeaderExtract()" id="header_extract_button">
+    <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runHeaderExtract()" id="header_extract_button" disabled>
         Run Extraction
     </button>
+    <p id="header_extract_button_missing" class="mt-2 text-sm text-red-700 hidden"></p>
 </div>
 
 <script>
@@ -68,7 +69,7 @@
 
         const extractAllHeadersCheckbox = document.getElementById('extract_all_headers');
         const headersToExtractTextarea = document.getElementById('headers_to_extract');
-        
+
         function toggleHeadersTextarea() {
             if (extractAllHeadersCheckbox.checked) {
                 headersToExtractTextarea.style.display = 'none';
@@ -77,11 +78,30 @@
                 headersToExtractTextarea.style.display = 'block';
                 headersToExtractInstructions.style.display = 'block';
             }
+            validateHeaderExtractForm();
         }
-        
+
         extractAllHeadersCheckbox.addEventListener('change', toggleHeadersTextarea);
+        ['study_name', 'input_folder', 'output_folder'].forEach(name => {
+            const input = document.querySelector('[name="' + name + '"]');
+            input.addEventListener('input', validateHeaderExtractForm);
+            input.addEventListener('change', validateHeaderExtractForm);
+        });
+        headersToExtractTextarea.addEventListener('input', validateHeaderExtractForm);
         toggleHeadersTextarea();
     });
+
+    function validateHeaderExtractForm() {
+        const extractAll = document.getElementById('extract_all_headers').checked;
+        const headers = document.getElementById('headers_to_extract').value.trim();
+        updateStartButton('header_extract_button', [
+            { label: 'Project Name', met: !!fieldValue('study_name'), field: 'study_name' },
+            { label: 'Input Folder', met: !!fieldValue('input_folder'), field: 'input_folder' },
+            { label: 'Output Folder', met: !!fieldValue('output_folder'), field: 'output_folder' },
+            { label: "Headers to extract (or check 'Extract All Headers')",
+              met: !!(headers || extractAll), field: '#headers_to_extract' },
+        ]);
+    }
 
     function toggleHeaderExtractOptions() {
         const headerExtractOptions = document.getElementById('header_extract_options');
@@ -96,24 +116,6 @@
         const outputFolder = document.querySelector('[name="output_folder"]').value.trim();
         const extractAllHeaders = document.getElementById('extract_all_headers').checked;
         const headersToExtract = document.getElementById('headers_to_extract').value.trim();
-
-        if (!studyName) {
-            alert('Project name is required');
-            return;
-        }
-        if (!inputFolder) {
-            alert('Input folder is required');
-            return;
-        }
-        if (!outputFolder) {
-            alert('Output folder is required');
-            return;
-        }
-        
-        if (!headersToExtract && !extractAllHeaders) {
-            alert('Please either enter headers to extract or check "Extract All Headers"');
-            return;
-        }
 
         const data = {
             study_name: studyName,

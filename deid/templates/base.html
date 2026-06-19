@@ -11,16 +11,19 @@
             }
         </script>
         <!-- <link rel="icon" href="{% static 'favicon.ico' %}"> -->
-        <!-- Render-blocking CSS, cached across navigations (revalidated on reload)
-             so paint-holding keeps the previous frame and there's no flash. -->
-        <link href="{% static 'tailwind.min.css' %}" rel="stylesheet">
+        <!-- Render-blocking CSS, cached across navigations so paint-holding keeps the
+             previous frame and there's no flash. In dev the version is the file's mtime,
+             so a `npm run build:css` busts the cache without re-fetching per navigation. -->
+        <link href="{% static 'tailwind.min.css' %}{% if icore_dev %}?v={{ css_version }}{% endif %}" rel="stylesheet">
         {% if icore_dev %}
         <!-- Dev: bust the browser cache so JS edits take effect on live reload. -->
         <script src="{% static 'js/filters.js' %}?v={% now 'U' %}"></script>
         <script src="{% static 'js/column_actions.js' %}?v={% now 'U' %}"></script>
+        <script src="{% static 'js/form_validation.js' %}?v={% now 'U' %}"></script>
         {% else %}
         <script src="{% static 'js/filters.js' %}"></script>
         <script src="{% static 'js/column_actions.js' %}"></script>
+        <script src="{% static 'js/form_validation.js' %}"></script>
         {% endif %}
     </head>
     <body class="bg-gray-100">
