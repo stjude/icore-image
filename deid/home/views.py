@@ -295,18 +295,6 @@ class SingleClickICoreView(CommonContextMixin, CreateView):
         return context
 
 
-class ProfileView(CommonContextMixin, TemplateView):
-    template_name = "profile.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        settings_path = os.path.join(SETTINGS_DIR, "settings.json")
-        with open(settings_path, "r") as f:
-            settings = json.load(f)
-        context["current_usecase"] = settings.get("icore_usecase", "")
-        return context
-
-
 class TaskListView(CommonContextMixin, ListView):
     model = Project
     template_name = "task_list.html"
@@ -1356,16 +1344,4 @@ def reset_deid_settings(request):
 
 
 def root_redirect(request):
-    settings_path = os.path.join(SETTINGS_DIR, "settings.json")
-    try:
-        with open(settings_path, "r") as f:
-            settings = json.load(f)
-
-        icore_usecase = settings.get("icore_usecase", "internal")
-
-        if icore_usecase == "imagine":
-            return redirect("single_click_icore")
-        else:
-            return redirect("image_query")
-    except Exception:
-        return redirect("image_query")
+    return redirect("single_click_icore")

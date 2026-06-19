@@ -97,6 +97,7 @@
 </div>
 <div class="m-4">
     <button id="pull_images_button" class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runQuery()" disabled>Pull Images</button>
+    <span id="pull_images_button_missing" class="ml-3 text-sm text-red-700 align-middle hidden"></span>
 </div>
 
 <!-- Column Name Modal -->
@@ -194,17 +195,10 @@
     let currentEditColumn = '';
 
     function validateImageQueryForm() {
-        const studyName = document.querySelector('[name="study_name"]').value.trim();
-        const inputFile = document.querySelector('[name="input_file"]').value.trim();
-        const button = document.getElementById('pull_images_button');
-        
-        if (studyName && inputFile) {
-            button.disabled = false;
-            button.classList.remove('opacity-50', 'cursor-not-allowed');
-        } else {
-            button.disabled = true;
-            button.classList.add('opacity-50', 'cursor-not-allowed');
-        }
+        updateStartButton('pull_images_button', [
+            { label: 'Project Name', met: !!fieldValue('study_name'), field: 'study_name' },
+            { label: 'Input File', met: !!fieldValue('input_file'), field: 'input_file' },
+        ]);
     }
 
     function toggleQueryTypeInputs() {

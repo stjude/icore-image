@@ -208,6 +208,7 @@
     <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runImageDeidExport()" id="deidexport_button" disabled>
         Pull Images, Deidentify and Export
     </button>
+    <span id="deidexport_button_missing" class="ml-3 text-sm text-red-700 align-middle hidden"></span>
 </div>
 
 <div id="column-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 1000;">
@@ -373,19 +374,10 @@
     }
     
     function validateForm() {
-        const studyName = document.querySelector('[name="study_name"]').value.trim();
-        const inputFile = document.querySelector('[name="input_file"]').value.trim();
-        const button = document.getElementById('deidexport_button');
-        
-        const isValid = studyName && inputFile;
-        
-        if (isValid) {
-            button.disabled = false;
-            button.classList.remove('opacity-50', 'cursor-not-allowed');
-        } else {
-            button.disabled = true;
-            button.classList.add('opacity-50', 'cursor-not-allowed');
-        }
+        updateStartButton('deidexport_button', [
+            { label: 'Project Name', met: !!fieldValue('study_name'), field: 'study_name' },
+            { label: 'Input File', met: !!fieldValue('input_file'), field: 'input_file' },
+        ]);
     }
     
     let currentEditColumn = '';

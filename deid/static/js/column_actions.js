@@ -6,8 +6,36 @@ const COLUMN_ACTION_OPTIONS = ['keep', 'deid', 'drop'];
 // Pages may define a global `revalidateColumnActionsForm()` to re-run their
 // run-button validation whenever the column selections change.
 function notifyColumnActionsChanged() {
+    markUnassignedColumns();
     if (typeof revalidateColumnActionsForm === 'function') {
         revalidateColumnActionsForm();
+    }
+    expandColumnOptionsIfNeeded();
+}
+
+// Flag every column row that still has no action chosen with a red left line and a
+// gentle red background, clearing them once a choice is made. `!` important so the left
+// line overrides the row's default `border-b border-gray-200` edges.
+function markUnassignedColumns() {
+    document.querySelectorAll('#column-actions-container .column-action-row').forEach(row => {
+        const unassigned = !getRowAction(row);
+        row.classList.toggle('!border-l-4', unassigned);
+        row.classList.toggle('!border-l-red-600', unassigned);
+        row.classList.toggle('bg-red-50', unassigned);
+    });
+}
+
+// Once a spreadsheet's columns are loaded but not all assigned, reveal the
+// Deidentification Options panel so the unassigned columns are visible. Only ever
+// expands (never collapses), so it won't fight a user who closes it deliberately.
+function expandColumnOptionsIfNeeded() {
+    const rows = document.querySelectorAll('#column-actions-container .column-action-row');
+    if (rows.length === 0 || allColumnsAssigned()) return;
+    const options = document.getElementById('deid_options');
+    if (options && options.classList.contains('hidden')) {
+        options.classList.remove('hidden');
+        const button = document.getElementById('deidOptionsButton');
+        if (button) button.textContent = '▲';
     }
 }
 

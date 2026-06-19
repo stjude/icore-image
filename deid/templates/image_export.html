@@ -20,6 +20,7 @@
     <button class="mt-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runExport()" id="export_button" disabled>
         Run Export
     </button>
+    <span id="export_button_missing" class="ml-3 text-sm text-red-700 align-middle hidden"></span>
 </div>
 
 <script>
@@ -79,20 +80,11 @@
     }
     
     function validateExportForm() {
-        const studyName = document.querySelector('[name="study_name"]').value.trim();
-        const inputFolder = document.querySelector('[name="input_folder"]').value.trim();
-        const sasUrl = adminSettings.imagine_sas_url;
-        const button = document.getElementById('export_button');
-        
-        const isValid = studyName && inputFolder && sasUrl;
-        
-        if (isValid) {
-            button.disabled = false;
-            button.classList.remove('opacity-50', 'cursor-not-allowed');
-        } else {
-            button.disabled = true;
-            button.classList.add('opacity-50', 'cursor-not-allowed');
-        }
+        updateStartButton('export_button', [
+            { label: 'Project Name', met: !!fieldValue('study_name'), field: 'study_name' },
+            { label: 'Folder for data transfer', met: !!fieldValue('input_folder'), field: 'input_folder' },
+            { label: 'IMAGINE SAS URL (configure in Settings)', met: !!adminSettings.imagine_sas_url },
+        ]);
     }
 
     async function runExport() {
