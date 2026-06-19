@@ -2,19 +2,19 @@
 //
 // Each module declares its required fields as a list of requirements and calls
 // updateStartButton(). The Start button is enabled only when every requirement is
-// met; the unmet ones are listed beside the button AND marked in place — a red ring on
-// the field plus "(Required)" appended to its title — so it's obvious what's missing.
+// met; the unmet ones are listed beside the button AND marked in place — a red highlight
+// on the field plus "(Required)" appended to its title — so it's obvious what's missing.
 
 // Enable a module's Start button only when every required field is met. Shows the unmet
 // labels beside the button AND marks each unmet field in place. `requirements`:
-//   [{ label, met, field?, note? }]. Returns whether the form is valid.
+//   [{ label, met, field?, show?, title? }]. Returns whether the form is valid.
 function updateStartButton(buttonId, requirements) {
     const button = document.getElementById(buttonId);
     if (!button) return false;
 
     const missing = [];
     requirements.forEach(r => {
-        markField(r);                       // in-place ring + "(Required)" on the field
+        markField(r);                       // in-place highlight + "(Required)" on the field
         if (!r.met && r.show !== false) missing.push(r.label);
     });
     const valid = requirements.every(r => r.met);
