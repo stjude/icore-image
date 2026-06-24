@@ -1,5 +1,5 @@
 // Per-column Keep/Deid/Drop handling for uploaded spreadsheets.
-// Shared by the Text Deidentification and Single-Click iCore screens.
+// Shared by the Text Deidentification and IMAGINE Workflow screens.
 
 const COLUMN_ACTION_OPTIONS = ['keep', 'deid', 'drop'];
 

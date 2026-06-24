@@ -283,7 +283,7 @@ def build_image_deid_export(data, project, settings):
 
 
 def build_singleclickicore(data, project, settings):
-    """Single-click iCore always enforces HIPAA Safe Harbor de-identification."""
+    """IMAGINE Workflow always enforces HIPAA Safe Harbor de-identification."""
     input_file = data["input_file"]
     detected_columns = detect_file_type_and_columns(input_file)
     columns_to_deid, columns_to_drop = column_actions_to_lists(data)
