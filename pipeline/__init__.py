@@ -7,7 +7,7 @@ from pipeline.pipelines import (
     ImageDeidLocalPipeline,
     ImageDeidPacsPipeline,
     ImageExportPipeline,
-    SingleClickIcorePipeline,
+    ImagineWorkflowPipeline,
     TextDeidPipeline,
 )
 from pipeline.stages.export import AzureBlobExport, ExportStage
@@ -37,7 +37,7 @@ __all__ = [
     "PipelineContext",
     "PipelineStage",
     "PresidioTextDeid",
-    "SingleClickIcorePipeline",
+    "ImagineWorkflowPipeline",
     "TextDeidPipeline",
     "TextDeidStage",
 ]

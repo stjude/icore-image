@@ -255,10 +255,10 @@ class ImageDeidExportView(CommonContextMixin, CreateView):
         return context
 
 
-class SingleClickICoreView(CommonContextMixin, CreateView):
+class ImagineWorkflowView(CommonContextMixin, CreateView):
     model = Project
     fields = ["name"]
-    template_name = "singleclick_icore.html"
+    template_name = "imagine_workflow.html"
     success_url = reverse_lazy("task_list")
 
     def get_context_data(self, **kwargs):
@@ -677,7 +677,7 @@ def run_imagedeidexport(request):
         )
 
 
-def run_singleclickicore(request):
+def run_imagineworkflow(request):
     """
     IMAGINE Workflow workflow: Query PACS + Image De-identification + Text De-identification + Export.
 
@@ -712,7 +712,7 @@ def run_singleclickicore(request):
             status=Project.TaskStatus.PENDING,
             scheduled_time=_parse_scheduled_time(data, settings),
         )
-        task, args = builders.build_singleclickicore(data, project, settings)
+        task, args = builders.build_imagineworkflow(data, project, settings)
         response = _save_and_enqueue(project, task, args)
         _remember_column_actions(data.get("column_actions", {}))
         return response

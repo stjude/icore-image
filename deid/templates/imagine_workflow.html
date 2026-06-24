@@ -232,10 +232,10 @@
         <input type="datetime-local" id="scheduled_time" class="border-2 border-gray-400 p-2">
     </div>
 
-    <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runSingleClickICore()" id="singleclick_button" disabled>
+    <button class="mt-4 mb-4 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="runImagineWorkflow()" id="imagine_workflow_button" disabled>
         Pull Images, Deidentify, and Export
     </button>
-    <span id="singleclick_button_missing" class="ml-3 text-sm text-red-700 align-middle hidden"></span>
+    <span id="imagine_workflow_button_missing" class="ml-3 text-sm text-red-700 align-middle hidden"></span>
 </div>
 
 <script>
@@ -318,7 +318,7 @@
     }
     
     function validateForm() {
-        updateStartButton('singleclick_button', [
+        updateStartButton('imagine_workflow_button', [
             { label: 'Project Name', met: !!fieldValue('study_name'), field: 'study_name' },
             { label: 'Input File', met: !!fieldValue('input_file'), field: 'input_file' },
             { label: 'Column assignments', met: allColumnsAssigned(), show: !!fieldValue('input_file'),
@@ -386,12 +386,12 @@
     }
 
     function updateButtonText() {
-        const button = document.getElementById('singleclick_button');
+        const button = document.getElementById('imagine_workflow_button');
         const isScheduled = document.getElementById('schedule_job').checked;
         button.textContent = isScheduled ? 'Schedule Pull, Deidentify, and Export' : 'Pull Images, Deidentify, and Export';
     }
 
-    async function runSingleClickICore() {
+    async function runImagineWorkflow() {
         const exportEnabled = document.getElementById('export_to_azure').checked;
         
         if (exportEnabled) {
@@ -448,7 +448,7 @@
         }
 
         try {
-            const response = await fetch('/run_singleclickicore/', {
+            const response = await fetch('/run_imagineworkflow/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

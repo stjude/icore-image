@@ -76,7 +76,7 @@ class TextDeidResult(TypedDict):
     output_file: str
 
 
-class SingleClickResult(TypedDict):
+class ImagineWorkflowResult(TypedDict):
     num_studies_found: int
     num_images_exported: int
     num_images_quarantined: int

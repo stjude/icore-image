@@ -33,7 +33,7 @@
                  correct at first paint and never shifts the layout. -->
             <script>if (window.history.length > 1) document.getElementById('backButton').classList.remove('hidden');</script>
             <div class="flex-1 text-lg my-auto">
-                <a href="/singleclickicore" class="flex items-center space-x-2">
+                <a href="/imagineworkflow" class="flex items-center space-x-2">
                     <img id="app-logo" src="{% static 'logo.png' %}" width="50px" height="50px" alt="iCore Logo" class="object-contain">
                     <span class="text-gray-700 font-semibold">iCore</span>
                 </a>
@@ -44,7 +44,7 @@
             </div>
         </header>
         <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24" id="sidebar">
-            <a href="/singleclickicore" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/singleclickicore/' %}bg-gray-100{% endif %}">IMAGINE Workflow</a>
+            <a href="/imagineworkflow" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagineworkflow/' %}bg-gray-100{% endif %}">IMAGINE Workflow</a>
             <button type="button" id="advancedToggle" class="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-100">
                 <span>Advanced</span>
                 <svg id="advancedChevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>

@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from pipeline import SingleClickIcorePipeline
+from pipeline import ImagineWorkflowPipeline
 from test_utils import (
     _create_test_dicom,
     _upload_dicom_to_orthanc,
@@ -44,7 +44,7 @@ def get_hipaa_test_config(user_filter_script=None):
     }
 
 
-def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
+def test_imagineworkflow_basic_workflow(tmp_path, orthanc, azurite):
     """Test basic workflow: image deid from PACS + text deid + export to IMAGINE"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -92,7 +92,7 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "TestProject"
 
-    result = SingleClickIcorePipeline(
+    result = ImagineWorkflowPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -152,7 +152,7 @@ def test_singleclickicore_basic_workflow(tmp_path, orthanc, azurite):
         )
 
 
-def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
+def test_imagineworkflow_with_filter_script(tmp_path, orthanc, azurite):
     """Test that filter scripts work for image deid"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -199,7 +199,7 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "FilteredProject"
 
-    result = SingleClickIcorePipeline(
+    result = ImagineWorkflowPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -228,7 +228,7 @@ def test_singleclickicore_with_filter_script(tmp_path, orthanc, azurite):
     assert len(dcm_blobs) == 1, "Only 1 filtered DICOM should be exported"
 
 
-def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
+def test_imagineworkflow_with_text_deid_columns(tmp_path, orthanc, azurite):
     """Test that columns_to_deid and columns_to_drop work"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -270,7 +270,7 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "ColumnTest"
 
-    SingleClickIcorePipeline(
+    ImagineWorkflowPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -301,7 +301,7 @@ def test_singleclickicore_with_text_deid_columns(tmp_path, orthanc, azurite):
     assert "Smith" not in str(result_df["SensitiveColumn"].tolist())
 
 
-def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
+def test_imagineworkflow_handles_pacs_failures(tmp_path, azurite):
     """Test that PACS failures are handled gracefully"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -334,7 +334,7 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
     project_name = "FailedProject"
 
     with get_free_port() as storescp_port:
-        result = SingleClickIcorePipeline(
+        result = ImagineWorkflowPipeline(
             pacs_list=[invalid_pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -366,7 +366,7 @@ def test_singleclickicore_handles_pacs_failures(tmp_path, azurite):
     assert len(xlsx_blobs) == 1, "Excel file should still be exported"
 
 
-def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
+def test_imagineworkflow_handles_export_failures(tmp_path, orthanc):
     """Test that export failures raise appropriate errors"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -404,7 +404,7 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
     project_name = "ExportFail"
 
     with pytest.raises(Exception) as exc_info:
-        SingleClickIcorePipeline(
+        ImagineWorkflowPipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -431,7 +431,7 @@ def test_singleclickicore_handles_export_failures(tmp_path, orthanc):
     assert output_xlsx.exists(), "Local Excel file should still exist"
 
 
-def test_singleclickicore_skip_export_option(tmp_path, orthanc):
+def test_imagineworkflow_skip_export_option(tmp_path, orthanc):
     """Test that skip_export=True prevents Azure upload but preserves local files"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -462,7 +462,7 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
 
-    result = SingleClickIcorePipeline(
+    result = ImagineWorkflowPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -490,7 +490,7 @@ def test_singleclickicore_skip_export_option(tmp_path, orthanc):
     assert output_xlsx.exists(), "Local Excel file should exist"
 
 
-def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
+def test_imagineworkflow_export_enabled_by_default(tmp_path, orthanc, azurite):
     """Test that export happens by default when skip_export is not specified"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -525,7 +525,7 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
     sas_url = azurite.get_sas_url(container_name)
     project_name = "DefaultExportProject"
 
-    result = SingleClickIcorePipeline(
+    result = ImagineWorkflowPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -549,7 +549,7 @@ def test_singleclickicore_export_enabled_by_default(tmp_path, orthanc, azurite):
     assert len(xlsx_blobs) == 1, "Excel should be uploaded to Azure"
 
 
-def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
+def test_imagineworkflow_skip_export_no_sas_required(tmp_path, orthanc):
     """Test that SAS URL is not required when skip_export=True"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -580,7 +580,7 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
 <e en="T" t="00100010" n="PatientName">@empty()</e>
 </script>"""
 
-    result = SingleClickIcorePipeline(
+    result = ImagineWorkflowPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -607,7 +607,7 @@ def test_singleclickicore_skip_export_no_sas_required(tmp_path, orthanc):
     assert output_xlsx.exists()
 
 
-def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
+def test_imagineworkflow_saves_failed_queries_csv(tmp_path, orthanc):
     """Test that failed_queries.csv is created via imagedeid_pacs"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -640,7 +640,7 @@ def test_singleclickicore_saves_failed_queries_csv(tmp_path, orthanc):
 <e en="T" t="00100020" n="PatientID">@empty()</e>
 </script>"""
 
-    result = SingleClickIcorePipeline(
+    result = ImagineWorkflowPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=Spreadsheet.from_file(
             str(input_file), acc_col="AccessionNumber"

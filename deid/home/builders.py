@@ -28,7 +28,7 @@ from tasks import (
     ImageExportArgs,
     ImageQrArgs,
     PacsConfigurationArgs,
-    SingleClickIcoreArgs,
+    ImagineWorkflowArgs,
     SpreadsheetArgs,
     TextDeidArgs,
 )
@@ -282,7 +282,7 @@ def build_image_deid_export(data, project, settings):
     )
 
 
-def build_singleclickicore(data, project, settings):
+def build_imagineworkflow(data, project, settings):
     """IMAGINE Workflow always enforces HIPAA Safe Harbor de-identification."""
     input_file = data["input_file"]
     detected_columns = detect_file_type_and_columns(input_file)
@@ -293,7 +293,7 @@ def build_singleclickicore(data, project, settings):
     to_remove_list = (
         data.get("text_to_remove", "").split("\n") if data.get("text_to_remove") else []
     )
-    return icore_tasks.singleclickicore, SingleClickIcoreArgs(
+    return icore_tasks.imagineworkflow, ImagineWorkflowArgs(
         pacs_list=_pacs_list(project),
         query_spreadsheet=SpreadsheetArgs(path=input_file, **detected_columns),
         application_aet=project.application_aet,

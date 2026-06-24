@@ -15,8 +15,8 @@ urlpatterns = [
         name="image_deid_export",
     ),
     path(
-        "singleclickicore/",
-        views.SingleClickICoreView.as_view(),
+        "imagineworkflow/",
+        views.ImagineWorkflowView.as_view(),
         name="single_click_icore",
     ),
     path("tasks/", views.TaskListView.as_view(), name="task_list"),
@@ -27,8 +27,8 @@ urlpatterns = [
     path("run_export/", views.run_export, name="run_export"),
     path("run_imagedeidexport/", views.run_imagedeidexport, name="run_imagedeidexport"),
     path(
-        "run_singleclickicore/",
-        views.run_singleclickicore,
+        "run_imagineworkflow/",
+        views.run_imagineworkflow,
         name="run_single_click_icore",
     ),
     path("task_progress/", views.TaskProgressView.as_view(), name="task_progress"),

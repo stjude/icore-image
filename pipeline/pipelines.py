@@ -18,7 +18,7 @@ from utils import (
     PacsConfiguration,
     PacsQueryResult,
     RunDirs,
-    SingleClickResult,
+    ImagineWorkflowResult,
     Spreadsheet,
     TextDeidResult,
     configure_run_logging,
@@ -426,11 +426,11 @@ class ImageDeidExportPipeline(ImageDeidPacsPipeline):
 
 
 # ---------------------------------------------------------------------------
-# SingleClickIcorePipeline — PACS → deid → text-deid → Azure
+# ImagineWorkflowPipeline — PACS → deid → text-deid → Azure
 # ---------------------------------------------------------------------------
 
 
-class SingleClickIcorePipeline(ImageDeidPacsPipeline):
+class ImagineWorkflowPipeline(ImageDeidPacsPipeline):
     def __init__(
         self,
         pacs_list: list[PacsConfiguration],
@@ -495,7 +495,7 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
 
     def _build_context(self) -> PipelineContext:
         ctx = super()._build_context()
-        logging.info("Running singleclickicore")
+        logging.info("Running imagineworkflow")
         ctx.text_input_file = self.input_file
         return ctx
 
@@ -523,10 +523,10 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
 
     def _to_result(self, ctx: PipelineContext) -> Any:
         logging.info("=" * 80)
-        logging.info("singleclickicore complete")
+        logging.info("imagineworkflow complete")
         logging.info(f"Deidentified files preserved at: {ctx.output_dir}")
         logging.info("=" * 80)
-        result: SingleClickResult = {
+        result: ImagineWorkflowResult = {
             "num_studies_found": ctx.gathered_studies,
             "num_images_exported": ctx.images_saved,
             "num_images_quarantined": ctx.images_quarantined,
