@@ -38,7 +38,7 @@ CMOVE_BATCH_SIZE = 50
 HOME_DIR = os.path.expanduser("~")
 ICORE_BASE_DIR = os.path.join(HOME_DIR, "Documents", "iCore")
 SETTINGS_PATH = os.path.join(ICORE_BASE_DIR, "config", "settings.json")
-APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, "app_data"))
+APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, "appdata"))
 
 
 def load_settings():

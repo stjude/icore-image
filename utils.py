@@ -804,10 +804,14 @@ def setup_run_directories() -> RunDirs:
 
     icore_base = os.path.expanduser("~/Documents/iCore")
     log_dir = os.path.join(icore_base, "logs", timestamp)
-    appdata_dir = os.path.join(icore_base, "appdata", timestamp)
+    # Namespace appdata per run. App-driven runs override this with a
+    # PHI_<name>_<timestamp> dir (see builders._appdata_dir); CLI runs that
+    # don't override fall back to this PHI_<timestamp> dir. Not created here —
+    # whichever path is actually used is made by the caller (_prepare_run /
+    # imageqr) so an overridden default never leaves a stray empty dir.
+    appdata_dir = os.path.join(icore_base, "appdata", f"PHI_{timestamp}")
 
     os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(appdata_dir, exist_ok=True)
 
     run_log_path = os.path.join(log_dir, "run.txt")
 

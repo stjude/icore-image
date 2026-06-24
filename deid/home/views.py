@@ -411,11 +411,12 @@ def task_status(request, project_id):
 
         if task.log_path:
             logs_folder = os.path.dirname(task.log_path)
-
-            timestamp = os.path.basename(logs_folder)
-            appdata_folder = os.path.join(ICORE_BASE_DIR, "appdata", timestamp)
-
             progress = _read_progress(logs_folder)
+
+        if task.name and task.timestamp:
+            appdata_folder = os.path.join(
+                APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"
+            )
 
         if task.output_folder and task.name and task.timestamp:
             if task.task_type in [
