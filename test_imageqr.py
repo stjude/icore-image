@@ -28,16 +28,10 @@ from utils import (
 logging.basicConfig(level=logging.INFO)
 
 
-def test_imageqr_pacs_retrieves_all_queried_studies(tmp_path, orthanc):
+def test_imageqr_pacs_retrieves_all_queried_studies(output_dir, appdata_dir, orthanc):
     """imageqr is pure query/retrieve: every study matching the query is
     pulled into output_dir unchanged, with no filtering or quarantine."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     for i in range(3):
         ds = _create_test_dicom(
@@ -91,15 +85,9 @@ def test_imageqr_pacs_retrieves_all_queried_studies(tmp_path, orthanc):
     assert result["num_images_quarantined"] == 0
 
 
-def test_imageqr_failures_reported(tmp_path):
+def test_imageqr_failures_reported(output_dir, appdata_dir):
     """Test that failures are properly reported when PACS is unreachable."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     query_file = appdata_dir / "query.xlsx"
     query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002", "ACC003"]})
@@ -132,15 +120,9 @@ def test_imageqr_failures_reported(tmp_path):
     assert result["num_images_saved"] == 0, "No images should be saved"
 
 
-def test_imageqr_multiple_pacs(tmp_path):
+def test_imageqr_multiple_pacs(output_dir, appdata_dir):
     """Test querying from multiple PACS servers simultaneously."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     with get_free_port() as storescp_port:
         orthanc1 = OrthancServer(aet="ORTHANC1", storescp_port=storescp_port)
@@ -200,15 +182,9 @@ def test_imageqr_multiple_pacs(tmp_path):
         orthanc2.stop()
 
 
-def test_imageqr_pacs_mrn_study_date_fallback(tmp_path, orthanc):
+def test_imageqr_pacs_mrn_study_date_fallback(output_dir, appdata_dir, orthanc):
     """Test fallback to MRN/StudyDate query when accession is missing."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -299,17 +275,11 @@ def test_imageqr_pacs_mrn_study_date_fallback(tmp_path, orthanc):
         )
 
 
-def test_imageqr_pacs_date_window(tmp_path, orthanc):
+def test_imageqr_pacs_date_window(output_dir, appdata_dir, orthanc):
     """Test date window functionality for MRN/date queries."""
     import numpy as np
 
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     dicom1 = Fixtures.create_minimal_dicom(
         patient_id="MRN001",
@@ -424,15 +394,9 @@ def test_imageqr_pacs_date_window(tmp_path, orthanc):
     )
 
 
-def test_imageqr_accession_wildcard_filtering(tmp_path, orthanc):
+def test_imageqr_accession_wildcard_filtering(output_dir, appdata_dir, orthanc):
     """Test that accession number matching uses wildcards correctly."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     dicom1 = _create_test_dicom("  ABC001  ", "MRN001", "Patient1", "CT", "3.0")
     dicom1.InstanceNumber = 1
@@ -489,15 +453,9 @@ def test_imageqr_accession_wildcard_filtering(tmp_path, orthanc):
     )
 
 
-def test_imageqr_saves_failed_queries_csv_on_find_failure(tmp_path, orthanc):
+def test_imageqr_saves_failed_queries_csv_on_find_failure(output_dir, appdata_dir, orthanc):
     """Test that failed queries are saved to CSV with appropriate failure reasons."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     dicom = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     dicom.InstanceNumber = 1
@@ -540,17 +498,11 @@ def test_imageqr_saves_failed_queries_csv_on_find_failure(tmp_path, orthanc):
     assert df.loc[1, "Failure Reason"] == "Failed to find images"
 
 
-def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path, orthanc):
+def test_imageqr_saves_failed_queries_csv_with_mrn_date(output_dir, appdata_dir, orthanc):
     """Test that failed queries CSV works with MRN/Date columns."""
     import numpy as np
 
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     dicom = Fixtures.create_minimal_dicom(
         accession="",
@@ -613,15 +565,9 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(tmp_path, orthanc):
     assert df.loc[0, "Failure Reason"] == "Failed to find images"
 
 
-def test_imageqr_continues_despite_move_failures(tmp_path, capsys, orthanc):
+def test_imageqr_continues_despite_move_failures(output_dir, appdata_dir, capsys, orthanc):
     """Test that imageqr job continues despite C-MOVE failures and zero file retrievals."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     # Upload 3 studies
     for i in range(3):
@@ -935,15 +881,9 @@ def test_save_failed_queries_csv_with_fallback(tmp_path):
     assert df.loc[0, "Date"] == "2025-01-15"
 
 
-def test_imageqr_with_fallback_query(tmp_path, orthanc):
+def test_imageqr_with_fallback_query(output_dir, appdata_dir, orthanc):
     """Integration test: imageqr with fallback recovers studies when accession doesn't match."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     # Upload study with accession ACC001
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
@@ -996,15 +936,9 @@ def test_imageqr_with_fallback_query(tmp_path, orthanc):
     )
 
 
-def test_imageqr_deferred_delivery_retrieves_all_files(tmp_path, orthanc):
+def test_imageqr_deferred_delivery_retrieves_all_files(output_dir, appdata_dir, orthanc):
     """Test that deferred delivery retrieves all instances from a 7-instance series."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     # Upload a single study with 7 instances (one series)
     from pydicom.uid import generate_uid

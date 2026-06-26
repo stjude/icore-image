@@ -11,13 +11,8 @@ from test_utils import _create_test_dicom
 logging.basicConfig(level=logging.INFO)
 
 
-def test_image_export_single_file(tmp_path, azurite):
+def test_image_export_single_file(input_dir, appdata_dir, azurite):
     """Test exporting a single DICOM file to Azure blob storage under project_name folder"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     filepath = input_dir / "test001.dcm"
@@ -44,13 +39,8 @@ def test_image_export_single_file(tmp_path, azurite):
     assert downloaded_ds.PatientID == "MRN001"
 
 
-def test_image_export_preserves_folder_structure(tmp_path, azurite):
+def test_image_export_preserves_folder_structure(input_dir, appdata_dir, azurite):
     """Test that folder structure is preserved under project_name/"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     (input_dir / "study1" / "series1").mkdir(parents=True)
     (input_dir / "study1" / "series2").mkdir(parents=True)
@@ -93,13 +83,8 @@ def test_image_export_preserves_folder_structure(tmp_path, azurite):
         assert expected_path in blobs, f"Expected {expected_path} in blob list"
 
 
-def test_image_export_invalid_sas_token(tmp_path):
+def test_image_export_invalid_sas_token(input_dir, appdata_dir):
     """Test error handling with invalid SAS token"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     filepath = input_dir / "test001.dcm"
@@ -120,13 +105,8 @@ def test_image_export_invalid_sas_token(tmp_path):
     assert "rclone error" in error_msg or "error" in error_msg
 
 
-def test_image_export_empty_folder(tmp_path, azurite):
+def test_image_export_empty_folder(input_dir, appdata_dir, azurite):
     """Test that exporting an empty folder raises an error"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     container_name = "testcontainer"
     sas_url = azurite.get_sas_url(container_name)
@@ -145,13 +125,8 @@ def test_image_export_empty_folder(tmp_path, azurite):
     assert str(input_dir) in error_msg
 
 
-def test_image_export_multiple_file_types(tmp_path, azurite):
+def test_image_export_multiple_file_types(input_dir, appdata_dir, azurite):
     """Test exporting different file types (not just .dcm)"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     (input_dir / "data.txt").write_text("test data")
     (input_dir / "info.json").write_text('{"key": "value"}')

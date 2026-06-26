@@ -61,15 +61,7 @@ class TestApplyDefaultFilterScript:
         assert _get_sc_pdf_blacklist(False) is None
 
 
-def test_imagedeid_local(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
+def test_imagedeid_local(input_dir, output_dir, appdata_dir):
 
     for i in range(3):
         ds = _create_test_dicom(
@@ -231,15 +223,7 @@ def test_imagedeid_local(tmp_path):
             assert ds.Modality == "MR", "Non-CT quarantined file should be MR"
 
 
-def test_imagedeid_local_pixel(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
+def test_imagedeid_local_pixel(input_dir, output_dir, appdata_dir):
 
     for i in range(10):
         ds = Fixtures.create_minimal_dicom(
@@ -321,15 +305,7 @@ def test_imagedeid_local_pixel(tmp_path):
     assert result["num_images_saved"] == 10
 
 
-def test_imagedeid_failures_reported(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
+def test_imagedeid_failures_reported(input_dir, output_dir, appdata_dir):
 
     anonymizer_script = """<script>
 <e en="T" t="00100010" n="PatientName">@empty()</e>
@@ -351,15 +327,7 @@ def test_imagedeid_failures_reported(tmp_path):
     )
 
 
-def test_imagedeid_local_apply_default_filter_script(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
+def test_imagedeid_local_apply_default_filter_script(input_dir, output_dir, appdata_dir):
 
     ds1 = Fixtures.create_minimal_dicom(
         patient_id="MRN001",
@@ -520,16 +488,9 @@ def test_generate_lookup_table_content_with_dates(tmp_path):
     assert "StudyDate/20230220 = 20240220" in lookup_content
 
 
-def test_imagedeid_local_with_mapping_file_basic(tmp_path):
+def test_imagedeid_local_with_mapping_file_basic(input_dir, output_dir, appdata_dir, tmp_path):
 
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -575,16 +536,9 @@ def test_imagedeid_local_with_mapping_file_basic(tmp_path):
     assert "ACC003" in accession_numbers, "ACC003 should be kept (fallback to @keep())"
 
 
-def test_imagedeid_local_with_mapping_file_multiple_tags(tmp_path):
+def test_imagedeid_local_with_mapping_file_multiple_tags(input_dir, output_dir, appdata_dir, tmp_path):
 
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -664,16 +618,9 @@ def test_imagedeid_local_with_mapping_file_multiple_tags(tmp_path):
     )
 
 
-def test_imagedeid_local_date_format_conversion(tmp_path):
+def test_imagedeid_local_date_format_conversion(input_dir, output_dir, appdata_dir, tmp_path):
 
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -761,16 +708,9 @@ def test_mapping_file_inconsistent_date_types(tmp_path):
         detect_and_validate_dates(df, "StudyDate")
 
 
-def test_imagedeid_local_fallback_to_simple_action(tmp_path):
+def test_imagedeid_local_fallback_to_simple_action(input_dir, output_dir, appdata_dir, tmp_path):
 
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -826,7 +766,7 @@ def test_imagedeid_local_fallback_to_simple_action(tmp_path):
             )
 
 
-def test_imagedeid_local_complex_function_falls_back_to_keep(tmp_path):
+def test_imagedeid_local_complex_function_falls_back_to_keep(input_dir, output_dir, appdata_dir, tmp_path):
     """When the original anonymizer action is a complex function (e.g.
     ``@hashPtID(@UID(),13)``), CTP's ``@lookup(this, KeyType, default)``
     syntax can only accept ``keep``/``remove``/``empty`` as a fallback
@@ -835,14 +775,7 @@ def test_imagedeid_local_complex_function_falls_back_to_keep(tmp_path):
     warning) — unmapped values pass through unchanged rather than
     breaking the script."""
 
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {"AccessionNumber": ["ACC001"], "New-AccessionNumber": ["MAPPED001"]}
@@ -888,16 +821,9 @@ def test_imagedeid_local_complex_function_falls_back_to_keep(tmp_path):
     )
 
 
-def test_imagedeid_local_tag_not_in_script(tmp_path):
+def test_imagedeid_local_tag_not_in_script(input_dir, output_dir, appdata_dir, tmp_path):
 
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -944,16 +870,9 @@ def test_imagedeid_local_tag_not_in_script(tmp_path):
     )
 
 
-def test_explicit_lookup_table_overrides_mapping_file(tmp_path):
+def test_explicit_lookup_table_overrides_mapping_file(input_dir, output_dir, appdata_dir, tmp_path):
 
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {"AccessionNumber": ["ACC001"], "New-AccessionNumber": ["FROM_MAPPING"]}
@@ -1021,21 +940,13 @@ def _create_sc_pdf_ct_dicom(accession, patient_id, patient_name):
     return ds
 
 
-def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
+def test_sc_pdf_routed_to_quarantine_by_default(input_dir, output_dir, appdata_dir):
     """SC and PDF files go to quarantine when the default filter bundle is applied.
 
     Uses an explicit SC/PDF-only filter (rather than the full default bundle)
     to isolate this test from the Stanford device-whitelisting filter.
     """
     from pipeline.stages.image_deid import generate_sc_pdf_filter
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ct_ds = _create_sc_pdf_ct_dicom("ACC001", "MRN001", "Smith^John")
     ct_ds.save_as(str(input_dir / "ct.dcm"), write_like_original=False)
@@ -1089,17 +1000,11 @@ def test_sc_pdf_routed_to_quarantine_by_default(tmp_path):
     "the dedicated ScPdfFilter stage was removed. SC/PDF files now flow through "
     "the single quarantine directory."
 )
-def test_sc_pdf_routed_to_custom_path(tmp_path):
+def test_sc_pdf_routed_to_custom_path(input_dir, output_dir, appdata_dir, tmp_path):
     """SC and PDF files go to custom path when sc_pdf_output_dir is provided."""
 
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     custom_sc_dir = tmp_path / "custom_sc_pdf"
 
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
     custom_sc_dir.mkdir()
 
     ct_ds = _create_sc_pdf_ct_dicom("ACC001", "MRN001", "Smith^John")
@@ -1146,16 +1051,8 @@ def test_sc_pdf_routed_to_custom_path(tmp_path):
             )
 
 
-def test_sc_pdf_normal_images_not_affected(tmp_path):
+def test_sc_pdf_normal_images_not_affected(input_dir, output_dir, appdata_dir):
     """CT/MR images pass through de-identification normally."""
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     for i in range(3):
         ct_ds = _create_sc_pdf_ct_dicom(f"ACC00{i}", f"MRN00{i}", f"Smith^John{i}")
@@ -1190,17 +1087,9 @@ def test_sc_pdf_normal_images_not_affected(tmp_path):
         assert ds.Modality == "CT", "Modality should be kept as CT"
 
 
-def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
+def test_sc_pdf_encapsulated_pdf_quarantined(input_dir, output_dir, appdata_dir):
     """Encapsulated PDF files are quarantined by the SC/PDF filter."""
     from pipeline.stages.image_deid import generate_sc_pdf_filter
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ct_ds = _create_sc_pdf_ct_dicom("ACC001", "MRN001", "Smith^John")
     ct_ds.save_as(str(input_dir / "ct.dcm"), write_like_original=False)
@@ -1240,17 +1129,9 @@ def test_sc_pdf_encapsulated_pdf_quarantined(tmp_path):
     )
 
 
-def test_sc_pdf_burned_in_annotation_quarantined(tmp_path):
+def test_sc_pdf_burned_in_annotation_quarantined(input_dir, output_dir, appdata_dir):
     """Files with BurnedInAnnotation=YES are quarantined by the SC/PDF filter."""
     from pipeline.stages.image_deid import generate_sc_pdf_filter
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ct_ds = _create_sc_pdf_ct_dicom("ACC001", "MRN001", "Smith^John")
     ct_ds.save_as(str(input_dir / "ct.dcm"), write_like_original=False)

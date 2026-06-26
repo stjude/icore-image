@@ -44,14 +44,9 @@ def get_hipaa_test_config(user_filter_script=None):
     }
 
 
-def test_imagineworkflow_basic_workflow(tmp_path, orthanc, azurite):
+def test_imagineworkflow_basic_workflow(output_dir, appdata_dir, orthanc, azurite):
     """Test basic workflow: image deid from PACS + text deid + export to IMAGINE"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     # Upload test DICOMs to PACS
     ds1 = _create_test_dicom("ACC001", "MRN001", "Patient One", "CT", "3.0")
@@ -152,14 +147,9 @@ def test_imagineworkflow_basic_workflow(tmp_path, orthanc, azurite):
         )
 
 
-def test_imagineworkflow_with_header_extraction(tmp_path, orthanc, azurite):
+def test_imagineworkflow_with_header_extraction(output_dir, appdata_dir, orthanc, azurite):
     """Test that header extraction produces metadata.xlsx and exports it."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds1 = _create_test_dicom("ACC001", "MRN001", "Patient One", "CT", "3.0")
     ds1.InstanceNumber = 1
@@ -231,14 +221,9 @@ def test_imagineworkflow_with_header_extraction(tmp_path, orthanc, azurite):
     )
 
 
-def test_imagineworkflow_with_filter_script(tmp_path, orthanc, azurite):
+def test_imagineworkflow_with_filter_script(output_dir, appdata_dir, orthanc, azurite):
     """Test that filter scripts work for image deid"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     # Upload DICOMs with different slice thicknesses
     for i, slice_thickness in enumerate(["0.5", "3.0", "5.0"]):
@@ -307,14 +292,9 @@ def test_imagineworkflow_with_filter_script(tmp_path, orthanc, azurite):
     assert len(dcm_blobs) == 1, "Only 1 filtered DICOM should be exported"
 
 
-def test_imagineworkflow_with_text_deid_columns(tmp_path, orthanc, azurite):
+def test_imagineworkflow_with_text_deid_columns(output_dir, appdata_dir, orthanc, azurite):
     """Test that columns_to_deid and columns_to_drop work"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -380,14 +360,9 @@ def test_imagineworkflow_with_text_deid_columns(tmp_path, orthanc, azurite):
     assert "Smith" not in str(result_df["SensitiveColumn"].tolist())
 
 
-def test_imagineworkflow_handles_pacs_failures(tmp_path, azurite):
+def test_imagineworkflow_handles_pacs_failures(output_dir, appdata_dir, azurite):
     """Test that PACS failures are handled gracefully"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     query_file = appdata_dir / "input.xlsx"
     query_df = pd.DataFrame(
@@ -445,14 +420,9 @@ def test_imagineworkflow_handles_pacs_failures(tmp_path, azurite):
     assert len(xlsx_blobs) == 1, "Excel file should still be exported"
 
 
-def test_imagineworkflow_handles_export_failures(tmp_path, orthanc):
+def test_imagineworkflow_handles_export_failures(output_dir, appdata_dir, orthanc):
     """Test that export failures raise appropriate errors"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -510,14 +480,9 @@ def test_imagineworkflow_handles_export_failures(tmp_path, orthanc):
     assert output_xlsx.exists(), "Local Excel file should still exist"
 
 
-def test_imagineworkflow_skip_export_option(tmp_path, orthanc):
+def test_imagineworkflow_skip_export_option(output_dir, appdata_dir, orthanc):
     """Test that skip_export=True prevents Azure upload but preserves local files"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -569,14 +534,9 @@ def test_imagineworkflow_skip_export_option(tmp_path, orthanc):
     assert output_xlsx.exists(), "Local Excel file should exist"
 
 
-def test_imagineworkflow_export_enabled_by_default(tmp_path, orthanc, azurite):
+def test_imagineworkflow_export_enabled_by_default(output_dir, appdata_dir, orthanc, azurite):
     """Test that export happens by default when skip_export is not specified"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -628,14 +588,9 @@ def test_imagineworkflow_export_enabled_by_default(tmp_path, orthanc, azurite):
     assert len(xlsx_blobs) == 1, "Excel should be uploaded to Azure"
 
 
-def test_imagineworkflow_skip_export_no_sas_required(tmp_path, orthanc):
+def test_imagineworkflow_skip_export_no_sas_required(output_dir, appdata_dir, orthanc):
     """Test that SAS URL is not required when skip_export=True"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -686,14 +641,9 @@ def test_imagineworkflow_skip_export_no_sas_required(tmp_path, orthanc):
     assert output_xlsx.exists()
 
 
-def test_imagineworkflow_saves_failed_queries_csv(tmp_path, orthanc):
+def test_imagineworkflow_saves_failed_queries_csv(output_dir, appdata_dir, orthanc):
     """Test that failed_queries.csv is created via imagedeid_pacs"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds1.InstanceNumber = 1

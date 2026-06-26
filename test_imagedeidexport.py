@@ -23,13 +23,8 @@ from utils import PacsConfiguration, Spreadsheet
 logging.basicConfig(level=logging.INFO)
 
 
-def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
+def test_imagedeidexport_basic_workflow(output_dir, appdata_dir, orthanc, azurite):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds1.InstanceNumber = 1
@@ -100,13 +95,8 @@ def test_imagedeidexport_basic_workflow(tmp_path, orthanc, azurite):
     )
 
 
-def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurite):
+def test_imagedeidexport_preserves_metadata_and_dicoms(output_dir, appdata_dir, orthanc, azurite):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -173,13 +163,8 @@ def test_imagedeidexport_preserves_metadata_and_dicoms(tmp_path, orthanc, azurit
     assert len(blobs) == 1, "Exactly 1 DICOM file should be uploaded to Azure"
 
 
-def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
+def test_imagedeidexport_handles_pacs_failures(output_dir, appdata_dir, azurite):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     query_file = appdata_dir / "query.xlsx"
     query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002"]})
@@ -224,13 +209,8 @@ def test_imagedeidexport_handles_pacs_failures(tmp_path, azurite):
     assert len(blobs) == 0, "No files should be uploaded when PACS queries fail"
 
 
-def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
+def test_imagedeidexport_handles_export_failures(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -278,13 +258,8 @@ def test_imagedeidexport_handles_export_failures(tmp_path, orthanc):
     assert "rclone" in error_msg or "error" in error_msg
 
 
-def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
+def test_imagedeidexport_with_filter_script(output_dir, appdata_dir, orthanc, azurite):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     for i, slice_thickness in enumerate(["0.5", "3.0", "5.0"]):
         ds = _create_test_dicom(
@@ -340,13 +315,9 @@ def test_imagedeidexport_with_filter_script(tmp_path, orthanc, azurite):
     assert len(blobs) == 1, "Only 1 file matching filter should be exported"
 
 
-def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
+def test_imagedeidexport_with_mapping_file(output_dir, appdata_dir, tmp_path, orthanc, azurite):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
     mapping_file = tmp_path / "mapping.xlsx"
 
     df_mapping = pd.DataFrame(
@@ -412,13 +383,8 @@ def test_imagedeidexport_with_mapping_file(tmp_path, orthanc, azurite):
         assert ds.AccessionNumber in ["MAPPED001", "MAPPED002"]
 
 
-def test_imagedeidexport_with_multiple_pacs(tmp_path):
+def test_imagedeidexport_with_multiple_pacs(output_dir, appdata_dir):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     with get_free_port() as storescp_port:
         orthanc1 = OrthancServer(aet="ORTHANC1", storescp_port=storescp_port)
@@ -503,13 +469,8 @@ def test_imagedeidexport_with_multiple_pacs(tmp_path):
         azurite.stop()
 
 
-def test_imagedeidexport_saves_failed_queries_csv(tmp_path, orthanc, azurite):
+def test_imagedeidexport_saves_failed_queries_csv(output_dir, appdata_dir, orthanc, azurite):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    appdata_dir = tmp_path / "appdata"
-    appdata_dir.mkdir()
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
 
     ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds1.InstanceNumber = 1

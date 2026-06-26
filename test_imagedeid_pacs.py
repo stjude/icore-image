@@ -24,14 +24,8 @@ from utils import PacsConfiguration, Spreadsheet
 logging.basicConfig(level=logging.INFO)
 
 
-def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
+def test_imagedeid_pacs_with_accession_filter(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     for i in range(3):
         ds = _create_test_dicom(
@@ -213,14 +207,8 @@ def test_imagedeid_pacs_with_accession_filter(tmp_path, orthanc):
             assert ds.Modality == "MR", "Non-CT quarantined file should be MR"
 
 
-def test_imagedeid_failures_reported(tmp_path, orthanc):
+def test_imagedeid_failures_reported(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     query_file = appdata_dir / "query.xlsx"
     query_df = pd.DataFrame({"AccessionNumber": ["ACC001", "ACC002", "ACC003"]})
@@ -258,13 +246,8 @@ def test_imagedeid_failures_reported(tmp_path, orthanc):
     assert result["num_images_saved"] == 0, "No images should be saved"
 
 
-def test_imagedeid_filter_script_generation(tmp_path, orthanc):
+def test_imagedeid_filter_script_generation(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
@@ -365,14 +348,8 @@ def test_imagedeid_filter_script_generation(tmp_path, orthanc):
         )
 
 
-def test_imagedeid_multiple_pacs(tmp_path):
+def test_imagedeid_multiple_pacs(output_dir, appdata_dir):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     with get_free_port() as storescp_port:
         orthanc1 = OrthancServer(aet="ORTHANC1", storescp_port=storescp_port)
@@ -443,14 +420,8 @@ def test_imagedeid_multiple_pacs(tmp_path):
         orthanc2.stop()
 
 
-def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
+def test_imagedeid_pacs_mrn_study_date_fallback(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds1.InstanceNumber = 1
@@ -544,14 +515,8 @@ def test_imagedeid_pacs_mrn_study_date_fallback(tmp_path, orthanc):
         ).run()
 
 
-def test_imagedeid_pacs_date_window(tmp_path, orthanc):
+def test_imagedeid_pacs_date_window(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds1 = Fixtures.create_minimal_dicom(
         patient_id="MRN001",
@@ -686,14 +651,8 @@ def test_imagedeid_pacs_date_window(tmp_path, orthanc):
     )
 
 
-def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
+def test_imagedeid_pacs_deid_pixels_parameter(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
@@ -742,14 +701,8 @@ def test_imagedeid_pacs_deid_pixels_parameter(tmp_path, orthanc):
     assert deid_metadata_path.exists(), "deid_metadata.xlsx should exist"
 
 
-def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
+def test_imagedeid_pacs_apply_default_filter_script(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds1 = Fixtures.create_minimal_dicom(
         patient_id="MRN001",
@@ -882,15 +835,10 @@ def test_imagedeid_pacs_apply_default_filter_script(tmp_path, orthanc):
     )
 
 
-def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
+def test_imagedeid_pacs_with_mapping_file_basic(output_dir, appdata_dir, tmp_path, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -951,15 +899,10 @@ def test_imagedeid_pacs_with_mapping_file_basic(tmp_path, orthanc):
     assert "ACC003" in accession_numbers, "ACC003 should be kept (fallback to @keep())"
 
 
-def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
+def test_imagedeid_pacs_with_mapping_file_multiple_tags(output_dir, appdata_dir, tmp_path, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -1054,15 +997,10 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(tmp_path, orthanc):
     )
 
 
-def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
+def test_imagedeid_pacs_date_format_conversion_with_mapping(output_dir, appdata_dir, tmp_path, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -1126,15 +1064,10 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(tmp_path, orthanc):
     assert "20231231" not in study_dates, "Original date 20231231 should not appear"
 
 
-def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
+def test_imagedeid_pacs_fallback_to_simple_action(output_dir, appdata_dir, tmp_path, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -1205,7 +1138,7 @@ def test_imagedeid_pacs_fallback_to_simple_action(tmp_path, orthanc):
             )
 
 
-def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
+def test_imagedeid_pacs_complex_function_falls_back_to_keep(output_dir, appdata_dir, tmp_path, orthanc):
     """When the original anonymizer action is a complex function (e.g.
     ``@hashPtID(@UID(),13)``), CTP's ``@lookup(this, KeyType, default)``
     syntax can only accept ``keep``/``remove``/``empty`` as a fallback
@@ -1215,12 +1148,7 @@ def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
     breaking the script."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {"AccessionNumber": ["ACC001"], "New-AccessionNumber": ["MAPPED001"]}
@@ -1281,15 +1209,10 @@ def test_imagedeid_pacs_complex_function_falls_back_to_keep(tmp_path, orthanc):
     )
 
 
-def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
+def test_imagedeid_pacs_tag_not_in_script(output_dir, appdata_dir, tmp_path, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {
@@ -1351,15 +1274,10 @@ def test_imagedeid_pacs_tag_not_in_script(tmp_path, orthanc):
     )
 
 
-def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, orthanc):
+def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(output_dir, appdata_dir, tmp_path, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
     mapping_file = tmp_path / "mapping.xlsx"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     df_mapping = pd.DataFrame(
         {"AccessionNumber": ["ACC001"], "New-AccessionNumber": ["FROM_MAPPING"]}
@@ -1417,13 +1335,8 @@ def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(tmp_path, o
     )
 
 
-def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
+def test_imagedeid_pacs_cleans_up_dicom_retrieval(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
@@ -1462,13 +1375,8 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(tmp_path, orthanc):
         )
 
 
-def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
+def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
 
@@ -1507,14 +1415,8 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(tmp_path, orthanc):
         )
 
 
-def test_imagedeid_pacs_saves_failed_queries_csv(tmp_path, orthanc):
+def test_imagedeid_pacs_saves_failed_queries_csv(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
-
-    output_dir = tmp_path / "output"
-    appdata_dir = tmp_path / "appdata"
-
-    output_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
     ds.InstanceNumber = 1
