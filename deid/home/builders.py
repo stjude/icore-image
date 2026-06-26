@@ -38,18 +38,11 @@ CMOVE_BATCH_SIZE = 50
 HOME_DIR = os.path.expanduser("~")
 ICORE_BASE_DIR = os.path.join(HOME_DIR, "Documents", "iCore")
 SETTINGS_PATH = os.path.join(ICORE_BASE_DIR, "config", "settings.json")
-APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, "appdata"))
 
 
 def load_settings():
     with open(SETTINGS_PATH) as f:
         return json.load(f)
-
-
-def _appdata_dir(project):
-    return os.path.abspath(
-        os.path.join(APP_DATA_PATH, f"PHI_{project.name}_{project.timestamp}")
-    )
 
 
 def _output_dir(project, prefix):
@@ -255,7 +248,6 @@ def build_image_export(data, project, settings):
         input_dir=os.path.abspath(project.input_folder),
         sas_url=data["sas_url"],
         project_name=project.name,
-        appdata_dir=_appdata_dir(project),
         debug=settings.get("debug_logging", False),
     )
 
@@ -269,7 +261,6 @@ def build_image_deid_export(data, project, settings):
         sas_url=data["sas_url"],
         project_name=project.name,
         output_dir=_output_dir(project, "DeID"),
-        appdata_dir=_appdata_dir(project),
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         deferred_delivery=settings.get("deferred_delivery", False),
         deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
@@ -309,7 +300,6 @@ def build_imagineworkflow(data, project, settings):
         project_name=project.name,
         output_dir=_output_dir(project, "DeID"),
         input_file=input_file,
-        appdata_dir=_appdata_dir(project),
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         deferred_delivery=settings.get("deferred_delivery", False),
         deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),

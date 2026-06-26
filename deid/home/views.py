@@ -29,6 +29,7 @@ from .tasks import enqueue_project
 from grammar import get_hipaa_safe_harbor_config
 from pathutils import is_path_within_directory
 from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
+from utils import appdata_dir_path
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,6 @@ GENERIC_ERROR_MESSAGE = (
 
 ICORE_BASE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "iCore")
 SETTINGS_DIR = os.path.join(ICORE_BASE_DIR, "config")
-APP_DATA_PATH = os.path.join(ICORE_BASE_DIR, "appdata")
 AUTHENTICATION_LOG_PATH = os.path.join(
     ICORE_BASE_DIR, "logs", "system", "authentication.log"
 )
@@ -415,9 +415,7 @@ def task_status(request, project_id):
             progress = _read_progress(logs_folder)
 
         if task.name and task.timestamp:
-            appdata_folder = os.path.join(
-                APP_DATA_PATH, f"PHI_{task.name}_{task.timestamp}"
-            )
+            appdata_folder = appdata_dir_path(task.name, task.timestamp)
 
         if task.output_folder and task.name and task.timestamp:
             if task.task_type in [

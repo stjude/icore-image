@@ -801,17 +801,31 @@ def query_and_retrieve_studies(
     return study_pacs_map, failed_query_indices, failure_details
 
 
-def setup_run_directories() -> RunDirs:
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+def appdata_dir_path(project_name: str | None, timestamp: str) -> str:
+    """Single source of truth for a run's appdata directory name.
+
+    Named ``PHI_<name>_<timestamp>`` when a project name is given, and
+    ``PHI_<timestamp>`` (name segment omitted) otherwise.
+    """
+    icore_base = os.path.expanduser("~/Documents/iCore")
+    name = f"PHI_{project_name}_{timestamp}" if project_name else f"PHI_{timestamp}"
+    return os.path.join(icore_base, "appdata", name)
+
+
+def setup_run_directories(
+    project_name: str | None = None, timestamp: str | None = None
+) -> RunDirs:
+    log_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     icore_base = os.path.expanduser("~/Documents/iCore")
-    log_dir = os.path.join(icore_base, "logs", timestamp)
-    # Namespace appdata per run. App-driven runs override this with a
-    # PHI_<name>_<timestamp> dir (see builders._appdata_dir); CLI runs that
-    # don't override fall back to this PHI_<timestamp> dir. Not created here —
-    # whichever path is actually used is made by the caller (_prepare_run /
-    # imageqr) so an overridden default never leaves a stray empty dir.
-    appdata_dir = os.path.join(icore_base, "appdata", f"PHI_{timestamp}")
+    log_dir = os.path.join(icore_base, "logs", log_timestamp)
+    # Namespace appdata per run via appdata_dir_path. ``timestamp`` lets a
+    # caller key the appdata name to a stable value (e.g. a project's creation
+    # timestamp); CLI runs that pass neither name nor timestamp get a
+    # PHI_<timestamp> dir. Not created here — whichever path is actually used is
+    # made by the caller (_prepare_run / imageqr) so an unused default never
+    # leaves a stray empty dir.
+    appdata_dir = appdata_dir_path(project_name, timestamp or log_timestamp)
 
     os.makedirs(log_dir, exist_ok=True)
 
