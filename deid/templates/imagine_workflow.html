@@ -220,9 +220,10 @@
         <div class="mb-6">
             <div class="text-md font-medium mb-2">Header Extraction</div>
             <div class="text-xs text-gray-500 mb-2">
-                Optionally extract DICOM headers from the de-identified images into
+                Extract DICOM headers from the de-identified images into
                 <code>metadata.xlsx</code>, exported alongside the de-identified data.
-                Leave blank to skip.
+                A default set of headers is pre-filled below; edit it as needed, or
+                clear it to skip header extraction.
             </div>
             <div class="text-sm text-gray-500 mt-2">Headers to Extract</div>
             <textarea id="headers_to_extract" name="headers_to_extract" class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" placeholder="Enter one header per line, e.g.:&#10;PatientID&#10;StudyDate&#10;Modality&#10;AccessionNumber"></textarea>

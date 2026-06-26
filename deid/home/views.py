@@ -28,6 +28,7 @@ from .models import Project
 from .tasks import enqueue_project
 from grammar import get_hipaa_safe_harbor_config
 from pathutils import is_path_within_directory
+from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
 
 logger = logging.getLogger(__name__)
 
@@ -753,15 +754,25 @@ def save_settings(request):
         )
 
 
+def _apply_default_headers(settings):
+    """Seed the header-extraction textarea with a default list when the user
+    hasn't configured their own. Both the Header Extraction and IMAGINE workflow
+    screens prefill from ``settings.default_headers_to_extract``."""
+    if not settings.get("default_headers_to_extract", "").strip():
+        settings["default_headers_to_extract"] = "\n".join(DEFAULT_HEADERS_TO_EXTRACT)
+    return settings
+
+
 @require_http_methods(["GET"])
 def load_settings(request):
     try:
         settings_path = os.path.join(SETTINGS_DIR, "settings.json")
         with open(settings_path, "r") as f:
             settings = json.load(f)
+        _apply_default_headers(settings)
         return JsonResponse(settings)
     except FileNotFoundError:
-        return JsonResponse({})
+        return JsonResponse(_apply_default_headers({}))
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(

@@ -15,6 +15,18 @@ from utils import (
     setup_run_directories,
 )
 
+# Default DICOM headers offered for extraction when the user hasn't configured
+# their own.
+DEFAULT_HEADERS_TO_EXTRACT = [
+    "PatientSex",
+    "PatientAge",
+    "EthnicGroup",
+    "InstitutionName",
+    "Modality",
+    "Manufacturer",
+    "ManufacturerModelName",
+]
+
 
 def _find_dicom_files(input_dir: str) -> list[str]:
     dicom_files = []

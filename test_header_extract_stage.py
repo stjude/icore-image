@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 
 from pipeline.context import PipelineContext
+from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
 from pipeline.pipelines import ImagineWorkflowPipeline
 from pipeline.stages.header_extract import HeaderExtractStage
 from test_utils import _create_test_dicom
@@ -62,6 +63,40 @@ def test_header_extract_stage_extract_all(tmp_path):
     df = pd.read_excel(tmp_path / "output" / "metadata.xlsx")
     assert df.loc[0, "AccessionNumber"] == "ACC001"
     assert ctx.header_files_processed == 1
+
+
+def test_default_headers_cover_requested_fields():
+    assert DEFAULT_HEADERS_TO_EXTRACT == [
+        "PatientSex",
+        "PatientAge",
+        "EthnicGroup",
+        "InstitutionName",
+        "Modality",
+        "Manufacturer",
+        "ManufacturerModelName",
+    ]
+
+
+def test_header_extract_stage_with_default_headers(tmp_path):
+    ctx = _make_ctx(tmp_path)
+
+    ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
+    ds.PatientSex = "M"
+    ds.PatientAge = "045Y"
+    ds.EthnicGroup = "TestGroup"
+    ds.save_as(str(tmp_path / "output" / "f001.dcm"), write_like_original=False)
+
+    HeaderExtractStage(headers_to_extract=list(DEFAULT_HEADERS_TO_EXTRACT)).execute(ctx)
+
+    df = pd.read_excel(tmp_path / "output" / "metadata.xlsx")
+    assert df.loc[0, "PatientSex"] == "M"
+    assert df.loc[0, "PatientAge"] == "045Y"
+    assert df.loc[0, "EthnicGroup"] == "TestGroup"
+    assert df.loc[0, "InstitutionName"] == "Test Hospital"
+    assert df.loc[0, "Modality"] == "CT"
+    assert df.loc[0, "Manufacturer"] == "TestManufacturer"
+    assert df.loc[0, "ManufacturerModelName"] == "TestModel"
+    assert ctx.header_studies == 1
 
 
 def _imagine_pipeline(**overrides):
