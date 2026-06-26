@@ -84,6 +84,8 @@ class ImagineWorkflowResult(TypedDict):
     num_rows_processed: int
     output_file: str
     export_performed: bool
+    num_header_files_processed: int
+    num_studies_with_headers: int
 
 
 def _build_mrn_date_query_and_filter(mrn, study_date, date_window_days):

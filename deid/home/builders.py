@@ -296,6 +296,11 @@ def build_imagineworkflow(data, project, settings):
     to_remove_list = (
         data.get("text_to_remove", "").split("\n") if data.get("text_to_remove") else []
     )
+    headers_to_extract = data.get("headers_to_extract")
+    if headers_to_extract:
+        headers_to_extract = [
+            h.strip() for h in headers_to_extract.split("\n") if h.strip()
+        ]
     return icore_tasks.imagineworkflow, ImagineWorkflowArgs(
         pacs_list=_pacs_list(project),
         query_spreadsheet=SpreadsheetArgs(path=input_file, **detected_columns),
@@ -325,5 +330,7 @@ def build_imagineworkflow(data, project, settings):
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
         use_fallback_query=data.get("use_fallback_query", False),
         date_window_days=data.get("date_window", 0),
+        headers_to_extract=headers_to_extract or None,
+        extract_all_headers=data.get("extract_all_headers", False),
         debug=settings.get("debug_logging", False),
     )

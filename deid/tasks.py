@@ -131,6 +131,8 @@ class ImagineWorkflowArgs(ImageDeidPacsArgs):
     columns_to_drop: list[str] | None = None
     columns_to_deid: list[str] | None = None
     skip_export: bool = False
+    headers_to_extract: list[str] | None = None
+    extract_all_headers: bool = False
 
 
 def _pacs_kwargs(args: ImageQrArgs) -> dict:

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from typing import Callable
 
 import pandas as pd
 import pydicom
@@ -86,6 +87,7 @@ def headerextract_local(
     extract_all_headers: bool = False,
     debug: bool = False,
     run_dirs: RunDirs | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> HeaderExtractResult:
     if run_dirs is None:
         run_dirs = setup_run_directories()
@@ -150,6 +152,9 @@ def headerextract_local(
             logging.info(
                 f"Processed {format_number_with_commas(i + 1)} / {format_number_with_commas(total_files)} files"
             )
+
+        if progress_callback is not None:
+            progress_callback(i + 1, total_files)
 
     logging.info("Aggregating headers by study...")
     df = _aggregate_by_study(all_headers)

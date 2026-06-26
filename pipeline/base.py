@@ -22,12 +22,12 @@ class PipelineStage(ABC):
 
 
 class Pipeline(ABC):
-    """Declarative 4-stage de-id pipeline.
+    """Declarative 5-stage de-id pipeline.
 
-    The four stages run in fixed order: Gather, ImageDeid, TextDeid, Export.
-    Subclasses override the ``build_*_stage`` factory methods for whichever
-    stages they need; any stage that returns ``None`` from its factory is
-    skipped.
+    The five stages run in fixed order: Gather, ImageDeid, TextDeid,
+    HeaderExtract, Export. Subclasses override the ``build_*_stage`` factory
+    methods for whichever stages they need; any stage that returns ``None``
+    from its factory is skipped.
 
     Subclasses must also override :meth:`_build_context` (to seed ambient
     config and any stage inputs that are not stage outputs, e.g. the text
@@ -44,6 +44,9 @@ class Pipeline(ABC):
         return None
 
     def build_text_deid_stage(self) -> PipelineStage | None:
+        return None
+
+    def build_header_extract_stage(self) -> PipelineStage | None:
         return None
 
     def build_export_stage(self) -> PipelineStage | None:
@@ -65,6 +68,7 @@ class Pipeline(ABC):
             self.build_gather_stage(),
             self.build_image_deid_stage(),
             self.build_text_deid_stage(),
+            self.build_header_extract_stage(),
             self.build_export_stage(),
         ]
         markers = [

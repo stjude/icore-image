@@ -215,6 +215,25 @@
                 </div>
             </div>
         </div>
+
+        <!-- Header Extraction Sub-section -->
+        <div class="mb-6">
+            <div class="text-md font-medium mb-2">Header Extraction</div>
+            <div class="text-xs text-gray-500 mb-2">
+                Optionally extract DICOM headers from the de-identified images into
+                <code>metadata.xlsx</code>, exported alongside the de-identified data.
+                Leave blank to skip.
+            </div>
+            <div class="text-sm text-gray-500 mt-2">Headers to Extract</div>
+            <textarea id="headers_to_extract" name="headers_to_extract" class="w-full border-2 border-gray-400 pt-1 px-2 pb-2 h-32 overflow-y-auto resize-none" placeholder="Enter one header per line, e.g.:&#10;PatientID&#10;StudyDate&#10;Modality&#10;AccessionNumber"></textarea>
+            <div id="headersToExtractInstructions" class="text-xs text-gray-500 mt-1">
+                Enter DICOM tag names (one per line) to extract. Check "Extract All Headers" to extract all headers.
+            </div>
+            <div class="flex items-center mt-2">
+                <input type="checkbox" id="extract_all_headers" name="extract_all_headers" class="mr-2" />
+                <label for="extract_all_headers" class="text-sm text-gray-700">Extract All Headers</label>
+            </div>
+        </div>
     </div>
 </div>
 <div class="m-4">
@@ -273,6 +292,19 @@
             if (settings.default_text_to_remove) {
                 document.querySelector('[name="text_to_remove"]').value = settings.default_text_to_remove;
             }
+            if (settings.default_headers_to_extract) {
+                document.getElementById('headers_to_extract').value = settings.default_headers_to_extract;
+            }
+
+            // Hide the headers textarea when "Extract All Headers" is checked.
+            const extractAllHeaders = document.getElementById('extract_all_headers');
+            function toggleHeadersTextarea() {
+                const hide = extractAllHeaders.checked;
+                document.getElementById('headers_to_extract').style.display = hide ? 'none' : 'block';
+                document.getElementById('headersToExtractInstructions').style.display = hide ? 'none' : 'block';
+            }
+            extractAllHeaders.addEventListener('change', toggleHeadersTextarea);
+            toggleHeadersTextarea();
 
             document.querySelector('[name="study_name"]').addEventListener('input', validateForm);
             document.querySelector('[name="study_name"]').addEventListener('change', validateForm);
@@ -428,6 +460,9 @@
             text_to_keep: document.querySelector('[name="text_to_keep"]').value,
             text_to_remove: document.querySelector('[name="text_to_remove"]').value,
             column_actions: collectColumnActions(),
+            // Header extraction options
+            headers_to_extract: document.getElementById('headers_to_extract').value,
+            extract_all_headers: document.getElementById('extract_all_headers').checked,
             // Export preference
             export_to_azure: document.getElementById('export_to_azure').checked,
             ...filters

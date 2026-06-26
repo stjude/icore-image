@@ -45,5 +45,9 @@ class PipelineContext:
     text_output_file: str | None = None
     text_rows_processed: int = 0
 
-    # Stage-4 (Export) outputs
+    # Stage-4 (Header extract) outputs
+    header_files_processed: int = 0
+    header_studies: int = 0
+
+    # Stage-5 (Export) outputs
     export_performed: bool = False

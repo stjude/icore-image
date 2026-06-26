@@ -152,6 +152,85 @@ def test_imagineworkflow_basic_workflow(tmp_path, orthanc, azurite):
         )
 
 
+def test_imagineworkflow_with_header_extraction(tmp_path, orthanc, azurite):
+    """Test that header extraction produces metadata.xlsx and exports it."""
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
+
+    appdata_dir = tmp_path / "appdata"
+    appdata_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    ds1 = _create_test_dicom("ACC001", "MRN001", "Patient One", "CT", "3.0")
+    ds1.InstanceNumber = 1
+    _upload_dicom_to_orthanc(ds1, orthanc)
+
+    ds2 = _create_test_dicom("ACC002", "MRN002", "Patient Two", "CT", "3.0")
+    ds2.InstanceNumber = 2
+    _upload_dicom_to_orthanc(ds2, orthanc)
+
+    time.sleep(2)
+
+    query_file = appdata_dir / "input.xlsx"
+    query_df = pd.DataFrame(
+        {"AccessionNumber": ["ACC001", "ACC002"], "Notes": ["Note 1", "Note 2"]}
+    )
+    query_df.to_excel(query_file, index=False)
+
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
+
+    pacs_config = PacsConfiguration(
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
+    )
+
+    hipaa_config = get_hipaa_test_config()
+
+    container_name = "testcontainer"
+    sas_url = azurite.get_sas_url(container_name)
+    project_name = "HeaderProject"
+
+    result = ImagineWorkflowPipeline(
+        pacs_list=[pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        sas_url=sas_url,
+        project_name=project_name,
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        input_file=str(query_file),
+        anonymizer_script=hipaa_config["anonymizer_script"],
+        filter_script=hipaa_config["filter_script"],
+        deid_pixels=hipaa_config["deid_pixels"],
+        apply_default_filter_script=hipaa_config["apply_default_filter_script"],
+        headers_to_extract=["Modality", "StudyInstanceUID"],
+        storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
+    ).run()
+
+    assert result["num_images_exported"] == 2
+    assert result["num_header_files_processed"] == 2
+    assert result["num_studies_with_headers"] == 2
+
+    # metadata.xlsx is produced from the de-identified output
+    metadata_path = output_dir / "metadata.xlsx"
+    assert metadata_path.exists(), "metadata.xlsx should be written to output_dir"
+    metadata_df = pd.read_excel(metadata_path)
+    assert "Modality" in metadata_df.columns
+    assert set(metadata_df["Modality"]) == {"CT"}
+
+    # Both the text-deid output and the header metadata are exported
+    blobs = azurite.list_blobs(container_name)
+    xlsx_blobs = [b for b in blobs if b.endswith(".xlsx")]
+    assert any(b.endswith("metadata.xlsx") for b in xlsx_blobs), (
+        "metadata.xlsx should be uploaded to Azure"
+    )
+    assert any(b.endswith("output.xlsx") for b in xlsx_blobs), (
+        "text-deid output.xlsx should still be uploaded"
+    )
+
+
 def test_imagineworkflow_with_filter_script(tmp_path, orthanc, azurite):
     """Test that filter scripts work for image deid"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
