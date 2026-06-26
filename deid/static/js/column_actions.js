@@ -1,7 +1,7 @@
 // Per-column Keep/Deid/Drop handling for uploaded spreadsheets.
 // Shared by the Text Deidentification and IMAGINE Workflow screens.
 
-const COLUMN_ACTION_OPTIONS = ['keep', 'deid', 'drop'];
+const COLUMN_ACTION_OPTIONS = ['deid', 'drop'];
 
 // Pages may define a global `revalidateColumnActionsForm()` to re-run their
 // run-button validation whenever the column selections change.
@@ -168,7 +168,8 @@ async function loadColumnActions(inputPath) {
     const unassigned = [];
     const saved = [];
     columns.forEach((column, index) => {
-        const savedAction = savedActions[column];
+        // Migrate legacy "keep" selections to "deid".
+        const savedAction = savedActions[column] === 'keep' ? 'deid' : savedActions[column];
         (COLUMN_ACTION_OPTIONS.includes(savedAction) ? saved : unassigned).push({ column, index, savedAction });
     });
 

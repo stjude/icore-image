@@ -130,11 +130,14 @@ def column_actions_to_lists(data):
     column_actions = data.get("column_actions")
     if column_actions is None:
         raise Exception("Missing column_actions parameter.")
-    # The mapping is authoritative: deid exactly the "deid" columns (an
-    # empty list means deid nothing), drop the "drop" columns, keep the
-    # rest. The deid list is returned even when empty so it is not treated
-    # as the legacy "deid everything" default downstream.
-    deid_list = [col for col, action in column_actions.items() if action == "deid"]
+    # The mapping is authoritative: deid the "deid" columns (an empty list
+    # means deid nothing) and drop the "drop" columns. Legacy "keep" entries
+    # from older saved settings are migrated to "deid". The deid list is
+    # returned even when empty so it is not treated as the legacy "deid
+    # everything" default downstream.
+    deid_list = [
+        col for col, action in column_actions.items() if action in ("deid", "keep")
+    ]
     drop_list = [col for col, action in column_actions.items() if action == "drop"]
     return (deid_list, drop_list)
 
