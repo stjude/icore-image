@@ -801,11 +801,13 @@ def query_and_retrieve_studies(
     failure_details = {**find_failure_details, **move_failure_details}
     return study_pacs_map, failed_query_indices, failure_details
 
+
 def sanitize_filename(filename: str) -> str:
     """Sanitize a filename by replacing invalid characters with underscores."""
-    valid_chars_re = re.compile(r'[A-Za-z0-9._-]')
+    valid_chars_re = re.compile(r"[A-Za-z0-9._-]")
     sanitized = "".join(c if valid_chars_re.match(c) else "_" for c in filename)
     return sanitized
+
 
 def appdata_dir_path(project_name: str | None, timestamp: str) -> str:
     """Single source of truth for a run's appdata directory name.
@@ -814,7 +816,11 @@ def appdata_dir_path(project_name: str | None, timestamp: str) -> str:
     ``PHI_<timestamp>`` (name segment omitted) otherwise.
     """
     icore_base = os.path.expanduser("~/Documents/iCore")
-    name = f"PHI_{sanitize_filename(project_name)}_{timestamp}" if project_name else f"PHI_{timestamp}"
+    name = (
+        f"PHI_{sanitize_filename(project_name)}_{timestamp}"
+        if project_name
+        else f"PHI_{timestamp}"
+    )
     return os.path.join(icore_base, "appdata", name)
 
 

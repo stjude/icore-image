@@ -428,7 +428,8 @@ def task_status(request, project_id):
             else:
                 prefix = "PHI"
             actual_output_folder = os.path.join(
-                task.output_folder, f"{prefix}_{sanitize_filename(task.name)}_{task.timestamp}"
+                task.output_folder,
+                f"{prefix}_{sanitize_filename(task.name)}_{task.timestamp}",
             )
 
         return JsonResponse(

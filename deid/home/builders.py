@@ -50,7 +50,8 @@ def load_settings():
 def _output_dir(project, prefix):
     return os.path.abspath(
         os.path.join(
-            project.output_folder, f"{prefix}_{sanitize_filename(project.name)}_{project.timestamp}"
+            project.output_folder,
+            f"{prefix}_{sanitize_filename(project.name)}_{project.timestamp}",
         )
     )
 
@@ -58,7 +59,10 @@ def _output_dir(project, prefix):
 def _sc_pdf_output_dir(data, project):
     if sc_pdf_output_dir := data.get("sc_pdf_output_dir", ""):
         return os.path.abspath(
-            os.path.join(sc_pdf_output_dir, f"PHI_{sanitize_filename(project.name)}_{project.timestamp}")
+            os.path.join(
+                sc_pdf_output_dir,
+                f"PHI_{sanitize_filename(project.name)}_{project.timestamp}",
+            )
         )
     return None
 
