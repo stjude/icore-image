@@ -37,9 +37,10 @@ CMOVE_BATCH_SIZE = 50
 
 
 def test_appdata_dir_path_includes_name_when_given():
+    # The project name is sanitized for filesystem use (e.g. spaces -> "_").
     path = appdata_dir_path("Study A", "20260101120000")
-    assert os.path.basename(path) == "PHI_Study A_20260101120000"
-    assert path.endswith(os.path.join("appdata", "PHI_Study A_20260101120000"))
+    assert os.path.basename(path) == "PHI_Study_A_20260101120000"
+    assert path.endswith(os.path.join("appdata", "PHI_Study_A_20260101120000"))
 
 
 def test_appdata_dir_path_omits_name_when_absent():
@@ -50,7 +51,7 @@ def test_appdata_dir_path_omits_name_when_absent():
 def test_setup_run_directories_names_appdata_from_project(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     run_dirs = setup_run_directories("Study A", "20260101120000")
-    assert run_dirs["appdata_dir"].endswith("PHI_Study A_20260101120000")
+    assert run_dirs["appdata_dir"].endswith("PHI_Study_A_20260101120000")
     # log_dir is created and keyed to the run's own timestamp, not the project's
     assert os.path.isdir(run_dirs["log_dir"])
     assert run_dirs["run_log_path"] == os.path.join(run_dirs["log_dir"], "run.txt")
