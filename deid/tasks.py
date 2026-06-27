@@ -10,7 +10,7 @@ from utils import (
     PacsConfiguration,
     PacsQueryResult,
     RunDirs,
-    SingleClickResult,
+    ImagineWorkflowResult,
     Spreadsheet,
     TextDeidResult,
 )
@@ -122,7 +122,7 @@ class TextDeidArgs(BaseModel):
     run_dirs: RunDirs | None = None
 
 
-class SingleClickIcoreArgs(ImageDeidPacsArgs):
+class ImagineWorkflowArgs(ImageDeidPacsArgs):
     sas_url: str | None
     project_name: str
     input_file: str
@@ -131,6 +131,8 @@ class SingleClickIcoreArgs(ImageDeidPacsArgs):
     columns_to_drop: list[str] | None = None
     columns_to_deid: list[str] | None = None
     skip_export: bool = False
+    headers_to_extract: list[str] | None = None
+    extract_all_headers: bool = False
 
 
 def _pacs_kwargs(args: ImageQrArgs) -> dict:
@@ -171,8 +173,8 @@ def imageqr(args: ImageQrArgs) -> PacsQueryResult:
 
 
 @shared_task(pydantic=True)
-def singleclickicore(args: SingleClickIcoreArgs) -> SingleClickResult:
-    return pipeline.SingleClickIcorePipeline(**_pacs_kwargs(args)).run()
+def imagineworkflow(args: ImagineWorkflowArgs) -> ImagineWorkflowResult:
+    return pipeline.ImagineWorkflowPipeline(**_pacs_kwargs(args)).run()
 
 
 @shared_task(pydantic=True)

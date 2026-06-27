@@ -1,7 +1,7 @@
 // Per-column Keep/Deid/Drop handling for uploaded spreadsheets.
-// Shared by the Text Deidentification and Single-Click iCore screens.
+// Shared by the Text Deidentification and IMAGINE Workflow screens.
 
-const COLUMN_ACTION_OPTIONS = ['keep', 'deid', 'drop'];
+const COLUMN_ACTION_OPTIONS = ['deid', 'drop'];
 
 // Pages may define a global `revalidateColumnActionsForm()` to re-run their
 // run-button validation whenever the column selections change.
@@ -138,7 +138,9 @@ async function loadColumnActions(inputPath) {
     if (seq !== _columnActionsLoadSeq) return; // superseded while awaiting settings
 
     const template = document.getElementById('column-action-template');
-    columns.forEach((column, index) => {
+
+    // Build a column's selector row, pre-selecting its remembered action.
+    function buildColumnRow(column, index, savedAction) {
         const row = template.cloneNode(true);
         row.removeAttribute('id');
         row.style.display = 'flex';
@@ -155,13 +157,37 @@ async function loadColumnActions(inputPath) {
             radio.addEventListener('change', notifyColumnActionsChanged);
         });
 
-        const saved = savedActions[column];
-        if (COLUMN_ACTION_OPTIONS.includes(saved)) {
-            setRowAction(row, saved);
+        if (COLUMN_ACTION_OPTIONS.includes(savedAction)) {
+            setRowAction(row, savedAction);
         }
+        return row;
+    }
 
-        container.appendChild(row);
+    // Split columns: those still needing a choice render at the top; those with
+    // a remembered action go into a collapsed "Columns with saved actions" group.
+    const unassigned = [];
+    const saved = [];
+    columns.forEach((column, index) => {
+        // Migrate legacy "keep" selections to "deid".
+        const savedAction = savedActions[column] === 'keep' ? 'deid' : savedActions[column];
+        (COLUMN_ACTION_OPTIONS.includes(savedAction) ? saved : unassigned).push({ column, index, savedAction });
     });
+
+    unassigned.forEach(({ column, index, savedAction }) => {
+        container.appendChild(buildColumnRow(column, index, savedAction));
+    });
+
+    if (saved.length > 0) {
+        const details = document.createElement('details'); // closed by default
+        const summary = document.createElement('summary');
+        summary.className = 'cursor-pointer select-none text-sm text-gray-500 py-2';
+        summary.textContent = `Columns with saved actions (${saved.length})`;
+        details.appendChild(summary);
+        saved.forEach(({ column, index, savedAction }) => {
+            details.appendChild(buildColumnRow(column, index, savedAction));
+        });
+        container.appendChild(details);
+    }
 
     if (columns.length === 0) {
         setColumnActionsStatus('No columns found in the spreadsheet.');

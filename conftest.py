@@ -55,3 +55,24 @@ def azurite(shared_azurite):
     """Per-test Azurite access.  Data is cleared after each test."""
     yield shared_azurite
     shared_azurite.clear_data()
+
+
+@pytest.fixture
+def input_dir(tmp_path):
+    d = tmp_path / "input"
+    d.mkdir()
+    return d
+
+
+@pytest.fixture
+def output_dir(tmp_path):
+    d = tmp_path / "output"
+    d.mkdir()
+    return d
+
+
+@pytest.fixture
+def appdata_dir(tmp_path):
+    d = tmp_path / "appdata"
+    d.mkdir()
+    return d

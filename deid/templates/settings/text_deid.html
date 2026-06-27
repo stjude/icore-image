@@ -19,11 +19,6 @@
     </div>
 
     <div class="mb-6">
-        <div class="font-medium mb-2">Keep</div>
-        <div id="group-keep" class="space-y-2"></div>
-        <button type="button" class="mt-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="addColumnRow('keep')">+ Add column</button>
-    </div>
-    <div class="mb-6">
         <div class="font-medium mb-2">Deid</div>
         <div id="group-deid" class="space-y-2"></div>
         <button type="button" class="mt-2 px-2 py-1 bg-white shadow text-sm hover:bg-blue-100" onclick="addColumnRow('deid')">+ Add column</button>
@@ -61,7 +56,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', loadSavedSettings);
 
-    const COLUMN_ACTIONS = ['keep', 'deid', 'drop'];
+    const COLUMN_ACTIONS = ['deid', 'drop'];
 
     function makeColumnRow(name, action) {
         const row = document.createElement('div');
@@ -112,6 +107,8 @@
 
             const columnActions = settings.column_actions || settings.default_column_actions || {};
             Object.entries(columnActions).forEach(([name, action]) => {
+                // Migrate legacy "keep" selections to "deid".
+                if (action === 'keep') action = 'deid';
                 if (!COLUMN_ACTIONS.includes(action)) return;
                 document.getElementById('group-' + action).appendChild(makeColumnRow(name, action));
             });

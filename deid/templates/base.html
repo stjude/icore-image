@@ -11,6 +11,12 @@
             }
         </script>
         <!-- <link rel="icon" href="{% static 'favicon.ico' %}"> -->
+        <style>
+            /* Disabled Back button: greyed out and non-interactive, but still
+               occupies its space so the header layout never shifts. */
+            #backButton:disabled { opacity: 0.4; cursor: not-allowed; }
+            #backButton:disabled:hover { background-color: transparent; }
+        </style>
         <!-- Render-blocking CSS, cached across navigations so paint-holding keeps the
              previous frame and there's no flash. In dev the version is the file's mtime,
              so a `npm run build:css` busts the cache without re-fetching per navigation. -->
@@ -28,12 +34,32 @@
     </head>
     <body class="bg-gray-100">
         <header class="fixed w-full z-20 p-4 flex bg-white text-white shadow">
-            <button id="backButton" onclick="window.history.back()" title="Back" class="hidden my-auto mr-2 px-2 py-1 text-lg text-gray-700 rounded hover:bg-gray-100">←</button>
-            <!-- Show only when there's somewhere to go back to; runs during parse so it's
-                 correct at first paint and never shifts the layout. -->
-            <script>if (window.history.length > 1) document.getElementById('backButton').classList.remove('hidden');</script>
+            <button id="backButton" onclick="window.history.back()" title="Back" disabled class="my-auto mr-2 px-2 py-1 text-lg text-gray-700 rounded hover:bg-gray-100">←</button>
+            <!-- Enable Back only when there's an in-app page to return to. Each history
+                 entry is stamped with a monotonically increasing index in its state;
+                 the first page of a session gets index 0, so Back stays disabled there
+                 and can never strand the app on a blank/redirecting entry. The button is
+                 always rendered (starts disabled) so the layout never shifts; this runs
+                 during parse so the state is correct at first paint.
+                 (window.history.length is unreliable — an Electron startup or the root
+                 redirect leaves an entry that inflates it even with nowhere to go back.) -->
+            <script>
+                (function () {
+                    try {
+                        var state = window.history.state || {};
+                        var idx = typeof state._backIdx === 'number' ? state._backIdx : null;
+                        if (idx === null) {
+                            idx = parseInt(sessionStorage.getItem('backNavIdx') || '-1', 10) + 1;
+                            state._backIdx = idx;
+                            window.history.replaceState(state, '');
+                        }
+                        sessionStorage.setItem('backNavIdx', String(idx));
+                        if (idx > 0) document.getElementById('backButton').disabled = false;
+                    } catch (e) { /* leave Back disabled on any storage/history error */ }
+                })();
+            </script>
             <div class="flex-1 text-lg my-auto">
-                <a href="/singleclickicore" class="flex items-center space-x-2">
+                <a href="/imagineworkflow" class="flex items-center space-x-2">
                     <img id="app-logo" src="{% static 'logo.png' %}" width="50px" height="50px" alt="iCore Logo" class="object-contain">
                     <span class="text-gray-700 font-semibold">iCore</span>
                 </a>
@@ -44,7 +70,7 @@
             </div>
         </header>
         <section class="fixed z-10 w-64 h-screen bg-white shadow text-sm text-gray-700 pt-24" id="sidebar">
-            <a href="/singleclickicore" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/singleclickicore/' %}bg-gray-100{% endif %}">IMAGINE Workflow</a>
+            <a href="/imagineworkflow" class="block px-4 py-2 hover:bg-gray-100 {% if request.path == '/imagineworkflow/' %}bg-gray-100{% endif %}">IMAGINE Workflow</a>
             <button type="button" id="advancedToggle" class="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-100">
                 <span>Advanced</span>
                 <svg id="advancedChevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>

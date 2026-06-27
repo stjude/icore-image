@@ -24,14 +24,44 @@ from pydicom.uid import (
 from utils import (
     csv_string_to_xlsx,
     Spreadsheet,
+    appdata_dir_path,
     generate_queries_and_filter,
     save_failed_queries_csv,
+    setup_run_directories,
     find_studies_from_pacs_list,
     move_studies_from_study_pacs_map,
     PacsConfiguration,
 )
 
 CMOVE_BATCH_SIZE = 50
+
+
+def test_appdata_dir_path_includes_name_when_given():
+    # The project name is sanitized for filesystem use (e.g. spaces -> "_").
+    path = appdata_dir_path("Study A", "20260101120000")
+    assert os.path.basename(path) == "PHI_Study_A_20260101120000"
+    assert path.endswith(os.path.join("appdata", "PHI_Study_A_20260101120000"))
+
+
+def test_appdata_dir_path_omits_name_when_absent():
+    path = appdata_dir_path(None, "20260101120000")
+    assert os.path.basename(path) == "PHI_20260101120000"
+
+
+def test_setup_run_directories_names_appdata_from_project(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    run_dirs = setup_run_directories("Study A", "20260101120000")
+    assert run_dirs["appdata_dir"].endswith("PHI_Study_A_20260101120000")
+    # log_dir is created and keyed to the run's own timestamp, not the project's
+    assert os.path.isdir(run_dirs["log_dir"])
+    assert run_dirs["run_log_path"] == os.path.join(run_dirs["log_dir"], "run.txt")
+
+
+def test_setup_run_directories_omits_name_without_project(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    run_dirs = setup_run_directories()
+    assert os.path.basename(run_dirs["appdata_dir"]).startswith("PHI_")
+    assert "None" not in run_dirs["appdata_dir"]
 
 
 @contextlib.contextmanager

@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import time
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -76,7 +77,7 @@ class TextDeidResult(TypedDict):
     output_file: str
 
 
-class SingleClickResult(TypedDict):
+class ImagineWorkflowResult(TypedDict):
     num_studies_found: int
     num_images_exported: int
     num_images_quarantined: int
@@ -84,6 +85,8 @@ class SingleClickResult(TypedDict):
     num_rows_processed: int
     output_file: str
     export_performed: bool
+    num_header_files_processed: int
+    num_studies_with_headers: int
 
 
 def _build_mrn_date_query_and_filter(mrn, study_date, date_window_days):
@@ -799,15 +802,44 @@ def query_and_retrieve_studies(
     return study_pacs_map, failed_query_indices, failure_details
 
 
-def setup_run_directories() -> RunDirs:
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+def sanitize_filename(filename: str) -> str:
+    """Sanitize a filename by replacing invalid characters with underscores."""
+    valid_chars_re = re.compile(r"[A-Za-z0-9._-]")
+    sanitized = "".join(c if valid_chars_re.match(c) else "_" for c in filename)
+    return sanitized
+
+
+def appdata_dir_path(project_name: str | None, timestamp: str) -> str:
+    """Single source of truth for a run's appdata directory name.
+
+    Named ``PHI_<name>_<timestamp>`` when a project name is given, and
+    ``PHI_<timestamp>`` (name segment omitted) otherwise.
+    """
+    icore_base = os.path.expanduser("~/Documents/iCore")
+    name = (
+        f"PHI_{sanitize_filename(project_name)}_{timestamp}"
+        if project_name
+        else f"PHI_{timestamp}"
+    )
+    return os.path.join(icore_base, "appdata", name)
+
+
+def setup_run_directories(
+    project_name: str | None = None, timestamp: str | None = None
+) -> RunDirs:
+    log_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     icore_base = os.path.expanduser("~/Documents/iCore")
-    log_dir = os.path.join(icore_base, "logs", timestamp)
-    appdata_dir = os.path.join(icore_base, "appdata", timestamp)
+    log_dir = os.path.join(icore_base, "logs", log_timestamp)
+    # Namespace appdata per run via appdata_dir_path. ``timestamp`` lets a
+    # caller key the appdata name to a stable value (e.g. a project's creation
+    # timestamp); CLI runs that pass neither name nor timestamp get a
+    # PHI_<timestamp> dir. Not created here — whichever path is actually used is
+    # made by the caller (_prepare_run / imageqr) so an unused default never
+    # leaves a stray empty dir.
+    appdata_dir = appdata_dir_path(project_name, timestamp or log_timestamp)
 
     os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(appdata_dir, exist_ok=True)
 
     run_log_path = os.path.join(log_dir, "run.txt")
 

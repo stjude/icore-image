@@ -53,7 +53,7 @@ def run_project(project_id, task_name, args):
 
     project = Project.objects.get(pk=project_id)
     try:
-        run_dirs = setup_run_directories()
+        run_dirs = setup_run_directories(project.name, project.timestamp)
         project.log_path = run_dirs["run_log_path"]
         project.save(update_fields=["log_path", "updated_at"])
 

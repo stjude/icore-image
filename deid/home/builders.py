@@ -28,17 +28,18 @@ from tasks import (
     ImageExportArgs,
     ImageQrArgs,
     PacsConfigurationArgs,
-    SingleClickIcoreArgs,
+    ImagineWorkflowArgs,
     SpreadsheetArgs,
     TextDeidArgs,
 )
+
+from utils import sanitize_filename
 
 CMOVE_BATCH_SIZE = 50
 
 HOME_DIR = os.path.expanduser("~")
 ICORE_BASE_DIR = os.path.join(HOME_DIR, "Documents", "iCore")
 SETTINGS_PATH = os.path.join(ICORE_BASE_DIR, "config", "settings.json")
-APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, "app_data"))
 
 
 def load_settings():
@@ -46,16 +47,11 @@ def load_settings():
         return json.load(f)
 
 
-def _appdata_dir(project):
-    return os.path.abspath(
-        os.path.join(APP_DATA_PATH, f"PHI_{project.name}_{project.timestamp}")
-    )
-
-
 def _output_dir(project, prefix):
     return os.path.abspath(
         os.path.join(
-            project.output_folder, f"{prefix}_{project.name}_{project.timestamp}"
+            project.output_folder,
+            f"{prefix}_{sanitize_filename(project.name)}_{project.timestamp}",
         )
     )
 
@@ -63,7 +59,10 @@ def _output_dir(project, prefix):
 def _sc_pdf_output_dir(data, project):
     if sc_pdf_output_dir := data.get("sc_pdf_output_dir", ""):
         return os.path.abspath(
-            os.path.join(sc_pdf_output_dir, f"PHI_{project.name}_{project.timestamp}")
+            os.path.join(
+                sc_pdf_output_dir,
+                f"PHI_{sanitize_filename(project.name)}_{project.timestamp}",
+            )
         )
     return None
 
@@ -130,11 +129,14 @@ def column_actions_to_lists(data):
     column_actions = data.get("column_actions")
     if column_actions is None:
         raise Exception("Missing column_actions parameter.")
-    # The mapping is authoritative: deid exactly the "deid" columns (an
-    # empty list means deid nothing), drop the "drop" columns, keep the
-    # rest. The deid list is returned even when empty so it is not treated
-    # as the legacy "deid everything" default downstream.
-    deid_list = [col for col, action in column_actions.items() if action == "deid"]
+    # The mapping is authoritative: deid the "deid" columns (an empty list
+    # means deid nothing) and drop the "drop" columns. Legacy "keep" entries
+    # from older saved settings are migrated to "deid". The deid list is
+    # returned even when empty so it is not treated as the legacy "deid
+    # everything" default downstream.
+    deid_list = [
+        col for col, action in column_actions.items() if action in ("deid", "keep")
+    ]
     drop_list = [col for col, action in column_actions.items() if action == "drop"]
     return (deid_list, drop_list)
 
@@ -252,7 +254,6 @@ def build_image_export(data, project, settings):
         input_dir=os.path.abspath(project.input_folder),
         sas_url=data["sas_url"],
         project_name=project.name,
-        appdata_dir=_appdata_dir(project),
         debug=settings.get("debug_logging", False),
     )
 
@@ -266,7 +267,6 @@ def build_image_deid_export(data, project, settings):
         sas_url=data["sas_url"],
         project_name=project.name,
         output_dir=_output_dir(project, "DeID"),
-        appdata_dir=_appdata_dir(project),
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         deferred_delivery=settings.get("deferred_delivery", False),
         deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
@@ -282,8 +282,8 @@ def build_image_deid_export(data, project, settings):
     )
 
 
-def build_singleclickicore(data, project, settings):
-    """Single-click iCore always enforces HIPAA Safe Harbor de-identification."""
+def build_imagineworkflow(data, project, settings):
+    """IMAGINE Workflow always enforces HIPAA Safe Harbor de-identification."""
     input_file = data["input_file"]
     detected_columns = detect_file_type_and_columns(input_file)
     columns_to_deid, columns_to_drop = column_actions_to_lists(data)
@@ -293,7 +293,12 @@ def build_singleclickicore(data, project, settings):
     to_remove_list = (
         data.get("text_to_remove", "").split("\n") if data.get("text_to_remove") else []
     )
-    return icore_tasks.singleclickicore, SingleClickIcoreArgs(
+    headers_to_extract = data.get("headers_to_extract")
+    if headers_to_extract:
+        headers_to_extract = [
+            h.strip() for h in headers_to_extract.split("\n") if h.strip()
+        ]
+    return icore_tasks.imagineworkflow, ImagineWorkflowArgs(
         pacs_list=_pacs_list(project),
         query_spreadsheet=SpreadsheetArgs(path=input_file, **detected_columns),
         application_aet=project.application_aet,
@@ -301,7 +306,6 @@ def build_singleclickicore(data, project, settings):
         project_name=project.name,
         output_dir=_output_dir(project, "DeID"),
         input_file=input_file,
-        appdata_dir=_appdata_dir(project),
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         deferred_delivery=settings.get("deferred_delivery", False),
         deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
@@ -322,5 +326,7 @@ def build_singleclickicore(data, project, settings):
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
         use_fallback_query=data.get("use_fallback_query", False),
         date_window_days=data.get("date_window", 0),
+        headers_to_extract=headers_to_extract or None,
+        extract_all_headers=data.get("extract_all_headers", False),
         debug=settings.get("debug_logging", False),
     )
