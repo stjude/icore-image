@@ -260,6 +260,7 @@
         if (outputFolder) {
             openOutputBtn.onclick = async () => {
                 if (window.electronAPI && window.electronAPI.openFolder) {
+                    console.warn("Opening ", outputFolder);
                     await window.electronAPI.openFolder(outputFolder);
                 }
             };

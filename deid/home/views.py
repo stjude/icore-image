@@ -29,7 +29,7 @@ from .tasks import enqueue_project
 from grammar import get_hipaa_safe_harbor_config
 from pathutils import is_path_within_directory
 from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
-from utils import appdata_dir_path
+from utils import appdata_dir_path, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -428,7 +428,7 @@ def task_status(request, project_id):
             else:
                 prefix = "PHI"
             actual_output_folder = os.path.join(
-                task.output_folder, f"{prefix}_{task.name}_{task.timestamp}"
+                task.output_folder, f"{prefix}_{sanitize_filename(task.name)}_{task.timestamp}"
             )
 
         return JsonResponse(
