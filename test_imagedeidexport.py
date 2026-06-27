@@ -95,7 +95,9 @@ def test_imagedeidexport_basic_workflow(output_dir, appdata_dir, orthanc, azurit
     )
 
 
-def test_imagedeidexport_preserves_metadata_and_dicoms(output_dir, appdata_dir, orthanc, azurite):
+def test_imagedeidexport_preserves_metadata_and_dicoms(
+    output_dir, appdata_dir, orthanc, azurite
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     ds = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")
@@ -315,7 +317,9 @@ def test_imagedeidexport_with_filter_script(output_dir, appdata_dir, orthanc, az
     assert len(blobs) == 1, "Only 1 file matching filter should be exported"
 
 
-def test_imagedeidexport_with_mapping_file(output_dir, appdata_dir, tmp_path, orthanc, azurite):
+def test_imagedeidexport_with_mapping_file(
+    output_dir, appdata_dir, tmp_path, orthanc, azurite
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     mapping_file = tmp_path / "mapping.xlsx"
@@ -469,7 +473,9 @@ def test_imagedeidexport_with_multiple_pacs(output_dir, appdata_dir):
         azurite.stop()
 
 
-def test_imagedeidexport_saves_failed_queries_csv(output_dir, appdata_dir, orthanc, azurite):
+def test_imagedeidexport_saves_failed_queries_csv(
+    output_dir, appdata_dir, orthanc, azurite
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     ds1 = _create_test_dicom("ACC001", "MRN001", "Patient1", "CT", "3.0")

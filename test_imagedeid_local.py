@@ -327,7 +327,9 @@ def test_imagedeid_failures_reported(input_dir, output_dir, appdata_dir):
     )
 
 
-def test_imagedeid_local_apply_default_filter_script(input_dir, output_dir, appdata_dir):
+def test_imagedeid_local_apply_default_filter_script(
+    input_dir, output_dir, appdata_dir
+):
 
     ds1 = Fixtures.create_minimal_dicom(
         patient_id="MRN001",
@@ -488,7 +490,9 @@ def test_generate_lookup_table_content_with_dates(tmp_path):
     assert "StudyDate/20230220 = 20240220" in lookup_content
 
 
-def test_imagedeid_local_with_mapping_file_basic(input_dir, output_dir, appdata_dir, tmp_path):
+def test_imagedeid_local_with_mapping_file_basic(
+    input_dir, output_dir, appdata_dir, tmp_path
+):
 
     mapping_file = tmp_path / "mapping.xlsx"
 
@@ -536,7 +540,9 @@ def test_imagedeid_local_with_mapping_file_basic(input_dir, output_dir, appdata_
     assert "ACC003" in accession_numbers, "ACC003 should be kept (fallback to @keep())"
 
 
-def test_imagedeid_local_with_mapping_file_multiple_tags(input_dir, output_dir, appdata_dir, tmp_path):
+def test_imagedeid_local_with_mapping_file_multiple_tags(
+    input_dir, output_dir, appdata_dir, tmp_path
+):
 
     mapping_file = tmp_path / "mapping.xlsx"
 
@@ -618,7 +624,9 @@ def test_imagedeid_local_with_mapping_file_multiple_tags(input_dir, output_dir, 
     )
 
 
-def test_imagedeid_local_date_format_conversion(input_dir, output_dir, appdata_dir, tmp_path):
+def test_imagedeid_local_date_format_conversion(
+    input_dir, output_dir, appdata_dir, tmp_path
+):
 
     mapping_file = tmp_path / "mapping.xlsx"
 
@@ -708,7 +716,9 @@ def test_mapping_file_inconsistent_date_types(tmp_path):
         detect_and_validate_dates(df, "StudyDate")
 
 
-def test_imagedeid_local_fallback_to_simple_action(input_dir, output_dir, appdata_dir, tmp_path):
+def test_imagedeid_local_fallback_to_simple_action(
+    input_dir, output_dir, appdata_dir, tmp_path
+):
 
     mapping_file = tmp_path / "mapping.xlsx"
 
@@ -766,7 +776,9 @@ def test_imagedeid_local_fallback_to_simple_action(input_dir, output_dir, appdat
             )
 
 
-def test_imagedeid_local_complex_function_falls_back_to_keep(input_dir, output_dir, appdata_dir, tmp_path):
+def test_imagedeid_local_complex_function_falls_back_to_keep(
+    input_dir, output_dir, appdata_dir, tmp_path
+):
     """When the original anonymizer action is a complex function (e.g.
     ``@hashPtID(@UID(),13)``), CTP's ``@lookup(this, KeyType, default)``
     syntax can only accept ``keep``/``remove``/``empty`` as a fallback
@@ -821,7 +833,9 @@ def test_imagedeid_local_complex_function_falls_back_to_keep(input_dir, output_d
     )
 
 
-def test_imagedeid_local_tag_not_in_script(input_dir, output_dir, appdata_dir, tmp_path):
+def test_imagedeid_local_tag_not_in_script(
+    input_dir, output_dir, appdata_dir, tmp_path
+):
 
     mapping_file = tmp_path / "mapping.xlsx"
 
@@ -870,7 +884,9 @@ def test_imagedeid_local_tag_not_in_script(input_dir, output_dir, appdata_dir, t
     )
 
 
-def test_explicit_lookup_table_overrides_mapping_file(input_dir, output_dir, appdata_dir, tmp_path):
+def test_explicit_lookup_table_overrides_mapping_file(
+    input_dir, output_dir, appdata_dir, tmp_path
+):
 
     mapping_file = tmp_path / "mapping.xlsx"
 

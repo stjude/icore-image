@@ -453,7 +453,9 @@ def test_imageqr_accession_wildcard_filtering(output_dir, appdata_dir, orthanc):
     )
 
 
-def test_imageqr_saves_failed_queries_csv_on_find_failure(output_dir, appdata_dir, orthanc):
+def test_imageqr_saves_failed_queries_csv_on_find_failure(
+    output_dir, appdata_dir, orthanc
+):
     """Test that failed queries are saved to CSV with appropriate failure reasons."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -498,7 +500,9 @@ def test_imageqr_saves_failed_queries_csv_on_find_failure(output_dir, appdata_di
     assert df.loc[1, "Failure Reason"] == "Failed to find images"
 
 
-def test_imageqr_saves_failed_queries_csv_with_mrn_date(output_dir, appdata_dir, orthanc):
+def test_imageqr_saves_failed_queries_csv_with_mrn_date(
+    output_dir, appdata_dir, orthanc
+):
     """Test that failed queries CSV works with MRN/Date columns."""
     import numpy as np
 
@@ -565,7 +569,9 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(output_dir, appdata_dir,
     assert df.loc[0, "Failure Reason"] == "Failed to find images"
 
 
-def test_imageqr_continues_despite_move_failures(output_dir, appdata_dir, capsys, orthanc):
+def test_imageqr_continues_despite_move_failures(
+    output_dir, appdata_dir, capsys, orthanc
+):
     """Test that imageqr job continues despite C-MOVE failures and zero file retrievals."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -936,7 +942,9 @@ def test_imageqr_with_fallback_query(output_dir, appdata_dir, orthanc):
     )
 
 
-def test_imageqr_deferred_delivery_retrieves_all_files(output_dir, appdata_dir, orthanc):
+def test_imageqr_deferred_delivery_retrieves_all_files(
+    output_dir, appdata_dir, orthanc
+):
     """Test that deferred delivery retrieves all instances from a 7-instance series."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 

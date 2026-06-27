@@ -147,7 +147,9 @@ def test_imagineworkflow_basic_workflow(output_dir, appdata_dir, orthanc, azurit
         )
 
 
-def test_imagineworkflow_with_header_extraction(output_dir, appdata_dir, orthanc, azurite):
+def test_imagineworkflow_with_header_extraction(
+    output_dir, appdata_dir, orthanc, azurite
+):
     """Test that header extraction produces metadata.xlsx and exports it."""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -292,7 +294,9 @@ def test_imagineworkflow_with_filter_script(output_dir, appdata_dir, orthanc, az
     assert len(dcm_blobs) == 1, "Only 1 filtered DICOM should be exported"
 
 
-def test_imagineworkflow_with_text_deid_columns(output_dir, appdata_dir, orthanc, azurite):
+def test_imagineworkflow_with_text_deid_columns(
+    output_dir, appdata_dir, orthanc, azurite
+):
     """Test that columns_to_deid and columns_to_drop work"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
@@ -534,7 +538,9 @@ def test_imagineworkflow_skip_export_option(output_dir, appdata_dir, orthanc):
     assert output_xlsx.exists(), "Local Excel file should exist"
 
 
-def test_imagineworkflow_export_enabled_by_default(output_dir, appdata_dir, orthanc, azurite):
+def test_imagineworkflow_export_enabled_by_default(
+    output_dir, appdata_dir, orthanc, azurite
+):
     """Test that export happens by default when skip_export is not specified"""
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 

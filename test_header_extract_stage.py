@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import pandas as pd
 
@@ -99,8 +100,8 @@ def test_header_extract_stage_with_default_headers(tmp_path):
     assert ctx.header_studies == 1
 
 
-def _imagine_pipeline(**overrides):
-    kwargs = dict(
+def _imagine_pipeline(**overrides: Any) -> ImagineWorkflowPipeline:
+    kwargs: dict[str, Any] = dict(
         pacs_list=[],
         query_spreadsheet=None,
         application_aet="AET",

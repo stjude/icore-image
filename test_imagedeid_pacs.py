@@ -835,7 +835,9 @@ def test_imagedeid_pacs_apply_default_filter_script(output_dir, appdata_dir, ort
     )
 
 
-def test_imagedeid_pacs_with_mapping_file_basic(output_dir, appdata_dir, tmp_path, orthanc):
+def test_imagedeid_pacs_with_mapping_file_basic(
+    output_dir, appdata_dir, tmp_path, orthanc
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     mapping_file = tmp_path / "mapping.xlsx"
@@ -899,7 +901,9 @@ def test_imagedeid_pacs_with_mapping_file_basic(output_dir, appdata_dir, tmp_pat
     assert "ACC003" in accession_numbers, "ACC003 should be kept (fallback to @keep())"
 
 
-def test_imagedeid_pacs_with_mapping_file_multiple_tags(output_dir, appdata_dir, tmp_path, orthanc):
+def test_imagedeid_pacs_with_mapping_file_multiple_tags(
+    output_dir, appdata_dir, tmp_path, orthanc
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     mapping_file = tmp_path / "mapping.xlsx"
@@ -997,7 +1001,9 @@ def test_imagedeid_pacs_with_mapping_file_multiple_tags(output_dir, appdata_dir,
     )
 
 
-def test_imagedeid_pacs_date_format_conversion_with_mapping(output_dir, appdata_dir, tmp_path, orthanc):
+def test_imagedeid_pacs_date_format_conversion_with_mapping(
+    output_dir, appdata_dir, tmp_path, orthanc
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     mapping_file = tmp_path / "mapping.xlsx"
@@ -1064,7 +1070,9 @@ def test_imagedeid_pacs_date_format_conversion_with_mapping(output_dir, appdata_
     assert "20231231" not in study_dates, "Original date 20231231 should not appear"
 
 
-def test_imagedeid_pacs_fallback_to_simple_action(output_dir, appdata_dir, tmp_path, orthanc):
+def test_imagedeid_pacs_fallback_to_simple_action(
+    output_dir, appdata_dir, tmp_path, orthanc
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     mapping_file = tmp_path / "mapping.xlsx"
@@ -1138,7 +1146,9 @@ def test_imagedeid_pacs_fallback_to_simple_action(output_dir, appdata_dir, tmp_p
             )
 
 
-def test_imagedeid_pacs_complex_function_falls_back_to_keep(output_dir, appdata_dir, tmp_path, orthanc):
+def test_imagedeid_pacs_complex_function_falls_back_to_keep(
+    output_dir, appdata_dir, tmp_path, orthanc
+):
     """When the original anonymizer action is a complex function (e.g.
     ``@hashPtID(@UID(),13)``), CTP's ``@lookup(this, KeyType, default)``
     syntax can only accept ``keep``/``remove``/``empty`` as a fallback
@@ -1274,7 +1284,9 @@ def test_imagedeid_pacs_tag_not_in_script(output_dir, appdata_dir, tmp_path, ort
     )
 
 
-def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(output_dir, appdata_dir, tmp_path, orthanc):
+def test_imagedeid_pacs_explicit_lookup_table_overrides_mapping_file(
+    output_dir, appdata_dir, tmp_path, orthanc
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     mapping_file = tmp_path / "mapping.xlsx"
@@ -1375,7 +1387,9 @@ def test_imagedeid_pacs_cleans_up_dicom_retrieval(output_dir, appdata_dir, ortha
         )
 
 
-def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(output_dir, appdata_dir, orthanc):
+def test_imagedeid_pacs_cleans_up_dicom_retrieval_on_error(
+    output_dir, appdata_dir, orthanc
+):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
     pacs_config = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
