@@ -1,16 +1,19 @@
 import logging
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone as dt_timezone
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 
 import bcrypt
 import pandas as pd
 import psutil
+import pydicom
 import pytz
 from django.db import transaction
 from django.http import (
+    FileResponse,
     HttpResponse,
     HttpResponseBadRequest,
     HttpResponseNotFound,
@@ -401,13 +404,41 @@ def _read_progress(logs_folder):
         return None
 
 
+# Task types whose output directory is a de-identified DICOM image tree the QC
+# viewer can display (as opposed to text-only or PHI outputs).
+QC_VIEWER_TASK_TYPES = frozenset(
+    {"IMAGE_DEID", "IMAGE_DEID_EXPORT", "SINGLE_CLICK_ICORE"}
+)
+
+# Task types whose output directory holds de-identified (vs. raw PHI) data.
+_DEID_TASK_TYPES = frozenset(
+    {"IMAGE_DEID", "TEXT_DEID", "IMAGE_DEID_EXPORT", "SINGLE_CLICK_ICORE"}
+)
+
+
+def resolve_output_dir(task):
+    """Return the absolute run-output directory for ``task``, or ``""``.
+
+    Mirrors how each pipeline names its output folder
+    (``{DeID|PHI}_{name}_{timestamp}`` under the user-chosen output folder).
+    Shared by ``task_status`` and the QC viewer endpoints so the path is
+    computed in exactly one place.
+    """
+    if not (task.output_folder and task.name and task.timestamp):
+        return ""
+    prefix = "DeID" if task.task_type in _DEID_TASK_TYPES else "PHI"
+    return os.path.join(
+        task.output_folder,
+        f"{prefix}_{sanitize_filename(task.name)}_{task.timestamp}",
+    )
+
+
 def task_status(request, project_id):
     try:
         task = Project.objects.get(id=project_id)
 
         logs_folder = ""
         appdata_folder = ""
-        actual_output_folder = ""
         progress = None
 
         if task.log_path:
@@ -417,21 +448,6 @@ def task_status(request, project_id):
         if task.name and task.timestamp:
             appdata_folder = appdata_dir_path(task.name, task.timestamp)
 
-        if task.output_folder and task.name and task.timestamp:
-            if task.task_type in [
-                "IMAGE_DEID",
-                "TEXT_DEID",
-                "IMAGE_DEID_EXPORT",
-                "SINGLE_CLICK_ICORE",
-            ]:
-                prefix = "DeID"
-            else:
-                prefix = "PHI"
-            actual_output_folder = os.path.join(
-                task.output_folder,
-                f"{prefix}_{sanitize_filename(task.name)}_{task.timestamp}",
-            )
-
         return JsonResponse(
             {
                 "status": task.status,
@@ -439,7 +455,7 @@ def task_status(request, project_id):
                 "name": task.name,
                 "task_type": task.task_type,
                 "logs_folder": logs_folder,
-                "output_folder": actual_output_folder,
+                "output_folder": resolve_output_dir(task),
                 "appdata_folder": appdata_folder,
                 "progress": progress,
             }
@@ -448,6 +464,191 @@ def task_status(request, project_id):
         return JsonResponse({"error": "Task not found"}, status=404)
     except Exception:
         logger.exception("Error processing request")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+# ---------------------------------------------------------------------------
+# QC viewer: expose the de-identified output tree to the in-app DICOM viewer.
+#
+# Output layout on disk (produced by the dicom-deid-rs engine):
+#   DATE-{StudyDate}--{Modality}--PID-{PatientID}/SER-{SeriesNumber}/{SOP}.dcm
+# Studies are top-level dirs, series are their subdirs, instances are the .dcm
+# files. Every path derived from a request is confined to the run's output dir
+# via is_path_within_directory before any filesystem access.
+# ---------------------------------------------------------------------------
+
+_SERIES_DIR_RE = re.compile(r"SER-(\d+)")
+
+
+def _parse_modality(study_dir_name):
+    """Extract the modality from a ``DATE-..--{Modality}--PID-..`` study dir."""
+    parts = study_dir_name.split("--")
+    return parts[1] if len(parts) >= 2 and parts[1] else None
+
+
+def _parse_series_number(series_dir_name):
+    match = _SERIES_DIR_RE.match(series_dir_name)
+    return int(match.group(1)) if match else None
+
+
+def _read_series_metadata(dcm_path):
+    """Read a few descriptive tags from one instance; ``{}`` on any failure."""
+    try:
+        ds = pydicom.dcmread(
+            dcm_path,
+            stop_before_pixels=True,
+            specific_tags=[
+                "SeriesDescription",
+                "StudyDescription",
+                "Modality",
+                "SeriesNumber",
+            ],
+        )
+    except Exception:
+        return {}
+    series_number = getattr(ds, "SeriesNumber", None)
+    return {
+        "series_description": getattr(ds, "SeriesDescription", None) or None,
+        "study_description": getattr(ds, "StudyDescription", None) or None,
+        "modality": getattr(ds, "Modality", None) or None,
+        "series_number": int(series_number)
+        if series_number not in (None, "")
+        else None,
+    }
+
+
+def _sorted_dcm_files(dir_path):
+    return sorted(f for f in os.listdir(dir_path) if f.lower().endswith(".dcm"))
+
+
+def _instance_order_key(dir_path, name):
+    """Sort key ordering instances by InstanceNumber when present.
+
+    Files with a readable InstanceNumber come first, in numeric order; any
+    without (unreadable/absent) fall back to filename order at the end. The
+    filename is the final tiebreaker so ordering is always deterministic.
+    """
+    try:
+        ds = pydicom.dcmread(
+            os.path.join(dir_path, name),
+            stop_before_pixels=True,
+            specific_tags=["InstanceNumber"],
+        )
+        number = getattr(ds, "InstanceNumber", None)
+        if number not in (None, ""):
+            return (0, int(number), name)
+    except Exception:
+        pass
+    return (1, 0, name)
+
+
+def _ordered_dcm_files(dir_path):
+    """Return the series' .dcm files ordered for stack display."""
+    files = [f for f in os.listdir(dir_path) if f.lower().endswith(".dcm")]
+    return sorted(files, key=lambda name: _instance_order_key(dir_path, name))
+
+
+def qc_studies(request, project_id):
+    """Enumerate the output directory as a ViewerStudy[] tree for the viewer."""
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        output_dir = resolve_output_dir(task)
+        if not output_dir or not os.path.isdir(output_dir):
+            return JsonResponse({"studies": []})
+
+        studies = []
+        for study_name in sorted(os.listdir(output_dir)):
+            study_path = os.path.join(output_dir, study_name)
+            if not is_path_within_directory(study_path, output_dir):
+                continue
+            if not os.path.isdir(study_path):
+                continue
+
+            series_list = []
+            study_description = None
+            for series_name in sorted(os.listdir(study_path)):
+                series_path = os.path.join(study_path, series_name)
+                if not os.path.isdir(series_path):
+                    continue
+                dcm_files = _sorted_dcm_files(series_path)
+                if not dcm_files:
+                    continue
+                meta = _read_series_metadata(os.path.join(series_path, dcm_files[0]))
+                study_description = study_description or meta.get("study_description")
+                series_list.append(
+                    {
+                        "id": f"{study_name}/{series_name}",
+                        "series_description": meta.get("series_description"),
+                        "series_number": meta.get("series_number")
+                        or _parse_series_number(series_name),
+                        "modality": meta.get("modality")
+                        or _parse_modality(study_name)
+                        or "",
+                        "instance_count": len(dcm_files),
+                    }
+                )
+
+            if not series_list:
+                continue
+            studies.append(
+                {
+                    "id": study_name,
+                    "study_description": study_description,
+                    "study_name": study_name,
+                    "series": series_list,
+                }
+            )
+
+        return JsonResponse({"studies": studies})
+    except Exception:
+        logger.exception("Error enumerating QC studies")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+def qc_series_instances(request, project_id, series_id):
+    """Return the ordered instance list (name + byte URL) for one series."""
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        output_dir = resolve_output_dir(task)
+        series_path = os.path.join(output_dir, series_id)
+        if (
+            not output_dir
+            or not is_path_within_directory(series_path, output_dir)
+            or not os.path.isdir(series_path)
+        ):
+            return HttpResponseBadRequest("Invalid series")
+
+        instances = [
+            {
+                "name": name,
+                "url": (
+                    f"/api/qc/{project_id}/series/{quote(series_id)}"
+                    f"/instances/{quote(name)}/"
+                ),
+            }
+            for name in _ordered_dcm_files(series_path)
+        ]
+        return JsonResponse({"instances": instances})
+    except Exception:
+        logger.exception("Error listing QC series instances")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+def qc_instance(request, project_id, series_id, instance_name):
+    """Stream a single de-identified .dcm file to the viewer."""
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        output_dir = resolve_output_dir(task)
+        file_path = os.path.join(output_dir, series_id, instance_name)
+        if (
+            not output_dir
+            or not is_path_within_directory(file_path, output_dir)
+            or not os.path.isfile(file_path)
+        ):
+            return HttpResponseBadRequest("Invalid instance")
+        return FileResponse(open(file_path, "rb"), content_type="application/dicom")
+    except Exception:
+        logger.exception("Error serving QC instance")
         return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 

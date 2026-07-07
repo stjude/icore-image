@@ -19,3 +19,5 @@ output
 appdata
 .cursor
 config.yml
+# React QC viewer build artifact (produced by `make build-frontend`)
+deid/static/qc-viewer/

@@ -457,6 +457,8 @@ def get_hipaa_safe_harbor_config():
             ("00080008", "ImageType"),
             ("00080070", "Manufacturer"),
             ("00081090", "ManufacturerModelName"),
+            ("00200013", "InstanceNumber"),
+            ("00200032", "ImagePositionPatient"),
         ],
         "tags_to_dateshift": [
             ("00080020", "StudyDate"),

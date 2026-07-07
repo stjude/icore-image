@@ -1,5 +1,5 @@
-.PHONY: all signed clean deps deps-python deps-deid deps-electron test dev
-.PHONY: external-deps dcmtk rclone build-binaries build-django-app
+.PHONY: all signed clean deps deps-python deps-deid deps-frontend deps-electron test dev dev-frontend
+.PHONY: external-deps dcmtk rclone build-binaries build-django-app build-frontend
 .PHONY: prepare-assets build-dmg build-dmg-signed dicom-deid-rs
 
 .DEFAULT_GOAL := all
@@ -41,7 +41,13 @@ dev: external-deps deps-python
 	export ICORE_PYTHON=$$(pwd)/.venv/bin/python && \
 	cd electron && npm start
 
-deps: deps-python deps-deid deps-electron dicom-deid-rs
+# Rebuild the QC viewer bundle into deid/static/qc-viewer/ on every source edit.
+# Run in a second terminal alongside `make dev`; refresh the window to pick up
+# the rebuilt bundle.
+dev-frontend:
+	cd deid/frontend && npm run watch
+
+deps: deps-python deps-deid deps-frontend deps-electron dicom-deid-rs
 
 deps-python:
 	uv --version || (echo "uv is not installed. Please install uv and try again." && exit 1)
@@ -49,6 +55,9 @@ deps-python:
 
 deps-deid:
 	cd deid && npm install
+
+deps-frontend:
+	cd deid/frontend && npm install
 
 deps-electron:
 	cd electron && npm install
@@ -112,6 +121,11 @@ build-django-app:
 
 build-binaries: build-django-app
 
+# Bundle the React QC viewer into deid/static/qc-viewer/ so PyInstaller (which
+# bundles deid/static) ships it. Must run before build-binaries.
+build-frontend:
+	cd deid/frontend && npm run build
+
 prepare-assets:
 	rm -rf electron/assets/dist
 	cp deid/home/settings.json electron/assets
@@ -144,11 +158,11 @@ build-dmg-signed:
 	echo "DMG copied to icore-$(ARCH_LABEL)-$$VERSION.dmg"
 
 clean:
-	rm -rf dist deid/dist electron/assets/dist build deid/build
+	rm -rf dist deid/dist electron/assets/dist build deid/build deid/static/qc-viewer
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete 2>/dev/null || true
 
-all: deps external-deps build-binaries prepare-assets build-dmg
+all: deps external-deps build-frontend build-binaries prepare-assets build-dmg
 
-signed: deps external-deps build-binaries prepare-assets build-dmg-signed
+signed: deps external-deps build-frontend build-binaries prepare-assets build-dmg-signed
 

@@ -1,8 +1,12 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}{{ module_name }} ({{ project_name }}){% endblock %}
 
 {% block content %}
+<!-- The QC viewer's styles (Mantine + Cornerstone) are loaded into a shadow
+     root by the bundle itself, so they can't leak into this page's chrome. -->
+<script type="module" src="{% static 'qc-viewer/qc-viewer.js' %}{% if icore_dev %}?v={% now 'U' %}{% endif %}"></script>
 <style>
     /* Barber-pole stripe that scrolls to signal an in-progress stage. */
     .progress-stripe {
@@ -79,6 +83,7 @@
     <div class="bg-white p-10 rounded-b">
         <div id="progressBar" class="flex items-center p-4"></div>
         <p id="progressStatus" class="text-center text-sm text-gray-500 mt-8 pt-8">Starting…</p>
+        <div id="qcViewerMount" class="mt-8 hidden"></div>
     </div>
 </div>
 
@@ -185,6 +190,7 @@
         try {
             const response = await fetch(`/api/task_status/${projectId}`);
             const data = await response.json();
+            latestTaskData = data;
 
             taskStatus = data.status;
 
@@ -201,6 +207,7 @@
             updateFolderLinks();
             updateCancelButton();
             renderProgress(data.status, data.progress);
+            maybeMountQcViewer(data);
 
             if (data.status === 'FAILED') {
                 hasError = true;
@@ -227,6 +234,39 @@
         } catch (error) {
             console.error('Error checking task status:', error);
         }
+    }
+
+    // Task types whose output directory is a de-identified DICOM image tree.
+    const QC_VIEWER_TASK_TYPES = ['IMAGE_DEID', 'IMAGE_DEID_EXPORT', 'SINGLE_CLICK_ICORE'];
+    const STAGE_ORDER = ['gather', 'image_deid', 'text_deid', 'header_extract', 'export'];
+    let qcMounted = false;
+    // Latest /api/task_status payload, so we can (re)attempt the mount when the
+    // viewer bundle finishes loading — see the 'qc-viewer-ready' listener below.
+    let latestTaskData = null;
+
+    // De-identification is done once the pipeline has moved past the image_deid
+    // stage (or finished it), or the whole task has completed.
+    function deidComplete(status, progress) {
+        if (status === 'COMPLETED') return true;
+        if (!progress) return false;
+        const current = STAGE_ORDER.indexOf(progress.current_stage);
+        const deid = STAGE_ORDER.indexOf('image_deid');
+        if (current === -1) return false;
+        if (current > deid) return true;
+        return current === deid && (progress.fraction || 0) >= 1.0;
+    }
+
+    // Mount the React QC viewer once, when de-id output is available. The module
+    // bundle defines window.mountQcViewer; guard in case it hasn't loaded yet.
+    function maybeMountQcViewer(data) {
+        if (qcMounted || !data) return;
+        if (!QC_VIEWER_TASK_TYPES.includes(data.task_type)) return;
+        if (!deidComplete(data.status, data.progress)) return;
+        if (typeof window.mountQcViewer !== 'function') return;
+        qcMounted = true;
+        const mount = document.getElementById('qcViewerMount');
+        mount.classList.remove('hidden');
+        window.mountQcViewer(mount, { projectId });
     }
 
     function updateFolderLinks() {
@@ -342,6 +382,11 @@
 
     // Handle cancel button click
     document.getElementById('cancelTask').addEventListener('click', cancelTask);
+
+    // The viewer bundle is a deferred module and may finish loading after the
+    // task is already COMPLETED (at which point polling has stopped). When it
+    // signals readiness, retry the mount against the last known status.
+    window.addEventListener('qc-viewer-ready', () => maybeMountQcViewer(latestTaskData));
 
     // Initial fetch + poll for status/progress
     checkTaskStatus();
