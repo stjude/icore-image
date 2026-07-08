@@ -410,6 +410,14 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
             await Promise.all(firstFrameIds.map((imageId) => CornerstoneCore.imageLoader.loadAndCacheImage(imageId)));
         }
 
+        // stackContextPrefetch attaches a STACK_NEW_IMAGE listener + prefetch
+        // controller to the element. enable() does NOT dedupe, so calling it on
+        // every series switch (without disabling the previous one) stacks
+        // duplicate controllers that each keep decoding the stack in the
+        // background — escalating worker/WASM/GPU memory with every switch, even
+        // after the user stops interacting. Disable any prior controller first
+        // so exactly one is ever active on this element.
+        cornerstoneTools.utilities.stackContextPrefetch.disable(viewport.element);
         cornerstoneTools.utilities.stackContextPrefetch.enable(viewport.element);
 
         // The new stack is now displayed, so free the previous series' cache and
