@@ -125,11 +125,12 @@ def _generate_series_thumbnails(output_dir: str, appdata_dir: str) -> None:
     the stage. Layout mirrors the output tree:
     ``<appdata_dir>/thumbnails/<study>/<series>.png``.
     """
-    if not os.path.isdir(output_dir):
-        return
     thumbnails_root = os.path.join(appdata_dir, "thumbnails")
+    os.makedirs(thumbnails_root, exist_ok=True)
     count = 0
-    for study_name in sorted(os.listdir(output_dir)):
+    for study_name in (
+        sorted(os.listdir(output_dir)) if os.path.isdir(output_dir) else []
+    ):
         study_dir = os.path.join(output_dir, study_name)
         if not os.path.isdir(study_dir):
             continue
@@ -156,6 +157,11 @@ def _generate_series_thumbnails(output_dir: str, appdata_dir: str) -> None:
                     series_name,
                     exc_info=True,
                 )
+    # Marker written only after all thumbnails are generated. The QC viewer waits
+    # for this (via task_status' qc_ready) so it doesn't mount with previews still
+    # missing.
+    with open(os.path.join(thumbnails_root, ".complete"), "w"):
+        pass
     logging.info(f"Generated {count} series thumbnails")
 
 

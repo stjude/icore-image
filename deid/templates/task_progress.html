@@ -238,30 +238,19 @@
 
     // Task types whose output directory is a de-identified DICOM image tree.
     const QC_VIEWER_TASK_TYPES = ['IMAGE_DEID', 'IMAGE_DEID_EXPORT', 'SINGLE_CLICK_ICORE'];
-    const STAGE_ORDER = ['gather', 'image_deid', 'text_deid', 'header_extract', 'export'];
     let qcMounted = false;
     // Latest /api/task_status payload, so we can (re)attempt the mount when the
     // viewer bundle finishes loading — see the 'qc-viewer-ready' listener below.
     let latestTaskData = null;
 
-    // De-identification is done once the pipeline has moved past the image_deid
-    // stage (or finished it), or the whole task has completed.
-    function deidComplete(status, progress) {
-        if (status === 'COMPLETED') return true;
-        if (!progress) return false;
-        const current = STAGE_ORDER.indexOf(progress.current_stage);
-        const deid = STAGE_ORDER.indexOf('image_deid');
-        if (current === -1) return false;
-        if (current > deid) return true;
-        return current === deid && (progress.fraction || 0) >= 1.0;
-    }
-
-    // Mount the React QC viewer once, when de-id output is available. The module
-    // bundle defines window.mountQcViewer; guard in case it hasn't loaded yet.
+    // Mount the React QC viewer once the de-identified images AND their preview
+    // thumbnails are ready (qc_ready is set by the backend when the image-deid
+    // stage finishes generating thumbnails). The module bundle defines
+    // window.mountQcViewer; guard in case it hasn't loaded yet.
     function maybeMountQcViewer(data) {
         if (qcMounted || !data) return;
         if (!QC_VIEWER_TASK_TYPES.includes(data.task_type)) return;
-        if (!deidComplete(data.status, data.progress)) return;
+        if (!data.qc_ready) return;
         if (typeof window.mountQcViewer !== 'function') return;
         qcMounted = true;
         const mount = document.getElementById('qcViewerMount');

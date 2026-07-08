@@ -440,6 +440,7 @@ def task_status(request, project_id):
         logs_folder = ""
         appdata_folder = ""
         progress = None
+        qc_ready = False
 
         if task.log_path:
             logs_folder = os.path.dirname(task.log_path)
@@ -447,6 +448,11 @@ def task_status(request, project_id):
 
         if task.name and task.timestamp:
             appdata_folder = appdata_dir_path(task.name, task.timestamp)
+            # The QC viewer only mounts once thumbnails have finished generating
+            # (marker written at the end of the image-deid stage).
+            qc_ready = os.path.isfile(
+                os.path.join(appdata_folder, "thumbnails", ".complete")
+            )
 
         return JsonResponse(
             {
@@ -458,6 +464,7 @@ def task_status(request, project_id):
                 "output_folder": resolve_output_dir(task),
                 "appdata_folder": appdata_folder,
                 "progress": progress,
+                "qc_ready": qc_ready,
             }
         )
     except Project.DoesNotExist:

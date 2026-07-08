@@ -233,6 +233,14 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
     const loadedImageIdsRef = useRef<string[]>([]);
     const loadedFileIndicesRef = useRef<number[]>([]);
 
+    // Concurrency guard for loadSeries. Rapidly clicking series would otherwise
+    // run multiple loads at once; their interleaved viewport.setStack() calls and
+    // shared cache/fileManager corrupt the stack (slices from other series appear).
+    // loadGenRef stamps each request; loadChainRef serializes them so only one
+    // runs at a time and only the latest request actually renders.
+    const loadGenRef = useRef(0);
+    const loadChainRef = useRef<Promise<void>>(Promise.resolve());
+
     // Unique per-mount Cornerstone identifiers so multiple viewers can coexist on one page.
     const instanceId = useId().replace(/:/g, '');
     const renderingEngineId = `re-${instanceId}`;
@@ -294,7 +302,11 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
         return renderingEngineRef.current?.getViewport(viewportId) as IStackViewport | undefined;
     }, [viewportId]);
 
-    const loadSeries = async (series: ViewerSeries): Promise<void> => {
+    // The actual load. Runs serialized via loadSeries(); bails early if a newer
+    // request has superseded it so concurrent clicks can't corrupt the stack.
+    const loadSeriesImpl = async (series: ViewerSeries, myGen: number): Promise<void> => {
+        const superseded = () => myGen !== loadGenRef.current;
+        if (superseded()) return;
         // NOTE: Interestingly, purging the file manager actually can cause images from previous series to
         // remain rendered in the viewport, presumably due to the internal image IDs being the same. Therefore,
         // DO NOT purge the file manager when loading a new series.
@@ -314,6 +326,7 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
         } finally {
             setLoadInProgress(false);
         }
+        if (superseded()) return;
 
         const extracted = await Promise.all(
             instances.map(async (instance) => {
@@ -367,14 +380,27 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
         }
         const totalFiles = extracted.length;
         const totalFramesCount = imageIds.length;
+        const myFileIndices = extracted.map(({ baseImageId }) => fileIndexOf(baseImageId));
+
+        // A newer series was requested while we were fetching: drop what we added
+        // and bail so we never setStack over the newer load.
+        if (superseded()) {
+            releaseSeries(imageIds, myFileIndices);
+            return;
+        }
 
         const renderingEngine = renderingEngineRef.current;
         if (!renderingEngine) {
             console.error('Rendering engine is not initialized');
+            releaseSeries(imageIds, myFileIndices);
             return;
         }
         const viewport = renderingEngine.getViewport(viewportId) as IStackViewport;
         await viewport.setStack(imageIds);
+        if (superseded()) {
+            releaseSeries(imageIds, myFileIndices);
+            return;
+        }
         viewport.resetProperties();
         viewport.render();
 
@@ -391,7 +417,7 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
         // never disturb the images the viewport is actively using.
         releaseSeries(loadedImageIdsRef.current, loadedFileIndicesRef.current);
         loadedImageIdsRef.current = imageIds;
-        loadedFileIndicesRef.current = extracted.map(({ baseImageId }) => fileIndexOf(baseImageId));
+        loadedFileIndicesRef.current = myFileIndices;
 
         setCurrentSeriesId(series.id);
         setTotalSlices(totalFramesCount);
@@ -402,6 +428,16 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
             totalFrames: totalFramesCount,
             framesPerFile,
         });
+    };
+
+    // Public entry point: stamp a generation and serialize onto the load chain so
+    // only one loadSeriesImpl runs at a time and only the latest click wins.
+    const loadSeries = (series: ViewerSeries): void => {
+        const myGen = ++loadGenRef.current;
+        loadChainRef.current = loadChainRef.current.then(
+            () => loadSeriesImpl(series, myGen),
+            () => loadSeriesImpl(series, myGen),
+        );
     };
 
     // This tracking ref is required due to how React caches event handlers. Certain events
