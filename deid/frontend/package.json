@@ -12,7 +12,7 @@
         "@cornerstonejs/tools": "^4.15.24",
         "@mantine/core": "^7.15.3",
         "@mantine/hooks": "^7.15.3",
-        "@stjude/dicom-viewer": "file:../../packages/dicom-viewer/stjude-dicom-viewer-0.1.5.tgz",
+        "@stjude/dicom-viewer": "file:../../packages/dicom-viewer/stjude-dicom-viewer-0.1.6.tgz",
         "@tabler/icons-react": "^3.22.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"

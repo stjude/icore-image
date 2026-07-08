@@ -624,11 +624,18 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
             e.preventDefault();
         };
         const handleMouseEnter = () => el.focus({ preventScroll: true });
+        // Stop wheel scrolling over the viewport from also scrolling the page.
+        // Must be non-passive so preventDefault is honored; this only cancels the
+        // default page scroll — Cornerstone's StackScrollTool still receives the
+        // event and advances the slice.
+        const handleWheel = (e: WheelEvent) => e.preventDefault();
         el.addEventListener('keydown', handleKeyDown);
         el.addEventListener('mouseenter', handleMouseEnter);
+        el.addEventListener('wheel', handleWheel, { passive: false });
         return () => {
             el.removeEventListener('keydown', handleKeyDown);
             el.removeEventListener('mouseenter', handleMouseEnter);
+            el.removeEventListener('wheel', handleWheel);
         };
     }, [getViewport]);
 
