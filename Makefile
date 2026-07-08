@@ -1,4 +1,5 @@
 .PHONY: all signed clean deps deps-python deps-deid deps-frontend deps-electron test dev dev-frontend
+.PHONY: azurite azurite-sas azurite-down
 .PHONY: external-deps dcmtk rclone build-binaries build-django-app build-frontend
 .PHONY: prepare-assets build-dmg build-dmg-signed dicom-deid-rs
 
@@ -46,6 +47,20 @@ dev: external-deps deps-python
 # the rebuilt bundle.
 dev-frontend:
 	cd deid/frontend && npm run watch
+
+# Local Azurite (Azure Blob emulator) for testing the export path — see
+# testing/azurite/README.md.
+AZURITE_COMPOSE := testing/azurite/docker-compose.yml
+azurite:
+	docker compose -f $(AZURITE_COMPOSE) up -d
+
+# Print a SAS URL to paste into iCore's "SAS URL" field (pass ARGS='--list' to
+# instead list uploaded blobs).
+azurite-sas:
+	uv run python testing/azurite/sas_url.py $(ARGS)
+
+azurite-down:
+	docker compose -f $(AZURITE_COMPOSE) down
 
 deps: deps-python deps-deid deps-frontend deps-electron dicom-deid-rs
 

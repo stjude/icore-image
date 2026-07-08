@@ -1,0 +1,28 @@
+# Lightweight Azurite (Azure Blob Storage emulator) for exercising iCore's
+# export/IMAGINE-workflow upload against a local instance. See README.md.
+#
+#   docker compose -f testing/azurite/docker-compose.yml up -d
+#
+# Blob service is exposed on the standard Azurite port 10000, using the
+# well-known development account "devstoreaccount1" (the account key below is
+# Azurite's fixed public key, not a secret).
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: icore-azurite
+    # Only the blob service is needed; --skipApiVersionCheck keeps rclone/the
+    # azure SDK happy across versions (matches the pytest AzuriteServer).
+    command: >
+      azurite-blob
+      --blobHost 0.0.0.0
+      --skipApiVersionCheck
+      --location /data
+    ports:
+      - "10000:10000"
+    volumes:
+      # Persist uploaded blobs across restarts so you can inspect them. Wipe
+      # with `docker compose ... down -v`.
+      - azurite-data:/data
+
+volumes:
+  azurite-data:
