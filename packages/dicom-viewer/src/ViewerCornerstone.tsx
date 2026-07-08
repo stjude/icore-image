@@ -34,6 +34,46 @@ const isMultiFrameDicom = (dataSet: DataSet): boolean => {
     return numberOfFrames !== undefined && numberOfFrames > 1;
 };
 
+/**
+ * Release a previously displayed series so viewer memory does not grow without
+ * bound. Cornerstone's decoded-image cache and the wadouri fileManager are
+ * global singletons that are never freed on their own, so every opened series
+ * otherwise stays resident for the page's lifetime (hundreds of MB per series).
+ *
+ * We remove only THIS series' entries — never `cache.purgeCache()`, which would
+ * also evict images belonging to other viewers on the page — and we do NOT
+ * reset the fileManager counter: reusing indices would collide with any
+ * residual cache entries (the stale-render bug that previously forced us to
+ * leak instead of purge).
+ */
+function releaseSeries(imageIds: string[], fileIndices: number[]): void {
+    // removeImageLoadObject exists on the concrete cache but is absent from the
+    // exported ICache type, so reach it through a narrow cast.
+    const cache = CornerstoneCore.cache as unknown as {
+        getImageLoadObject: (imageId: string) => unknown;
+        removeImageLoadObject: (imageId: string, options?: { force?: boolean }) => void;
+    };
+    for (const imageId of imageIds) {
+        try {
+            if (cache.getImageLoadObject(imageId)) {
+                cache.removeImageLoadObject(imageId, { force: true });
+            }
+        } catch {
+            // Already evicted — safe to ignore.
+        }
+    }
+    for (const index of fileIndices) {
+        try {
+            dicomLoader.wadouri.fileManager.remove(index);
+        } catch {
+            // Already removed — safe to ignore.
+        }
+    }
+}
+
+/** Parse the numeric fileManager index out of a `dicomfile:<n>` image id. */
+const fileIndexOf = (baseImageId: string): number => Number(baseImageId.split(':')[1]);
+
 interface WLPreset {
     key: string;
     name: string;
@@ -187,6 +227,12 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
     // never races with mount ordering -- it is simply null until setup runs.
     const renderingEngineRef = useRef<CornerstoneCore.RenderingEngine | null>(null);
 
+    // imageIds (incl. per-frame variants) and fileManager indices of the
+    // currently displayed series, tracked so the series can be released from the
+    // cache + fileManager when a new one is loaded or the viewer unmounts.
+    const loadedImageIdsRef = useRef<string[]>([]);
+    const loadedFileIndicesRef = useRef<number[]>([]);
+
     // Unique per-mount Cornerstone identifiers so multiple viewers can coexist on one page.
     const instanceId = useId().replace(/:/g, '');
     const renderingEngineId = `re-${instanceId}`;
@@ -339,6 +385,13 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
         }
 
         cornerstoneTools.utilities.stackContextPrefetch.enable(viewport.element);
+
+        // The new stack is now displayed, so free the previous series' cache and
+        // fileManager entries. Doing this here (rather than before load) means we
+        // never disturb the images the viewport is actively using.
+        releaseSeries(loadedImageIdsRef.current, loadedFileIndicesRef.current);
+        loadedImageIdsRef.current = imageIds;
+        loadedFileIndicesRef.current = extracted.map(({ baseImageId }) => fileIndexOf(baseImageId));
 
         setCurrentSeriesId(series.id);
         setTotalSlices(totalFramesCount);
@@ -524,6 +577,11 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
             renderingEngine?.destroy();
             renderingEngineRef.current = null;
             cornerstoneTools.ToolGroupManager.destroyToolGroup(toolGroupId);
+            // Release this viewer's cached images + file blobs so they do not
+            // outlive the mount.
+            releaseSeries(loadedImageIdsRef.current, loadedFileIndicesRef.current);
+            loadedImageIdsRef.current = [];
+            loadedFileIndicesRef.current = [];
         };
     }, [renderingEngineId, viewportId, toolGroupId, initCornerstone]);
 
