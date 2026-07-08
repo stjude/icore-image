@@ -28,6 +28,9 @@ class Project(models.Model):
     class TaskStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"
         RUNNING = "RUNNING", "Running"
+        # De-identification finished; the operator must review the output in
+        # the QC viewer and approve before any export runs.
+        AWAITING_QC = "AWAITING_QC", "Awaiting QC"
         COMPLETED = "COMPLETED", "Completed"
         FAILED = "FAILED", "Failed"
         CANCELLED = "CANCELLED", "Cancelled"

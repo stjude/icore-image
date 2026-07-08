@@ -831,14 +831,11 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
                     style={{ display: 'flex', flex: 1, flexDirection: 'column', height: 'calc(100% - 85px)' }}
                     value={activeTab}
                     onChange={(value) => setActiveTab(value as 'viewer' | 'metadata')}
+                    classNames={{ tab: classes.tab }}
                 >
-                    <Tabs.List style={{ width: '25%', gap: 4 }}>
-                        <Tabs.Tab value="viewer" style={{ flex: 1 }}>
-                            Viewer
-                        </Tabs.Tab>
-                        <Tabs.Tab value="metadata" style={{ flex: 1 }}>
-                            Metadata
-                        </Tabs.Tab>
+                    <Tabs.List style={{ gap: 4 }}>
+                        <Tabs.Tab value="viewer">Viewer</Tabs.Tab>
+                        <Tabs.Tab value="metadata">Metadata</Tabs.Tab>
                     </Tabs.List>
                     <Tabs.Panel value="viewer" style={{ position: 'relative', display: 'flex', height: '100%' }}>
                         <div ref={containerRef} id="layerGroup0" tabIndex={0} className={classes.viewport} />
@@ -959,16 +956,22 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
 
                 {/* Slice Slider - Horizontal at bottom */}
                 {totalSlices > 0 && (
-                    <Group h={24} justify="center" p="xs" bg="gray.1">
+                    <Group justify="center" py="sm" px="md" bg="gray.1">
                         <Slider
                             size="md"
+                            color="blue.6"
                             value={totalSlices > 1 ? (currentSliceIndex / (totalSlices - 1)) * 100 : 0}
                             onChange={handleSliderChange}
                             min={0}
                             max={100}
                             step={totalSlices > 1 ? 100 / (totalSlices - 1) : 1}
                             label={(value) => `${Math.round((value / 100) * (totalSlices - 1)) + 1}/${totalSlices}`}
-                            style={{ width: '100%', maxWidth: 448 }}
+                            classNames={{
+                                root: classes.sliderRoot,
+                                track: classes.sliderTrack,
+                                bar: classes.sliderBar,
+                                thumb: classes.sliderThumb,
+                            }}
                         />
                     </Group>
                 )}

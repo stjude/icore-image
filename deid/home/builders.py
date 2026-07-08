@@ -22,7 +22,6 @@ from grammar import (
 import tasks as icore_tasks
 from tasks import (
     HeaderExtractLocalArgs,
-    ImageDeidExportArgs,
     ImageDeidLocalArgs,
     ImageDeidPacsArgs,
     ImageExportArgs,
@@ -259,13 +258,18 @@ def build_image_export(data, project, settings):
 
 
 def build_image_deid_export(data, project, settings):
+    """Build the IMAGE_DEID_EXPORT task, deferring the Azure export to QC.
+
+    Returns ``(task, args, export)``. The de-identification runs now as a
+    deid-only PACS pipeline that parks at AWAITING_QC; ``export`` carries the
+    intent the approve endpoint uses to run ``image_export`` against the deid
+    output once an operator approves it.
+    """
     spreadsheet, date_window_days, use_fallback_query = _query_spreadsheet(data)
-    return icore_tasks.imagedeidexport, ImageDeidExportArgs(
+    args = ImageDeidPacsArgs(
         pacs_list=_pacs_list(project),
         query_spreadsheet=spreadsheet,
         application_aet=project.application_aet,
-        sas_url=data["sas_url"],
-        project_name=project.name,
         output_dir=_output_dir(project, "DeID"),
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
         deferred_delivery=settings.get("deferred_delivery", False),
@@ -280,6 +284,8 @@ def build_image_deid_export(data, project, settings):
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
         debug=settings.get("debug_logging", False),
     )
+    export = {"sas_url": data["sas_url"], "project_name": project.name}
+    return icore_tasks.imagedeid_pacs, args, export
 
 
 def build_imagineworkflow(data, project, settings):

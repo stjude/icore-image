@@ -1,27 +1,27 @@
 {
-    "name": "icore-qc-viewer",
-    "private": true,
-    "type": "module",
-    "scripts": {
-        "build": "vite build",
-        "watch": "vite build --watch"
-    },
-    "dependencies": {
-        "@cornerstonejs/core": "^4.15.24",
-        "@cornerstonejs/dicom-image-loader": "^4.15.24",
-        "@cornerstonejs/tools": "^4.15.24",
-        "@mantine/core": "^7.15.3",
-        "@mantine/hooks": "^7.15.3",
-        "@stjude/dicom-viewer": "file:../../packages/dicom-viewer/stjude-dicom-viewer-0.1.7.tgz",
-        "@tabler/icons-react": "^3.22.0",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1"
-    },
-    "devDependencies": {
-        "@types/react": "^18",
-        "@types/react-dom": "^18",
-        "@vitejs/plugin-react": "^5.2.0",
-        "typescript": "^5",
-        "vite": "^7.3.6"
-    }
+  "name": "icore-qc-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch"
+  },
+  "dependencies": {
+    "@cornerstonejs/core": "^4.15.24",
+    "@cornerstonejs/dicom-image-loader": "^4.15.24",
+    "@cornerstonejs/tools": "^4.15.24",
+    "@mantine/core": "^7.15.3",
+    "@mantine/hooks": "^7.15.3",
+    "@stjude/dicom-viewer": "file:../../packages/dicom-viewer/stjude-dicom-viewer-0.1.8.tgz",
+    "@tabler/icons-react": "^3.22.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "^5",
+    "vite": "^7.3.6"
+  }
 }

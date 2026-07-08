@@ -5,10 +5,39 @@ import pydicom
 from pydicom.filebase import DicomBytesIO
 
 from pipeline import ImageExportPipeline
+from pipeline.stages.export import _parse_rclone_percent
 from test_utils import _create_test_dicom
 
 
 logging.basicConfig(level=logging.INFO)
+
+
+@pytest.mark.parametrize(
+    "line, expected",
+    [
+        (
+            "Transferred: 1.500 MiB / 10.000 MiB, 15%, 500 KiB/s, ETA 20s",
+            0.15,
+        ),
+        ("Transferred: 10.000 MiB / 10.000 MiB, 100%, 0/s, ETA -", 1.0),
+        ("Transferred: 0 B / 10.000 MiB, 0%, 0/s, ETA -", 0.0),
+        ("Checks: 3 / 3, 100%", 1.0),
+    ],
+)
+def test_parse_rclone_percent(line, expected):
+    assert _parse_rclone_percent(line) == expected
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "",
+        "2024/01/01 12:00:00 NOTICE: some unrelated log line",
+        "Transferred: 1.5 MiB / 10 MiB",
+    ],
+)
+def test_parse_rclone_percent_none(line):
+    assert _parse_rclone_percent(line) is None
 
 
 def test_image_export_single_file(input_dir, appdata_dir, azurite):

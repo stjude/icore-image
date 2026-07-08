@@ -26,6 +26,9 @@ from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
 
+import tasks as icore_tasks
+from tasks import ImageExportArgs
+
 from . import builders
 from .models import Project
 from .tasks import enqueue_project
@@ -465,6 +468,9 @@ def task_status(request, project_id):
                 "appdata_folder": appdata_folder,
                 "progress": progress,
                 "qc_ready": qc_ready,
+                # A deferred Azure export is stashed on approval-gated workflows;
+                # the UI uses this to show the Export tab and button wording.
+                "has_export": bool((task.parameters or {}).get("export")),
             }
         )
     except Project.DoesNotExist:
@@ -682,6 +688,61 @@ def qc_thumbnail(request, project_id, series_id):
         return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 
+@require_http_methods(["POST"])
+def qc_approve(request, project_id):
+    """Approve a de-identified project's QC review and advance the workflow.
+
+    Only a project parked at AWAITING_QC can be approved; the transition is
+    claimed atomically so a double-click can't complete or export twice.
+    Workflows with a stashed ``export`` intent hand off to a fresh
+    ``image_export`` task (running against the deid output dir) and return to
+    PENDING; workflows without one simply complete.
+    """
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        export = (task.parameters or {}).get("export")
+
+        if not export:
+            updated = Project.objects.filter(
+                pk=project_id, status=Project.TaskStatus.AWAITING_QC
+            ).update(status=Project.TaskStatus.COMPLETED, updated_at=timezone.now())
+            if not updated:
+                return JsonResponse(
+                    {"status": "error", "message": "Project is not awaiting QC."},
+                    status=409,
+                )
+            return JsonResponse({"status": Project.TaskStatus.COMPLETED.value})
+
+        args = ImageExportArgs(
+            input_dir=resolve_output_dir(task),
+            sas_url=export["sas_url"],
+            project_name=export["project_name"],
+        )
+        with transaction.atomic():
+            claimed = Project.objects.filter(
+                pk=project_id, status=Project.TaskStatus.AWAITING_QC
+            ).update(status=Project.TaskStatus.PENDING, updated_at=timezone.now())
+            if not claimed:
+                return JsonResponse(
+                    {"status": "error", "message": "Project is not awaiting QC."},
+                    status=409,
+                )
+            # Keep the "export" key so task_status still reports has_export
+            # while the export task runs (and across a mid-export page reload);
+            # run_project drives the task from the passed args, not parameters.
+            task.parameters = {
+                **(task.parameters or {}),
+                "task": icore_tasks.image_export.name,
+                "args": args.model_dump(),
+            }
+            task.save(update_fields=["parameters"])
+            enqueue_project(task, icore_tasks.image_export, args)
+        return JsonResponse({"status": Project.TaskStatus.PENDING.value})
+    except Exception:
+        logger.exception("Error approving QC")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
 def _parse_scheduled_time(data, settings):
     if "scheduled_time" not in data:
         return None
@@ -690,9 +751,16 @@ def _parse_scheduled_time(data, settings):
     return tz.localize(local_dt).astimezone(pytz.UTC)
 
 
-def _save_and_enqueue(project, task, args):
-    """Persist the project row and queue its Celery task (at eta if scheduled)."""
+def _save_and_enqueue(project, task, args, export=None):
+    """Persist the project row and queue its Celery task (at eta if scheduled).
+
+    ``export`` (when given) stashes the deferred Azure export intent
+    (``{"sas_url", "project_name"}``) that ``qc_approve`` uses to run
+    ``image_export`` against the deid output after the operator approves it.
+    """
     project.parameters = {"task": task.name, "args": args.model_dump()}
+    if export is not None:
+        project.parameters["export"] = export
     with transaction.atomic():
         project.save()
         enqueue_project(project, task, args)
@@ -900,8 +968,10 @@ def run_imagedeidexport(request):
             status=Project.TaskStatus.PENDING,
             scheduled_time=_parse_scheduled_time(data, settings),
         )
-        task, args = builders.build_image_deid_export(data, project, settings)
-        return _save_and_enqueue(project, task, args)
+        # Runs deid only now; the Azure export is deferred until an operator
+        # approves the output in the QC viewer (see qc_approve).
+        task, args, export = builders.build_image_deid_export(data, project, settings)
+        return _save_and_enqueue(project, task, args, export=export)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -945,7 +1015,14 @@ def run_imagineworkflow(request):
             scheduled_time=_parse_scheduled_time(data, settings),
         )
         task, args = builders.build_imagineworkflow(data, project, settings)
-        response = _save_and_enqueue(project, task, args)
+        # Capture the export intent (if the user opted into Azure export) and
+        # force the deid run to stop before exporting; qc_approve runs the
+        # export only after the operator reviews the de-identified output.
+        export = None
+        if not args.skip_export and args.sas_url:
+            export = {"sas_url": args.sas_url, "project_name": args.project_name}
+        args.skip_export = True
+        response = _save_and_enqueue(project, task, args, export=export)
         _remember_column_actions(data.get("column_actions", {}))
         return response
     except Exception:

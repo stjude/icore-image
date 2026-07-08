@@ -15,6 +15,7 @@ import logging
 import os
 
 import psutil
+import tasks as icore_tasks
 from celery import current_app, shared_task
 from celery.signals import worker_ready
 from django.db import transaction
@@ -24,6 +25,32 @@ from home.models import Project
 from utils import setup_run_directories
 
 logger = logging.getLogger(__name__)
+
+# Workflows whose de-identification output must pass a human QC review before
+# completing (and, for export workflows, before the export runs). Their deid
+# task ends at AWAITING_QC rather than COMPLETED; the operator advances it from
+# the QC viewer via the approve endpoint.
+QC_GATED_TASK_TYPES = frozenset(
+    {
+        Project.TaskType.IMAGE_DEID,
+        Project.TaskType.IMAGE_DEID_EXPORT,
+        Project.TaskType.SINGLE_CLICK_ICORE,
+    }
+)
+
+
+def _terminal_status(project, task_name):
+    """Status a successfully-finished task should land in.
+
+    The export task (enqueued only after QC approval) always completes the
+    project. A QC-gated workflow's deid task instead parks at AWAITING_QC so an
+    operator can review the output; everything else completes as before.
+    """
+    if task_name == icore_tasks.image_export.name:
+        return Project.TaskStatus.COMPLETED
+    if project.task_type in QC_GATED_TASK_TYPES:
+        return Project.TaskStatus.AWAITING_QC
+    return Project.TaskStatus.COMPLETED
 
 
 def enqueue_project(project, task, args):
@@ -64,7 +91,7 @@ def run_project(project_id, task_name, args):
         result = task({**args, "run_dirs": run_dirs})
 
         Project.objects.filter(pk=project_id, status=Project.TaskStatus.RUNNING).update(
-            status=Project.TaskStatus.COMPLETED,
+            status=_terminal_status(project, task_name),
             process_pid=None,
             updated_at=timezone.now(),
         )

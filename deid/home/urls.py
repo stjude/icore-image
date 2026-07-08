@@ -40,6 +40,11 @@ urlpatterns = [
         name="qc_studies",
     ),
     path(
+        "api/qc/<int:project_id>/approve/",
+        views.qc_approve,
+        name="qc_approve",
+    ),
+    path(
         "api/qc/<int:project_id>/series/<path:series_id>/instances/",
         views.qc_series_instances,
         name="qc_series_instances",

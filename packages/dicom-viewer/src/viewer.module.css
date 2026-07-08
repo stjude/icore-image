@@ -1,6 +1,44 @@
 .root {
     display: flex;
-    height: 50vh;
+    height: 70vh;
+}
+
+/* Viewer / Metadata tabs. Colors use the raw palette (not the primary-color
+   "filled" variables) so the selected state stays clearly visible even when the
+   host embeds the viewer in a shadow root where those derived vars may not
+   resolve. */
+.tab {
+    padding: 8px 20px;
+    font-weight: 500;
+    border-radius: 6px;
+    color: var(--mantine-color-gray-7);
+}
+.tab:hover {
+    background: var(--mantine-color-gray-1);
+}
+.tab[data-active],
+.tab[data-active]:hover {
+    background: var(--mantine-color-blue-6);
+    color: white;
+}
+
+/* Slice slider. Force track/bar/thumb colors from the raw palette for the same
+   shadow-root reason; the default filled var can render the bar invisible. */
+.sliderRoot {
+    width: 100%;
+    max-width: 560px;
+}
+.sliderTrack::before {
+    background-color: var(--mantine-color-gray-3);
+}
+.sliderBar {
+    background-color: var(--mantine-color-blue-6);
+}
+.sliderThumb {
+    border: 2px solid var(--mantine-color-blue-6);
+    background-color: white;
+    width: 18px;
+    height: 18px;
 }
 
 .placeholder {

@@ -3,6 +3,10 @@
 
 {% block title %}{{ module_name }} ({{ project_name }}){% endblock %}
 
+{# The QC viewer benefits from a wide canvas; let this page grow well past the
+   default max-w-4xl so the image and metadata table have room. #}
+{% block content_width %}max-w-7xl{% endblock %}
+
 {% block content %}
 <!-- The QC viewer's styles (Mantine + Cornerstone) are loaded into a shadow
      root by the bundle itself, so they can't leak into this page's chrome. -->
@@ -80,10 +84,58 @@
             </div>
         </div>
     </div>
-    <div class="bg-white p-10 rounded-b">
-        <div id="progressBar" class="flex items-center p-4"></div>
-        <p id="progressStatus" class="text-center text-sm text-gray-500 mt-8 pt-8">Starting…</p>
-        <div id="qcViewerMount" class="mt-8 hidden"></div>
+    <div class="bg-white rounded-b">
+        <!-- Workflow tab strip: De-identification › Quality Control › Export.
+             Right-pointing arrows imply the forward flow; tabs unlock as the
+             workflow advances, and locked tabs are not clickable. -->
+        <nav id="tabStrip" class="flex items-center border-b border-gray-200 px-4">
+            <button type="button" data-tab="progress" class="tab-btn px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors">
+                De-identification
+            </button>
+            <svg class="tab-arrow w-4 h-4 mx-1 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+            <button type="button" data-tab="qc" class="tab-btn px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors">
+                Quality Control
+            </button>
+            <svg data-arrow="export" class="tab-arrow w-4 h-4 mx-1 text-gray-300 shrink-0 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+            <button type="button" data-tab="export" class="tab-btn px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors hidden">
+                Export
+            </button>
+        </nav>
+
+        <!-- Tab 1: de-identification progress -->
+        <section id="progressPanel" class="p-10">
+            <div id="progressBar" class="flex items-center p-4"></div>
+            <div class="mt-8 pt-8 flex flex-col items-center gap-4">
+                <p id="progressStatus" class="text-center text-sm text-gray-500">Starting…</p>
+                <button id="startQcBtn" class="hidden px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    Start QC
+                </button>
+            </div>
+        </section>
+
+        <!-- Tab 2: QC DICOM viewer -->
+        <section id="qcPanel" class="hidden">
+            <div id="qcViewerMount"></div>
+            <div class="border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+                <p id="qcApproveHint" class="text-sm text-gray-500">
+                    Review the de-identified images above, then approve to continue.
+                </p>
+                <button id="approveBtn" class="px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    Approve
+                </button>
+            </div>
+        </section>
+
+        <!-- Tab 3: export progress (export workflows only) -->
+        <section id="exportPanel" class="hidden p-10">
+            <div class="max-w-xl mx-auto py-6">
+                <h2 class="text-center text-base font-medium text-gray-800">Exporting to cloud storage</h2>
+                <div class="mt-6 w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div id="exportFill" class="h-3 bg-blue-600 rounded-full transition-[width] duration-300" style="width: 0%;"></div>
+                </div>
+                <p id="exportStatus" class="text-center text-sm text-gray-500 mt-4">Preparing export…</p>
+            </div>
+        </section>
     </div>
 </div>
 
@@ -97,15 +149,94 @@
     let hasError = false;
     let taskStatus = null;
 
+    // Task types whose output directory is a de-identified DICOM image tree.
+    const QC_VIEWER_TASK_TYPES = ['IMAGE_DEID', 'IMAGE_DEID_EXPORT', 'SINGLE_CLICK_ICORE'];
+
+    // --- Workflow state latches --------------------------------------------
+    // Once the deid task parks at AWAITING_QC (or, on a mid-export reload, once
+    // we observe the export phase), the deid stage is done for good. We snapshot
+    // its final progress so Tab 1 keeps showing the completed deid bar even after
+    // the live `progress` is replaced by the export run's progress.json.
+    let hasExport = false;        // this workflow includes a cloud export step
+    let deidDone = false;         // de-identification finished (Ready for QC)
+    let deidSnapshot = null;      // last deid progress payload before hand-off
+    let exportStarted = false;    // operator approved; export task is running/done
+    let approvedComplete = false; // non-export workflow approved & completed
+    let userSelectedTab = false;  // suppress auto-advance once the user navigates
+    let activeTab = 'progress';
+    let qcMounted = false;
+    let latestTaskData = null;
+
     // Cached bar "shape" so we only rebuild the DOM when it actually changes.
     // Rebuilding on every poll would restart the CSS animations each second
     // and make the stripe/pulse stutter.
     let lastShapeKey = null;
 
-    function renderProgress(status, progress) {
+    // ----------------------------------------------------------------------
+    // Tab strip
+    // ----------------------------------------------------------------------
+    const PANELS = { progress: 'progressPanel', qc: 'qcPanel', export: 'exportPanel' };
+
+    function isTabUnlocked(name) {
+        if (name === 'progress') return true;
+        if (name === 'qc') return deidDone && !!latestTaskData && !!latestTaskData.qc_ready;
+        if (name === 'export') return hasExport && exportStarted;
+        return false;
+    }
+
+    function setActiveTab(name) {
+        if (!isTabUnlocked(name)) return;
+        activeTab = name;
+        for (const [tab, panelId] of Object.entries(PANELS)) {
+            document.getElementById(panelId).classList.toggle('hidden', tab !== name);
+        }
+        if (name === 'qc') {
+            maybeMountQcViewer(latestTaskData);
+        }
+        updateTabStrip();
+    }
+
+    function updateTabStrip() {
+        document.querySelectorAll('.tab-btn').forEach((btn) => {
+            const name = btn.dataset.tab;
+            const unlocked = isTabUnlocked(name);
+            const isActive = name === activeTab;
+
+            btn.classList.remove(
+                'border-blue-600', 'text-blue-700',
+                'border-transparent', 'text-gray-500', 'hover:text-gray-800',
+                'hover:border-gray-300', 'text-gray-300', 'cursor-not-allowed',
+            );
+            if (isActive) {
+                btn.classList.add('border-blue-600', 'text-blue-700');
+            } else if (unlocked) {
+                btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-800', 'hover:border-gray-300');
+            } else {
+                btn.classList.add('border-transparent', 'text-gray-300', 'cursor-not-allowed');
+            }
+            btn.disabled = !unlocked;
+        });
+    }
+
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            if (!isTabUnlocked(btn.dataset.tab)) return;
+            userSelectedTab = true;
+            setActiveTab(btn.dataset.tab);
+        });
+    });
+
+    // ----------------------------------------------------------------------
+    // Tab 1: de-identification progress
+    // ----------------------------------------------------------------------
+    function renderDeidProgress(progress, completed) {
         const bar = document.getElementById('progressBar');
         const caption = document.getElementById('progressStatus');
-        const completed = status === 'COMPLETED';
+        const startBtn = document.getElementById('startQcBtn');
+
+        // Ready for QC: fill the whole bar and swap the caption for the CTA.
+        startBtn.classList.toggle('hidden', !completed);
+        caption.classList.toggle('hidden', completed);
 
         const stages = (progress && progress.stages) || [];
         if (stages.length === 0 && !completed) {
@@ -134,7 +265,7 @@
             if (i === currentIndex) return Math.round(fraction * 100);
             return 0;
         };
-        // A point is "reached" once we've started its stage (or finished, for COMPLETED).
+        // A point is "reached" once we've started its stage (or finished, for completed).
         const pointReached = (i) => completed || i <= currentIndex;
 
         // The stage currently being worked on (not yet finished).
@@ -175,15 +306,39 @@
             lastShapeKey = shapeKey;
         }
 
-        if (completed) {
-            caption.textContent = 'Ready for QC';
-        } else if (progress && progress.status_text) {
-            caption.textContent = progress.status_text;
-        } else {
-            caption.textContent = 'Starting…';
+        if (!completed) {
+            caption.textContent = (progress && progress.status_text) ? progress.status_text : 'Starting…';
         }
     }
 
+    // ----------------------------------------------------------------------
+    // Tab 3: export progress
+    // ----------------------------------------------------------------------
+    function renderExportProgress(data) {
+        const fill = document.getElementById('exportFill');
+        const status = document.getElementById('exportStatus');
+        const progress = data.progress;
+
+        if (data.status === 'COMPLETED') {
+            fill.style.width = '100%';
+            fill.classList.remove('progress-stripe');
+            status.textContent = 'Export complete';
+            return;
+        }
+        let pct = 0;
+        let text = 'Preparing export…';
+        if (progress && progress.current_stage === 'export') {
+            pct = Math.round((progress.fraction || 0) * 100);
+            text = progress.status_text || 'Exporting to cloud storage…';
+            fill.classList.add('progress-stripe');
+        }
+        fill.style.width = pct + '%';
+        status.textContent = text;
+    }
+
+    // ----------------------------------------------------------------------
+    // Poll loop
+    // ----------------------------------------------------------------------
     async function checkTaskStatus() {
         if (hasError) return;
 
@@ -191,23 +346,41 @@
             const response = await fetch(`/api/task_status/${projectId}`);
             const data = await response.json();
             latestTaskData = data;
-
             taskStatus = data.status;
 
-            if (data.logs_folder) {
-                logsFolder = data.logs_folder;
+            if (data.logs_folder) logsFolder = data.logs_folder;
+            if (data.output_folder) outputFolder = data.output_folder;
+            if (data.appdata_folder) appdataFolder = data.appdata_folder;
+
+            // Latch workflow state.
+            if (data.has_export) hasExport = true;
+            const inExportPhase = !!(data.progress && data.progress.current_stage === 'export');
+            if (data.status === 'AWAITING_QC') {
+                deidDone = true;
+                if (!deidSnapshot) deidSnapshot = data.progress;
             }
-            if (data.output_folder) {
-                outputFolder = data.output_folder;
+            // Mid-export reloads never saw AWAITING_QC — infer deid is done from
+            // the export phase / a completed export.
+            if (hasExport && (inExportPhase || data.status === 'COMPLETED')) {
+                deidDone = true;
             }
-            if (data.appdata_folder) {
-                appdataFolder = data.appdata_folder;
+            if (deidDone && hasExport && data.status !== 'AWAITING_QC'
+                && ['PENDING', 'RUNNING', 'COMPLETED'].includes(data.status)) {
+                exportStarted = true;
             }
+
+            document.querySelector('[data-tab="export"]').classList.toggle('hidden', !hasExport);
+            document.querySelector('[data-arrow="export"]').classList.toggle('hidden', !hasExport);
 
             updateFolderLinks();
             updateCancelButton();
-            renderProgress(data.status, data.progress);
-            maybeMountQcViewer(data);
+
+            renderDeidProgress(deidSnapshot || data.progress, deidDone);
+            configureApproveButton();
+            if (hasExport) renderExportProgress(data);
+
+            updateTabStrip();
+            autoAdvanceTab();
 
             if (data.status === 'FAILED') {
                 hasError = true;
@@ -222,12 +395,13 @@
                 document.getElementById('cancelledMessage').textContent = "Task has been cancelled.";
                 document.getElementById('cancelledPopup').classList.remove('hidden');
                 clearInterval(statusInterval);
-                setTimeout(() => {
-                    window.location.href = '/task_list';
-                }, 3000);
+                setTimeout(() => { window.location.href = '/task_list'; }, 3000);
                 return;
             }
 
+            // COMPLETED is terminal for the export task (and for non-export
+            // approvals). The deid task instead parks at AWAITING_QC, so we keep
+            // polling there to pick up the export once the operator approves.
             if (data.status === 'COMPLETED') {
                 clearInterval(statusInterval);
             }
@@ -236,28 +410,93 @@
         }
     }
 
-    // Task types whose output directory is a de-identified DICOM image tree.
-    const QC_VIEWER_TASK_TYPES = ['IMAGE_DEID', 'IMAGE_DEID_EXPORT', 'SINGLE_CLICK_ICORE'];
-    let qcMounted = false;
-    // Latest /api/task_status payload, so we can (re)attempt the mount when the
-    // viewer bundle finishes loading — see the 'qc-viewer-ready' listener below.
-    let latestTaskData = null;
+    // Without an explicit navigation, keep the user on the right tab: land on
+    // Export once it starts (e.g. a mid-export reload), otherwise Progress —
+    // the operator opens QC themselves via "Start QC".
+    function autoAdvanceTab() {
+        if (userSelectedTab) return;
+        if (exportStarted) setActiveTab('export');
+        else setActiveTab('progress');
+    }
 
     // Mount the React QC viewer once the de-identified images AND their preview
-    // thumbnails are ready (qc_ready is set by the backend when the image-deid
-    // stage finishes generating thumbnails). The module bundle defines
-    // window.mountQcViewer; guard in case it hasn't loaded yet.
+    // thumbnails are ready (qc_ready). Deferred until the QC tab is shown so the
+    // Cornerstone canvas sizes against a visible container. window.mountQcViewer
+    // is defined by the viewer bundle; guard in case it hasn't loaded yet.
     function maybeMountQcViewer(data) {
         if (qcMounted || !data) return;
         if (!QC_VIEWER_TASK_TYPES.includes(data.task_type)) return;
         if (!data.qc_ready) return;
+        if (activeTab !== 'qc') return;
         if (typeof window.mountQcViewer !== 'function') return;
         qcMounted = true;
-        const mount = document.getElementById('qcViewerMount');
-        mount.classList.remove('hidden');
-        window.mountQcViewer(mount, { projectId });
+        window.mountQcViewer(document.getElementById('qcViewerMount'), { projectId });
     }
 
+    // ----------------------------------------------------------------------
+    // Approve action
+    // ----------------------------------------------------------------------
+    function configureApproveButton() {
+        const btn = document.getElementById('approveBtn');
+        if (approvedComplete) {
+            btn.textContent = 'Approved ✓';
+            btn.disabled = true;
+            btn.classList.add('bg-green-600', 'hover:bg-green-600', 'cursor-default');
+            btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            document.getElementById('qcApproveHint').textContent = 'De-identification complete.';
+            return;
+        }
+        // Once approved for export, the button is spent — Tab 3 shows progress.
+        if (exportStarted) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            return;
+        }
+        btn.textContent = hasExport ? 'Approve and Export' : 'Approve';
+    }
+
+    async function approve() {
+        const btn = document.getElementById('approveBtn');
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        try {
+            const response = await fetch(`/api/qc/${projectId}/approve/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                alert('Failed to approve: ' + (result.message || 'Unknown error'));
+                return;
+            }
+            userSelectedTab = true;
+            if (hasExport) {
+                exportStarted = true;
+                updateTabStrip();
+                setActiveTab('export');
+            } else {
+                approvedComplete = true;
+                configureApproveButton();
+            }
+        } catch (error) {
+            console.error('Error approving:', error);
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            alert('Failed to approve: ' + error.message);
+        }
+    }
+
+    document.getElementById('approveBtn').addEventListener('click', approve);
+    document.getElementById('startQcBtn').addEventListener('click', () => {
+        userSelectedTab = true;
+        setActiveTab('qc');
+    });
+
+    // ----------------------------------------------------------------------
+    // Folder links / cancel (unchanged behavior)
+    // ----------------------------------------------------------------------
     function updateFolderLinks() {
         const folderLinksDiv = document.getElementById('folderLinks');
         const openLogsBtn = document.getElementById('openLogsFolder');
@@ -315,14 +554,12 @@
 
     function updateCancelButton() {
         const cancelBtn = document.getElementById('cancelTask');
-
         if (taskStatus === 'PENDING' || taskStatus === 'RUNNING') {
             cancelBtn.classList.remove('hidden');
         } else {
             cancelBtn.classList.add('hidden');
         }
     }
-
 
     async function cancelTask() {
         if (!confirm('Are you sure you want to cancel this task?')) {
@@ -373,11 +610,11 @@
     document.getElementById('cancelTask').addEventListener('click', cancelTask);
 
     // The viewer bundle is a deferred module and may finish loading after the
-    // task is already COMPLETED (at which point polling has stopped). When it
-    // signals readiness, retry the mount against the last known status.
+    // QC tab is already active. When it signals readiness, retry the mount.
     window.addEventListener('qc-viewer-ready', () => maybeMountQcViewer(latestTaskData));
 
-    // Initial fetch + poll for status/progress
+    // Initial paint + poll for status/progress
+    updateTabStrip();
     checkTaskStatus();
     statusInterval = setInterval(checkTaskStatus, 1000);
 </script>
