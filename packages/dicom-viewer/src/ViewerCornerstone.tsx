@@ -828,7 +828,7 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
                 <Tabs
                     variant="pills"
                     defaultValue="viewer"
-                    style={{ display: 'flex', flex: 1, flexDirection: 'column', height: 'calc(100% - 85px)' }}
+                    style={{ display: 'flex', flex: 1, flexDirection: 'column', minHeight: 0 }}
                     value={activeTab}
                     onChange={(value) => setActiveTab(value as 'viewer' | 'metadata')}
                     classNames={{ tab: classes.tab }}
@@ -956,7 +956,7 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
 
                 {/* Slice Slider - Horizontal at bottom */}
                 {totalSlices > 0 && (
-                    <Group justify="center" py="sm" px="md" bg="gray.1">
+                    <Group justify="center" py="sm" px="md" bg="gray.1" style={{ flexShrink: 0 }}>
                         <Slider
                             size="md"
                             color="blue.6"
@@ -978,7 +978,7 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
 
                 {/* Current Series Info - Below slider */}
                 {currentSeries && (
-                    <Paper p="md" bg="gray.0">
+                    <Paper p="md" bg="gray.0" style={{ flexShrink: 0 }}>
                         <Group justify="space-between">
                             <div>
                                 <Text size="sm" fw={500}>

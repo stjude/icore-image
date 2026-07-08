@@ -253,25 +253,20 @@ const DicomMetadataTable = ({ ds, visible }: { ds: DataSet; visible: boolean }) 
                 <Table.Thead bg="gray.0">
                     <Table.Tr>
                         <Table.Th>Tag</Table.Th>
-                        <Table.Th>Name</Table.Th>
                         <Table.Th>Value</Table.Th>
                     </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                    {tableRows.map((row, index) => {
-                        const tagInfo = getTag(row.tag);
-                        return (
-                            <Table.Tr key={index}>
-                                <Table.Td ff="monospace" fz="xs" pl={16 + row.indent * 20}>
-                                    {row.tag}
-                                </Table.Td>
-                                <Table.Td c="gray.7">{tagInfo?.name || 'Unknown'}</Table.Td>
-                                <Table.Td c="dimmed" style={{ wordBreak: 'break-all' }}>
-                                    {row.valueString || ''}
-                                </Table.Td>
-                            </Table.Tr>
-                        );
-                    })}
+                    {tableRows.map((row, index) => (
+                        <Table.Tr key={index}>
+                            <Table.Td ff="monospace" fz="xs" pl={16 + row.indent * 20}>
+                                {row.tag}
+                            </Table.Td>
+                            <Table.Td c="dimmed" style={{ wordBreak: 'break-all' }}>
+                                {row.valueString || ''}
+                            </Table.Td>
+                        </Table.Tr>
+                    ))}
                 </Table.Tbody>
             </Table>
         </Table.ScrollContainer>
