@@ -116,7 +116,7 @@ const roots = new Map<HTMLElement, Root>();
 
 // Mantine's Tabs.List wraps its pills (flex-wrap: wrap) and the viewer sizes it
 // to width:25%, which makes the two tabs stack vertically. Keep them on one row.
-const OVERRIDES = '[role="tablist"]{flex-wrap:nowrap !important;width:auto !important;}';
+const OVERRIDES = '[role="tablist"]{flex-wrap:nowrap !important;width:auto !important; margin-top: 0.5rem;}';
 
 // Inject the emitted stylesheet into a shadow root, rewriting :root -> :host so
 // Mantine's CSS variables (defined on :root in the sheet, including the

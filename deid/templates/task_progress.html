@@ -359,14 +359,22 @@
                 deidDone = true;
                 if (!deidSnapshot) deidSnapshot = data.progress;
             }
-            // Mid-export reloads never saw AWAITING_QC — infer deid is done from
-            // the export phase / a completed export.
-            if (hasExport && (inExportPhase || data.status === 'COMPLETED')) {
+            // De-identification is finished for good once the project reaches
+            // QC, the export phase, or completion — so QC stays reachable when
+            // revisiting a finished project (a fresh load never sees
+            // AWAITING_QC, and non-export jobs have no export phase to infer it
+            // from). Completion is terminal for both flows.
+            if (data.status === 'COMPLETED' || (hasExport && inExportPhase)) {
                 deidDone = true;
             }
             if (deidDone && hasExport && data.status !== 'AWAITING_QC'
                 && ['PENDING', 'RUNNING', 'COMPLETED'].includes(data.status)) {
                 exportStarted = true;
+            }
+            // A finished non-export workflow was already approved; show that
+            // rather than offering the Approve button (which would 409).
+            if (data.status === 'COMPLETED' && !hasExport) {
+                approvedComplete = true;
             }
 
             document.querySelector('[data-tab="export"]').classList.toggle('hidden', !hasExport);
