@@ -50,6 +50,11 @@ urlpatterns = [
         name="qc_instance",
     ),
     path(
+        "api/qc/<int:project_id>/series/<path:series_id>/thumbnail/",
+        views.qc_thumbnail,
+        name="qc_thumbnail",
+    ),
+    path(
         "settings/general/",
         views.GeneralSettingsView.as_view(),
         name="general_settings",

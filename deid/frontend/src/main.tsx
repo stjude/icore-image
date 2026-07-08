@@ -51,6 +51,18 @@ function buildDataSource(projectId: string): DicomDataSource {
                 })),
             };
         },
+        // Middle-slice preview PNG rendered during de-identification (served
+        // from appdata). Returns an object URL the viewer revokes on unmount, or
+        // null when the series has no thumbnail (shows "No Preview").
+        async getThumbnailUrl(series) {
+            const res = await fetch(
+                encodeURI(`/api/qc/${projectId}/series/${series.id}/thumbnail/`),
+            );
+            if (!res.ok) {
+                return null;
+            }
+            return URL.createObjectURL(await res.blob());
+        },
     };
 }
 

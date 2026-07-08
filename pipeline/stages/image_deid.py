@@ -3,7 +3,11 @@ import os
 import xml.etree.ElementTree as ET
 from abc import ABC
 
+import numpy as np
 import pandas as pd
+import pydicom
+from PIL import Image
+from pydicom.pixels import apply_modality_lut, apply_voi_lut, convert_color_space
 
 from pipeline.base import PipelineStage
 from pipeline.context import PipelineContext
@@ -40,6 +44,119 @@ def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
                 csv_string_to_xlsx(f.read(), os.path.join(appdata_dir, xlsx_name))
             os.remove(csv_path)
             logging.info(f"Converted {csv_name} -> {xlsx_name}")
+
+
+# ---------------------------------------------------------------------------
+# QC thumbnail generation
+# ---------------------------------------------------------------------------
+
+THUMBNAIL_SIZE = (256, 256)
+
+
+def _middle_instance_path(series_dir: str) -> str | None:
+    """Return the representative middle-slice .dcm path for a series directory.
+
+    Slices are ordered by InstanceNumber (falling back to filename) so the
+    "middle" is anatomically central rather than an arbitrary file.
+    """
+    names = [f for f in os.listdir(series_dir) if f.lower().endswith(".dcm")]
+    if not names:
+        return None
+
+    def order_key(name: str) -> tuple[int, int, str]:
+        try:
+            ds = pydicom.dcmread(
+                os.path.join(series_dir, name),
+                stop_before_pixels=True,
+                specific_tags=["InstanceNumber"],
+            )
+            number = getattr(ds, "InstanceNumber", None)
+            if number not in (None, ""):
+                return (0, int(number), name)
+        except Exception:
+            pass
+        return (1, 0, name)
+
+    ordered = sorted(names, key=order_key)
+    return os.path.join(series_dir, ordered[len(ordered) // 2])
+
+
+def _render_thumbnail_image(dcm_path: str) -> Image.Image | None:
+    """Render a DICOM's (middle-frame) pixels to a PIL image, or None.
+
+    Output DICOMs are always uncompressed Explicit VR Little Endian, so pydicom
+    reads pixel_array natively. Grayscale images get modality + VOI LUT applied
+    and are normalized to 8-bit; color (US) frames are converted to RGB.
+    """
+    ds = pydicom.dcmread(dcm_path)
+    if "PixelData" not in ds:
+        return None
+    arr = ds.pixel_array
+
+    frames = int(getattr(ds, "NumberOfFrames", 1) or 1)
+    if frames > 1 and arr.ndim >= 3 and arr.shape[0] == frames:
+        arr = arr[frames // 2]
+
+    # Color (e.g. ultrasound): normalize color space, keep as RGB.
+    if arr.ndim == 3 and arr.shape[-1] == 3:
+        photometric = getattr(ds, "PhotometricInterpretation", "RGB")
+        if photometric.startswith("YBR"):
+            arr = convert_color_space(arr, photometric, "RGB")
+        return Image.fromarray(arr.astype(np.uint8), mode="RGB")
+
+    if arr.ndim != 2:
+        return None
+
+    arr = apply_modality_lut(arr, ds)
+    arr = apply_voi_lut(arr, ds).astype(np.float64)
+    low, high = float(arr.min()), float(arr.max())
+    arr = (arr - low) / (high - low) * 255.0 if high > low else np.zeros_like(arr)
+    arr8 = arr.astype(np.uint8)
+    if getattr(ds, "PhotometricInterpretation", "") == "MONOCHROME1":
+        arr8 = 255 - arr8
+    return Image.fromarray(arr8, mode="L")
+
+
+def _generate_series_thumbnails(output_dir: str, appdata_dir: str) -> None:
+    """Render a middle-slice PNG thumbnail per series into appdata for QC.
+
+    Best-effort: thumbnails are a QC preview aid, not job output, so any failure
+    (unreadable pixels, non-image series) is logged and skipped and never fails
+    the stage. Layout mirrors the output tree:
+    ``<appdata_dir>/thumbnails/<study>/<series>.png``.
+    """
+    if not os.path.isdir(output_dir):
+        return
+    thumbnails_root = os.path.join(appdata_dir, "thumbnails")
+    count = 0
+    for study_name in sorted(os.listdir(output_dir)):
+        study_dir = os.path.join(output_dir, study_name)
+        if not os.path.isdir(study_dir):
+            continue
+        for series_name in sorted(os.listdir(study_dir)):
+            series_dir = os.path.join(study_dir, series_name)
+            if not os.path.isdir(series_dir):
+                continue
+            try:
+                middle = _middle_instance_path(series_dir)
+                if middle is None:
+                    continue
+                image = _render_thumbnail_image(middle)
+                if image is None:
+                    continue
+                image.thumbnail(THUMBNAIL_SIZE)
+                out_dir = os.path.join(thumbnails_root, study_name)
+                os.makedirs(out_dir, exist_ok=True)
+                image.save(os.path.join(out_dir, f"{series_name}.png"))
+                count += 1
+            except Exception:
+                logging.warning(
+                    "Failed to render thumbnail for series %s/%s",
+                    study_name,
+                    series_name,
+                    exc_info=True,
+                )
+    logging.info(f"Generated {count} series thumbnails")
 
 
 # ---------------------------------------------------------------------------
@@ -408,6 +525,9 @@ class ImageDeidExecutor(ImageDeidStage):
         result = rs_pipeline.run()
 
         _collect_engine_audit_files(ctx.output_dir, ctx.appdata_dir)
+
+        # Render per-series QC preview thumbnails from the de-identified output.
+        _generate_series_thumbnails(ctx.output_dir, ctx.appdata_dir)
 
         ctx.images_saved = result["num_images_saved"]
         ctx.images_quarantined = result["num_images_quarantined"]

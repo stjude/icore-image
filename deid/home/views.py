@@ -652,6 +652,29 @@ def qc_instance(request, project_id, series_id, instance_name):
         return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 
+def qc_thumbnail(request, project_id, series_id):
+    """Serve a series' middle-slice preview thumbnail (generated during deid).
+
+    Thumbnails live in the run's appdata dir (not the job output) at
+    ``<appdata>/thumbnails/<series_id>.png``; 404 when a series has none
+    (unreadable/non-image), so the viewer shows its "No Preview" placeholder.
+    """
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        if not (task.name and task.timestamp):
+            return HttpResponseNotFound("No thumbnail")
+        base = os.path.join(appdata_dir_path(task.name, task.timestamp), "thumbnails")
+        file_path = os.path.join(base, f"{series_id}.png")
+        if not is_path_within_directory(file_path, base) or not os.path.isfile(
+            file_path
+        ):
+            return HttpResponseNotFound("No thumbnail")
+        return FileResponse(open(file_path, "rb"), content_type="image/png")
+    except Exception:
+        logger.exception("Error serving QC thumbnail")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
 def _parse_scheduled_time(data, settings):
     if "scheduled_time" not in data:
         return None
