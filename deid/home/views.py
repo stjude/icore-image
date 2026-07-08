@@ -107,7 +107,13 @@ def _validate_sas_url(sas_url):
         if "se" in query_params:
             expiry_str = query_params["se"][0]
             try:
-                expiry_time = datetime.strptime(expiry_str, "%Y-%m-%dT%H:%M:%SZ")
+                # The trailing "Z" is matched as a literal by strptime, so the
+                # result is timezone-naive; stamp it UTC so it can be compared
+                # to the aware current_time (otherwise the comparison raises
+                # TypeError, which escapes this handler as a generic failure).
+                expiry_time = datetime.strptime(
+                    expiry_str, "%Y-%m-%dT%H:%M:%SZ"
+                ).replace(tzinfo=dt_timezone.utc)
                 current_time = datetime.now(dt_timezone.utc)
 
                 if current_time >= expiry_time:
