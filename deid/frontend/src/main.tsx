@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import {
@@ -197,6 +197,40 @@ function QcViewerApp({ projectId }: { projectId: string }) {
     // Build the data source once so its identity is stable across renders.
     const [dataSource] = useState(() => buildDataSource(projectId));
 
+    // Track which series the operator has reviewed. A series counts once its
+    // images have been displayed AND its Metadata tab opened. We report the
+    // running count to the host page (task_progress.html) via a window event so
+    // it can gate the Approve button.
+    const reviewRef = useRef<Map<string, { displayed: boolean; metadata: boolean }>>(new Map());
+
+    const emitReviewProgress = useCallback(() => {
+        const totalSeries = (studies ?? []).reduce((n, s) => n + s.series.length, 0);
+        const required = Math.min(2, totalSeries);
+        let reviewedCount = 0;
+        for (const flags of reviewRef.current.values()) {
+            if (flags.displayed && flags.metadata) reviewedCount += 1;
+        }
+        window.dispatchEvent(
+            new CustomEvent('qc-review-progress', { detail: { reviewedCount, required } }),
+        );
+    }, [studies]);
+
+    const markReviewed = useCallback(
+        (seriesId: string, key: 'displayed' | 'metadata') => {
+            const flags = reviewRef.current.get(seriesId) ?? { displayed: false, metadata: false };
+            if (flags[key]) return; // no change
+            flags[key] = true;
+            reviewRef.current.set(seriesId, flags);
+            emitReviewProgress();
+        },
+        [emitReviewProgress],
+    );
+
+    // Emit the initial 0 / N so the page shows the requirement immediately.
+    useEffect(() => {
+        if (studies) emitReviewProgress();
+    }, [studies, emitReviewProgress]);
+
     useEffect(() => {
         const controller = new AbortController();
         fetch(`/api/qc/${projectId}/studies/`, { signal: controller.signal })
@@ -232,6 +266,8 @@ function QcViewerApp({ projectId }: { projectId: string }) {
             dataSource={dataSource}
             overlays={QC_OVERLAYS}
             onError={(e) => console.error('DICOM viewer error', e)}
+            onSeriesDisplayed={(seriesId) => markReviewed(seriesId, 'displayed')}
+            onMetadataViewed={(seriesId) => markReviewed(seriesId, 'metadata')}
         />
     );
 }

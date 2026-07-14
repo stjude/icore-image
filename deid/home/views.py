@@ -463,6 +463,13 @@ def task_status(request, project_id):
                 os.path.join(appdata_folder, "thumbnails", ".complete")
             )
 
+        # Only workflows that de-identify text reports emit output.xlsx; the QC
+        # screen gates approval on reviewing it when present.
+        output_dir = resolve_output_dir(task)
+        has_output_spreadsheet = bool(output_dir) and os.path.isfile(
+            os.path.join(output_dir, "output.xlsx")
+        )
+
         return JsonResponse(
             {
                 "status": task.status,
@@ -470,10 +477,11 @@ def task_status(request, project_id):
                 "name": task.name,
                 "task_type": task.task_type,
                 "logs_folder": logs_folder,
-                "output_folder": resolve_output_dir(task),
+                "output_folder": output_dir,
                 "appdata_folder": appdata_folder,
                 "progress": progress,
                 "qc_ready": qc_ready,
+                "has_output_spreadsheet": has_output_spreadsheet,
                 # A deferred Azure export is stashed on approval-gated workflows;
                 # the UI uses this to show the Export tab and button wording.
                 "has_export": bool((task.parameters or {}).get("export")),

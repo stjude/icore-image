@@ -131,6 +131,8 @@ export default function ViewerCornerstone({
     onError,
     initCornerstone = true,
     overlays = DEFAULT_OVERLAYS,
+    onSeriesDisplayed,
+    onMetadataViewed,
 }: ViewerProps) {
     const [seriesThumbnails, setSeriesThumbnails] = useState<Record<string, string>>({});
     const [loadingThumbnails, setLoadingThumbnails] = useState<Record<string, boolean>>({});
@@ -365,6 +367,7 @@ export default function ViewerCornerstone({
         loadedFileIndicesRef.current = myFileIndices;
 
         setCurrentSeriesId(series.id);
+        onSeriesDisplayed?.(series.id);
         setTotalSlices(totalFramesCount);
         setCurrentSliceIndex(0);
         setIsCurrentSeriesMultiFrame(hasMultiFrame);
@@ -441,6 +444,14 @@ export default function ViewerCornerstone({
         };
         fetchMetadataForCurrentSlice();
     }, [currentSliceIndex, totalSlices, currentSeriesId, getViewport]);
+
+    // Report when the user opens the Metadata tab for the current series so the
+    // host can track that the series was reviewed as images AND metadata.
+    useEffect(() => {
+        if (activeTab === 'metadata' && currentSeriesId) {
+            onMetadataViewed?.(currentSeriesId);
+        }
+    }, [activeTab, currentSeriesId, onMetadataViewed]);
 
     useEffect(() => {
         const viewport = getViewport();

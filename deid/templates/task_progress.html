@@ -116,13 +116,35 @@
         <!-- Tab 2: QC DICOM viewer -->
         <section id="qcPanel" class="hidden">
             <div id="qcViewerMount"></div>
-            <div class="border-t border-gray-200 px-6 py-4 flex items-center justify-between">
-                <p id="qcApproveHint" class="text-sm text-gray-500">
-                    Review the de-identified images above, then approve to continue.
-                </p>
-                <button id="approveBtn" class="px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
-                    Approve
-                </button>
+            <div class="border-t border-gray-200 px-6 py-4">
+                <!-- Review checklist / progress indicator -->
+                <div class="mb-3 space-y-1 text-sm text-gray-600">
+                    <div class="flex items-center gap-2">
+                        <span id="qcSeriesCheck" class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-[10px] text-white">○</span>
+                        <span>
+                            Review <span id="qcSeriesReqCount">2</span> series — view the images
+                            <strong>and</strong> open the Metadata tab for each
+                            (<span id="qcSeriesProgress" class="font-medium">0 / 2</span> reviewed)
+                        </span>
+                    </div>
+                    <div id="qcSpreadsheetReq" class="hidden flex items-center gap-2">
+                        <span id="qcSpreadsheetCheck" class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-[10px] text-white">○</span>
+                        <span>Open and review the output spreadsheet</span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <p id="qcApproveHint" class="text-sm text-gray-500">
+                        Review the de-identified images above, then approve to continue.
+                    </p>
+                    <div class="flex items-center gap-3">
+                        <button id="reviewSpreadsheetBtn" class="hidden px-6 py-3 bg-white border border-blue-600 text-blue-700 text-sm font-medium rounded shadow-sm hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                            Review output spreadsheet
+                        </button>
+                        <button id="approveBtn" class="px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 opacity-50 cursor-not-allowed" disabled>
+                            Approve
+                        </button>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -385,6 +407,7 @@
 
             renderDeidProgress(deidSnapshot || data.progress, deidDone);
             configureApproveButton();
+            configureReviewGates(data);
             if (hasExport) renderExportProgress(data);
 
             updateTabStrip();
@@ -461,6 +484,7 @@
             return;
         }
         btn.textContent = hasExport ? 'Approve and Export' : 'Approve';
+        refreshApproveGate();
     }
 
     async function approve() {
@@ -497,6 +521,83 @@
     }
 
     document.getElementById('approveBtn').addEventListener('click', approve);
+
+    // ----------------------------------------------------------------------
+    // QC review gating
+    // ----------------------------------------------------------------------
+    // Approve unlocks only after the operator reviews the required number of
+    // series (images + metadata, reported by the React viewer) and — for
+    // workflows that produced output.xlsx — opens that spreadsheet. The two
+    // gates may be satisfied in any order.
+    let seriesGateMet = false;
+    let spreadsheetReviewed = false;
+    let spreadsheetRequired = false;
+
+    function setQcCheck(id, done) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = done ? '✓' : '○';
+        el.classList.toggle('bg-green-600', done);
+        el.classList.toggle('border-green-600', done);
+        el.classList.toggle('border-gray-300', !done);
+    }
+
+    function refreshApproveGate() {
+        // Terminal states (already approved / export running) own the button.
+        if (approvedComplete || exportStarted) return;
+        const gatesMet = seriesGateMet && (spreadsheetReviewed || !spreadsheetRequired);
+        const btn = document.getElementById('approveBtn');
+        btn.disabled = !gatesMet;
+        btn.classList.toggle('opacity-50', !gatesMet);
+        btn.classList.toggle('cursor-not-allowed', !gatesMet);
+        const hint = document.getElementById('qcApproveHint');
+        if (gatesMet) {
+            hint.textContent = 'All required reviews complete — you may approve.';
+        } else {
+            const needs = [];
+            if (!seriesGateMet) needs.push('review the required series (images + metadata)');
+            if (spreadsheetRequired && !spreadsheetReviewed) needs.push('open the output spreadsheet');
+            hint.textContent = 'To approve, ' + needs.join(' and ') + '.';
+        }
+    }
+
+    // Reveal the spreadsheet requirement only for workflows that emit output.xlsx.
+    function configureReviewGates(data) {
+        spreadsheetRequired = !!(data && data.has_output_spreadsheet);
+        document.getElementById('qcSpreadsheetReq').classList.toggle('hidden', !spreadsheetRequired);
+        document.getElementById('reviewSpreadsheetBtn').classList.toggle('hidden', !spreadsheetRequired);
+        refreshApproveGate();
+    }
+
+    // The React viewer reports review progress via a window event (see main.tsx).
+    window.addEventListener('qc-review-progress', (e) => {
+        const { reviewedCount, required } = e.detail;
+        document.getElementById('qcSeriesReqCount').textContent = required;
+        document.getElementById('qcSeriesProgress').textContent = reviewedCount + ' / ' + required;
+        seriesGateMet = reviewedCount >= required;
+        setQcCheck('qcSeriesCheck', seriesGateMet);
+        refreshApproveGate();
+    });
+
+    async function reviewSpreadsheet() {
+        const hint = document.getElementById('qcApproveHint');
+        if (!outputFolder) return;
+        if (!(window.electronAPI && window.electronAPI.openFolder)) {
+            hint.textContent = 'The output spreadsheet can only be opened in the desktop app.';
+            return;
+        }
+        // macOS `open` launches the file in its default app (Excel/Numbers).
+        const result = await window.electronAPI.openFolder(outputFolder + '/output.xlsx');
+        if (result && result.success === false) {
+            hint.textContent = 'Could not open the output spreadsheet.';
+            return;
+        }
+        spreadsheetReviewed = true;
+        setQcCheck('qcSpreadsheetCheck', true);
+        refreshApproveGate();
+    }
+    document.getElementById('reviewSpreadsheetBtn').addEventListener('click', reviewSpreadsheet);
+
     document.getElementById('startQcBtn').addEventListener('click', () => {
         userSelectedTab = true;
         setActiveTab('qc');

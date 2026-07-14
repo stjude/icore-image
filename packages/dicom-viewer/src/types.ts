@@ -84,4 +84,8 @@ export interface ViewerProps {
      * DEFAULT_OVERLAYS, which reproduces the built-in metadata overlays.
      */
     overlays?: OverlayConfig;
+    /** Called each time a series' images are displayed in the viewport. */
+    onSeriesDisplayed?: (seriesId: string) => void;
+    /** Called when the Metadata tab is shown for the currently displayed series. */
+    onMetadataViewed?: (seriesId: string) => void;
 }
