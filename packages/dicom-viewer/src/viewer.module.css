@@ -90,31 +90,40 @@
     object-fit: cover;
 }
 
-.overlayTopLeft {
+.overlayTopLeft,
+.overlayTopRight,
+.overlayBottomLeft,
+.overlayBottomRight {
     position: absolute;
     padding: 12px;
     font-size: 12px;
     color: white;
 }
 
+.overlayTopLeft {
+    top: 0;
+    left: 0;
+}
+
+.overlayTopRight {
+    top: 0;
+    right: 0;
+    text-align: right;
+}
+
+.overlayBottomLeft {
+    bottom: 0;
+    left: 0;
+}
+
 .overlayBottomRight {
-    position: absolute;
     bottom: 0;
     right: 0;
-    padding: 12px;
     text-align: right;
-    font-size: 12px;
-    color: white;
 }
 
 .overlayStack {
     display: flex;
     flex-direction: column;
     gap: 4px;
-}
-
-.overlayFrameInfo {
-    margin-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-    padding-top: 4px;
 }

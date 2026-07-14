@@ -26,8 +26,16 @@ import { MouseBindings } from '@cornerstonejs/tools/enums';
 
 import DicomMetadataTable from './DicomMetadataTable';
 import { ensureCornerstoneInitialized } from './cornerstone';
-import type { ViewerProps, ViewerSeries } from './types';
+import { DEFAULT_OVERLAYS, getAttribute, resolveOverlayItem } from './overlays';
+import type { OverlayContext, OverlayCorner, OverlayItem, ViewerProps, ViewerSeries } from './types';
 import classes from './viewer.module.css';
+
+const OVERLAY_CORNER_CLASS: Record<OverlayCorner, string> = {
+    topLeft: classes.overlayTopLeft,
+    topRight: classes.overlayTopRight,
+    bottomLeft: classes.overlayBottomLeft,
+    bottomRight: classes.overlayBottomRight,
+};
 
 const isMultiFrameDicom = (dataSet: DataSet): boolean => {
     const numberOfFrames = parseInt(dataSet.string('x00280008')!);
@@ -97,68 +105,6 @@ const windowLevelFromVoiRange = ({ lower, upper }: { lower: number; upper: numbe
     windowCenter: (upper + lower) / 2,
 });
 
-interface FrameAttributeTag {
-    sequenceTag: string;
-    attributeTag: string;
-    parseType?: 'double';
-}
-
-/**
- * Looks up a specific frame attribute from the per-frame functional groups sequence,
- * falling back to the shared functional groups sequence if not found.
- */
-const lookupFrameAttribute = (dataset: DataSet, frameIndex: number, frameAttributeTag: FrameAttributeTag) => {
-    const perFrameSequence = dataset.elements.x52009230;
-    if (!perFrameSequence || !perFrameSequence.items || frameIndex >= perFrameSequence.items.length) {
-        console.error('Per-frame Functional Groups Sequence not found or frame index out of bounds');
-        return;
-    }
-    const frameData = perFrameSequence.items[frameIndex];
-    const sequenceElement = frameData?.dataSet?.elements?.[frameAttributeTag.sequenceTag];
-    if (sequenceElement?.items?.[0]?.dataSet) {
-        let value;
-        if (frameAttributeTag.parseType === 'double') {
-            value = sequenceElement.items[0].dataSet.double(frameAttributeTag.attributeTag);
-        } else {
-            value = sequenceElement.items[0].dataSet.string(frameAttributeTag.attributeTag);
-        }
-        if (value) return value;
-    }
-    // Fallback to shared functional group sequence
-    const sharedSequence = dataset.elements.x52009229;
-    if (sharedSequence?.items?.[0]?.dataSet) {
-        const sharedElement = sharedSequence.items[0].dataSet.elements?.[frameAttributeTag.sequenceTag];
-        if (sharedElement?.items?.[0]?.dataSet) {
-            let value;
-            if (frameAttributeTag.parseType === 'double') {
-                value = sharedElement.items[0].dataSet.double(frameAttributeTag.attributeTag);
-            } else {
-                value = sharedElement.items[0].dataSet.string(frameAttributeTag.attributeTag);
-            }
-            if (value) return value;
-        }
-    }
-};
-
-const getPerFrameAttributes = (dataSet: DataSet, frameIndex: number) => {
-    // Define the attributes to extract along with their sequence and attribute tags
-    const attributeTags: Record<string, FrameAttributeTag> = {
-        sliceThickness: { sequenceTag: 'x00289110', attributeTag: 'x00180050' },
-        kvp: { sequenceTag: 'x00189325', attributeTag: 'x00180060' },
-        xRayTubeCurrent: { sequenceTag: 'x00189321', attributeTag: 'x00189330' },
-        repetitionTime: { sequenceTag: 'x00189112', attributeTag: 'x00180080' },
-        echoTime: { sequenceTag: 'x00189114', attributeTag: 'x00189082', parseType: 'double' },
-    };
-    const attributes: Record<string, string | number | undefined> = {};
-    for (const key in attributeTags) {
-        const value = lookupFrameAttribute(dataSet, frameIndex, attributeTags[key]);
-        if (value) {
-            attributes[key] = value;
-        }
-    }
-    return attributes;
-};
-
 /**
  * Given a base image ID and number of frames, generates an array of image IDs for each frame.
  * These IDs are used to reference the individual frames within the cornerstone WADO URI image
@@ -179,7 +125,13 @@ const createMultiFrameImageIds = (baseImageId: string, numberOfFrames: number): 
     return imageIds;
 };
 
-export default function ViewerCornerstone({ studies, dataSource, onError, initCornerstone = true }: ViewerProps) {
+export default function ViewerCornerstone({
+    studies,
+    dataSource,
+    onError,
+    initCornerstone = true,
+    overlays = DEFAULT_OVERLAYS,
+}: ViewerProps) {
     const [seriesThumbnails, setSeriesThumbnails] = useState<Record<string, string>>({});
     const [loadingThumbnails, setLoadingThumbnails] = useState<Record<string, boolean>>({});
     const [currentSeriesId, setCurrentSeriesId] = useState<string | null>(null);
@@ -197,26 +149,11 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
         framesPerFile: Record<string, number>;
     } | null>(null);
     const totalSlicesTracker = useRef(0);
-    const [currentMetadata, setCurrentMetadata] = useState<{
-        instanceNumber?: string;
-        sliceThickness?: string;
-        sliceSpacing?: string;
-        seriesName?: string;
-        imageComments?: string;
-        FOV?: string;
-        kvp?: string;
-        current?: string;
-        tr?: string;
-        te?: string;
-        sequenceName?: string;
-        fieldStrength?: string;
-        acquisitionMatrix?: string;
-        modality?: string;
-        imagePosition?: string;
-        imageOrientation?: string;
-        pixelSpacing?: string;
-        stackId?: string;
-    }>({});
+    // Overlay content is resolved from `overlays` config at render time; we only
+    // track the raw context inputs (image, frame, modality) here.
+    const [currentImage, setCurrentImage] = useState<IImage | null>(null);
+    const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+    const [currentModality, setCurrentModality] = useState('');
     const [activeTab, setActiveTab] = useState<'viewer' | 'metadata'>('viewer');
     const [voi, setVoi] = useState<{ windowWidth: number; windowCenter: number } | null>(null);
 
@@ -478,7 +415,7 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
     );
 
     useEffect(() => {
-        const fetchMetadataForCurrentSlice = async () => {
+        const fetchMetadataForCurrentSlice = () => {
             const viewport = getViewport();
             if (!viewport || totalSlices === 0) return;
 
@@ -486,58 +423,18 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
                 const image = viewport.getCornerstoneImage() as IImage & { data: DataSet };
                 const ds = image.data as DataSet;
 
-                // For multi-frame images, extract frame-specific metadata if available
+                // For multi-frame images, extract the 0-based frame index from the image id.
                 const currentImageId = viewport.getCurrentImageId();
                 const frameMatch = currentImageId?.match(/frame=(\d+)/);
-                const currentFrame = frameMatch ? parseInt(frameMatch[1], 10) : 0;
+                const frameIndex = frameMatch ? parseInt(frameMatch[1], 10) - 1 : 0;
 
-                // Extract per-frame attributes for multi-frame images
-                const isMultiFrame = isMultiFrameDicom(ds);
-                const perFrameAttrs = isMultiFrame ? getPerFrameAttributes(ds, currentFrame - 1) : null;
-
-                const FOV = `${(image.columnPixelSpacing * image.columns).toFixed(2)} mm x ${(image.rowPixelSpacing * image.rows).toFixed(2)} mm`;
-                const acquisitionMatrix = `${image.columns} x ${image.rows}`;
-
-                // Handle frame-specific instance numbers for multi-frame images
-                let instanceNumber = ds.string('x00200013') || 'N/A';
-                if (isMultiFrame) {
-                    // For multi-frame images, show frame number as instance identifier
-                    instanceNumber += ` (frame ${currentFrame})`;
-                }
-
-                // Use per-frame attributes when available, fallback to shared attributes
-                const getAttributeValue = (perFrameKey: string, sharedTag: string, unit?: string) => {
-                    const perFrameValue = perFrameAttrs?.[perFrameKey];
-                    const sharedValue = ds.string(sharedTag);
-                    const value = perFrameValue || sharedValue;
-                    return value ? `${value}${unit || ''}` : 'N/A';
-                };
-
-                setCurrentMetadata({
-                    instanceNumber,
-                    sliceThickness: getAttributeValue('sliceThickness', 'x00180050', ' mm'),
-                    sliceSpacing: `${ds.string('x00180088')} mm` || 'N/A',
-                    seriesName: ds.string('x0008103E') || 'N/A',
-                    imageComments: ds.string('x00204000') || 'N/A',
-                    FOV,
-                    kvp: getAttributeValue('kvp', 'x00180060', ' kVp'),
-                    current: getAttributeValue('xRayTubeCurrent', 'x00181151', ' mA'),
-                    tr: getAttributeValue('repetitionTime', 'x00180080', ' ms'),
-                    te: getAttributeValue('echoTime', 'x00180081', ' ms'),
-                    sequenceName: ds.string('x00180024') || 'N/A',
-                    fieldStrength: `${ds.string('x00180087')}T` || 'N/A',
-                    modality: ds.string('x00080060') || 'N/A',
-                    acquisitionMatrix,
-                });
-
+                setCurrentImage(image);
+                setCurrentFrameIndex(frameIndex);
+                setCurrentModality(ds.string('x00080060') || '');
                 setCurrentDataset(ds);
             } catch (error) {
                 console.warn('Error fetching metadata for current slice:', error);
-                setCurrentMetadata({
-                    instanceNumber: 'N/A',
-                    sliceThickness: 'N/A',
-                    seriesName: 'N/A',
-                });
+                setCurrentImage(null);
             }
             // NOTE: currentSliceIndex and currentSeriesId are implicit dependencies of `viewport.getCornerstoneImage()`
             // in that when they change, it indicates the cornerstone image has changed and metadata must be re-fetched.
@@ -720,6 +617,45 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
 
     const currentSeries = currentSeriesId ? studies.flatMap((s) => s.series).find((s) => s.id === currentSeriesId) : null;
 
+    // Resolve the configured overlays for the currently displayed image. Each corner
+    // becomes an absolutely-positioned stack of "label: value" lines; items with no
+    // value or a non-matching modality are omitted.
+    const renderOverlays = () => {
+        if (totalSlices === 0 || !currentImage || !currentDataset) return null;
+        const ctx: OverlayContext = {
+            dataset: currentDataset,
+            image: currentImage,
+            frameIndex: currentFrameIndex,
+            isMultiFrame: isCurrentSeriesMultiFrame,
+            modality: currentModality,
+            voi,
+            getAttribute: (keywordOrTag) => getAttribute(currentDataset, keywordOrTag),
+        };
+        return (Object.keys(OVERLAY_CORNER_CLASS) as OverlayCorner[]).map((corner) => {
+            const lines = (overlays[corner] ?? [])
+                .map((item) => ({ item, value: resolveOverlayItem(item, ctx) }))
+                .filter((entry): entry is { item: OverlayItem; value: string } => entry.value !== null);
+            if (lines.length === 0) return null;
+            return (
+                <div key={corner} className={OVERLAY_CORNER_CLASS[corner]}>
+                    <div className={classes.overlayStack}>
+                        {lines.map(({ item, value }, index) => (
+                            <div key={index}>
+                                {item.label ? (
+                                    <>
+                                        <strong>{item.label}:</strong> {value}
+                                    </>
+                                ) : (
+                                    value
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        });
+    };
+
     return (
         <div className={classes.root}>
             {/* Series Thumbnails Sidebar */}
@@ -849,106 +785,8 @@ export default function ViewerCornerstone({ studies, dataSource, onError, initCo
                         <div ref={containerRef} id="layerGroup0" tabIndex={0} className={classes.viewport} />
                         {placeholderMessage}
 
-                        {/* DICOM Metadata Overlay */}
-                        {totalSlices > 0 && Object.keys(currentMetadata).length > 0 && (
-                            <>
-                                <div className={classes.overlayTopLeft}>
-                                    <div className={classes.overlayStack}>
-                                        <div>
-                                            <strong>Instance:</strong> {currentMetadata.instanceNumber}
-                                            {isCurrentSeriesMultiFrame && (
-                                                <span style={{ marginLeft: 8, color: 'var(--mantine-color-blue-2)' }}>
-                                                    [Multi-frame]
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <strong>Series Description:</strong> {currentMetadata.seriesName}
-                                        </div>
-                                        {voi && (
-                                            <div>
-                                                <strong>WW:</strong> {Math.round(voi.windowWidth)}
-                                                {' / '}
-                                                <strong>WL:</strong> {Math.round(voi.windowCenter)}
-                                            </div>
-                                        )}
-                                        {/* Per-frame specific information for multi-frame images */}
-                                        {isCurrentSeriesMultiFrame && currentMetadata.stackId && (
-                                            <div>
-                                                <strong>Stack ID:</strong> {currentMetadata.stackId}
-                                            </div>
-                                        )}
-                                        {isCurrentSeriesMultiFrame && currentMetadata.imagePosition && (
-                                            <div>
-                                                <strong>Image Position:</strong>{' '}
-                                                {currentMetadata.imagePosition
-                                                    .split('\\')
-                                                    .map((coord) => parseFloat(coord).toFixed(1))
-                                                    .join(', ')}
-                                            </div>
-                                        )}
-                                        {currentMetadata.modality === 'CT' && (
-                                            <>
-                                                <div>
-                                                    <strong>KVP:</strong> {currentMetadata.kvp}
-                                                </div>
-                                                <div>
-                                                    <strong>Current:</strong> {currentMetadata.current}
-                                                </div>
-                                            </>
-                                        )}
-                                        {currentMetadata.modality === 'MR' && (
-                                            <>
-                                                <div>
-                                                    <strong>TR:</strong> {currentMetadata.tr}
-                                                </div>
-                                                <div>
-                                                    <strong>TE:</strong> {currentMetadata.te}
-                                                </div>
-                                            </>
-                                        )}
-                                        {isCurrentSeriesMultiFrame && multiFrameInfo && (
-                                            <div className={classes.overlayFrameInfo}>
-                                                <div>
-                                                    <strong>Frame Info:</strong> {multiFrameInfo.totalFrames} total
-                                                    frames from {multiFrameInfo.totalFiles} files
-                                                </div>
-                                                {currentMetadata.pixelSpacing && (
-                                                    <div>
-                                                        <strong>Pixel Spacing:</strong> {currentMetadata.pixelSpacing}{' '}
-                                                        mm
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className={classes.overlayBottomRight}>
-                                    {currentMetadata.modality === 'MR' && (
-                                        <div>
-                                            <strong>Sequence Name:</strong> {currentMetadata.sequenceName}
-                                        </div>
-                                    )}
-                                    <div>
-                                        <strong>Img Comments:</strong> {currentMetadata.imageComments || 'N/A'}
-                                    </div>
-                                    <div>
-                                        <strong>FOV:</strong> {currentMetadata.FOV}
-                                    </div>
-                                    <div>
-                                        <strong>Acq Matrix:</strong> {currentMetadata.acquisitionMatrix}
-                                    </div>
-                                    {currentMetadata.modality === 'MR' && (
-                                        <div>
-                                            <strong>Field Strength:</strong> {currentMetadata.fieldStrength}
-                                        </div>
-                                    )}
-                                    <div>
-                                        {currentMetadata.sliceThickness} thk / {currentMetadata.sliceSpacing} sep
-                                    </div>
-                                </div>
-                            </>
-                        )}
+                        {/* DICOM Metadata Overlays (configured via the `overlays` prop) */}
+                        {renderOverlays()}
                     </Tabs.Panel>
                     <Tabs.Panel
                         value="metadata"

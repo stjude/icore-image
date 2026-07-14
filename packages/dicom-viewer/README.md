@@ -115,6 +115,47 @@ const diskDataSource = {
 <ViewerCornerstone studies={studies} dataSource={diskDataSource} />;
 ```
 
+### Configuring overlays
+
+The metadata shown in the viewport corners is configurable via the `overlays` prop. Each of the four
+corners (`topLeft`, `topRight`, `bottomLeft`, `bottomRight`) takes a list of items. An item names a DICOM
+attribute — by keyword (`"KVP"`, `"EchoTime"`) or hex tag (`"x00180060"`) — plus an optional `label`,
+`unit`, `modalities` filter, and `format` hook for computed values. Items with no value (or a non-matching
+modality) are omitted.
+
+Omitting the prop uses `DEFAULT_OVERLAYS`, which reproduces the built-in overlays. Import it to extend
+rather than replace the defaults.
+
+```tsx
+import { ViewerCornerstone, DEFAULT_OVERLAYS } from '@stjude/dicom-viewer';
+
+<ViewerCornerstone
+    studies={studies}
+    dataSource={dataSource}
+    overlays={{
+        topLeft: [
+            { attribute: 'InstanceNumber', label: 'Instance' },
+            { attribute: 'PatientID', label: 'MRN' },
+            // Multi-frame per-frame lookup with a shared-attribute fallback, CT only:
+            {
+                label: 'KVP',
+                unit: ' kVp',
+                modalities: ['CT'],
+                attribute: 'x00180060',
+                frame: { sequenceTag: 'x00189325', attributeTag: 'x00180060' },
+            },
+            // Computed value via the format hook:
+            {
+                label: 'WW/WL',
+                format: (_v, ctx) =>
+                    ctx.voi ? `${Math.round(ctx.voi.windowWidth)} / ${Math.round(ctx.voi.windowCenter)}` : null,
+            },
+        ],
+        bottomRight: DEFAULT_OVERLAYS.bottomRight,
+    }}
+/>;
+```
+
 ## Notes / gotchas
 
 - **Multi-frame preload workaround**: the loader pre-loads the first frame of every
