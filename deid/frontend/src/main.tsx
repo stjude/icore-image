@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
-import { ViewerCornerstone, type DicomDataSource, type ViewerStudy } from '@stjude/dicom-viewer';
+import {
+    ViewerCornerstone,
+    type DicomDataSource,
+    type OverlayConfig,
+    type OverlayItem,
+    type ViewerStudy,
+} from '@stjude/dicom-viewer';
 
 // Mantine core styles must load before the viewer's own styles. Vite emits both
 // into qc-viewer.css; we do NOT let it apply to the whole document (Mantine's
@@ -14,6 +20,84 @@ import '@stjude/dicom-viewer/styles.css';
 // URL of the emitted stylesheet, resolved next to this module regardless of the
 // static base path. Fetched and injected into the viewer's shadow root.
 const STYLESHEET_URL = new URL('./qc-viewer.css', import.meta.url).href;
+
+// Shared bottom-right items reused across modalities. Slice thickness prefers the
+// per-frame value (multi-frame) and falls back to the top-level SliceThickness.
+const sliceThicknessSpacing: OverlayItem = {
+    label: 'Thickness/Spacing',
+    attribute: 'SliceThickness',
+    frame: { sequenceTag: 'x00289110', attributeTag: 'x00180050' },
+    format: (thk, ctx) => `${thk ?? 'N/A'} mm / ${ctx.getAttribute('SpacingBetweenSlices') ?? 'N/A'} mm`,
+};
+
+const fieldOfView: OverlayItem = {
+    label: 'FOV',
+    format: (_v, ctx) =>
+        `${(ctx.image.columnPixelSpacing * ctx.image.columns).toFixed(0)} x ${(ctx.image.rowPixelSpacing * ctx.image.rows).toFixed(0)} mm`,
+};
+
+// QC overlay layout. Attributes are referenced by DICOM keyword; the bottom-right
+// corner is modality-gated (CT vs MR) via each item's `modalities` filter.
+const QC_OVERLAYS: OverlayConfig = {
+    topLeft: [
+        { label: 'Patient', attribute: 'PatientName' },
+        { label: 'MRN', attribute: 'PatientID' },
+        { label: 'Acc', attribute: 'AccessionNumber' },
+        { label: 'DOB', attribute: 'PatientBirthDate' },
+        { label: 'Age', attribute: 'PatientAge' },
+        { label: 'Sex', attribute: 'PatientSex' },
+    ],
+    topRight: [
+        { label: 'Institution', attribute: 'InstitutionName' },
+        { label: 'Manufacturer', attribute: 'Manufacturer' },
+        { label: 'Model', attribute: 'ManufacturerModelName' },
+        { label: 'Protocol', attribute: 'ProtocolName' },
+    ],
+    bottomLeft: [
+        { label: 'Study', attribute: 'StudyDescription' },
+        { label: 'Series', attribute: 'SeriesDescription' },
+        { label: 'Series Date', attribute: 'SeriesDate' },
+        { label: 'Images', format: (_v, ctx) => String(ctx.imageCount) },
+    ],
+    bottomRight: [
+        { label: 'Modality', attribute: 'Modality' },
+        // CT
+        { ...sliceThicknessSpacing, modalities: ['CT'] },
+        { ...fieldOfView, modalities: ['CT'] },
+        {
+            label: 'KVP',
+            unit: ' kVp',
+            modalities: ['CT'],
+            attribute: 'x00180060',
+            frame: { sequenceTag: 'x00189325', attributeTag: 'x00180060' },
+        },
+        {
+            label: 'Tube Current',
+            unit: ' mA',
+            modalities: ['CT'],
+            attribute: 'x00181151',
+            frame: { sequenceTag: 'x00189321', attributeTag: 'x00189330' },
+        },
+        // MR
+        { ...sliceThicknessSpacing, modalities: ['MR'] },
+        { ...fieldOfView, modalities: ['MR'] },
+        { label: 'Echo Train Length', attribute: 'EchoTrainLength', modalities: ['MR'] },
+        {
+            label: 'TR',
+            unit: ' ms',
+            modalities: ['MR'],
+            attribute: 'x00180080',
+            frame: { sequenceTag: 'x00189112', attributeTag: 'x00180080' },
+        },
+        {
+            label: 'TE',
+            unit: ' ms',
+            modalities: ['MR'],
+            attribute: 'x00180081',
+            frame: { sequenceTag: 'x00189114', attributeTag: 'x00189082', parseType: 'double' },
+        },
+    ],
+};
 
 interface InstanceRef {
     name: string;
@@ -105,6 +189,7 @@ function QcViewerApp({ projectId }: { projectId: string }) {
         <ViewerCornerstone
             studies={studies}
             dataSource={dataSource}
+            overlays={QC_OVERLAYS}
             onError={(e) => console.error('DICOM viewer error', e)}
         />
     );

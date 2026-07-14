@@ -627,6 +627,7 @@ export default function ViewerCornerstone({
             image: currentImage,
             frameIndex: currentFrameIndex,
             isMultiFrame: isCurrentSeriesMultiFrame,
+            imageCount: totalSlices,
             modality: currentModality,
             voi,
             getAttribute: (keywordOrTag) => getAttribute(currentDataset, keywordOrTag),

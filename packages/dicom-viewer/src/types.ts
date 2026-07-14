@@ -24,6 +24,8 @@ export interface OverlayContext {
     /** 0-based frame within a multi-frame instance; 0 for single-frame. */
     frameIndex: number;
     isMultiFrame: boolean;
+    /** Total images (frames) in the currently displayed series stack. */
+    imageCount: number;
     modality: string;
     voi: { windowWidth: number; windowCenter: number } | null;
     /** Resolve a raw string value by keyword ("KVP") or hex tag ("x00180060"). */
