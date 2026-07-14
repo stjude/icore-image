@@ -362,7 +362,7 @@ class TaskProgressView(TemplateView):
             try:
                 project = Project.objects.get(id=project_id)
                 context["project_name"] = project.name
-                context["module_name"] = project.get_task_type_display()
+                context["module_name"] = Project.TaskType(project.task_type).label
             except Project.DoesNotExist:
                 context["project_name"] = "Unknown"
                 context["module_name"] = "Task"
