@@ -4,15 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('home', '0005_delete_module_alter_project_task_type'),
+        ("home", "0005_delete_module_alter_project_task_type"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='project',
-            name='status',
-            field=models.CharField(choices=[('PENDING', 'Pending'), ('RUNNING', 'Running'), ('AWAITING_QC', 'Awaiting QC'), ('COMPLETED', 'Completed'), ('FAILED', 'Failed'), ('CANCELLED', 'Cancelled')], default='PENDING', max_length=20),
+            model_name="project",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("PENDING", "Pending"),
+                    ("RUNNING", "Running"),
+                    ("AWAITING_QC", "Awaiting QC"),
+                    ("COMPLETED", "Completed"),
+                    ("FAILED", "Failed"),
+                    ("CANCELLED", "Cancelled"),
+                ],
+                default="PENDING",
+                max_length=20,
+            ),
         ),
     ]
