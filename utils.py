@@ -821,7 +821,13 @@ def appdata_dir_path(project_name: str | None, timestamp: str) -> str:
         if project_name
         else f"PHI_{timestamp}"
     )
-    return os.path.join(icore_base, "appdata", name)
+    final_path = os.path.join(icore_base, "appdata", name)
+    # assert final_path is within the iCore base directory
+    if not os.path.commonpath([final_path, icore_base]) == icore_base:
+        raise ValueError(
+            f"Computed appdata path '{final_path}' is not within base '{icore_base}'"
+        )
+    return final_path
 
 
 def setup_run_directories(

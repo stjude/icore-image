@@ -1,5 +1,7 @@
+import collections
 import logging
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -8,6 +10,21 @@ from urllib.parse import urlparse
 
 from pipeline.base import PipelineStage
 from pipeline.context import PipelineContext
+
+# rclone's ``--stats-one-line`` output carries the overall completion percent,
+# e.g. ``Transferred: 1.5 MiB / 10 MiB, 15%, 500 KiB/s, ETA 20s``.
+_RCLONE_PERCENT_RE = re.compile(r"(\d+)%")
+
+
+def _parse_rclone_percent(line: str) -> float | None:
+    """Return the completion fraction (0..1) from an rclone stats line.
+
+    ``None`` when the line carries no percentage (e.g. an unrelated log line).
+    """
+    match = _RCLONE_PERCENT_RE.search(line)
+    if not match:
+        return None
+    return max(0.0, min(1.0, int(match.group(1)) / 100.0))
 
 
 def _get_rclone_binary() -> str:
@@ -93,6 +110,8 @@ class AzureBlobExport(ExportStage):
     to export, skip" behavior of the pre-refactor wrappers.
     """
 
+    progress_marker = ("export", "Exporting to cloud")
+
     def __init__(
         self,
         sas_url: str,
@@ -138,10 +157,17 @@ class AzureBlobExport(ExportStage):
                 destination = f"azure:{container_name}/{self.project_name}"
 
                 rclone_binary = _get_rclone_binary()
+                # --stats-one-line + a fixed interval gives one machine-parseable
+                # progress line per second (raised to NOTICE so it prints at the
+                # default log level); we stream it into the progress bar.
                 cmd = [
                     rclone_binary,
                     "copy",
-                    "--progress",
+                    "--stats",
+                    "1s",
+                    "--stats-one-line",
+                    "--stats-log-level",
+                    "NOTICE",
                     "--config",
                     rclone_config_path,
                     ctx.output_dir,
@@ -149,47 +175,48 @@ class AzureBlobExport(ExportStage):
                 ]
 
                 logging.info(
-                    f"Running rclone command: {' '.join(cmd[:4])} ... {destination}"
+                    f"Running rclone command: {' '.join(cmd[:2])} ... {destination}"
                 )
-
-                try:
-                    subprocess.run(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        check=True,
-                    )
-                    logging.info("PROGRESS: COMPLETE")
-                    ctx.export_performed = True
-                except subprocess.CalledProcessError as e:
-                    raise Exception(
-                        f"rclone error: Command failed with exit code "
-                        f"{e.returncode}: {e.stderr}"
-                    )
+                self._run_rclone(cmd, ctx)
+                logging.info("PROGRESS: COMPLETE")
+                ctx.export_performed = True
             finally:
                 if os.path.exists(rclone_config_path):
                     os.remove(rclone_config_path)
-
-        except subprocess.CalledProcessError as e:
-            error_parts = []
-
-            if e.stderr:
-                error_parts.append(f"rclone stderr: {e.stderr}")
-                logging.error(f"rclone stderr: {e.stderr}")
-            if e.stdout:
-                error_parts.append(f"rclone stdout: {e.stdout}")
-                logging.error(f"rclone stdout: {e.stdout}")
-
-            error_details = "\n".join(error_parts) if error_parts else str(e)
-            error_msg = f"rclone error: Command failed with exit code {e.returncode}"
-            if error_details:
-                error_msg += f"\n{error_details}"
-
-            logging.error(error_msg)
-
-            raise Exception(error_msg)
         except Exception as e:
             error_msg = f"Error during export: {str(e)}"
             logging.error(error_msg)
             raise
+
+    def _run_rclone(self, cmd: list[str], ctx: PipelineContext) -> None:
+        """Run rclone, streaming its stats into ``ctx.progress`` as they arrive.
+
+        stderr is merged into stdout so both the stats lines and any error
+        output arrive in order; the last lines are retained for the exception
+        message if rclone exits non-zero.
+        """
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        tail: collections.deque[str] = collections.deque(maxlen=50)
+        assert process.stdout is not None
+        for raw in process.stdout:
+            line = raw.rstrip("\n")
+            if not line:
+                continue
+            tail.append(line)
+            fraction = _parse_rclone_percent(line)
+            if fraction is not None and ctx.progress:
+                ctx.progress.update("export", fraction, "Exporting to cloud storage…")
+        returncode = process.wait()
+        if returncode != 0:
+            details = "\n".join(tail)
+            raise Exception(
+                f"rclone error: Command failed with exit code {returncode}:\n{details}"
+            )
+        if ctx.progress:
+            ctx.progress.update("export", 1.0, "Export complete")

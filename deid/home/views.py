@@ -1,16 +1,19 @@
 import logging
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone as dt_timezone
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 
 import bcrypt
 import pandas as pd
 import psutil
+import pydicom
 import pytz
 from django.db import transaction
 from django.http import (
+    FileResponse,
     HttpResponse,
     HttpResponseBadRequest,
     HttpResponseNotFound,
@@ -22,6 +25,9 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
+
+import tasks as icore_tasks
+from tasks import ImageExportArgs
 
 from . import builders
 from .models import Project
@@ -101,7 +107,13 @@ def _validate_sas_url(sas_url):
         if "se" in query_params:
             expiry_str = query_params["se"][0]
             try:
-                expiry_time = datetime.strptime(expiry_str, "%Y-%m-%dT%H:%M:%SZ")
+                # The trailing "Z" is matched as a literal by strptime, so the
+                # result is timezone-naive; stamp it UTC so it can be compared
+                # to the aware current_time (otherwise the comparison raises
+                # TypeError, which escapes this handler as a generic failure).
+                expiry_time = datetime.strptime(
+                    expiry_str, "%Y-%m-%dT%H:%M:%SZ"
+                ).replace(tzinfo=dt_timezone.utc)
                 current_time = datetime.now(dt_timezone.utc)
 
                 if current_time >= expiry_time:
@@ -401,14 +413,43 @@ def _read_progress(logs_folder):
         return None
 
 
+# Task types whose output directory is a de-identified DICOM image tree the QC
+# viewer can display (as opposed to text-only or PHI outputs).
+QC_VIEWER_TASK_TYPES = frozenset(
+    {"IMAGE_DEID", "IMAGE_DEID_EXPORT", "SINGLE_CLICK_ICORE"}
+)
+
+# Task types whose output directory holds de-identified (vs. raw PHI) data.
+_DEID_TASK_TYPES = frozenset(
+    {"IMAGE_DEID", "TEXT_DEID", "IMAGE_DEID_EXPORT", "SINGLE_CLICK_ICORE"}
+)
+
+
+def resolve_output_dir(task):
+    """Return the absolute run-output directory for ``task``, or ``""``.
+
+    Mirrors how each pipeline names its output folder
+    (``{DeID|PHI}_{name}_{timestamp}`` under the user-chosen output folder).
+    Shared by ``task_status`` and the QC viewer endpoints so the path is
+    computed in exactly one place.
+    """
+    if not (task.output_folder and task.name and task.timestamp):
+        return ""
+    prefix = "DeID" if task.task_type in _DEID_TASK_TYPES else "PHI"
+    return os.path.join(
+        task.output_folder,
+        f"{prefix}_{sanitize_filename(task.name)}_{task.timestamp}",
+    )
+
+
 def task_status(request, project_id):
     try:
         task = Project.objects.get(id=project_id)
 
         logs_folder = ""
         appdata_folder = ""
-        actual_output_folder = ""
         progress = None
+        qc_ready = False
 
         if task.log_path:
             logs_folder = os.path.dirname(task.log_path)
@@ -416,21 +457,18 @@ def task_status(request, project_id):
 
         if task.name and task.timestamp:
             appdata_folder = appdata_dir_path(task.name, task.timestamp)
-
-        if task.output_folder and task.name and task.timestamp:
-            if task.task_type in [
-                "IMAGE_DEID",
-                "TEXT_DEID",
-                "IMAGE_DEID_EXPORT",
-                "SINGLE_CLICK_ICORE",
-            ]:
-                prefix = "DeID"
-            else:
-                prefix = "PHI"
-            actual_output_folder = os.path.join(
-                task.output_folder,
-                f"{prefix}_{sanitize_filename(task.name)}_{task.timestamp}",
+            # The QC viewer only mounts once thumbnails have finished generating
+            # (marker written at the end of the image-deid stage).
+            qc_ready = os.path.isfile(
+                os.path.join(appdata_folder, "thumbnails", ".complete")
             )
+
+        # Only workflows that de-identify text reports emit output.xlsx; the QC
+        # screen gates approval on reviewing it when present.
+        output_dir = resolve_output_dir(task)
+        has_output_spreadsheet = bool(output_dir) and os.path.isfile(
+            os.path.join(output_dir, "output.xlsx")
+        )
 
         return JsonResponse(
             {
@@ -439,15 +477,283 @@ def task_status(request, project_id):
                 "name": task.name,
                 "task_type": task.task_type,
                 "logs_folder": logs_folder,
-                "output_folder": actual_output_folder,
+                "output_folder": output_dir,
                 "appdata_folder": appdata_folder,
                 "progress": progress,
+                "qc_ready": qc_ready,
+                "has_output_spreadsheet": has_output_spreadsheet,
+                # A deferred Azure export is stashed on approval-gated workflows;
+                # the UI uses this to show the Export tab and button wording.
+                "has_export": bool((task.parameters or {}).get("export")),
             }
         )
     except Project.DoesNotExist:
         return JsonResponse({"error": "Task not found"}, status=404)
     except Exception:
         logger.exception("Error processing request")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+# ---------------------------------------------------------------------------
+# QC viewer: expose the de-identified output tree to the in-app DICOM viewer.
+#
+# Output layout on disk (produced by the dicom-deid-rs engine):
+#   DATE-{StudyDate}--{Modality}--PID-{PatientID}/SER-{SeriesNumber}/{SOP}.dcm
+# Studies are top-level dirs, series are their subdirs, instances are the .dcm
+# files. Every path derived from a request is confined to the run's output dir
+# via is_path_within_directory before any filesystem access.
+# ---------------------------------------------------------------------------
+
+_SERIES_DIR_RE = re.compile(r"SER-(\d+)")
+
+
+def _parse_modality(study_dir_name):
+    """Extract the modality from a ``DATE-..--{Modality}--PID-..`` study dir."""
+    parts = study_dir_name.split("--")
+    return parts[1] if len(parts) >= 2 and parts[1] else None
+
+
+def _parse_series_number(series_dir_name):
+    match = _SERIES_DIR_RE.match(series_dir_name)
+    return int(match.group(1)) if match else None
+
+
+def _read_series_metadata(dcm_path):
+    """Read a few descriptive tags from one instance; ``{}`` on any failure."""
+    try:
+        ds = pydicom.dcmread(
+            dcm_path,
+            stop_before_pixels=True,
+            specific_tags=[
+                "SeriesDescription",
+                "StudyDescription",
+                "Modality",
+                "SeriesNumber",
+            ],
+        )
+    except Exception:
+        return {}
+    series_number = getattr(ds, "SeriesNumber", None)
+    return {
+        "series_description": getattr(ds, "SeriesDescription", None) or None,
+        "study_description": getattr(ds, "StudyDescription", None) or None,
+        "modality": getattr(ds, "Modality", None) or None,
+        "series_number": int(series_number)
+        if series_number not in (None, "")
+        else None,
+    }
+
+
+def _sorted_dcm_files(dir_path):
+    return sorted(f for f in os.listdir(dir_path) if f.lower().endswith(".dcm"))
+
+
+def _instance_order_key(dir_path, name):
+    """Sort key ordering instances by InstanceNumber when present.
+
+    Files with a readable InstanceNumber come first, in numeric order; any
+    without (unreadable/absent) fall back to filename order at the end. The
+    filename is the final tiebreaker so ordering is always deterministic.
+    """
+    try:
+        ds = pydicom.dcmread(
+            os.path.join(dir_path, name),
+            stop_before_pixels=True,
+            specific_tags=["InstanceNumber"],
+        )
+        number = getattr(ds, "InstanceNumber", None)
+        if number not in (None, ""):
+            return (0, int(number), name)
+    except Exception:
+        pass
+    return (1, 0, name)
+
+
+def _ordered_dcm_files(dir_path):
+    """Return the series' .dcm files ordered for stack display."""
+    files = [f for f in os.listdir(dir_path) if f.lower().endswith(".dcm")]
+    return sorted(files, key=lambda name: _instance_order_key(dir_path, name))
+
+
+def qc_studies(request, project_id):
+    """Enumerate the output directory as a ViewerStudy[] tree for the viewer."""
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        output_dir = resolve_output_dir(task)
+        if not output_dir or not os.path.isdir(output_dir):
+            return JsonResponse({"studies": []})
+
+        studies = []
+        for study_name in sorted(os.listdir(output_dir)):
+            study_path = os.path.join(output_dir, study_name)
+            if not is_path_within_directory(study_path, output_dir):
+                continue
+            if not os.path.isdir(study_path):
+                continue
+
+            series_list = []
+            study_description = None
+            for series_name in sorted(os.listdir(study_path)):
+                series_path = os.path.join(study_path, series_name)
+                if not os.path.isdir(series_path):
+                    continue
+                dcm_files = _sorted_dcm_files(series_path)
+                if not dcm_files:
+                    continue
+                meta = _read_series_metadata(os.path.join(series_path, dcm_files[0]))
+                study_description = study_description or meta.get("study_description")
+                series_list.append(
+                    {
+                        "id": f"{study_name}/{series_name}",
+                        "series_description": meta.get("series_description"),
+                        "series_number": meta.get("series_number")
+                        or _parse_series_number(series_name),
+                        "modality": meta.get("modality")
+                        or _parse_modality(study_name)
+                        or "",
+                        "instance_count": len(dcm_files),
+                    }
+                )
+
+            if not series_list:
+                continue
+            studies.append(
+                {
+                    "id": study_name,
+                    "study_description": study_description,
+                    "study_name": study_name,
+                    "series": series_list,
+                }
+            )
+
+        return JsonResponse({"studies": studies})
+    except Exception:
+        logger.exception("Error enumerating QC studies")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+def qc_series_instances(request, project_id, series_id):
+    """Return the ordered instance list (name + byte URL) for one series."""
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        output_dir = resolve_output_dir(task)
+        series_path = os.path.join(output_dir, series_id)
+        if (
+            not output_dir
+            or not is_path_within_directory(series_path, output_dir)
+            or not os.path.isdir(series_path)
+        ):
+            return HttpResponseBadRequest("Invalid series")
+
+        instances = [
+            {
+                "name": name,
+                "url": (
+                    f"/api/qc/{project_id}/series/{quote(series_id)}"
+                    f"/instances/{quote(name)}/"
+                ),
+            }
+            for name in _ordered_dcm_files(series_path)
+        ]
+        return JsonResponse({"instances": instances})
+    except Exception:
+        logger.exception("Error listing QC series instances")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+def qc_instance(request, project_id, series_id, instance_name):
+    """Stream a single de-identified .dcm file to the viewer."""
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        output_dir = resolve_output_dir(task)
+        file_path = os.path.join(output_dir, series_id, instance_name)
+        if (
+            not output_dir
+            or not is_path_within_directory(file_path, output_dir)
+            or not os.path.isfile(file_path)
+        ):
+            return HttpResponseBadRequest("Invalid instance")
+        return FileResponse(open(file_path, "rb"), content_type="application/dicom")
+    except Exception:
+        logger.exception("Error serving QC instance")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+def qc_thumbnail(request, project_id, series_id):
+    """Serve a series' middle-slice preview thumbnail (generated during deid).
+
+    Thumbnails live in the run's appdata dir (not the job output) at
+    ``<appdata>/thumbnails/<series_id>.png``; 404 when a series has none
+    (unreadable/non-image), so the viewer shows its "No Preview" placeholder.
+    """
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        if not (task.name and task.timestamp):
+            return HttpResponseNotFound("No thumbnail")
+        base = os.path.join(appdata_dir_path(task.name, task.timestamp), "thumbnails")
+        file_path = os.path.join(base, f"{series_id}.png")
+        if not is_path_within_directory(file_path, base) or not os.path.isfile(
+            file_path
+        ):
+            return HttpResponseNotFound("No thumbnail")
+        return FileResponse(open(file_path, "rb"), content_type="image/png")
+    except Exception:
+        logger.exception("Error serving QC thumbnail")
+        return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+@require_http_methods(["POST"])
+def qc_approve(request, project_id):
+    """Approve a de-identified project's QC review and advance the workflow.
+
+    Only a project parked at AWAITING_QC can be approved; the transition is
+    claimed atomically so a double-click can't complete or export twice.
+    Workflows with a stashed ``export`` intent hand off to a fresh
+    ``image_export`` task (running against the deid output dir) and return to
+    PENDING; workflows without one simply complete.
+    """
+    try:
+        task = get_object_or_404(Project, id=project_id)
+        export = (task.parameters or {}).get("export")
+
+        if not export:
+            updated = Project.objects.filter(
+                pk=project_id, status=Project.TaskStatus.AWAITING_QC
+            ).update(status=Project.TaskStatus.COMPLETED, updated_at=timezone.now())
+            if not updated:
+                return JsonResponse(
+                    {"status": "error", "message": "Project is not awaiting QC."},
+                    status=409,
+                )
+            return JsonResponse({"status": Project.TaskStatus.COMPLETED.value})
+
+        args = ImageExportArgs(
+            input_dir=resolve_output_dir(task),
+            sas_url=export["sas_url"],
+            project_name=export["project_name"],
+        )
+        with transaction.atomic():
+            claimed = Project.objects.filter(
+                pk=project_id, status=Project.TaskStatus.AWAITING_QC
+            ).update(status=Project.TaskStatus.PENDING, updated_at=timezone.now())
+            if not claimed:
+                return JsonResponse(
+                    {"status": "error", "message": "Project is not awaiting QC."},
+                    status=409,
+                )
+            # Keep the "export" key so task_status still reports has_export
+            # while the export task runs (and across a mid-export page reload);
+            # run_project drives the task from the passed args, not parameters.
+            task.parameters = {
+                **(task.parameters or {}),
+                "task": icore_tasks.image_export.name,
+                "args": args.model_dump(),
+            }
+            task.save(update_fields=["parameters"])
+            enqueue_project(task, icore_tasks.image_export, args)
+        return JsonResponse({"status": Project.TaskStatus.PENDING.value})
+    except Exception:
+        logger.exception("Error approving QC")
         return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
 
 
@@ -459,9 +765,16 @@ def _parse_scheduled_time(data, settings):
     return tz.localize(local_dt).astimezone(pytz.UTC)
 
 
-def _save_and_enqueue(project, task, args):
-    """Persist the project row and queue its Celery task (at eta if scheduled)."""
+def _save_and_enqueue(project, task, args, export=None):
+    """Persist the project row and queue its Celery task (at eta if scheduled).
+
+    ``export`` (when given) stashes the deferred Azure export intent
+    (``{"sas_url", "project_name"}``) that ``qc_approve`` uses to run
+    ``image_export`` against the deid output after the operator approves it.
+    """
     project.parameters = {"task": task.name, "args": args.model_dump()}
+    if export is not None:
+        project.parameters["export"] = export
     with transaction.atomic():
         project.save()
         enqueue_project(project, task, args)
@@ -669,8 +982,10 @@ def run_imagedeidexport(request):
             status=Project.TaskStatus.PENDING,
             scheduled_time=_parse_scheduled_time(data, settings),
         )
-        task, args = builders.build_image_deid_export(data, project, settings)
-        return _save_and_enqueue(project, task, args)
+        # Runs deid only now; the Azure export is deferred until an operator
+        # approves the output in the QC viewer (see qc_approve).
+        task, args, export = builders.build_image_deid_export(data, project, settings)
+        return _save_and_enqueue(project, task, args, export=export)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -714,7 +1029,14 @@ def run_imagineworkflow(request):
             scheduled_time=_parse_scheduled_time(data, settings),
         )
         task, args = builders.build_imagineworkflow(data, project, settings)
-        response = _save_and_enqueue(project, task, args)
+        # Capture the export intent (if the user opted into Azure export) and
+        # force the deid run to stop before exporting; qc_approve runs the
+        # export only after the operator reviews the de-identified output.
+        export = None
+        if not args.skip_export and args.sas_url:
+            export = {"sas_url": args.sas_url, "project_name": args.project_name}
+        args.skip_export = True
+        response = _save_and_enqueue(project, task, args, export=export)
         _remember_column_actions(data.get("column_actions", {}))
         return response
     except Exception:

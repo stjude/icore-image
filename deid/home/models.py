@@ -21,13 +21,16 @@ class Project(models.Model):
         TEXT_DEID = "TEXT_DEID", "Text Deidentification"
         IMAGE_EXPORT = "IMAGE_EXPORT", "Image Export"
         IMAGE_DEID_EXPORT = "IMAGE_DEID_EXPORT", "Image Deidentification and Export"
-        SINGLE_CLICK_ICORE = "SINGLE_CLICK_ICORE", "Single Click iCore"
+        SINGLE_CLICK_ICORE = "SINGLE_CLICK_ICORE", "IMAGINE Workflow"
 
     task_type = models.CharField(max_length=25, choices=TaskType.choices)
 
     class TaskStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"
         RUNNING = "RUNNING", "Running"
+        # De-identification finished; the operator must review the output in
+        # the QC viewer and approve before any export runs.
+        AWAITING_QC = "AWAITING_QC", "Awaiting QC"
         COMPLETED = "COMPLETED", "Completed"
         FAILED = "FAILED", "Failed"
         CANCELLED = "CANCELLED", "Cancelled"

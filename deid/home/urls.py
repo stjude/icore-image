@@ -35,6 +35,31 @@ urlpatterns = [
     path("get_log_content/", views.get_log_content, name="get_log_content"),
     path("api/task_status/<int:project_id>/", views.task_status, name="task_status"),
     path(
+        "api/qc/<int:project_id>/studies/",
+        views.qc_studies,
+        name="qc_studies",
+    ),
+    path(
+        "api/qc/<int:project_id>/approve/",
+        views.qc_approve,
+        name="qc_approve",
+    ),
+    path(
+        "api/qc/<int:project_id>/series/<path:series_id>/instances/",
+        views.qc_series_instances,
+        name="qc_series_instances",
+    ),
+    path(
+        "api/qc/<int:project_id>/series/<path:series_id>/instances/<path:instance_name>/",
+        views.qc_instance,
+        name="qc_instance",
+    ),
+    path(
+        "api/qc/<int:project_id>/series/<path:series_id>/thumbnail/",
+        views.qc_thumbnail,
+        name="qc_thumbnail",
+    ),
+    path(
         "settings/general/",
         views.GeneralSettingsView.as_view(),
         name="general_settings",

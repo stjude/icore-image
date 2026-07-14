@@ -1,0 +1,54 @@
+{
+    "name": "@stjude/dicom-viewer",
+    "version": "0.1.14",
+    "private": true,
+    "type": "module",
+    "sideEffects": [
+        "*.css"
+    ],
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        },
+        "./styles.css": "./dist/dicom-viewer.css"
+    },
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite build --watch",
+        "pack": "npm run build && npm pack --pack-destination ."
+    },
+    "peerDependencies": {
+        "@cornerstonejs/core": "^4.15",
+        "@cornerstonejs/dicom-image-loader": "^4.15",
+        "@cornerstonejs/tools": "^4.15",
+        "@mantine/core": "^7.15",
+        "@tabler/icons-react": "^3",
+        "react": "^18",
+        "react-dom": "^18"
+    },
+    "dependencies": {
+        "@zip.js/zip.js": "^2.7.52",
+        "dicom-parser": "^1.8.21",
+        "react-resize-detector": "^12.1.0"
+    },
+    "devDependencies": {
+        "@cornerstonejs/core": "^4.15.24",
+        "@cornerstonejs/dicom-image-loader": "^4.15.24",
+        "@cornerstonejs/tools": "^4.15.24",
+        "@mantine/core": "^7.15.3",
+        "@tabler/icons-react": "^3.22.0",
+        "@types/react": "^18",
+        "@types/react-dom": "^18",
+        "@vitejs/plugin-react": "^5.2.0",
+        "react": "^18",
+        "react-dom": "^18",
+        "typescript": "^5",
+        "vite": "^7.3.6",
+        "vite-plugin-dts": "^4.5.4"
+    }
+}
