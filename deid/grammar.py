@@ -462,6 +462,10 @@ def get_hipaa_safe_harbor_config():
             ("00080008", "ImageType"),
             ("00080070", "Manufacturer"),
             ("00081090", "ManufacturerModelName"),
+            # Institution name retained by project decision. NOTE: this is not one
+            # of the 18 HIPAA individual identifiers, but it can reveal the covered
+            # entity / geography — InstitutionAddress (0008,0081) stays removed.
+            ("00080080", "InstitutionName"),
             # Slice ordering / spatial position — needed to sort a series into
             # anatomical order for QC review. Image geometry, not identifiers.
             ("00200013", "InstanceNumber"),
@@ -636,7 +640,6 @@ def get_hipaa_safe_harbor_config():
             ("004021A1", "TemplateExtensionOrganizationUID"),
         ],
         "tags_to_remove": [
-            ("00080080", "InstitutionName"),
             ("00204000", "ImageComments"),
             ("00324000", "StudyComments"),
             ("00102180", "Occupation"),
