@@ -8,25 +8,6 @@
     <h1 class="text-xl flex-1">IMAGINE Workflow</h1>
 </div>
 
-<!-- HIPAA Safe Harbor Banner -->
-<div class="mx-4 mt-4 bg-blue-50 border-l-4 border-blue-500 p-4">
-    <div class="flex items-start">
-        <div class="shrink-0">
-            <svg class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-        </div>
-        <div class="ml-3">
-            <h3 class="text-md font-semibold text-blue-900">HIPAA Safe Harbor Mode (Automatic)</h3>
-            <div class="mt-2 text-sm text-blue-800">
-                <p class="font-medium">IMAGINE Workflow automatically enforces HIPAA Safe Harbor de-identification per 45 CFR §164.514(b)(2).</p>
-                <p class="mt-2">All 18 HIPAA identifiers will be removed or anonymized. Files containing encapsulated documents, PDFs, or burned-in annotations will be automatically quarantined for manual review.</p>
-                <p class="mt-2"><strong>These settings are NOT user-configurable.</strong> For custom de-identification settings, use the Local De-identification workflow.</p>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="flex-1 bg-white p-4 ml-4 mt-4">
     <div class="text-sm text-black-5">Project Name</div>
     <input type="text" class="mt-2 w-full h-full border-2 border-gray-400 p-2" name="study_name" onkeypress="return event.charCode !== 32"/>
@@ -256,6 +237,29 @@
         Pull Images, Deidentify, and Export
     </button>
     <span id="imagine_workflow_button_missing" class="ml-3 text-sm text-red-700 align-middle hidden"></span>
+
+    <!-- HIPAA compliance note. "Learn More" reveals the Safe Harbor details below. -->
+    <p class="mt-4 text-sm text-gray-600">
+        HIPAA Compliant.
+        <button type="button" class="text-blue-600 underline hover:text-blue-800" onclick="toggleHipaaInfo()" id="hipaaLearnMore">Learn More</button>
+    </p>
+    <div id="hipaaInfo" class="hidden mt-3 bg-blue-50 border-l-4 border-blue-500 p-4">
+        <div class="flex items-start">
+            <div class="shrink-0">
+                <svg class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-md font-semibold text-blue-900">HIPAA Safe Harbor Mode (Automatic)</h3>
+                <div class="mt-2 text-sm text-blue-800">
+                    <p class="font-medium">IMAGINE Workflow automatically enforces HIPAA Safe Harbor de-identification per 45 CFR §164.514(b)(2).</p>
+                    <p class="mt-2">All 18 HIPAA identifiers will be removed or anonymized. Files containing encapsulated documents, PDFs, or burned-in annotations will be automatically quarantined for manual review.</p>
+                    <p class="mt-2"><strong>These settings are NOT user-configurable.</strong> For custom de-identification settings, use the "Image Deidentification Only" workflow under the "Advanced" header.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -397,6 +401,13 @@
         const deidOptionsButton = document.getElementById('deidOptionsButton');
         deidOptions.classList.toggle('hidden');
         deidOptionsButton.textContent = deidOptions.classList.contains('hidden') ? '▼' : '▲';
+    }
+
+    function toggleHipaaInfo() {
+        const info = document.getElementById('hipaaInfo');
+        const link = document.getElementById('hipaaLearnMore');
+        info.classList.toggle('hidden');
+        link.textContent = info.classList.contains('hidden') ? 'Learn More' : 'Show Less';
     }
 
     function toggleScheduling() {
