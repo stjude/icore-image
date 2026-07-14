@@ -5,6 +5,7 @@ import {
     ViewerCornerstone,
     type DicomDataSource,
     type OverlayConfig,
+    type OverlayContext,
     type OverlayItem,
     type ViewerStudy,
 } from '@stjude/dicom-viewer';
@@ -35,6 +36,18 @@ const fieldOfView: OverlayItem = {
     format: (_v, ctx) =>
         `${(ctx.image.columnPixelSpacing * ctx.image.columns).toFixed(0)} x ${(ctx.image.rowPixelSpacing * ctx.image.rows).toFixed(0)} mm`,
 };
+
+// Projection-radiography modality codes that share the same X-ray technique overlay.
+const XRAY_MODALITIES = ['CR', 'DX', 'XA', 'RF', 'MG'];
+
+// PET radiopharmaceutical values. In source data these often live only in
+// RadiopharmaceuticalInformationSequence (0054,0016), but HIPAA Safe Harbor de-id
+// removes that sequence (it embeds a datetime) while keeping the top-level scalar
+// tags. Prefer the top-level tag; fall back to the sequence for non-de-id'd data.
+const radiopharmaceutical = (ctx: OverlayContext, topLevelTag: string, seqTag: string): string | null =>
+    ctx.getAttribute(topLevelTag) ??
+    ctx.dataset.elements.x00540016?.items?.[0]?.dataSet?.string(seqTag) ??
+    null;
 
 // QC overlay layout. Attributes are referenced by DICOM keyword; the bottom-right
 // corner is modality-gated (CT vs MR) via each item's `modalities` filter.
@@ -96,6 +109,34 @@ const QC_OVERLAYS: OverlayConfig = {
             attribute: 'x00180081',
             frame: { sequenceTag: 'x00189114', attributeTag: 'x00189082', parseType: 'double' },
         },
+        // PET
+        { ...sliceThicknessSpacing, modalities: ['PT'] },
+        { ...fieldOfView, modalities: ['PT'] },
+        { label: 'Tracer', modalities: ['PT'], format: (_v, ctx) => radiopharmaceutical(ctx, 'x00180031', 'x00180031') },
+        { label: 'Dose', unit: ' Bq', modalities: ['PT'], format: (_v, ctx) => radiopharmaceutical(ctx, 'x00181074', 'x00181074') },
+        { label: 'Half-life', unit: ' s', modalities: ['PT'], format: (_v, ctx) => radiopharmaceutical(ctx, 'x00181075', 'x00181075') },
+        { label: 'Units', attribute: 'Units', modalities: ['PT'] },
+        { label: 'Corrections', attribute: 'CorrectedImage', modalities: ['PT'] },
+        { label: 'Frame Duration', attribute: 'ActualFrameDuration', unit: ' ms', modalities: ['PT'] },
+        // X-ray (projection radiography)
+        { label: 'kVp', attribute: 'KVP', modalities: XRAY_MODALITIES },
+        { label: 'mAs', attribute: 'Exposure', modalities: XRAY_MODALITIES },
+        { label: 'Exposure Time', attribute: 'ExposureTime', unit: ' ms', modalities: XRAY_MODALITIES },
+        { label: 'Tube Current', attribute: 'XRayTubeCurrent', unit: ' mA', modalities: XRAY_MODALITIES },
+        { label: 'SID', attribute: 'DistanceSourceToDetector', unit: ' mm', modalities: XRAY_MODALITIES },
+        { label: 'View', attribute: 'ViewPosition', modalities: XRAY_MODALITIES },
+        { label: 'Body Part', attribute: 'BodyPartExamined', modalities: XRAY_MODALITIES },
+        { label: 'Filter', attribute: 'FilterMaterial', modalities: XRAY_MODALITIES },
+        { label: 'Laterality', attribute: 'ImageLaterality', modalities: ['MG'] },
+        { label: 'Compression', attribute: 'CompressionForce', unit: ' N', modalities: ['MG'] },
+        // Ultrasound (no FOV — spacing is per-region)
+        { label: 'Transducer', attribute: 'TransducerData', modalities: ['US'] },
+        { label: 'Type', attribute: 'TransducerType', modalities: ['US'] },
+        { label: 'MI', attribute: 'MechanicalIndex', modalities: ['US'] },
+        { label: 'TIs', attribute: 'SoftTissueThermalIndex', modalities: ['US'] },
+        { label: 'Frame Rate', attribute: 'CineRate', unit: ' fps', modalities: ['US'] },
+        { label: 'Heart Rate', attribute: 'HeartRate', unit: ' bpm', modalities: ['US'] },
+        { label: 'Processing', attribute: 'ProcessingFunction', modalities: ['US'] },
     ],
 };
 

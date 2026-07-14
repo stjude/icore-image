@@ -452,6 +452,11 @@ def get_hipaa_safe_harbor_config():
     """
     config = {
         "tags_to_keep": [
+            # Patient demographics permissible under Safe Harbor. NOTE: PatientAge
+            # (0010,1010) is only safe when <= 089; ages > 89 are a HIPAA identifier
+            # and should be aggregated/removed upstream. Kept here for QC display.
+            ("00101010", "PatientAge"),
+            ("00100040", "PatientSex"),
             ("00080060", "Modality"),
             ("00180015", "BodyPartExamined"),
             ("00080008", "ImageType"),
@@ -492,6 +497,7 @@ def get_hipaa_safe_harbor_config():
             ("00181152", "Exposure"),
             ("00181153", "ExposureInuAs"),
             ("00181160", "FilterType"),
+            ("00187050", "FilterMaterial"),
             ("00181170", "GeneratorPower"),
             ("00181210", "ConvolutionKernel"),
             ("00180090", "DataCollectionDiameter"),
@@ -573,9 +579,15 @@ def get_hipaa_safe_harbor_config():
             ("00181075", "RadionuclideHalfLife"),
             ("00181076", "RadionuclidePositronFraction"),
             ("00540081", "NumberOfSlices"),
+            # Projection radiography (CR/DX/XA/RF) and mammography (MG).
+            # Acquisition geometry/technique, not identifiers.
+            ("00185101", "ViewPosition"),
+            ("00200062", "ImageLaterality"),
+            ("001811A2", "CompressionForce"),
             # Ultrasound
             ("00186011", "SequenceOfUltrasoundRegions"),
             ("00185010", "TransducerData"),
+            ("00180040", "CineRate"),
             ("00185020", "ProcessingFunction"),
             ("00185022", "MechanicalIndex"),
             ("00185024", "BoneThermalIndex"),
