@@ -727,12 +727,13 @@ def qc_approve(request, project_id):
                 )
             return JsonResponse({"status": Project.TaskStatus.COMPLETED.value})
 
+        settings = builders.load_settings()
         args = ImageExportArgs(
             input_dir=resolve_output_dir(task),
             sas_url=export["sas_url"],
             project_name=export["project_name"],
             run_dirs=None,
-            debug=False,
+            debug=settings.get("debug_logging", False),
         )
         with transaction.atomic():
             claimed = Project.objects.filter(
