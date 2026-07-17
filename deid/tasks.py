@@ -34,9 +34,9 @@ class SpreadsheetArgs(BaseModel):
     """
 
     path: str
-    acc_col: str | None = None
-    mrn_col: str | None = None
-    date_col: str | None = None
+    acc_col: str | None
+    mrn_col: str | None
+    date_col: str | None
 
     def to_spreadsheet(self) -> Spreadsheet:
         return Spreadsheet.from_file(
@@ -50,34 +50,32 @@ class SpreadsheetArgs(BaseModel):
 class HeaderExtractLocalArgs(BaseModel):
     input_dir: str
     output_dir: str
-    headers_to_extract: list[str] | None = None
-    extract_all_headers: bool = False
-    debug: bool = False
-    run_dirs: RunDirs | None = None
+    headers_to_extract: list[str] | None
+    extract_all_headers: bool
+    debug: bool
+    run_dirs: RunDirs | None
 
 
 class ImageExportArgs(BaseModel):
     input_dir: str
     sas_url: str
     project_name: str
-    appdata_dir: str | None = None
-    debug: bool = False
-    run_dirs: RunDirs | None = None
+    debug: bool
+    run_dirs: RunDirs | None
 
 
 class ImageDeidLocalArgs(BaseModel):
     input_dir: str
     output_dir: str
-    appdata_dir: str | None = None
-    filter_script: str | None = None
-    anonymizer_script: str | None = None
-    deid_pixels: bool = False
-    lookup_table: str | None = None
-    debug: bool = False
-    run_dirs: RunDirs | None = None
-    apply_default_filter_script: bool = True
-    mapping_file_path: str | None = None
-    sc_pdf_output_dir: str | None = None
+    filter_script: str | None
+    anonymizer_script: str | None
+    deid_pixels: bool
+    lookup_table: str | None
+    debug: bool
+    run_dirs: RunDirs | None
+    apply_default_filter_script: bool
+    mapping_file_path: str | None
+    sc_pdf_output_dir: str | None
 
 
 class ImageQrArgs(BaseModel):
@@ -86,24 +84,23 @@ class ImageQrArgs(BaseModel):
     application_aet: str
     output_dir: str
     cmove_batch_size: int
-    appdata_dir: str | None = None
-    date_window_days: int = 0
-    debug: bool = False
-    run_dirs: RunDirs | None = None
-    use_fallback_query: bool = False
-    storescp_port: int = 50001
-    deferred_delivery: bool = False
-    deferred_delivery_timeout: int = 172800
+    date_window_days: int
+    debug: bool
+    run_dirs: RunDirs | None
+    use_fallback_query: bool
+    storescp_port: int
+    deferred_delivery: bool
+    deferred_delivery_timeout: int
 
 
 class ImageDeidPacsArgs(ImageQrArgs):
-    filter_script: str | None = None
-    anonymizer_script: str | None = None
-    deid_pixels: bool = False
-    lookup_table: str | None = None
-    apply_default_filter_script: bool = True
-    mapping_file_path: str | None = None
-    sc_pdf_output_dir: str | None = None
+    filter_script: str | None
+    anonymizer_script: str | None
+    deid_pixels: bool
+    lookup_table: str | None
+    apply_default_filter_script: bool
+    mapping_file_path: str | None
+    sc_pdf_output_dir: str | None
 
 
 class ImageDeidExportArgs(ImageDeidPacsArgs):
@@ -114,25 +111,25 @@ class ImageDeidExportArgs(ImageDeidPacsArgs):
 class TextDeidArgs(BaseModel):
     input_file: str
     output_dir: str
-    to_keep_list: list[str] | None = None
-    to_remove_list: list[str] | None = None
-    columns_to_drop: list[str] | None = None
-    columns_to_deid: list[str] | None = None
-    debug: bool = False
-    run_dirs: RunDirs | None = None
+    to_keep_list: list[str] | None
+    to_remove_list: list[str] | None
+    columns_to_drop: list[str] | None
+    columns_to_deid: list[str] | None
+    debug: bool
+    run_dirs: RunDirs | None
 
 
 class ImagineWorkflowArgs(ImageDeidPacsArgs):
     sas_url: str | None
     project_name: str
     input_file: str
-    to_keep_list: list[str] | None = None
-    to_remove_list: list[str] | None = None
-    columns_to_drop: list[str] | None = None
-    columns_to_deid: list[str] | None = None
-    skip_export: bool = False
-    headers_to_extract: list[str] | None = None
-    extract_all_headers: bool = False
+    to_keep_list: list[str] | None
+    to_remove_list: list[str] | None
+    columns_to_drop: list[str] | None
+    columns_to_deid: list[str] | None
+    skip_export: bool
+    headers_to_extract: list[str] | None
+    extract_all_headers: bool
 
 
 def _pacs_kwargs(args: ImageQrArgs) -> dict:

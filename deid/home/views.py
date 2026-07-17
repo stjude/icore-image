@@ -731,6 +731,8 @@ def qc_approve(request, project_id):
             input_dir=resolve_output_dir(task),
             sas_url=export["sas_url"],
             project_name=export["project_name"],
+            run_dirs=None,
+            debug=False,
         )
         with transaction.atomic():
             claimed = Project.objects.filter(
