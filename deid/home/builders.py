@@ -35,6 +35,7 @@ from tasks import (
 from utils import sanitize_filename
 
 CMOVE_BATCH_SIZE = 50
+STORESCP_PORT = 50001
 
 HOME_DIR = os.path.expanduser("~")
 ICORE_BASE_DIR = os.path.join(HOME_DIR, "Documents", "iCore")
@@ -175,29 +176,49 @@ def detect_file_type_and_columns(input_file_path):
 
 
 def build_image_deid(data, project, settings):
-    common = dict(
-        output_dir=_output_dir(project, "DeID"),
-        filter_script=_filter_script(data),
-        anonymizer_script=_anonymizer_script(data),
-        deid_pixels=data.get("deid_pixels", False),
-        apply_default_filter_script=data.get("apply_default_ctp_filter_script", True),
-        mapping_file_path=_mapping_file_path(data),
-        sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
-        debug=settings.get("debug_logging", False),
-    )
+    output_dir = _output_dir(project, "DeID")
+    filter_script = _filter_script(data)
+    anonymizer_script = _anonymizer_script(data)
+    deid_pixels = data.get("deid_pixels", False)
+    apply_default_filter_script = data.get("apply_default_ctp_filter_script", True)
+    mapping_file_path = _mapping_file_path(data)
+    sc_pdf_output_dir = _sc_pdf_output_dir(data, project)
+    debug = settings.get("debug_logging", False)
     if project.image_source == "PACS":
         spreadsheet, date_window_days, use_fallback_query = _query_spreadsheet(data)
         return icore_tasks.imagedeid_pacs, ImageDeidPacsArgs(
             pacs_list=_pacs_list(project),
             query_spreadsheet=spreadsheet,
             application_aet=project.application_aet,
+            output_dir=output_dir,
             cmove_batch_size=CMOVE_BATCH_SIZE,
+            storescp_port=STORESCP_PORT,
+            run_dirs=None,
+            deferred_delivery=settings.get("deferred_delivery", False),
+            deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
             date_window_days=date_window_days,
             use_fallback_query=use_fallback_query,
-            **common,
+            filter_script=filter_script,
+            anonymizer_script=anonymizer_script,
+            lookup_table=None,
+            deid_pixels=deid_pixels,
+            apply_default_filter_script=apply_default_filter_script,
+            mapping_file_path=mapping_file_path,
+            sc_pdf_output_dir=sc_pdf_output_dir,
+            debug=debug,
         )
     return icore_tasks.imagedeid_local, ImageDeidLocalArgs(
-        input_dir=os.path.abspath(project.input_folder), **common
+        input_dir=os.path.abspath(project.input_folder),
+        output_dir=output_dir,
+        filter_script=filter_script,
+        anonymizer_script=anonymizer_script,
+        deid_pixels=deid_pixels,
+        lookup_table=None,
+        apply_default_filter_script=apply_default_filter_script,
+        mapping_file_path=mapping_file_path,
+        sc_pdf_output_dir=sc_pdf_output_dir,
+        run_dirs=None,
+        debug=debug,
     )
 
 
@@ -209,6 +230,10 @@ def build_image_query(data, project, settings):
         application_aet=project.application_aet,
         output_dir=_output_dir(project, "PHI"),
         cmove_batch_size=CMOVE_BATCH_SIZE,
+        storescp_port=STORESCP_PORT,
+        run_dirs=None,
+        deferred_delivery=settings.get("deferred_delivery", False),
+        deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
         date_window_days=date_window_days,
         use_fallback_query=use_fallback_query,
         debug=settings.get("debug_logging", False),
@@ -226,6 +251,7 @@ def build_header_extract(data, project, settings):
         output_dir=_output_dir(project, "PHI"),
         headers_to_extract=headers_to_extract or None,
         extract_all_headers=data.get("extract_all_headers", False),
+        run_dirs=None,
         debug=settings.get("debug_logging", False),
     )
 
@@ -244,6 +270,7 @@ def build_text_deid(data, project, settings):
         # An empty deid list is meaningful (deid nothing); drop is optional.
         columns_to_deid=columns_to_deid,
         columns_to_drop=columns_to_drop or None,
+        run_dirs=None,
         debug=settings.get("debug_logging", False),
     )
 
@@ -253,6 +280,7 @@ def build_image_export(data, project, settings):
         input_dir=os.path.abspath(project.input_folder),
         sas_url=data["sas_url"],
         project_name=project.name,
+        run_dirs=None,
         debug=settings.get("debug_logging", False),
     )
 
@@ -272,10 +300,13 @@ def build_image_deid_export(data, project, settings):
         application_aet=project.application_aet,
         output_dir=_output_dir(project, "DeID"),
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
+        storescp_port=STORESCP_PORT,
+        run_dirs=None,
         deferred_delivery=settings.get("deferred_delivery", False),
         deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
         filter_script=_filter_script(data),
         anonymizer_script=_anonymizer_script(data),
+        lookup_table=None,
         date_window_days=date_window_days,
         use_fallback_query=use_fallback_query,
         deid_pixels=data.get("deid_pixels", False),
@@ -313,6 +344,8 @@ def build_imagineworkflow(data, project, settings):
         output_dir=_output_dir(project, "DeID"),
         input_file=input_file,
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
+        storescp_port=STORESCP_PORT,
+        run_dirs=None,
         deferred_delivery=settings.get("deferred_delivery", False),
         deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
         filter_script=generate_filters_string(
@@ -321,6 +354,7 @@ def build_imagineworkflow(data, project, settings):
         anonymizer_script=generate_hipaa_safe_harbor_script(
             settings.get("site_id", "SITE1"), settings.get("date_shift_range", -21)
         ),
+        lookup_table=None,
         deid_pixels=True,
         apply_default_filter_script=data.get("apply_default_ctp_filter_script", True),
         mapping_file_path=_mapping_file_path(data),
