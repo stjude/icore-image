@@ -424,6 +424,7 @@ _DEID_TASK_TYPES = frozenset(
     {"IMAGE_DEID", "TEXT_DEID", "IMAGE_DEID_EXPORT", "SINGLE_CLICK_ICORE"}
 )
 
+
 def resolve_output_dir(task):
     """Return the absolute run-output directory for ``task``, or ``""``.
 
