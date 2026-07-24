@@ -157,9 +157,7 @@ def _generate_series_thumbnails(output_dir: str, appdata_dir: str) -> None:
                     series_name,
                     exc_info=True,
                 )
-    # Marker written only after all thumbnails are generated. The QC viewer waits
-    # for this (via task_status' qc_ready) so it doesn't mount with previews still
-    # missing.
+    # Write an empty flag file to indicate thumbnail generation is complete
     with open(os.path.join(thumbnails_root, ".complete"), "w"):
         pass
     logging.info(f"Generated {count} series thumbnails")
