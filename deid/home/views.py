@@ -449,7 +449,7 @@ def task_status(request, project_id):
         logs_folder = ""
         appdata_folder = ""
         progress = None
-        qc_ready = False
+        thumbnails_ready = False
 
         if task.log_path:
             logs_folder = os.path.dirname(task.log_path)
@@ -457,11 +457,8 @@ def task_status(request, project_id):
 
         if task.name and task.timestamp:
             appdata_folder = appdata_dir_path(task.name, task.timestamp)
-            # The QC viewer only mounts once thumbnails have finished generating
-            # (marker written at the end of the image-deid stage).
-            qc_ready = os.path.isfile(
-                os.path.join(appdata_folder, "thumbnails", ".complete")
-            )
+            marker_path = os.path.join(appdata_folder, "thumbnails", ".complete")
+            thumbnails_ready = os.path.isfile(marker_path)
 
         # Only workflows that de-identify text reports emit output.xlsx; the QC
         # screen gates approval on reviewing it when present.
@@ -480,7 +477,7 @@ def task_status(request, project_id):
                 "output_folder": output_dir,
                 "appdata_folder": appdata_folder,
                 "progress": progress,
-                "qc_ready": qc_ready,
+                "thumbnails_ready": thumbnails_ready,
                 "has_output_spreadsheet": has_output_spreadsheet,
                 # A deferred Azure export is stashed on approval-gated workflows;
                 # the UI uses this to show the Export tab and button wording.
