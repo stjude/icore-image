@@ -1,0 +1,1 @@
+{"stages": [{"key": "text_deid", "label": "De-identifying reports"}], "current_stage": "text_deid", "fraction": 1.0, "status_text": "Processing 216 of 216 reports"}
