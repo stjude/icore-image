@@ -145,7 +145,9 @@ def build_expected_text(text: str, phi_items: list[dict]) -> str:
     return "".join(pieces)
 
 
-def word_level_checks(record_id: str, expected_text: str, actual_text: str) -> list["ItemResult"]:
+def word_level_checks(
+    record_id: str, expected_text: str, actual_text: str
+) -> list["ItemResult"]:
     """Word-by-word diff of expected vs. actual Report output.
 
     Every non-PHI word becomes its own "word_level" preserve check: passed if
@@ -167,7 +169,14 @@ def word_level_checks(record_id: str, expected_text: str, actual_text: str) -> l
                 if PLACEHOLDER_RE.match(word):
                     continue  # a known PHI placeholder, already scored elsewhere
                 results.append(
-                    ItemResult(record_id, "word_level", word, "preserve", True, actual_text[:200])
+                    ItemResult(
+                        record_id,
+                        "word_level",
+                        word,
+                        "preserve",
+                        True,
+                        actual_text[:200],
+                    )
                 )
             continue
 
@@ -178,10 +187,14 @@ def word_level_checks(record_id: str, expected_text: str, actual_text: str) -> l
             continue
 
         placeholders_here = [t for t in actual_slice if PLACEHOLDER_RE.match(t)]
-        passed = not placeholders_here  # a placeholder here means an unanticipated redaction
+        passed = (
+            not placeholders_here
+        )  # a placeholder here means an unanticipated redaction
         for word in expected_slice:
             results.append(
-                ItemResult(record_id, "word_level", word, "preserve", passed, actual_text[:200])
+                ItemResult(
+                    record_id, "word_level", word, "preserve", passed, actual_text[:200]
+                )
             )
     return results
 
@@ -234,7 +247,9 @@ def group_into_batches(records: list[dict]) -> dict[tuple, list[tuple[int, dict]
 
 def build_dataframe_and_checks(
     batch_records: list[tuple[int, dict]],
-) -> tuple[pd.DataFrame, list[tuple[str, list[tuple[str, str, str, str]], str, list[dict]]]]:
+) -> tuple[
+    pd.DataFrame, list[tuple[str, list[tuple[str, str, str, str]], str, list[dict]]]
+]:
     """Build one spreadsheet's rows + the per-row checks to run against output.
 
     Each entry in checks_per_row is (record_id, checks, report_text, phi_items)
@@ -263,10 +278,17 @@ def build_dataframe_and_checks(
             ("MRN", "phi", "mrn_column", mrn_value),
         ]
         for item in record.get("phi", []):
-            checks.append(("Report", "phi", item.get("category", "uncategorized"), item["value"]))
+            checks.append(
+                ("Report", "phi", item.get("category", "uncategorized"), item["value"])
+            )
         for item in record.get("preserve", []):
             checks.append(
-                ("Report", "preserve", item.get("category", "uncategorized"), item["value"])
+                (
+                    "Report",
+                    "preserve",
+                    item.get("category", "uncategorized"),
+                    item["value"],
+                )
             )
 
         checks_per_row.append(
@@ -281,7 +303,9 @@ def build_dataframe_and_checks(
     return pd.DataFrame(rows), checks_per_row
 
 
-def run_batch(df: pd.DataFrame, to_keep_list: tuple, to_remove_list: tuple, workdir: Path) -> pd.DataFrame:
+def run_batch(
+    df: pd.DataFrame, to_keep_list: tuple, to_remove_list: tuple, workdir: Path
+) -> pd.DataFrame:
     """Write a real .xlsx, run the real TextDeidPipeline, read the real output."""
     workdir.mkdir(parents=True, exist_ok=True)
     input_path = workdir / "input.xlsx"
@@ -329,10 +353,15 @@ def build_incorrect_redactions_column(
     """
     by_record: dict[str, list[str]] = defaultdict(list)
     for r in batch_results:
-        if r.kind == "preserve" and not r.passed and r.value not in by_record[r.record_id]:
+        if (
+            r.kind == "preserve"
+            and not r.passed
+            and r.value not in by_record[r.record_id]
+        ):
             by_record[r.record_id].append(r.value)
     return [
-        "; ".join(by_record[rid]) if by_record.get(rid) else "Correct" for rid in record_ids
+        "; ".join(by_record[rid]) if by_record.get(rid) else "Correct"
+        for rid in record_ids
     ]
 
 
@@ -352,7 +381,8 @@ def build_missed_phi_column(
     # -- read_excel() silently turns it back into a blank/NaN cell on the
     # next read. "None missed" isn't a recognized sentinel, so it round-trips.
     return [
-        "; ".join(by_record[rid]) if by_record.get(rid) else "None missed" for rid in record_ids
+        "; ".join(by_record[rid]) if by_record.get(rid) else "None missed"
+        for rid in record_ids
     ]
 
 
@@ -368,9 +398,7 @@ def build_side_by_side(
     (e.g. "Report (input)" next to "Report (output)") so a human can scan a
     single sheet instead of flipping between two files.
     """
-    combined = pd.DataFrame(
-        {"batch": [batch_label] * len(df), "record_id": record_ids}
-    )
+    combined = pd.DataFrame({"batch": [batch_label] * len(df), "record_id": record_ids})
     for col in df.columns:
         combined[f"{col} (input)"] = df[col].values
         combined[f"{col} (output)"] = result_df[col].values
@@ -386,10 +414,14 @@ def evaluate(
     combined_frames: list[pd.DataFrame] = []
     batches = group_into_batches(records)
 
-    for batch_num, (batch_key, batch_records) in enumerate(sorted(batches.items(), key=str)):
+    for batch_num, (batch_key, batch_records) in enumerate(
+        sorted(batches.items(), key=str)
+    ):
         to_keep_list, to_remove_list = batch_key
         df, checks_per_row = build_dataframe_and_checks(batch_records)
-        result_df = run_batch(df, to_keep_list, to_remove_list, WORKDIR / f"batch_{batch_num}")
+        result_df = run_batch(
+            df, to_keep_list, to_remove_list, WORKDIR / f"batch_{batch_num}"
+        )
 
         batch_results: list[ItemResult] = []
         for (record_id, checks, report_text, phi_items), (_, out_row) in zip(
@@ -423,20 +455,31 @@ def evaluate(
             if verbose:
                 for r in word_results:
                     if not r.passed:
-                        print(f"[UNEXPECTED REDACTION] {record_id}: {r.value!r} swallowed")
+                        print(
+                            f"[UNEXPECTED REDACTION] {record_id}: {r.value!r} swallowed"
+                        )
 
         results.extend(batch_results)
         record_ids = [record_id for record_id, *_ in checks_per_row]
-        incorrect_redactions = build_incorrect_redactions_column(record_ids, batch_results)
+        incorrect_redactions = build_incorrect_redactions_column(
+            record_ids, batch_results
+        )
         missed_phi = build_missed_phi_column(record_ids, batch_results)
         combined_frames.append(
             build_side_by_side(
-                df, result_df, record_ids, f"batch_{batch_num}", incorrect_redactions, missed_phi
+                df,
+                result_df,
+                record_ids,
+                f"batch_{batch_num}",
+                incorrect_redactions,
+                missed_phi,
             )
         )
 
     combined_df = (
-        pd.concat(combined_frames, ignore_index=True) if combined_frames else pd.DataFrame()
+        pd.concat(combined_frames, ignore_index=True)
+        if combined_frames
+        else pd.DataFrame()
     )
     return results, combined_df
 
@@ -465,7 +508,9 @@ def summarize(results: list[ItemResult]) -> dict:
 
 
 def print_report(results: list[ItemResult], summary: dict) -> None:
-    print("\n=== Text De-id Eval Report (real .xlsx -> TextDeidPipeline -> .xlsx) ===\n")
+    print(
+        "\n=== Text De-id Eval Report (real .xlsx -> TextDeidPipeline -> .xlsx) ===\n"
+    )
     header = (
         f"{'category':<22}{'recall':>10}{'preserve_rate':>16}"
         f"{'phi n':>8}{'preserve n':>12}"
@@ -474,7 +519,9 @@ def print_report(results: list[ItemResult], summary: dict) -> None:
     print("-" * len(header))
     for cat, s in summary.items():
         recall = f"{s['recall']:.0%}" if s["recall"] is not None else "n/a"
-        preserve = f"{s['preserve_rate']:.0%}" if s["preserve_rate"] is not None else "n/a"
+        preserve = (
+            f"{s['preserve_rate']:.0%}" if s["preserve_rate"] is not None else "n/a"
+        )
         print(
             f"{cat:<22}{recall:>10}{preserve:>16}"
             f"{s['phi_total']:>8}{s['preserve_total']:>12}"
@@ -528,7 +575,9 @@ def main() -> int:
 
     records = load_corpus()
     if not records:
-        print(f"No corpus records found under {CORPUS_DIR}. Run generate_corpus.py first.")
+        print(
+            f"No corpus records found under {CORPUS_DIR}. Run generate_corpus.py first."
+        )
         return 1
 
     results, combined_df = evaluate(records, verbose=args.verbose)
