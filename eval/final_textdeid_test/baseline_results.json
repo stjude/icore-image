@@ -1,0 +1,258 @@
+{
+  "address": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 1,
+    "phi_pass": 1,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "age90": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 25,
+    "phi_pass": 25,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "age_under_90": {
+    "recall": null,
+    "preserve_rate": 0.7666666666666667,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 30,
+    "preserve_pass": 23
+  },
+  "clinical_abbreviation": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 5,
+    "preserve_pass": 5
+  },
+  "date": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 52,
+    "phi_pass": 52,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "date_adjective": {
+    "recall": null,
+    "preserve_rate": 0.7777777777777778,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 9,
+    "preserve_pass": 7
+  },
+  "duration": {
+    "recall": null,
+    "preserve_rate": 0.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 0
+  },
+  "email": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 50,
+    "phi_pass": 50,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "gestational": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 1
+  },
+  "hospital": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 51,
+    "preserve_pass": 51
+  },
+  "hyphenated_medical_term": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 10,
+    "preserve_pass": 10
+  },
+  "ip": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 1,
+    "phi_pass": 1,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "ip_internal": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 1
+  },
+  "measurement": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 1
+  },
+  "medical_term": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 126,
+    "preserve_pass": 126
+  },
+  "mrn": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 51,
+    "phi_pass": 51,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "mrn_allzero": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 1
+  },
+  "mrn_column": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 106,
+    "phi_pass": 106,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "mrn_repeated_tail": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 1
+  },
+  "name": {
+    "recall": 0.9375,
+    "preserve_rate": null,
+    "phi_total": 96,
+    "phi_pass": 90,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "name_hyphenated": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 14,
+    "phi_pass": 14,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "name_initials": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 1,
+    "phi_pass": 1,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "name_special_pine": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 1,
+    "phi_pass": 1,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "phone": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 50,
+    "phi_pass": 50,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "relative_date": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 1
+  },
+  "ssn": {
+    "recall": 1.0,
+    "preserve_rate": null,
+    "phi_total": 1,
+    "phi_pass": 1,
+    "preserve_total": 0,
+    "preserve_pass": 0
+  },
+  "structural_keep_acc": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 106,
+    "preserve_pass": 106
+  },
+  "structural_keep_date": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 106,
+    "preserve_pass": 106
+  },
+  "technical_jargon": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 6,
+    "preserve_pass": 6
+  },
+  "vitals": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 1
+  },
+  "word_level": {
+    "recall": null,
+    "preserve_rate": 0.9993351063829787,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 3008,
+    "preserve_pass": 3006
+  },
+  "year_only": {
+    "recall": null,
+    "preserve_rate": 1.0,
+    "phi_total": 0,
+    "phi_pass": 0,
+    "preserve_total": 1,
+    "preserve_pass": 1
+  }
+}
