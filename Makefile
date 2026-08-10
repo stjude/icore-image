@@ -81,13 +81,13 @@ dcmtk:
 	@if [ ! -d "dcmtk" ]; then \
 		echo "Downloading DCMTK..."; \
 		if [ "$$(uname -s)" = "Linux" ]; then \
-			curl -fL https://dicom.offis.de/download/dcmtk/release/bin/dcmtk-3.7.0-linux-x86_64.tar.bz2 -o dcmtk.tar.bz2 && \
+			curl -fL -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" https://dicom.offis.de/download/dcmtk/release/bin/dcmtk-3.7.0-linux-x86_64.tar.bz2 -o dcmtk.tar.bz2 && \
 			tar -xjf dcmtk.tar.bz2 && \
 			rm dcmtk.tar.bz2 && \
 			mv dcmtk-3.7.0-linux-x86_64 dcmtk && \
 			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'storescp' ! -name 'echoscu' -delete; \
 		else \
-			curl -fL https://dicom.offis.de/download/dcmtk/release/bin/dcmtk-3.7.0-macosx-$(DCMTK_ARCH).tar.bz2 -o dcmtk.tar.bz2 && \
+			curl -fL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" https://dicom.offis.de/download/dcmtk/release/bin/dcmtk-3.7.0-macosx-$(DCMTK_ARCH).tar.bz2 -o dcmtk.tar.bz2 && \
 			tar -xjf dcmtk.tar.bz2 && \
 			rm dcmtk.tar.bz2 && \
 			mv dcmtk-3.7.0-macosx-$(DCMTK_ARCH) dcmtk && \
