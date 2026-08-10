@@ -43,6 +43,7 @@ dependencies = [
     "zipp>=3.23.0",
     "celery>=5.6.3",
     "sqlalchemy>=2.0.50",
+    "pandas-stubs~=2.3.3",
 ]
 
 [dependency-groups]

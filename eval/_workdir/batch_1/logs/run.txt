@@ -58,3 +58,11 @@
 2026-07-30 15:10:11 - INFO - Processing: MRN
 2026-07-30 15:10:11 - INFO - Processing: Report
 2026-07-30 15:10:12 - INFO - Complete: /sessions/wizardly-sleepy-curie/mnt/icore-image/eval/_workdir/batch_1/output/output.xlsx
+2026-08-06 14:30:20 - INFO - NLM-Matched Deidentification: /sessions/wizardly-sleepy-curie/mnt/icore-image/eval/_workdir/batch_1/input.xlsx
+2026-08-06 14:30:21 - INFO - Processing: MRN
+2026-08-06 14:30:21 - INFO - Processing: Report
+2026-08-06 14:30:22 - INFO - Complete: /sessions/wizardly-sleepy-curie/mnt/icore-image/eval/_workdir/batch_1/output/output.xlsx
+2026-08-06 14:31:38 - INFO - NLM-Matched Deidentification: /sessions/wizardly-sleepy-curie/mnt/icore-image/eval/_workdir/batch_1/input.xlsx
+2026-08-06 14:31:38 - INFO - Processing: MRN
+2026-08-06 14:31:38 - INFO - Processing: Report
+2026-08-06 14:31:39 - INFO - Complete: /sessions/wizardly-sleepy-curie/mnt/icore-image/eval/_workdir/batch_1/output/output.xlsx

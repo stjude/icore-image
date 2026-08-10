@@ -49,7 +49,6 @@ from utils import RunDirs  # noqa: E402
 
 CORPUS_DIR = Path(__file__).resolve().parent / "corpus"
 BASELINE_PATH = Path(__file__).resolve().parent / "baseline_results.json"
-RESULTS_DIR = Path(__file__).resolve().parent / "results"
 WORKDIR = Path(__file__).resolve().parent / "_workdir"
 
 # --- Spreadsheet shape -------------------------------------------------------
@@ -571,7 +570,22 @@ def main() -> int:
     parser.add_argument(
         "--verbose", action="store_true", help="Print each failure as it's found."
     )
+    parser.add_argument(
+        "--results-dir",
+        default="results",
+        help=(
+            "Folder (relative to eval/) to write this run's results into. "
+            "Defaults to 'results'. Use a distinct name (e.g. post_test_folder) "
+            "to run a before/after comparison without overwriting the "
+            "previous run's output -- the baseline comparison below still "
+            "compares against the single shared baseline_results.json "
+            "regardless of where results are written, so a post-fix run "
+            "naturally shows up as improvements/regressions against the "
+            "pre-fix baseline."
+        ),
+    )
     args = parser.parse_args()
+    results_dir = Path(__file__).resolve().parent / args.results_dir
 
     records = load_corpus()
     if not records:
@@ -584,15 +598,15 @@ def main() -> int:
     summary = summarize(results)
     print_report(results, summary)
 
-    RESULTS_DIR.mkdir(exist_ok=True)
+    results_dir.mkdir(exist_ok=True, parents=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    with (RESULTS_DIR / f"{stamp}.json").open("w") as f:
+    with (results_dir / f"{stamp}.json").open("w") as f:
         json.dump(summary, f, indent=2)
-    with (RESULTS_DIR / "latest.json").open("w") as f:
+    with (results_dir / "latest.json").open("w") as f:
         json.dump(summary, f, indent=2)
 
-    combined_path_stamped = RESULTS_DIR / f"{stamp}_input_output.xlsx"
-    combined_path_latest = RESULTS_DIR / "latest_input_output.xlsx"
+    combined_path_stamped = results_dir / f"{stamp}_input_output.xlsx"
+    combined_path_latest = results_dir / "latest_input_output.xlsx"
     combined_df.to_excel(combined_path_stamped, index=False)
     combined_df.to_excel(combined_path_latest, index=False)
     print(f"\nInput/output side-by-side workbook -> {combined_path_latest}")

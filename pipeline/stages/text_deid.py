@@ -259,6 +259,14 @@ def create_analyzer_engine() -> AnalyzerEngine:
                 regex=r"(?<=is\s)(9[0-9]|[1-9]\d{2,})(?=\s*years?\s*old)",
                 score=1.0,
             ),
+            # FAILURE_MODES.md #3 fix: none of a1-a6 match the extremely
+            # common "y/o" (or "y.o."/"yo") shorthand for years-old, so e.g.
+            # "93 y/o male" was a confirmed complete miss -- zero entities
+            # detected at all, a real leak, not just an over-redaction issue.
+            # Added the three common written forms of this shorthand.
+            Pattern(name="a7", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*y/o\b)", score=1.0),
+            Pattern(name="a8", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*y\.o\.)", score=1.0),
+            Pattern(name="a9", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*yo\b)", score=1.0),
         ],
     )
 
@@ -281,9 +289,22 @@ def create_analyzer_engine() -> AnalyzerEngine:
         ],
     )
 
+    # FAILURE_MODES.md #1 fix: PatternRecognizer defaults global_regex_flags to
+    # re.DOTALL | re.MULTILINE | re.IGNORECASE. That silently made n3 (below)
+    # match ANY hyphen-joined word pair regardless of case, even though it was
+    # clearly written to require capitalized-capitalized ("Wilson-Cook"-style)
+    # proper nouns. That let ordinary hyphenated clinical adjectives --
+    # well-defined, non-displaced, post-traumatic, T2-weighted, etc. -- get
+    # redacted as names. Dropping IGNORECASE here restores the intended
+    # case-sensitive matching. The other patterns in this recognizer (n1, n2,
+    # n4, n5, n6) already require literal capitals in their regex, so this
+    # only tightens n3; verified against edge-name-initials/edge-name-hyphenated
+    # and a full eval run (see eval/CHANGES_APPLIED.md) that real names are
+    # still caught.
     name_extras_recognizer = PatternRecognizer(
         supported_entity="NAMEPERSON",
         name="names",
+        global_regex_flags=re.DOTALL | re.MULTILINE,
         patterns=[
             Pattern(name="n1", regex=r"\b[A-Z]\.[A-Z]\.\b", score=0.85),
             Pattern(name="n2", regex=r"\b[A-Z]\.\s[A-Z]\.\s[A-Z][a-z]+\b", score=0.9),
@@ -295,6 +316,25 @@ def create_analyzer_engine() -> AnalyzerEngine:
             Pattern(name="n4", regex=r"\bPine\b", score=0.8),
             Pattern(name="n5", regex=r"\bPatient\s+[A-Z]\.[A-Z]\.", score=0.9),
             Pattern(name="n6", regex=r"\bThe(?=\s+MD\b)", score=0.75),
+            # FAILURE_MODES.md #4 fix (partial): spaCy's NER relies heavily on
+            # capitalization as a proper-noun signal, so names rendered in ALL
+            # CAPS (e.g. "DR. ROSSI" in a labeled/sectioned report style) are
+            # not recognized as PERSON at all -- a confirmed leak. This adds a
+            # narrow, scoped catch for the specific confirmed-failing shape
+            # ("DR." followed by an all-caps surname). The "(?i:dr\.\s)"
+            # lookbehind is deliberately the only case-insensitive part of the
+            # pattern -- the captured name itself must still be genuinely
+            # ALL CAPS ([A-Z][A-Z\-]{2,}), so this doesn't reintroduce the same
+            # case-insensitivity bug n3 just had. This is NOT a general fix for
+            # all-caps names anywhere in a report (e.g. an all-caps patient
+            # name with no "DR." label) -- that would need a broader
+            # case-normalization pass; see FAILURE_MODES.md #4 for the
+            # unaddressed general case.
+            Pattern(
+                name="n7",
+                regex=r"(?<=(?i:dr\.\s))([A-Z][A-Z\-]{2,}(?:\s[A-Z][A-Z\-]{2,})?)\b",
+                score=0.85,
+            ),
         ],
     )
 
@@ -459,6 +499,20 @@ def scrub(
     blood_pressure = re.compile(r"\b\d{2,3}/\d{2,3}\b")
     year_only = re.compile(r"\b(19|20)\d{2}\b")
     relative_date = re.compile(r"\b(yesterday|today|tomorrow)\b", re.I)
+    # FAILURE_MODES.md #2 fix: Presidio's built-in spaCy-based date recognizer
+    # flags these words as DATE_TIME on their own, with no date actually
+    # present ("...activities of daily living" -> "daily" alone was tagged
+    # DATE_TIME, score 0.85). None of the existing exclusions above cover
+    # them: duration requires a number+unit, relative_date only covers
+    # yesterday/today/tomorrow. Confirmed all 6 of these misfire 100% of the
+    # time prior to this fix (see eval/findings_recall_gaps.md, "Full
+    # accounting" table).
+    # "overnight" found and added after the initial fix (eval/CHANGES_APPLIED.md)
+    # -- same underlying model-noise pattern, a new specific instance of it.
+    date_adjective = re.compile(
+        r"\b(daily|weekly|monthly|annually|annual|nightly|biweekly|overnight)\b",
+        re.I,
+    )
     all_zeros = re.compile(r"\b0{7,}\b")
     hospital = re.compile(
         r"\b(Hospital|Medical Center|Clinic|Healthcare|Health System)\b", re.I
@@ -533,11 +587,21 @@ def scrub(
             if all_zeros.match(detected):
                 continue
 
-            if result.entity_type == "ALPHANUMERICID":
-                if re.match(r"^(\d)\1{6,}$", detected):
-                    continue
-                if re.search(r"(\d)\1{3,}$", detected) and len(detected) == 7:
-                    continue
+            # FAILURE_MODES.md #6 fix: this repeated-tail-digit MRN carve-out
+            # used to live inside the "entity_type == ALPHANUMERICID" branch
+            # below, but Presidio sometimes tags the exact same digit string
+            # as DATE_TIME instead of ALPHANUMERICID (e.g. "1230000" in
+            # "Legacy chart MRN 1230000..."), which bypassed the carve-out
+            # entirely since it was gated on an entity_type check that never
+            # fired. Moving it up here -- unconditional, like all_zeros just
+            # above -- makes the exclusion apply regardless of which
+            # recognizer happened to claim the match, matching the original
+            # intent (a suspiciously placeholder-like digit string shouldn't
+            # be treated as a real ID/date no matter how it got flagged).
+            if re.match(r"^(\d)\1{6,}$", detected):
+                continue
+            if re.search(r"(\d)\1{3,}$", detected) and len(detected) == 7:
+                continue
 
             if result.entity_type == "LOCATION" and hospital.search(detected):
                 continue
@@ -561,6 +625,8 @@ def scrub(
                 if relative_date.search(detected):
                     continue
                 if gestational.match(detected):
+                    continue
+                if date_adjective.search(detected):
                     continue
 
             if blood_pressure.fullmatch(detected):
