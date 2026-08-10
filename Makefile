@@ -101,7 +101,7 @@ rclone:
 	@if [ ! -d "rclone" ] || [ ! -f "rclone/rclone" ]; then \
 		echo "Downloading rclone..."; \
 		mkdir -p rclone; \
-		RCLONE_VERSION="v1.68.2"; \
+		RCLONE_VERSION="v1.75.0"; \
 		if [ "$$(uname -s)" = "Linux" ]; then \
 			curl -fL https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-linux-amd64.zip -o rclone.zip; \
 			unzip -q rclone.zip; \
