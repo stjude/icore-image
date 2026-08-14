@@ -39,6 +39,9 @@ class Spreadsheet:
         else:
             raise ValueError(f"Unsupported file format: {path}")
 
+        # Convert StudyDate column to datetime from DICOM format
+        df[date_col] = pd.to_datetime(df[date_col], format="%Y%m%d")
+
         return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
 
 
