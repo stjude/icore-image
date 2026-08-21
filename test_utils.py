@@ -804,6 +804,68 @@ class AzuriteServer:
             subprocess.run(["docker", "rm", self.container], capture_output=True)
 
 
+def test_from_file_parses_dicom_dates_from_csv(tmp_path):
+    # Without explicit parsing, pandas reads YYYYMMDD as an int64 column.
+    query_file = tmp_path / "query.csv"
+    query_file.write_text("PatientID,StudyDate\nMRN001,20250115\n")
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file), mrn_col="PatientID", date_col="StudyDate"
+    )
+
+    assert spreadsheet.dataframe.loc[0, "StudyDate"] == pd.Timestamp("2025-01-15")
+
+
+def test_from_file_parses_dicom_dates_from_xlsx(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({"PatientID": ["MRN001"], "StudyDate": ["20250115"]})
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file), mrn_col="PatientID", date_col="StudyDate"
+    )
+
+    assert spreadsheet.dataframe.loc[0, "StudyDate"] == pd.Timestamp("2025-01-15")
+
+
+def test_from_file_preserves_real_excel_dates(tmp_path):
+    # Excel date cells already arrive as datetimes; parsing must not disturb them.
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame(
+        {"PatientID": ["MRN001"], "StudyDate": [pd.Timestamp("2025-01-15")]}
+    )
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file), mrn_col="PatientID", date_col="StudyDate"
+    )
+
+    assert spreadsheet.dataframe.loc[0, "StudyDate"] == pd.Timestamp("2025-01-15")
+
+
+def test_from_file_without_date_col_skips_date_parsing(tmp_path):
+    query_file = tmp_path / "query.csv"
+    query_file.write_text("AccessionNumber\nACC001\n")
+
+    spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    assert list(spreadsheet.dataframe.columns) == ["AccessionNumber"]
+
+
+def test_generate_queries_accepts_dicom_dates(tmp_path):
+    query_file = tmp_path / "query.csv"
+    query_file.write_text("PatientID,StudyDate\nMRN001,20250115\n")
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file), mrn_col="PatientID", date_col="StudyDate"
+    )
+    query_params_list, _, _ = generate_queries_and_filter(spreadsheet)
+
+    assert query_params_list == [
+        {"PatientID": "MRN001", "StudyDate": "20250115-20250115"}
+    ]
+
+
 def test_generate_queries_trims_accession_numbers(tmp_path):
     query_file = tmp_path / "query.xlsx"
     query_df = pd.DataFrame({"AccessionNumber": ["  ABC001  ", "ABC002", "  ABC003"]})

@@ -39,6 +39,12 @@ class Spreadsheet:
         else:
             raise ValueError(f"Unsupported file format: {path}")
 
+        # Convert the date column from DICOM format (YYYYMMDD), which pandas
+        # would otherwise read as an integer. Already-parsed date cells (e.g.
+        # real Excel dates) pass through untouched.
+        if date_col:
+            df[date_col] = pd.to_datetime(df[date_col], format="%Y%m%d")
+
         return cls(dataframe=df, acc_col=acc_col, mrn_col=mrn_col, date_col=date_col)
 
 

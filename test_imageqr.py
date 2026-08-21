@@ -256,22 +256,12 @@ def test_imageqr_pacs_mrn_study_date_fallback(output_dir, appdata_dir, orthanc):
     query_df_invalid = pd.DataFrame(query_data_invalid)
     query_df_invalid.to_excel(query_file_invalid, index=False)
 
-    query_spreadsheet_invalid = Spreadsheet.from_file(
-        str(query_file_invalid),
-        acc_col="AccessionNumber",
-        mrn_col="PatientID",
-        date_col="StudyDate",
-    )
-
-    with pytest.raises(ValueError, match="StudyDate must be in Excel date format"):
-        imageqr(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet_invalid,
-            application_aet="TEST_AET",
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            storescp_port=orthanc.storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
+    with pytest.raises(ValueError, match="time data.*doesn't match format"):
+        Spreadsheet.from_file(
+            str(query_file_invalid),
+            acc_col="AccessionNumber",
+            mrn_col="PatientID",
+            date_col="StudyDate",
         )
 
 
