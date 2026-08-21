@@ -264,6 +264,7 @@ def test_imageqr_pacs_mrn_study_date_fallback(output_dir, appdata_dir, orthanc):
             date_col="StudyDate",
         )
 
+
 def test_imageqr_pacs_date_window(output_dir, appdata_dir, orthanc):
     """Test date window functionality for MRN/date queries."""
     import numpy as np

@@ -504,6 +504,7 @@ def test_imagedeid_pacs_mrn_study_date_fallback(output_dir, appdata_dir, orthanc
             date_col="StudyDate",
         )
 
+
 def test_imagedeid_pacs_date_window(output_dir, appdata_dir, orthanc):
     os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
 
