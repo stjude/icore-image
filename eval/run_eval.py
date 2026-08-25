@@ -1,7 +1,7 @@
 """Evaluate text-deid the way the system actually runs it: .xlsx in, .xlsx out.
 
 Run with the project's own virtualenv (it already has presidio + spaCy
-installed):
+installed), from the repo root:
 
     .venv/bin/python eval/run_eval.py
     .venv/bin/python eval/run_eval.py --verbose
@@ -25,6 +25,20 @@ becomes one spreadsheet row instead of a bare string passed to scrub().
 Column layout and actions are illustrative defaults (Acc/Study Date kept,
 MRN/Report de-identified) — adjust COLUMN_ACTIONS below to match whatever
 column_actions configuration your real projects actually use.
+
+Running against a different corpus:
+
+By default this scores eval/corpus/, the corpus used to tune
+pipeline/stages/text_deid.py. Pass --corpus-dir to run the exact same script
+against a different, independent corpus -- e.g. a held-out set built with
+different names/MRNs/phrasing, to check that fixes generalize rather than
+being overfit to the tuning corpus's exact strings:
+
+    .venv/bin/python eval/run_eval.py --corpus-dir eval/final_textdeid_test/corpus
+
+baseline_results.json, results/, and _workdir/ are all scoped to the given
+corpus directory's parent folder, so a held-out corpus keeps its own
+baseline and results independent of the tuning corpus's.
 """
 
 from __future__ import annotations
@@ -34,6 +48,7 @@ import difflib
 import json
 import re
 import sys
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -41,15 +56,20 @@ from pathlib import Path
 
 import pandas as pd
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from pipeline.pipelines import TextDeidPipeline  # noqa: E402
 from utils import RunDirs  # noqa: E402
 
-CORPUS_DIR = Path(__file__).resolve().parent / "corpus"
-BASELINE_PATH = Path(__file__).resolve().parent / "baseline_results.json"
-WORKDIR = Path(__file__).resolve().parent / "_workdir"
+# Corpus used when --corpus-dir isn't given -- the tuning corpus
+# pipeline/stages/text_deid.py's fixes were written and iterated against.
+# baseline_results.json, results/, and _workdir/ all live next to whichever
+# corpus directory is actually used (see main()), so an alternate corpus
+# (e.g. a held-out validation set) keeps its own baseline/results/workdir,
+# independent of this one's.
+DEFAULT_CORPUS_DIR = SCRIPT_DIR / "corpus"
 
 # --- Spreadsheet shape -------------------------------------------------------
 # Mirrors detect_file_type_and_columns()'s "Primordial" layout (Acc column,
@@ -208,9 +228,9 @@ class ItemResult:
     output_snippet: str = ""
 
 
-def load_corpus() -> list[dict]:
+def load_corpus(corpus_dir: Path) -> list[dict]:
     records: list[dict] = []
-    for path in sorted(CORPUS_DIR.glob("*.jsonl")):
+    for path in sorted(corpus_dir.glob("*.jsonl")):
         with path.open() as f:
             for line_no, line in enumerate(f, start=1):
                 line = line.strip()
@@ -407,7 +427,7 @@ def build_side_by_side(
 
 
 def evaluate(
-    records: list[dict], verbose: bool = False
+    records: list[dict], workdir: Path, verbose: bool = False
 ) -> tuple[list[ItemResult], pd.DataFrame]:
     results: list[ItemResult] = []
     combined_frames: list[pd.DataFrame] = []
@@ -419,7 +439,7 @@ def evaluate(
         to_keep_list, to_remove_list = batch_key
         df, checks_per_row = build_dataframe_and_checks(batch_records)
         result_df = run_batch(
-            df, to_keep_list, to_remove_list, WORKDIR / f"batch_{batch_num}"
+            df, to_keep_list, to_remove_list, workdir / f"batch_{batch_num}"
         )
 
         batch_results: list[ItemResult] = []
@@ -563,6 +583,18 @@ def check_regressions(summary: dict, baseline: dict) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--corpus-dir",
+        default=None,
+        help=(
+            "Path to a corpus directory of *.jsonl files (relative paths are "
+            "resolved from the current working directory). Defaults to "
+            "eval/corpus, the tuning corpus. baseline_results.json, results/, "
+            "and _workdir/ are all created next to whichever corpus directory "
+            "is used, so an alternate corpus (e.g. eval/final_textdeid_test/corpus) "
+            "keeps its own baseline/results/workdir."
+        ),
+    )
+    parser.add_argument(
         "--update-baseline",
         action="store_true",
         help="Write current results as the new baseline instead of comparing against it.",
@@ -574,27 +606,41 @@ def main() -> int:
         "--results-dir",
         default="results",
         help=(
-            "Folder (relative to eval/) to write this run's results into. "
-            "Defaults to 'results'. Use a distinct name (e.g. post_test_folder) "
-            "to run a before/after comparison without overwriting the "
-            "previous run's output -- the baseline comparison below still "
-            "compares against the single shared baseline_results.json "
-            "regardless of where results are written, so a post-fix run "
-            "naturally shows up as improvements/regressions against the "
-            "pre-fix baseline."
+            "Folder (relative to the corpus directory's parent) to write this "
+            "run's results into. Defaults to 'results'. Use a distinct name "
+            "(e.g. post_test_folder) to run a before/after comparison without "
+            "overwriting the previous run's output -- the baseline comparison "
+            "below still compares against the single shared "
+            "baseline_results.json regardless of where results are written, "
+            "so a post-fix run naturally shows up as improvements/regressions "
+            "against the pre-fix baseline."
         ),
     )
     args = parser.parse_args()
-    results_dir = Path(__file__).resolve().parent / args.results_dir
 
-    records = load_corpus()
+    corpus_dir = (
+        Path(args.corpus_dir).resolve() if args.corpus_dir else DEFAULT_CORPUS_DIR
+    )
+    suite_root = corpus_dir.parent
+    baseline_path = suite_root / "baseline_results.json"
+    workdir_base = suite_root / "_workdir"
+    results_dir = suite_root / args.results_dir
+
+    records = load_corpus(corpus_dir)
     if not records:
         print(
-            f"No corpus records found under {CORPUS_DIR}. Run generate_corpus.py first."
+            f"No corpus records found under {corpus_dir}. Run generate_corpus.py first."
         )
         return 1
 
-    results, combined_df = evaluate(records, verbose=args.verbose)
+    print(f"Corpus: {corpus_dir}")
+
+    # Each run gets its own uuid4-named scratch subdirectory rather than a
+    # fixed one, so a run can never read or overwrite another run's leftover
+    # files -- matters if two runs overlap (e.g. CI + a local run) or a prior
+    # run crashed and left partial batch/log files behind.
+    run_workdir = workdir_base / uuid.uuid4().hex
+    results, combined_df = evaluate(records, run_workdir, verbose=args.verbose)
     summary = summarize(results)
     print_report(results, summary)
 
@@ -612,15 +658,15 @@ def main() -> int:
     print(f"\nInput/output side-by-side workbook -> {combined_path_latest}")
 
     if args.update_baseline:
-        with BASELINE_PATH.open("w") as f:
+        with baseline_path.open("w") as f:
             json.dump(summary, f, indent=2)
-        print(f"\nBaseline updated -> {BASELINE_PATH}")
+        print(f"\nBaseline updated -> {baseline_path}")
         return 0
 
     leaks = sum(1 for r in results if r.kind == "phi" and not r.passed)
 
-    if BASELINE_PATH.exists():
-        with BASELINE_PATH.open() as f:
+    if baseline_path.exists():
+        with baseline_path.open() as f:
             baseline = json.load(f)
         problems = check_regressions(summary, baseline)
         if problems:
@@ -632,7 +678,7 @@ def main() -> int:
         return 1 if (problems or leaks) else 0
 
     print(
-        f"\nNo baseline found at {BASELINE_PATH}. "
+        f"\nNo baseline found at {baseline_path}. "
         "Once these results look correct, re-run with --update-baseline."
     )
     return 1 if leaks else 0

@@ -81,24 +81,16 @@ dcmtk:
 	@if [ ! -d "dcmtk" ]; then \
 		echo "Downloading DCMTK..."; \
 		if [ "$$(uname -s)" = "Linux" ]; then \
-			for attempt in 1 2 3; do \
-				echo "Download attempt $$attempt/3..."; \
-				curl -fL --retry 3 --retry-delay 5 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" https://dicom.offis.de/download/dcmtk/release/bin/dcmtk-3.7.0-linux-x86_64.tar.bz2 -o dcmtk.tar.bz2 && break; \
-			done && \
-			if [ ! -f "dcmtk.tar.bz2" ]; then echo "Failed to download DCMTK after 3 attempts"; exit 1; fi && \
+			curl -fL https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-linux-x86_64.tar.bz2 -o dcmtk.tar.bz2 && \
 			tar -xjf dcmtk.tar.bz2 && \
 			rm dcmtk.tar.bz2 && \
-			mv dcmtk-3.7.0-linux-x86_64 dcmtk && \
+			mv dcmtk-3.6.9-linux-x86_64 dcmtk && \
 			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'storescp' ! -name 'echoscu' -delete; \
 		else \
-			for attempt in 1 2 3; do \
-				echo "Download attempt $$attempt/3..."; \
-				curl -fL --retry 3 --retry-delay 5 -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" https://dicom.offis.de/download/dcmtk/release/bin/dcmtk-3.7.0-macosx-$(DCMTK_ARCH).tar.bz2 -o dcmtk.tar.bz2 && break; \
-			done && \
-			if [ ! -f "dcmtk.tar.bz2" ]; then echo "Failed to download DCMTK after 3 attempts"; exit 1; fi && \
+			curl -fL https://dicom.offis.de/download/dcmtk/dcmtk369/bin/dcmtk-3.6.9-macosx-$(DCMTK_ARCH).tar.bz2 -o dcmtk.tar.bz2 && \
 			tar -xjf dcmtk.tar.bz2 && \
 			rm dcmtk.tar.bz2 && \
-			mv dcmtk-3.7.0-macosx-$(DCMTK_ARCH) dcmtk && \
+			mv dcmtk-3.6.9-macosx-$(DCMTK_ARCH) dcmtk && \
 			cd dcmtk/bin && find . -type f ! -name 'findscu' ! -name 'movescu' ! -name 'storescp' ! -name 'echoscu' -delete; \
 		fi; \
 	else \
@@ -109,7 +101,7 @@ rclone:
 	@if [ ! -d "rclone" ] || [ ! -f "rclone/rclone" ]; then \
 		echo "Downloading rclone..."; \
 		mkdir -p rclone; \
-		RCLONE_VERSION="v1.75.0"; \
+		RCLONE_VERSION="v1.68.2"; \
 		if [ "$$(uname -s)" = "Linux" ]; then \
 			curl -fL https://github.com/rclone/rclone/releases/download/$$RCLONE_VERSION/rclone-$$RCLONE_VERSION-linux-amd64.zip -o rclone.zip; \
 			unzip -q rclone.zip; \
@@ -188,4 +180,3 @@ clean:
 all: deps external-deps build-frontend build-binaries prepare-assets build-dmg
 
 signed: deps external-deps build-frontend build-binaries prepare-assets build-dmg-signed
-
