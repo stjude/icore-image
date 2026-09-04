@@ -3,30 +3,31 @@
 import logging
 import os
 import re
-import selectors
 import subprocess
 import sys
 import tempfile
-from typing import IO
+import threading
 
 from utils import ImageDeidLocalResult
+
+_BINARY_NAME = "dicom-deid-rs.exe" if sys.platform == "win32" else "dicom-deid-rs"
 
 
 def _get_default_binary_path() -> str:
     """Locate the dicom-deid-rs binary."""
     if getattr(sys, "frozen", False):
         candidates = [
-            os.path.join(os.path.dirname(sys.executable), "dicom-deid-rs"),
+            os.path.join(os.path.dirname(sys.executable), _BINARY_NAME),
         ]
         if hasattr(sys, "_MEIPASS"):
-            candidates.append(os.path.join(sys._MEIPASS, "dicom-deid-rs"))
+            candidates.append(os.path.join(sys._MEIPASS, _BINARY_NAME))
         for path in candidates:
             if os.path.exists(path):
                 return path
         return candidates[0]
 
     return os.path.join(
-        os.path.dirname(__file__), "dicom-deid-rs", "target", "release", "dicom-deid-rs"
+        os.path.dirname(__file__), "dicom-deid-rs", "target", "release", _BINARY_NAME
     )
 
 
@@ -138,43 +139,38 @@ class DeidRsPipeline:
                 text=True,
             )
 
-            # Stream stderr (progress updates) to logging in real time
+            # Drain stdout/stderr on separate threads. select()-based polling
+            # only works on sockets on Windows (not subprocess pipes), so use
+            # blocking readline loops in threads, which behave identically on
+            # every platform.
             stdout_lines: list[str] = []
             stderr_lines: list[str] = []
 
             assert process.stdout is not None
             assert process.stderr is not None
-            proc_stdout: IO[str] = process.stdout
-            proc_stderr: IO[str] = process.stderr
 
-            streams: dict[int, IO[str]] = {
-                proc_stdout.fileno(): proc_stdout,
-                proc_stderr.fileno(): proc_stderr,
-            }
-
-            sel = selectors.DefaultSelector()
-            sel.register(proc_stdout, selectors.EVENT_READ)
-            sel.register(proc_stderr, selectors.EVENT_READ)
-
-            while streams:
-                for key, _ in sel.select():
-                    fd = key.fd
-                    stream = streams[fd]
-                    line = stream.readline()
-                    if not line:
-                        sel.unregister(key.fileobj)
-                        del streams[fd]
-                        continue
+            def drain(stream, collected, is_stderr):
+                for line in iter(stream.readline, ""):
                     line = line.rstrip("\n")
-                    if stream is proc_stderr:
-                        stderr_lines.append(line)
+                    collected.append(line)
+                    if is_stderr:
                         self._report_progress(line)
-                        logging.info(f"[dicom-deid-rs] {line}")
-                    else:
-                        stdout_lines.append(line)
-                        logging.info(f"[dicom-deid-rs] {line}")
+                    logging.info(f"[dicom-deid-rs] {line}")
+                stream.close()
 
-            sel.close()
+            threads = [
+                threading.Thread(
+                    target=drain, args=(process.stdout, stdout_lines, False)
+                ),
+                threading.Thread(
+                    target=drain, args=(process.stderr, stderr_lines, True)
+                ),
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
             process.wait()
 
             stdout_text = "\n".join(stdout_lines)

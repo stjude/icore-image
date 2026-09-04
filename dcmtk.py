@@ -39,6 +39,13 @@ def _get_default_dcmtk_home():
     return dcmtk_home
 
 
+def _dcmtk_bin(tool):
+    """Path to a DCMTK CLI tool, with the .exe suffix on Windows."""
+    if sys.platform == "win32":
+        tool += ".exe"
+    return os.path.join(_get_default_dcmtk_home(), "bin", tool)
+
+
 def _build_dcmtk_env():
     env = os.environ.copy()
     dcmtk_home = _get_default_dcmtk_home()
@@ -174,8 +181,7 @@ def find_studies(
         DCMTKCommandError: If findscu command fails
         DCMTKParseError: If XML response cannot be parsed
     """
-    dcmtk_home = _get_default_dcmtk_home()
-    findscu_binary = os.path.join(dcmtk_home, "bin", "findscu")
+    findscu_binary = _dcmtk_bin("findscu")
 
     temp_dir = tempfile.mkdtemp()
     xml_path = os.path.join(temp_dir, "output.xml")
@@ -272,8 +278,7 @@ def move_study(
         Dict with keys: success (bool), num_completed (int), num_failed (int),
         num_warning (int), message (str)
     """
-    dcmtk_home = _get_default_dcmtk_home()
-    movescu_binary = os.path.join(dcmtk_home, "bin", "movescu")
+    movescu_binary = _dcmtk_bin("movescu")
 
     cmd = [
         movescu_binary,
@@ -337,8 +342,7 @@ def start_storescp(port, output_dir, calling_aet=None):
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    dcmtk_home = _get_default_dcmtk_home()
-    storescp_binary = os.path.join(dcmtk_home, "bin", "storescp")
+    storescp_binary = _dcmtk_bin("storescp")
 
     cmd = [
         storescp_binary,
@@ -385,8 +389,7 @@ def echo_pacs(host, port, calling_aet, called_aet):
     Returns:
         Dict with keys: success (bool), message (str)
     """
-    dcmtk_home = _get_default_dcmtk_home()
-    echo_binary = os.path.join(dcmtk_home, "bin", "echoscu")
+    echo_binary = _dcmtk_bin("echoscu")
     cmd = [echo_binary, "-v", "-aet", calling_aet, "-aec", called_aet, host, str(port)]
     logging.debug(f"Running echoscu: {' '.join(cmd)}")
 

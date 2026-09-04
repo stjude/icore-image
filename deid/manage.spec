@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+import sys
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 block_cipher = None
@@ -35,7 +36,8 @@ for tool_dir in ('dcmtk', 'rclone'):
     project_datas.append((tool_path, tool_dir))
 
 binaries = []
-deid_rs_path = os.path.join(resources_path, 'dicom-deid-rs', 'target', 'release', 'dicom-deid-rs')
+deid_rs_name = 'dicom-deid-rs.exe' if sys.platform == 'win32' else 'dicom-deid-rs'
+deid_rs_path = os.path.join(resources_path, 'dicom-deid-rs', 'target', 'release', deid_rs_name)
 if not os.path.exists(deid_rs_path):
     raise Exception("Missing " + deid_rs_path)
 binaries.append((deid_rs_path, '.'))

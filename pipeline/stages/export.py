@@ -11,14 +11,15 @@ from pipeline.context import PipelineContext
 
 
 def _get_rclone_binary() -> str:
+    rclone_name = "rclone.exe" if sys.platform == "win32" else "rclone"
     if getattr(sys, "frozen", False):
         bundle_dir = os.path.abspath(os.path.dirname(sys.executable))
-        rclone_binary = os.path.join(bundle_dir, "_internal", "rclone", "rclone")
+        rclone_binary = os.path.join(bundle_dir, "_internal", "rclone", rclone_name)
     else:
         rclone_binary = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             "rclone",
-            "rclone",
+            rclone_name,
         )
 
     return rclone_binary

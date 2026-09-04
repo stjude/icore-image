@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { autoUpdater } = require("electron-updater")
 const { spawn, exec } = require('child_process');
 const path = require('path');
@@ -12,6 +12,9 @@ const execPromise = util.promisify(exec);
 let mainWindow;
 let serverProcess;
 let workerProcess;
+
+// The PyInstaller-frozen Django entry point is `manage.exe` on Windows.
+const MANAGE_BIN = process.platform === 'win32' ? 'manage.exe' : 'manage';
 
 // Resolve the Python interpreter to use in dev mode. Prefer an explicit
 // ICORE_PYTHON (set by `make dev`), then the project's uv virtualenv, then a
@@ -99,8 +102,11 @@ ipcMain.handle('open-folder', async (event, folderPath) => {
     if (!fs.existsSync(expandedPath)) {
       return { success: false, error: 'Folder does not exist' };
     }
-    
-    spawn('open', [expandedPath]);
+
+    const err = await shell.openPath(expandedPath);
+    if (err) {
+      return { success: false, error: err };
+    }
     return { success: true };
   } catch (error) {
     logWithTimestamp('main', `Error opening folder: ${error}`);
@@ -136,8 +142,8 @@ app.on('ready', async () => {
       managePath = path.join(__dirname, '..', 'deid', 'manage.py');
     } else {
       managePath = app.isPackaged
-        ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
-        : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+        ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', MANAGE_BIN)
+        : path.join(__dirname, 'assets', 'dist', 'manage', MANAGE_BIN);
     }
 
     if (!fs.existsSync(defaultSettingsPath)) {
@@ -215,8 +221,8 @@ app.on('ready', async () => {
     });
   } else {
     const manageBinaryPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', 'manage')
-      : path.join(__dirname, 'assets', 'dist', 'manage', 'manage');
+      ? path.join(process.resourcesPath, 'app', 'assets', 'dist', 'manage', MANAGE_BIN)
+      : path.join(__dirname, 'assets', 'dist', 'manage', MANAGE_BIN);
     
     serverProcess = spawn(manageBinaryPath, ['runserver', '--noreload']);
     workerProcess = spawn(manageBinaryPath, ['worker']);
@@ -310,13 +316,19 @@ app.on('ready', async () => {
         mainWindow.isClosing = true;
         logWithTimestamp('main', 'Main window closed');
         
-        // In dev the processes are detached group leaders running autoreload
-        // children; kill the whole group. In prod a plain kill suffices.
+        // In dev the processes spawn autoreload children that must die too. On
+        // POSIX they're detached group leaders, so kill the whole group; on
+        // Windows there are no process groups, so use taskkill /T to kill the
+        // process tree. In prod a plain kill suffices.
         const stopProcess = (proc) => {
           if (!proc) return;
           try {
             if (isDev && proc.pid) {
-              process.kill(-proc.pid, 'SIGKILL');
+              if (process.platform === 'win32') {
+                exec(`taskkill /pid ${proc.pid} /T /F`);
+              } else {
+                process.kill(-proc.pid, 'SIGKILL');
+              }
             } else {
               proc.kill();
             }

@@ -6,6 +6,8 @@
     "start": "ICORE_DEV=1 electron .",
     "build": "electron-builder --mac",
     "build_signed": "CSC_IDENTITY_AUTO_DISCOVERY=true electron-builder --mac",
+    "build:win": "electron-builder --win --x64",
+    "build:win:arm64": "electron-builder --win --arm64",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -25,12 +27,13 @@
       "loading.html",
       "lib/**/*",
       "assets/icon.icns",
+      "assets/icon.ico",
       "assets/settings.json"
     ],
-    "extraFiles": [
+    "extraResources": [
       {
         "from": "assets/dist",
-        "to": "Resources/app/assets/dist"
+        "to": "app/assets/dist"
       }
     ],
     "mac": {
@@ -45,6 +48,21 @@
         "owner": "stjude",
         "repo": "icore-image"
       }
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.ico",
+      "publish": {
+        "provider": "github",
+        "owner": "stjude",
+        "repo": "icore-image"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
     },
     "dmg": {
       "title": "iCore ${version}",

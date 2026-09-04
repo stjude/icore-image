@@ -1,0 +1,54 @@
+name: Build Windows
+
+# This workflow is for testing and manual builds.
+# For official releases, use the release.yml workflow by pushing a git tag.
+# Trigger this manually from the Actions tab when you need to test builds.
+#
+# Windows builds are currently unsigned (no Authenticode certificate). Users
+# will see a SmartScreen warning on first run.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.10.3'
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Rust
+        run: rustup toolchain install stable
+
+      - name: Build NSIS installer
+        run: pwsh scripts/build-windows.ps1 -Arch ${{ matrix.arch }}
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: icore-${{ matrix.arch }}-setup
+          path: electron/dist/*.exe
