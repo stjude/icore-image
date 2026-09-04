@@ -640,13 +640,13 @@
  <e en="T" t="00200010" n="StudyID">@empty()</e>
  <e en="F" t="00200011" n="SeriesNumber"></e>
  <e en="F" t="00200012" n="AcquisitionNumber"></e>
- <e en="F" t="00200013" n="InstanceNumber"></e>
+ <e en="T" t="00200013" n="InstanceNumber">@keep()</e>
  <e en="F" t="00200019" n="ItemNumber"></e>
  <e en="F" t="00200020" n="PatientOrientation"></e>
  <e en="F" t="00200022" n="OverlayNumber"></e>
  <e en="F" t="00200024" n="CurveNumber"></e>
  <e en="F" t="00200026" n="LUTNumber"></e>
- <e en="F" t="00200032" n="ImagePosition"></e>
+ <e en="T" t="00200032" n="ImagePosition">@keep()</e>
  <e en="F" t="00200037" n="ImageOrientation"></e>
  <e en="T" t="00200052" n="FrameOfReferenceUID">@hashuid(@UIDROOT,this)</e>
  <e en="F" t="00200060" n="Laterality"></e>

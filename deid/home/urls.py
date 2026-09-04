@@ -15,8 +15,8 @@ urlpatterns = [
         name="image_deid_export",
     ),
     path(
-        "singleclickicore/",
-        views.SingleClickICoreView.as_view(),
+        "imagineworkflow/",
+        views.ImagineWorkflowView.as_view(),
         name="single_click_icore",
     ),
     path("tasks/", views.TaskListView.as_view(), name="task_list"),
@@ -27,13 +27,38 @@ urlpatterns = [
     path("run_export/", views.run_export, name="run_export"),
     path("run_imagedeidexport/", views.run_imagedeidexport, name="run_imagedeidexport"),
     path(
-        "run_singleclickicore/",
-        views.run_singleclickicore,
+        "run_imagineworkflow/",
+        views.run_imagineworkflow,
         name="run_single_click_icore",
     ),
     path("task_progress/", views.TaskProgressView.as_view(), name="task_progress"),
     path("get_log_content/", views.get_log_content, name="get_log_content"),
     path("api/task_status/<int:project_id>/", views.task_status, name="task_status"),
+    path(
+        "api/qc/<int:project_id>/studies/",
+        views.qc_studies,
+        name="qc_studies",
+    ),
+    path(
+        "api/qc/<int:project_id>/approve/",
+        views.qc_approve,
+        name="qc_approve",
+    ),
+    path(
+        "api/qc/<int:project_id>/series/<path:series_id>/instances/",
+        views.qc_series_instances,
+        name="qc_series_instances",
+    ),
+    path(
+        "api/qc/<int:project_id>/series/<path:series_id>/instances/<path:instance_name>/",
+        views.qc_instance,
+        name="qc_instance",
+    ),
+    path(
+        "api/qc/<int:project_id>/series/<path:series_id>/thumbnail/",
+        views.qc_thumbnail,
+        name="qc_thumbnail",
+    ),
     path(
         "settings/general/",
         views.GeneralSettingsView.as_view(),

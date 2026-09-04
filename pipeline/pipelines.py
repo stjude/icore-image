@@ -10,6 +10,7 @@ from pipeline.stages.gather import (
     LocalFilesystemGather,
     PacsQueryGather,
 )
+from pipeline.stages.header_extract import HeaderExtractStage
 from pipeline.stages.image_deid import ImageDeidExecutor
 from pipeline.stages.text_deid import PresidioTextDeid
 from utils import (
@@ -18,7 +19,7 @@ from utils import (
     PacsConfiguration,
     PacsQueryResult,
     RunDirs,
-    SingleClickResult,
+    ImagineWorkflowResult,
     Spreadsheet,
     TextDeidResult,
     configure_run_logging,
@@ -426,11 +427,11 @@ class ImageDeidExportPipeline(ImageDeidPacsPipeline):
 
 
 # ---------------------------------------------------------------------------
-# SingleClickIcorePipeline — PACS → deid → text-deid → Azure
+# ImagineWorkflowPipeline — PACS → deid → text-deid → Azure
 # ---------------------------------------------------------------------------
 
 
-class SingleClickIcorePipeline(ImageDeidPacsPipeline):
+class ImagineWorkflowPipeline(ImageDeidPacsPipeline):
     def __init__(
         self,
         pacs_list: list[PacsConfiguration],
@@ -461,6 +462,8 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
         columns_to_drop: list[str] | None = None,
         columns_to_deid: list[str] | None = None,
         skip_export: bool = False,
+        headers_to_extract: list[str] | None = None,
+        extract_all_headers: bool = False,
     ) -> None:
         super().__init__(
             pacs_list=pacs_list,
@@ -492,10 +495,12 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
         self.columns_to_drop = columns_to_drop
         self.columns_to_deid = columns_to_deid
         self.skip_export = skip_export
+        self.headers_to_extract = headers_to_extract
+        self.extract_all_headers = extract_all_headers
 
     def _build_context(self) -> PipelineContext:
         ctx = super()._build_context()
-        logging.info("Running singleclickicore")
+        logging.info("Running imagineworkflow")
         ctx.text_input_file = self.input_file
         return ctx
 
@@ -505,6 +510,16 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
             to_remove_list=self.to_remove_list,
             columns_to_drop=self.columns_to_drop,
             columns_to_deid=self.columns_to_deid,
+        )
+
+    def build_header_extract_stage(self) -> PipelineStage | None:
+        # Opt-in: only run when headers are configured. Skipping avoids
+        # headerextract_local's ValueError when neither input is provided.
+        if not self.headers_to_extract and not self.extract_all_headers:
+            return None
+        return HeaderExtractStage(
+            headers_to_extract=self.headers_to_extract,
+            extract_all_headers=self.extract_all_headers,
         )
 
     def build_export_stage(self) -> PipelineStage | None:
@@ -523,10 +538,10 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
 
     def _to_result(self, ctx: PipelineContext) -> Any:
         logging.info("=" * 80)
-        logging.info("singleclickicore complete")
+        logging.info("imagineworkflow complete")
         logging.info(f"Deidentified files preserved at: {ctx.output_dir}")
         logging.info("=" * 80)
-        result: SingleClickResult = {
+        result: ImagineWorkflowResult = {
             "num_studies_found": ctx.gathered_studies,
             "num_images_exported": ctx.images_saved,
             "num_images_quarantined": ctx.images_quarantined,
@@ -534,5 +549,7 @@ class SingleClickIcorePipeline(ImageDeidPacsPipeline):
             "num_rows_processed": ctx.text_rows_processed,
             "output_file": ctx.text_output_file or "",
             "export_performed": not self.skip_export,
+            "num_header_files_processed": ctx.header_files_processed,
+            "num_studies_with_headers": ctx.header_studies,
         }
         return result

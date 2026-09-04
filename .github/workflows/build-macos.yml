@@ -16,6 +16,11 @@ on:
           - unsigned
           - signed
 
+# Restrict the automatically-provided GITHUB_TOKEN to the minimum scope.
+# This workflow only reads the repo and uploads build artifacts.
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:

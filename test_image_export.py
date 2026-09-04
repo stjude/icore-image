@@ -5,19 +5,43 @@ import pydicom
 from pydicom.filebase import DicomBytesIO
 
 from pipeline import ImageExportPipeline
+from pipeline.stages.export import _parse_rclone_percent
 from test_utils import _create_test_dicom
 
 
 logging.basicConfig(level=logging.INFO)
 
 
-def test_image_export_single_file(tmp_path, azurite):
-    """Test exporting a single DICOM file to Azure blob storage under project_name folder"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
+@pytest.mark.parametrize(
+    "line, expected",
+    [
+        (
+            "Transferred: 1.500 MiB / 10.000 MiB, 15%, 500 KiB/s, ETA 20s",
+            0.15,
+        ),
+        ("Transferred: 10.000 MiB / 10.000 MiB, 100%, 0/s, ETA -", 1.0),
+        ("Transferred: 0 B / 10.000 MiB, 0%, 0/s, ETA -", 0.0),
+        ("Checks: 3 / 3, 100%", 1.0),
+    ],
+)
+def test_parse_rclone_percent(line, expected):
+    assert _parse_rclone_percent(line) == expected
 
-    input_dir.mkdir()
-    appdata_dir.mkdir()
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "",
+        "2024/01/01 12:00:00 NOTICE: some unrelated log line",
+        "Transferred: 1.5 MiB / 10 MiB",
+    ],
+)
+def test_parse_rclone_percent_none(line):
+    assert _parse_rclone_percent(line) is None
+
+
+def test_image_export_single_file(input_dir, appdata_dir, azurite):
+    """Test exporting a single DICOM file to Azure blob storage under project_name folder"""
 
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     filepath = input_dir / "test001.dcm"
@@ -44,13 +68,8 @@ def test_image_export_single_file(tmp_path, azurite):
     assert downloaded_ds.PatientID == "MRN001"
 
 
-def test_image_export_preserves_folder_structure(tmp_path, azurite):
+def test_image_export_preserves_folder_structure(input_dir, appdata_dir, azurite):
     """Test that folder structure is preserved under project_name/"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     (input_dir / "study1" / "series1").mkdir(parents=True)
     (input_dir / "study1" / "series2").mkdir(parents=True)
@@ -93,13 +112,8 @@ def test_image_export_preserves_folder_structure(tmp_path, azurite):
         assert expected_path in blobs, f"Expected {expected_path} in blob list"
 
 
-def test_image_export_invalid_sas_token(tmp_path):
+def test_image_export_invalid_sas_token(input_dir, appdata_dir):
     """Test error handling with invalid SAS token"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     filepath = input_dir / "test001.dcm"
@@ -120,13 +134,8 @@ def test_image_export_invalid_sas_token(tmp_path):
     assert "rclone error" in error_msg or "error" in error_msg
 
 
-def test_image_export_empty_folder(tmp_path, azurite):
+def test_image_export_empty_folder(input_dir, appdata_dir, azurite):
     """Test that exporting an empty folder raises an error"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     container_name = "testcontainer"
     sas_url = azurite.get_sas_url(container_name)
@@ -145,13 +154,8 @@ def test_image_export_empty_folder(tmp_path, azurite):
     assert str(input_dir) in error_msg
 
 
-def test_image_export_multiple_file_types(tmp_path, azurite):
+def test_image_export_multiple_file_types(input_dir, appdata_dir, azurite):
     """Test exporting different file types (not just .dcm)"""
-    input_dir = tmp_path / "input"
-    appdata_dir = tmp_path / "appdata"
-
-    input_dir.mkdir()
-    appdata_dir.mkdir()
 
     (input_dir / "data.txt").write_text("test data")
     (input_dir / "info.json").write_text('{"key": "value"}')

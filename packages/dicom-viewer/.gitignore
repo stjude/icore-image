@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# The versioned tarball (stjude-dicom-viewer-<version>.tgz) is committed as the
+# vendored artifact the frontend installs, so it is intentionally NOT ignored.

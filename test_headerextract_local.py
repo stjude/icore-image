@@ -11,13 +11,7 @@ from pipeline.header_extract import headerextract_local
 logging.basicConfig(level=logging.INFO)
 
 
-def test_headerextract_basic(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
+def test_headerextract_basic(input_dir, output_dir):
 
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     ds.PatientSex = "M"
@@ -85,13 +79,7 @@ def test_headerextract_basic(tmp_path):
     assert result["num_files_processed"] == 1
 
 
-def test_headerextract_extract_all_headers(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
+def test_headerextract_extract_all_headers(input_dir, output_dir):
 
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     ds.PatientSex = "M"
@@ -129,13 +117,7 @@ def test_headerextract_extract_all_headers(tmp_path):
     assert result["num_files_processed"] == 1
 
 
-def test_headerextract_study_level_aggregation(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
+def test_headerextract_study_level_aggregation(input_dir, output_dir):
 
     from pydicom.uid import generate_uid
 
@@ -189,13 +171,7 @@ def test_headerextract_study_level_aggregation(tmp_path):
     assert result["num_studies"] == 2
 
 
-def test_headerextract_concatenates_multiple_values(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
+def test_headerextract_concatenates_multiple_values(input_dir, output_dir):
 
     study_uid = generate_uid()
     series_uid_1 = generate_uid()
@@ -246,13 +222,7 @@ def test_headerextract_concatenates_multiple_values(tmp_path):
     assert result["num_studies"] == 1
 
 
-def test_headerextract_custom_tags(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
+def test_headerextract_custom_tags(input_dir, output_dir):
 
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     ds.PatientSex = "M"
@@ -289,13 +259,7 @@ def test_headerextract_custom_tags(tmp_path):
     assert result["num_files_processed"] == 1
 
 
-def test_headerextract_no_headers_raises_error(tmp_path):
-
-    input_dir = tmp_path / "input"
-    output_dir = tmp_path / "output"
-
-    input_dir.mkdir()
-    output_dir.mkdir()
+def test_headerextract_no_headers_raises_error(input_dir, output_dir):
 
     ds = _create_test_dicom("ACC001", "MRN001", "Smith^John", "CT", "0.5")
     filepath = input_dir / "f001.dcm"

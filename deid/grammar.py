@@ -452,11 +452,157 @@ def get_hipaa_safe_harbor_config():
     """
     config = {
         "tags_to_keep": [
+            # Patient demographics permissible under Safe Harbor. NOTE: PatientAge
+            # (0010,1010) is only safe when <= 089; ages > 89 are a HIPAA identifier
+            # and should be aggregated/removed upstream. Kept here for QC display.
+            ("00101010", "PatientAge"),
+            ("00100040", "PatientSex"),
             ("00080060", "Modality"),
             ("00180015", "BodyPartExamined"),
             ("00080008", "ImageType"),
             ("00080070", "Manufacturer"),
             ("00081090", "ManufacturerModelName"),
+            # Institution name retained by project decision. NOTE: this is not one
+            # of the 18 HIPAA individual identifiers, but it can reveal the covered
+            # entity / geography — InstitutionAddress (0008,0081) stays removed.
+            ("00080080", "InstitutionName"),
+            # Slice ordering / spatial position — needed to sort a series into
+            # anatomical order for QC review. Image geometry, not identifiers.
+            ("00200013", "InstanceNumber"),
+            ("00200032", "ImagePositionPatient"),
+            # ----------------------------------------------------------------
+            # Acquisition / technique parameters required to interpret the
+            # imaging. None are HIPAA identifiers (they describe the scanner
+            # and acquisition, not the patient). Group 0x0028 (pixel
+            # description) and 0x7FE0 (pixel data) are already exempt from
+            # unspecified-element removal by the engine, so they are not
+            # repeated here. Dates/datetimes are intentionally excluded.
+            # ----------------------------------------------------------------
+            # Geometry / contrast (all modalities)
+            ("00180050", "SliceThickness"),
+            ("00180088", "SpacingBetweenSlices"),
+            ("00200037", "ImageOrientationPatient"),
+            ("00201041", "SliceLocation"),
+            ("00185100", "PatientPosition"),
+            ("00181164", "ImagerPixelSpacing"),
+            ("00180010", "ContrastBolusAgent"),
+            ("00181040", "ContrastBolusRoute"),
+            ("00181041", "ContrastBolusVolume"),
+            ("00181044", "ContrastBolusTotalDose"),
+            ("00181046", "ContrastFlowRate"),
+            ("00181047", "ContrastFlowDuration"),
+            ("00181048", "ContrastBolusIngredient"),
+            ("00181049", "ContrastBolusIngredientConcentration"),
+            # CT
+            ("00180060", "KVP"),
+            ("00181150", "ExposureTime"),
+            ("00181151", "XRayTubeCurrent"),
+            ("00189330", "XRayTubeCurrentInmA"),
+            ("00181152", "Exposure"),
+            ("00181153", "ExposureInuAs"),
+            ("00181160", "FilterType"),
+            ("00187050", "FilterMaterial"),
+            ("00181170", "GeneratorPower"),
+            ("00181210", "ConvolutionKernel"),
+            ("00180090", "DataCollectionDiameter"),
+            ("00181100", "ReconstructionDiameter"),
+            ("00181110", "DistanceSourceToDetector"),
+            ("00181111", "DistanceSourceToPatient"),
+            ("00181120", "GantryDetectorTilt"),
+            ("00181130", "TableHeight"),
+            ("00181140", "RotationDirection"),
+            ("00180022", "ScanOptions"),
+            ("00189305", "RevolutionTime"),
+            ("00189306", "SingleCollimationWidth"),
+            ("00189307", "TotalCollimationWidth"),
+            ("00189309", "TableSpeed"),
+            ("00189310", "TableFeedPerRotation"),
+            ("00189311", "SpiralPitchFactor"),
+            ("00189323", "ExposureModulationType"),
+            ("00189345", "CTDIvol"),
+            ("00181190", "FocalSpots"),
+            ("00189302", "AcquisitionType"),
+            ("00181271", "WaterEquivalentDiameter"),
+            # MR
+            ("00180020", "ScanningSequence"),
+            ("00180021", "SequenceVariant"),
+            ("00180023", "MRAcquisitionType"),
+            ("00180024", "SequenceName"),
+            ("00180025", "AngioFlag"),
+            ("00180080", "RepetitionTime"),
+            ("00180081", "EchoTime"),
+            ("00180082", "InversionTime"),
+            ("00180083", "NumberOfAverages"),
+            ("00180084", "ImagingFrequency"),
+            ("00180085", "ImagedNucleus"),
+            ("00180086", "EchoNumbers"),
+            ("00180087", "MagneticFieldStrength"),
+            ("00180089", "NumberOfPhaseEncodingSteps"),
+            ("00180091", "EchoTrainLength"),
+            ("00180093", "PercentSampling"),
+            ("00180094", "PercentPhaseFieldOfView"),
+            ("00180095", "PixelBandwidth"),
+            ("00181250", "ReceiveCoilName"),
+            ("00181251", "TransmitCoilName"),
+            ("00181310", "AcquisitionMatrix"),
+            ("00181312", "InPlanePhaseEncodingDirection"),
+            ("00181314", "FlipAngle"),
+            ("00181316", "SAR"),
+            ("00181318", "dBdt"),
+            ("00181060", "TriggerTime"),
+            ("00181088", "HeartRate"),
+            ("00189087", "DiffusionBValue"),
+            ("00189075", "DiffusionDirectionality"),
+            ("00189089", "DiffusionGradientOrientation"),
+            ("00189147", "DiffusionAnisotropyType"),
+            ("00189117", "MRDiffusionSequence"),
+            ("00189078", "ParallelAcquisitionTechnique"),
+            ("00189069", "ParallelReductionFactorInPlane"),
+            # PET / NM (correction, units, and radiopharmaceutical scalars for
+            # SUV; radiopharmaceutical *time* is kept via tags_to_keep_time.
+            # RadiopharmaceuticalInformationSequence (0054,0016) is deliberately
+            # NOT kept — it embeds RadiopharmaceuticalStartDateTime, a date the
+            # engine will not shift inside a sequence.)
+            ("00541000", "SeriesType"),
+            ("00541001", "Units"),
+            ("00541002", "CountsSource"),
+            ("00541100", "RandomsCorrectionMethod"),
+            ("00541101", "AttenuationCorrectionMethod"),
+            ("00541102", "DecayCorrection"),
+            ("00541103", "ReconstructionMethod"),
+            ("00541105", "ScatterCorrectionMethod"),
+            ("00541200", "AxialAcceptance"),
+            ("00541210", "CoincidenceWindowWidth"),
+            ("00541300", "FrameReferenceTime"),
+            ("00541321", "DecayFactor"),
+            ("00541322", "DoseCalibrationFactor"),
+            ("00541323", "ScatterFractionFactor"),
+            ("00181242", "ActualFrameDuration"),
+            ("00180031", "Radiopharmaceutical"),
+            ("00181074", "RadionuclideTotalDose"),
+            ("00181075", "RadionuclideHalfLife"),
+            ("00181076", "RadionuclidePositronFraction"),
+            ("00540081", "NumberOfSlices"),
+            # Projection radiography (CR/DX/XA/RF) and mammography (MG).
+            # Acquisition geometry/technique, not identifiers.
+            ("00185101", "ViewPosition"),
+            ("00200062", "ImageLaterality"),
+            ("001811A2", "CompressionForce"),
+            # Ultrasound
+            ("00186011", "SequenceOfUltrasoundRegions"),
+            ("00185010", "TransducerData"),
+            ("00180040", "CineRate"),
+            ("00185020", "ProcessingFunction"),
+            ("00185022", "MechanicalIndex"),
+            ("00185024", "BoneThermalIndex"),
+            ("00185026", "CranialThermalIndex"),
+            ("00185027", "SoftTissueThermalIndex"),
+            ("00186031", "TransducerType"),
+            ("00186030", "TransducerFrequency"),
+            ("00185012", "FocusDepth"),
+            ("00185050", "DepthOfScanField"),
+            ("00185000", "OutputPower"),
+            ("00189801", "DepthsOfFocus"),
         ],
         "tags_to_dateshift": [
             ("00080020", "StudyDate"),
@@ -474,6 +620,9 @@ def get_hipaa_safe_harbor_config():
             ("00080033", "ContentTime"),
             ("00181201", "TimeOfLastCalibration"),
             ("00209040", "StudyCompletionTime"),
+            # PET injection time — needed with half-life for SUV decay
+            # correction. Time-only (no date), so safe to retain.
+            ("00181072", "RadiopharmaceuticalStartTime"),
         ],
         "tags_to_randomize": [
             ("00080018", "SOPInstanceUID"),
@@ -483,7 +632,7 @@ def get_hipaa_safe_harbor_config():
             ("00020003", "MediaStorageSOPInstanceUID"),
             ("00209161", "ConcatenationUID"),
             ("00209164", "DimensionOrganizationUID"),
-            ("00180024", "DeviceUID"),
+            ("00181002", "DeviceUID"),
             ("00080014", "InstanceCreatorUID"),
             ("00083010", "IrradiationEventUID"),
             ("00281199", "PaletteColorLookupTableUID"),
@@ -491,7 +640,6 @@ def get_hipaa_safe_harbor_config():
             ("004021A1", "TemplateExtensionOrganizationUID"),
         ],
         "tags_to_remove": [
-            ("00080080", "InstitutionName"),
             ("00204000", "ImageComments"),
             ("00324000", "StudyComments"),
             ("00102180", "Occupation"),

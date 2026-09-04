@@ -22,23 +22,24 @@ from grammar import (
 import tasks as icore_tasks
 from tasks import (
     HeaderExtractLocalArgs,
-    ImageDeidExportArgs,
     ImageDeidLocalArgs,
     ImageDeidPacsArgs,
     ImageExportArgs,
     ImageQrArgs,
     PacsConfigurationArgs,
-    SingleClickIcoreArgs,
+    ImagineWorkflowArgs,
     SpreadsheetArgs,
     TextDeidArgs,
 )
 
+from utils import sanitize_filename
+
 CMOVE_BATCH_SIZE = 50
+STORESCP_PORT = 50001
 
 HOME_DIR = os.path.expanduser("~")
 ICORE_BASE_DIR = os.path.join(HOME_DIR, "Documents", "iCore")
 SETTINGS_PATH = os.path.join(ICORE_BASE_DIR, "config", "settings.json")
-APP_DATA_PATH = os.path.abspath(os.path.join(ICORE_BASE_DIR, "app_data"))
 
 
 def load_settings():
@@ -46,16 +47,11 @@ def load_settings():
         return json.load(f)
 
 
-def _appdata_dir(project):
-    return os.path.abspath(
-        os.path.join(APP_DATA_PATH, f"PHI_{project.name}_{project.timestamp}")
-    )
-
-
 def _output_dir(project, prefix):
     return os.path.abspath(
         os.path.join(
-            project.output_folder, f"{prefix}_{project.name}_{project.timestamp}"
+            project.output_folder,
+            f"{prefix}_{sanitize_filename(project.name)}_{project.timestamp}",
         )
     )
 
@@ -63,7 +59,10 @@ def _output_dir(project, prefix):
 def _sc_pdf_output_dir(data, project):
     if sc_pdf_output_dir := data.get("sc_pdf_output_dir", ""):
         return os.path.abspath(
-            os.path.join(sc_pdf_output_dir, f"PHI_{project.name}_{project.timestamp}")
+            os.path.join(
+                sc_pdf_output_dir,
+                f"PHI_{sanitize_filename(project.name)}_{project.timestamp}",
+            )
         )
     return None
 
@@ -130,11 +129,14 @@ def column_actions_to_lists(data):
     column_actions = data.get("column_actions")
     if column_actions is None:
         raise Exception("Missing column_actions parameter.")
-    # The mapping is authoritative: deid exactly the "deid" columns (an
-    # empty list means deid nothing), drop the "drop" columns, keep the
-    # rest. The deid list is returned even when empty so it is not treated
-    # as the legacy "deid everything" default downstream.
-    deid_list = [col for col, action in column_actions.items() if action == "deid"]
+    # The mapping is authoritative: deid the "deid" columns (an empty list
+    # means deid nothing) and drop the "drop" columns. Legacy "keep" entries
+    # from older saved settings are migrated to "deid". The deid list is
+    # returned even when empty so it is not treated as the legacy "deid
+    # everything" default downstream.
+    deid_list = [
+        col for col, action in column_actions.items() if action in ("deid", "keep")
+    ]
     drop_list = [col for col, action in column_actions.items() if action == "drop"]
     return (deid_list, drop_list)
 
@@ -174,29 +176,49 @@ def detect_file_type_and_columns(input_file_path):
 
 
 def build_image_deid(data, project, settings):
-    common = dict(
-        output_dir=_output_dir(project, "DeID"),
-        filter_script=_filter_script(data),
-        anonymizer_script=_anonymizer_script(data),
-        deid_pixels=data.get("deid_pixels", False),
-        apply_default_filter_script=data.get("apply_default_ctp_filter_script", True),
-        mapping_file_path=_mapping_file_path(data),
-        sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
-        debug=settings.get("debug_logging", False),
-    )
+    output_dir = _output_dir(project, "DeID")
+    filter_script = _filter_script(data)
+    anonymizer_script = _anonymizer_script(data)
+    deid_pixels = data.get("deid_pixels", False)
+    apply_default_filter_script = data.get("apply_default_ctp_filter_script", True)
+    mapping_file_path = _mapping_file_path(data)
+    sc_pdf_output_dir = _sc_pdf_output_dir(data, project)
+    debug = settings.get("debug_logging", False)
     if project.image_source == "PACS":
         spreadsheet, date_window_days, use_fallback_query = _query_spreadsheet(data)
         return icore_tasks.imagedeid_pacs, ImageDeidPacsArgs(
             pacs_list=_pacs_list(project),
             query_spreadsheet=spreadsheet,
             application_aet=project.application_aet,
+            output_dir=output_dir,
             cmove_batch_size=CMOVE_BATCH_SIZE,
+            storescp_port=STORESCP_PORT,
+            run_dirs=None,
+            deferred_delivery=settings.get("deferred_delivery", False),
+            deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
             date_window_days=date_window_days,
             use_fallback_query=use_fallback_query,
-            **common,
+            filter_script=filter_script,
+            anonymizer_script=anonymizer_script,
+            lookup_table=None,
+            deid_pixels=deid_pixels,
+            apply_default_filter_script=apply_default_filter_script,
+            mapping_file_path=mapping_file_path,
+            sc_pdf_output_dir=sc_pdf_output_dir,
+            debug=debug,
         )
     return icore_tasks.imagedeid_local, ImageDeidLocalArgs(
-        input_dir=os.path.abspath(project.input_folder), **common
+        input_dir=os.path.abspath(project.input_folder),
+        output_dir=output_dir,
+        filter_script=filter_script,
+        anonymizer_script=anonymizer_script,
+        deid_pixels=deid_pixels,
+        lookup_table=None,
+        apply_default_filter_script=apply_default_filter_script,
+        mapping_file_path=mapping_file_path,
+        sc_pdf_output_dir=sc_pdf_output_dir,
+        run_dirs=None,
+        debug=debug,
     )
 
 
@@ -208,6 +230,10 @@ def build_image_query(data, project, settings):
         application_aet=project.application_aet,
         output_dir=_output_dir(project, "PHI"),
         cmove_batch_size=CMOVE_BATCH_SIZE,
+        storescp_port=STORESCP_PORT,
+        run_dirs=None,
+        deferred_delivery=settings.get("deferred_delivery", False),
+        deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
         date_window_days=date_window_days,
         use_fallback_query=use_fallback_query,
         debug=settings.get("debug_logging", False),
@@ -225,6 +251,7 @@ def build_header_extract(data, project, settings):
         output_dir=_output_dir(project, "PHI"),
         headers_to_extract=headers_to_extract or None,
         extract_all_headers=data.get("extract_all_headers", False),
+        run_dirs=None,
         debug=settings.get("debug_logging", False),
     )
 
@@ -243,6 +270,7 @@ def build_text_deid(data, project, settings):
         # An empty deid list is meaningful (deid nothing); drop is optional.
         columns_to_deid=columns_to_deid,
         columns_to_drop=columns_to_drop or None,
+        run_dirs=None,
         debug=settings.get("debug_logging", False),
     )
 
@@ -252,26 +280,33 @@ def build_image_export(data, project, settings):
         input_dir=os.path.abspath(project.input_folder),
         sas_url=data["sas_url"],
         project_name=project.name,
-        appdata_dir=_appdata_dir(project),
+        run_dirs=None,
         debug=settings.get("debug_logging", False),
     )
 
 
 def build_image_deid_export(data, project, settings):
+    """Build the IMAGE_DEID_EXPORT task, deferring the Azure export to QC.
+
+    Returns ``(task, args, export)``. The de-identification runs now as a
+    deid-only PACS pipeline that parks at AWAITING_QC; ``export`` carries the
+    intent the approve endpoint uses to run ``image_export`` against the deid
+    output once an operator approves it.
+    """
     spreadsheet, date_window_days, use_fallback_query = _query_spreadsheet(data)
-    return icore_tasks.imagedeidexport, ImageDeidExportArgs(
+    args = ImageDeidPacsArgs(
         pacs_list=_pacs_list(project),
         query_spreadsheet=spreadsheet,
         application_aet=project.application_aet,
-        sas_url=data["sas_url"],
-        project_name=project.name,
         output_dir=_output_dir(project, "DeID"),
-        appdata_dir=_appdata_dir(project),
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
+        storescp_port=STORESCP_PORT,
+        run_dirs=None,
         deferred_delivery=settings.get("deferred_delivery", False),
         deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
         filter_script=_filter_script(data),
         anonymizer_script=_anonymizer_script(data),
+        lookup_table=None,
         date_window_days=date_window_days,
         use_fallback_query=use_fallback_query,
         deid_pixels=data.get("deid_pixels", False),
@@ -280,10 +315,12 @@ def build_image_deid_export(data, project, settings):
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
         debug=settings.get("debug_logging", False),
     )
+    export = {"sas_url": data["sas_url"], "project_name": project.name}
+    return icore_tasks.imagedeid_pacs, args, export
 
 
-def build_singleclickicore(data, project, settings):
-    """Single-click iCore always enforces HIPAA Safe Harbor de-identification."""
+def build_imagineworkflow(data, project, settings):
+    """IMAGINE Workflow always enforces HIPAA Safe Harbor de-identification."""
     input_file = data["input_file"]
     detected_columns = detect_file_type_and_columns(input_file)
     columns_to_deid, columns_to_drop = column_actions_to_lists(data)
@@ -293,7 +330,12 @@ def build_singleclickicore(data, project, settings):
     to_remove_list = (
         data.get("text_to_remove", "").split("\n") if data.get("text_to_remove") else []
     )
-    return icore_tasks.singleclickicore, SingleClickIcoreArgs(
+    headers_to_extract = data.get("headers_to_extract")
+    if headers_to_extract:
+        headers_to_extract = [
+            h.strip() for h in headers_to_extract.split("\n") if h.strip()
+        ]
+    return icore_tasks.imagineworkflow, ImagineWorkflowArgs(
         pacs_list=_pacs_list(project),
         query_spreadsheet=SpreadsheetArgs(path=input_file, **detected_columns),
         application_aet=project.application_aet,
@@ -301,8 +343,9 @@ def build_singleclickicore(data, project, settings):
         project_name=project.name,
         output_dir=_output_dir(project, "DeID"),
         input_file=input_file,
-        appdata_dir=_appdata_dir(project),
         cmove_batch_size=settings.get("cmove_batch_size", CMOVE_BATCH_SIZE),
+        storescp_port=STORESCP_PORT,
+        run_dirs=None,
         deferred_delivery=settings.get("deferred_delivery", False),
         deferred_delivery_timeout=settings.get("deferred_delivery_timeout", 172800),
         filter_script=generate_filters_string(
@@ -311,6 +354,7 @@ def build_singleclickicore(data, project, settings):
         anonymizer_script=generate_hipaa_safe_harbor_script(
             settings.get("site_id", "SITE1"), settings.get("date_shift_range", -21)
         ),
+        lookup_table=None,
         deid_pixels=True,
         apply_default_filter_script=data.get("apply_default_ctp_filter_script", True),
         mapping_file_path=_mapping_file_path(data),
@@ -322,5 +366,7 @@ def build_singleclickicore(data, project, settings):
         sc_pdf_output_dir=_sc_pdf_output_dir(data, project),
         use_fallback_query=data.get("use_fallback_query", False),
         date_window_days=data.get("date_window", 0),
+        headers_to_extract=headers_to_extract or None,
+        extract_all_headers=data.get("extract_all_headers", False),
         debug=settings.get("debug_logging", False),
     )
