@@ -21,3 +21,12 @@ appdata
 config.yml
 # React QC viewer build artifact (produced by `make build-frontend`)
 deid/static/qc-viewer/
+
+# Text de-id eval framework: generated/point-in-time output, not the
+# framework itself. Regenerate via eval/run_eval.py -- see eval/README.md.
+eval/results/
+eval/_workdir/
+eval/baseline_results.json
+eval/final_textdeid_test/results/
+eval/final_textdeid_test/_workdir/
+eval/final_textdeid_test/baseline_results.json
