@@ -66,6 +66,78 @@ function logWithTimestamp(source, message) {
   }
 }
 
+function logUpdaterError(stage, error) {
+  const detail = error && error.stack ? error.stack : String(error);
+  logWithTimestamp('updater', `ERROR ${stage}: ${detail}`);
+}
+
+// electron-updater logs to `console`, which is discarded in a packaged app, and
+// it re-emits Squirrel.Mac failures as 'error' events that throw when nothing
+// is listening. Route both into log.txt so a failed update is diagnosable from
+// a user's log instead of being invisible.
+function instrumentAutoUpdater() {
+  autoUpdater.logger = {
+    info: (message) => logWithTimestamp('updater', message),
+    warn: (message) => logWithTimestamp('updater', `WARN ${message}`),
+    error: (message) => logWithTimestamp('updater', `ERROR ${message}`),
+    // MacUpdater reports the hand-off to Squirrel.Mac (proxy server lifecycle,
+    // which file Squirrel actually fetched) only at debug level.
+    debug: (message) => logWithTimestamp('updater', `DEBUG ${message}`),
+  };
+
+  autoUpdater.on('error', (error) => logUpdaterError('updater event', error));
+
+  autoUpdater.on('checking-for-update', () => {
+    logWithTimestamp('updater', 'checking for update');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    logWithTimestamp('updater', `update available: ${info.version}`);
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    logWithTimestamp('updater', `no update available (latest ${info.version})`);
+  });
+
+  // A full download is ~250 MB, so report only when the tens digit advances.
+  let loggedDecade = -1;
+  autoUpdater.on('download-progress', (progress) => {
+    const decade = Math.floor(progress.percent / 10);
+    if (decade > loggedDecade) {
+      loggedDecade = decade;
+      logWithTimestamp('updater', `download ${Math.floor(progress.percent)}%`);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    logWithTimestamp('updater', `update downloaded: ${info.version} (${info.downloadedFile})`);
+  });
+}
+
+// Squirrel.Mac installs by replacing the whole .app bundle in place, so an
+// update downloads fine but silently never installs when the bundle is not
+// writable by the current user, is still running from a mounted DMG, or was
+// translocated by Gatekeeper. Record which of those applies at check time.
+function logUpdaterEnvironment() {
+  const bundlePath = path.resolve(path.dirname(process.execPath), '..', '..');
+
+  let writable = 'yes';
+  try {
+    fs.accessSync(bundlePath, fs.constants.W_OK);
+    fs.accessSync(path.dirname(bundlePath), fs.constants.W_OK);
+  } catch (error) {
+    writable = `no (${error.code})`;
+  }
+
+  logWithTimestamp('updater', `version=${app.getVersion()} bundle=${bundlePath}`);
+  logWithTimestamp(
+    'updater',
+    `bundleWritable=${writable} ` +
+    `translocated=${bundlePath.includes('/AppTranslocation/')} ` +
+    `onMountedVolume=${bundlePath.startsWith('/Volumes/')}`
+  );
+}
+
 async function killProcessesOnCtpPorts() {
   const ctpPorts = [50000, 50001, 50010, 50020, 50030, 50040, 50050, 50060, 50070, 50080, 50090];
   
@@ -276,6 +348,9 @@ app.on('ready', async () => {
   mainWindow.loadURL(appUrl);
 
   if (app.isPackaged) {
+    instrumentAutoUpdater();
+    logUpdaterEnvironment();
+
     let betaUpdates = false;
     try {
       if (fs.existsSync(settingsPath)) {
@@ -287,9 +362,11 @@ app.on('ready', async () => {
     }
     autoUpdater.allowPrerelease = betaUpdates;
     logWithTimestamp('updater', `allowPrerelease=${betaUpdates}`);
-    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
-      logWithTimestamp('updater', `Update check failed: ${error}`);
-    });
+    // checkForUpdatesAndNotify only rejects for the check itself; fold the
+    // download promise into the same chain so a failed download is logged too.
+    autoUpdater.checkForUpdatesAndNotify()
+      .then((result) => result && result.downloadPromise)
+      .catch((error) => logUpdaterError('check and download', error));
   }
 
   // The back button is rendered by the app's own header (see base.html), so it
