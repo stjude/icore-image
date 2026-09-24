@@ -5,6 +5,7 @@ from typing import Any
 from pipeline.base import Pipeline, PipelineStage
 from pipeline.context import PipelineContext
 from pipeline.stages.export import AzureBlobExport
+from pipeline.stages.filter import DicomFilterStage, Filter
 from pipeline.stages.gather import (
     GatherStage,
     LocalFilesystemGather,
@@ -23,6 +24,8 @@ from utils import (
     Spreadsheet,
     TextDeidResult,
     configure_run_logging,
+    count_dicom_files,
+    format_number_with_commas,
     setup_run_directories,
 )
 
@@ -236,6 +239,100 @@ class ImageDeidPacsPipeline(Pipeline):
         result: PacsQueryResult = {
             "num_studies_found": ctx.gathered_studies,
             "num_images_saved": ctx.images_saved,
+            "num_images_quarantined": ctx.images_quarantined,
+            "failed_query_indices": ctx.failed_query_indices,
+        }
+        return result
+
+
+# ---------------------------------------------------------------------------
+# ImageQueryPipeline — PACS query/retrieve, optional filter, no de-id
+# ---------------------------------------------------------------------------
+
+
+class ImageQueryPipeline(Pipeline):
+    """Pull the studies described by the spreadsheet into ``output_dir``.
+
+    Files are retrieved unchanged. When the user selected general or modality
+    filters, a filter stage quarantines the retrieved files that fail them;
+    no de-identification is applied.
+    """
+
+    def __init__(
+        self,
+        pacs_list: list[PacsConfiguration],
+        query_spreadsheet: Spreadsheet,
+        application_aet: str,
+        output_dir: str,
+        cmove_batch_size: int,
+        appdata_dir: str | None = None,
+        date_window_days: int = 0,
+        debug: bool = False,
+        run_dirs: RunDirs | None = None,
+        use_fallback_query: bool = False,
+        storescp_port: int = 50001,
+        deferred_delivery: bool = False,
+        deferred_delivery_timeout: int = 172800,
+        general_filters: list[Filter] | None = None,
+        modality_filters: dict[str, list[Filter]] | None = None,
+    ) -> None:
+        self.pacs_list = pacs_list
+        self.query_spreadsheet = query_spreadsheet
+        self.application_aet = application_aet
+        self.output_dir = output_dir
+        self.cmove_batch_size = cmove_batch_size
+        self.appdata_dir_arg = appdata_dir
+        self.date_window_days = date_window_days
+        self.debug = debug
+        self.run_dirs_arg = run_dirs
+        self.use_fallback_query = use_fallback_query
+        self.storescp_port = storescp_port
+        self.deferred_delivery = deferred_delivery
+        self.deferred_delivery_timeout = deferred_delivery_timeout
+        self.general_filters = general_filters or []
+        self.modality_filters = modality_filters or {}
+
+    def _build_context(self) -> PipelineContext:
+        run_dirs, appdata_dir = _prepare_run(
+            self.run_dirs_arg, self.debug, self.appdata_dir_arg, self.output_dir
+        )
+        logging.info(f"Running imageqr (use_fallback_query={self.use_fallback_query})")
+        return PipelineContext(
+            run_dirs=run_dirs,
+            output_dir=self.output_dir,
+            appdata_dir=appdata_dir,
+            debug=self.debug,
+        )
+
+    def build_gather_stage(self) -> GatherStage:
+        return PacsQueryGather(
+            pacs_list=self.pacs_list,
+            query_spreadsheet=self.query_spreadsheet,
+            application_aet=self.application_aet,
+            cmove_batch_size=self.cmove_batch_size,
+            date_window_days=self.date_window_days,
+            use_fallback_query=self.use_fallback_query,
+            storescp_port=self.storescp_port,
+            deferred_delivery=self.deferred_delivery,
+            deferred_delivery_timeout=self.deferred_delivery_timeout,
+            retrieval_dir=self.output_dir,
+        )
+
+    def build_filter_stage(self) -> PipelineStage | None:
+        if not (self.general_filters or self.modality_filters):
+            return None
+        return DicomFilterStage(self.general_filters, self.modality_filters)
+
+    def _to_result(self, ctx: PipelineContext) -> Any:
+        num_retrieved = count_dicom_files(ctx.output_dir)
+        logging.info("Query and retrieval complete")
+        logging.info(
+            f"Studies found: {format_number_with_commas(ctx.gathered_studies)}"
+        )
+        logging.info(f"Images retrieved: {format_number_with_commas(num_retrieved)}")
+        result: PacsQueryResult = {
+            "num_studies_found": ctx.gathered_studies,
+            "num_images_saved": num_retrieved,
             "num_images_quarantined": ctx.images_quarantined,
             "failed_query_indices": ctx.failed_query_indices,
         }

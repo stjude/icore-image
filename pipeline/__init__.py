@@ -1,16 +1,17 @@
 from pipeline.base import Pipeline, PipelineStage
 from pipeline.context import PipelineContext
 from pipeline.header_extract import headerextract_local
-from pipeline.imageqr import imageqr
 from pipeline.pipelines import (
     ImageDeidExportPipeline,
     ImageDeidLocalPipeline,
     ImageDeidPacsPipeline,
     ImageExportPipeline,
+    ImageQueryPipeline,
     ImagineWorkflowPipeline,
     TextDeidPipeline,
 )
 from pipeline.stages.export import AzureBlobExport, ExportStage
+from pipeline.stages.filter import DicomFilterStage
 from pipeline.stages.gather import (
     GatherStage,
     LocalFilesystemGather,
@@ -21,6 +22,7 @@ from pipeline.stages.text_deid import PresidioTextDeid, TextDeidStage
 
 __all__ = [
     "AzureBlobExport",
+    "DicomFilterStage",
     "ExportStage",
     "GatherStage",
     "headerextract_local",
@@ -30,7 +32,7 @@ __all__ = [
     "ImageDeidPacsPipeline",
     "ImageDeidStage",
     "ImageExportPipeline",
-    "imageqr",
+    "ImageQueryPipeline",
     "LocalFilesystemGather",
     "PacsQueryGather",
     "Pipeline",

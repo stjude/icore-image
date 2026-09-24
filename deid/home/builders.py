@@ -237,6 +237,8 @@ def build_image_query(data, project, settings):
         date_window_days=date_window_days,
         use_fallback_query=use_fallback_query,
         debug=settings.get("debug_logging", False),
+        general_filters=data.get("general_filters", []),
+        modality_filters=data.get("modality_filters", {}),
     )
 
 

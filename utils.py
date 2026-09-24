@@ -847,7 +847,7 @@ def setup_run_directories(
     # caller key the appdata name to a stable value (e.g. a project's creation
     # timestamp); CLI runs that pass neither name nor timestamp get a
     # PHI_<timestamp> dir. Not created here — whichever path is actually used is
-    # made by the caller (_prepare_run / imageqr) so an unused default never
+    # made by the caller (_prepare_run) so an unused default never
     # leaves a stray empty dir.
     appdata_dir = appdata_dir_path(project_name, timestamp or log_timestamp)
 

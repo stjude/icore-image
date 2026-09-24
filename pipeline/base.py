@@ -22,9 +22,9 @@ class PipelineStage(ABC):
 
 
 class Pipeline(ABC):
-    """Declarative 5-stage de-id pipeline.
+    """Declarative staged de-id pipeline.
 
-    The five stages run in fixed order: Gather, ImageDeid, TextDeid,
+    The stages run in fixed order: Gather, Filter, ImageDeid, TextDeid,
     HeaderExtract, Export. Subclasses override the ``build_*_stage`` factory
     methods for whichever stages they need; any stage that returns ``None``
     from its factory is skipped.
@@ -38,6 +38,9 @@ class Pipeline(ABC):
     # --- stage factories (override in subclasses) ---
 
     def build_gather_stage(self) -> PipelineStage | None:
+        return None
+
+    def build_filter_stage(self) -> PipelineStage | None:
         return None
 
     def build_image_deid_stage(self) -> PipelineStage | None:
@@ -66,6 +69,7 @@ class Pipeline(ABC):
         ctx = self._build_context()
         stages: list[PipelineStage | None] = [
             self.build_gather_stage(),
+            self.build_filter_stage(),
             self.build_image_deid_stage(),
             self.build_text_deid_stage(),
             self.build_header_extract_stage(),

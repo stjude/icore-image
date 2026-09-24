@@ -42,10 +42,12 @@ class LocalFilesystemGather(GatherStage):
 
 
 class PacsQueryGather(GatherStage):
-    """Query PACS and retrieve matching studies into a scratch directory.
+    """Query PACS and retrieve matching studies into a directory.
 
-    The scratch dir lives under ``ctx.appdata_dir`` and is removed by
-    :meth:`cleanup` after the pipeline completes (success or failure).
+    By default that is a scratch dir under ``ctx.appdata_dir``, removed by
+    :meth:`cleanup` after the pipeline completes (success or failure). Pass
+    ``retrieval_dir`` to retrieve straight into a directory that is kept
+    (e.g. the job's output dir when the retrieved files *are* the output).
 
     ``filter_script_seed`` is the user-provided CTP filter (before any
     query-derived filter is merged); this stage will AND-merge the
@@ -68,6 +70,7 @@ class PacsQueryGather(GatherStage):
         deferred_delivery: bool = False,
         deferred_delivery_timeout: int = 172800,
         filter_script_seed: str | None = None,
+        retrieval_dir: str | None = None,
     ) -> None:
         validate_date_window_days(date_window_days)
         self.pacs_list = pacs_list
@@ -80,8 +83,9 @@ class PacsQueryGather(GatherStage):
         self.cmove_batch_size = cmove_batch_size
         self.deferred_delivery_timeout = deferred_delivery_timeout
         self.filter_script_seed = filter_script_seed
+        self.retrieval_dir = retrieval_dir
 
-        self._retrieval_dir: str | None = None
+        self._scratch_dir: str | None = None
 
     def execute(self, ctx: PipelineContext) -> None:
         query_params_list, expected_values_list, generated_filter = (
@@ -95,8 +99,10 @@ class PacsQueryGather(GatherStage):
             self.filter_script_seed, generated_filter
         )
 
-        retrieval_dir = os.path.join(ctx.appdata_dir, "dicom_retrieval")
-        self._retrieval_dir = retrieval_dir
+        retrieval_dir = self.retrieval_dir
+        if retrieval_dir is None:
+            retrieval_dir = os.path.join(ctx.appdata_dir, "dicom_retrieval")
+            self._scratch_dir = retrieval_dir
 
         study_pacs_map, failed_query_indices, failure_details = (
             query_and_retrieve_studies(
@@ -130,13 +136,13 @@ class PacsQueryGather(GatherStage):
         ctx.failed_query_indices = failed_query_indices
 
     def cleanup(self, ctx: PipelineContext) -> None:
-        if self._retrieval_dir is None:
+        if self._scratch_dir is None:
             return
         try:
-            shutil.rmtree(self._retrieval_dir)
+            shutil.rmtree(self._scratch_dir)
         except OSError as e:
             logging.warning(
                 "Failed to remove temporary retrieval directory '%s': %s",
-                self._retrieval_dir,
+                self._scratch_dir,
                 e,
             )

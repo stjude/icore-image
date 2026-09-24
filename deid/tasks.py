@@ -78,7 +78,15 @@ class ImageDeidLocalArgs(BaseModel):
     sc_pdf_output_dir: str | None
 
 
-class ImageQrArgs(BaseModel):
+class FilterArgs(BaseModel):
+    """One ``tag.action("value")`` filter row as submitted by the filter UI."""
+
+    tag: str
+    action: str
+    value: str = ""
+
+
+class PacsArgs(BaseModel):
     pacs_list: list[PacsConfigurationArgs]
     query_spreadsheet: SpreadsheetArgs
     application_aet: str
@@ -93,7 +101,12 @@ class ImageQrArgs(BaseModel):
     deferred_delivery_timeout: int
 
 
-class ImageDeidPacsArgs(ImageQrArgs):
+class ImageQrArgs(PacsArgs):
+    general_filters: list[FilterArgs]
+    modality_filters: dict[str, list[FilterArgs]]
+
+
+class ImageDeidPacsArgs(PacsArgs):
     filter_script: str | None
     anonymizer_script: str | None
     deid_pixels: bool
@@ -132,7 +145,7 @@ class ImagineWorkflowArgs(ImageDeidPacsArgs):
     extract_all_headers: bool
 
 
-def _pacs_kwargs(args: ImageQrArgs) -> dict:
+def _pacs_kwargs(args: PacsArgs) -> dict:
     kwargs = args.model_dump(exclude={"pacs_list", "query_spreadsheet"})
     kwargs["pacs_list"] = [p.to_pacs_configuration() for p in args.pacs_list]
     kwargs["query_spreadsheet"] = args.query_spreadsheet.to_spreadsheet()
@@ -166,7 +179,7 @@ def imagedeidexport(args: ImageDeidExportArgs) -> DeidExportResult:
 
 @shared_task(pydantic=True)
 def imageqr(args: ImageQrArgs) -> PacsQueryResult:
-    return pipeline.imageqr(**_pacs_kwargs(args))
+    return pipeline.ImageQueryPipeline(**_pacs_kwargs(args)).run()
 
 
 @shared_task(pydantic=True)
