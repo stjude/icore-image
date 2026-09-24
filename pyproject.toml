@@ -41,7 +41,7 @@ dependencies = [
     "tzdata>=2025.3",
     "tzlocal>=5.3.1",
     "zipp>=3.23.0",
-    "celery>=5.6.3",
+    "celery>=5.7.0a1",
     "sqlalchemy>=2.0.50",
 ]
 
