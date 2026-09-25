@@ -1,6 +1,9 @@
 import contextlib
 import json
+import logging
+import ntpath
 import os
+import stat
 import socket
 import subprocess
 import tempfile
@@ -21,8 +24,12 @@ from pydicom.uid import (
     UID,
 )
 
+from icore_paths import icore_base_dir
 from utils import (
+    configure_run_logging,
     csv_string_to_xlsx,
+    remove_tree,
+    teardown_run_logging,
     Spreadsheet,
     appdata_dir_path,
     generate_queries_and_filter,
@@ -48,6 +55,23 @@ def test_appdata_dir_path_omits_name_when_absent():
     assert os.path.basename(path) == "PHI_20260101120000"
 
 
+def test_icore_base_dir_has_no_mixed_separators():
+    """The base must survive its own containment check on Windows.
+
+    ``expanduser("~/Documents/iCore")`` returns ``C:\\Users\\me/Documents/iCore``
+    on Windows. ``ntpath.commonpath`` normalises separators, so a mixed base can
+    never compare equal to its own prefix and ``appdata_dir_path`` raised on
+    every run. Assert the containment check holds for a Windows-shaped base.
+    """
+    base = ntpath.join(r"C:\Users\jdoe\AppData\Local", "iCore")
+    final = ntpath.join(base, "appdata", "PHI_Study_A_20260101120000")
+    assert ntpath.commonpath([final, base]) == base
+
+    # And that the real helper never produces a mixed-separator path.
+    actual = icore_base_dir()
+    assert actual == os.path.normpath(actual)
+
+
 def test_setup_run_directories_names_appdata_from_project(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     run_dirs = setup_run_directories("Study A", "20260101120000")
@@ -62,6 +86,48 @@ def test_setup_run_directories_omits_name_without_project(tmp_path, monkeypatch)
     run_dirs = setup_run_directories()
     assert os.path.basename(run_dirs["appdata_dir"]).startswith("PHI_")
     assert "None" not in run_dirs["appdata_dir"]
+
+
+def test_remove_tree_deletes_read_only_files(tmp_path):
+    """Windows will not unlink a read-only file; rmtree must clear the bit."""
+    nested = tmp_path / "phi" / "study"
+    nested.mkdir(parents=True)
+    locked = nested / "instance.dcm"
+    locked.write_text("x")
+    locked.chmod(stat.S_IREAD)
+
+    assert remove_tree(str(tmp_path / "phi")) is True
+    assert not (tmp_path / "phi").exists()
+
+
+def test_remove_tree_is_a_noop_for_a_missing_path(tmp_path):
+    assert remove_tree(str(tmp_path / "gone")) is True
+
+
+def test_teardown_run_logging_closes_the_run_log(tmp_path):
+    """The solo pool reuses the process, so the handler must not outlive the run.
+
+    A handler left attached keeps appending idle worker output to a finished
+    project's run.txt and holds the file open, which blocks deleting the log
+    directory on Windows.
+    """
+    log_path = tmp_path / "run.txt"
+    root = logging.getLogger()
+    try:
+        configure_run_logging(str(log_path))
+        file_handlers = [h for h in root.handlers if isinstance(h, logging.FileHandler)]
+        assert len(file_handlers) == 1
+
+        # Non-ASCII must survive: the default encoding is cp1252 on Windows.
+        logging.info("PatientName=Zoë Müller")
+
+        teardown_run_logging()
+        assert not [h for h in root.handlers if isinstance(h, logging.FileHandler)]
+        teardown_run_logging()  # idempotent
+    finally:
+        logging.basicConfig(force=True)
+
+    assert "Zoë Müller" in log_path.read_text(encoding="utf-8")
 
 
 @contextlib.contextmanager

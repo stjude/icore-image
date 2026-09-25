@@ -85,21 +85,33 @@ function migrateFromOldLocation(oldLocationDir, newLocationDir) {
   }
 }
 
-function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false, pythonExec = 'python') {
+function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false, pythonExec = 'python', pythonEnv = {}) {
   return new Promise((resolve, reject) => {
     let stdout = '';
     let stderr = '';
 
     let migrateProcess;
     if (isDev) {
-      const env = { ...process.env, ICORE_DEV: '1' };
+      const env = { ...process.env, ...pythonEnv, ICORE_DEV: '1' };
       migrateProcess = spawnFn(pythonExec, [managePath, 'migrate'], {
         env,
         cwd: path.dirname(managePath),
+        windowsHide: true,
       });
     } else {
-      migrateProcess = spawnFn(managePath, ['migrate']);
+      migrateProcess = spawnFn(managePath, ['migrate'], {
+        env: { ...process.env, ...pythonEnv },
+        windowsHide: true,
+      });
     }
+
+    // Without this, a binary that cannot launch at all (missing VC++ runtime,
+    // blocked by AV, wrong architecture — all far likelier on Windows) never
+    // emits 'close', so the promise never settles and the app sits on the
+    // loading screen forever with no error.
+    migrateProcess.on('error', (err) => {
+      reject(new Error(`Could not start migration process (${managePath}): ${err.message}`));
+    });
     
     if (migrateProcess.stdout) {
       migrateProcess.stdout.on('data', (data) => {
@@ -125,7 +137,7 @@ function runMigration(managePath, dbPath, spawnFn = spawn, isDev = false, python
 }
 
 async function initializeApp(config) {
-  const { baseDir, dbPath, settingsPath, defaultSettingsPath, managePath, spawnFn, isDev, oldLocationDir, pythonExec } = config;
+  const { baseDir, dbPath, settingsPath, defaultSettingsPath, managePath, spawnFn, isDev, oldLocationDir, pythonExec, pythonEnv } = config;
 
   ensureDirectories(baseDir);
 
@@ -136,7 +148,7 @@ async function initializeApp(config) {
 
   ensureDatabase(dbPath);
   mergeSettings(settingsPath, defaultSettingsPath);
-  await runMigration(managePath, dbPath, spawnFn, isDev, pythonExec);
+  await runMigration(managePath, dbPath, spawnFn, isDev, pythonExec, pythonEnv);
 }
 
 module.exports = {

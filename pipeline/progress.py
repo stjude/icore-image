@@ -55,7 +55,7 @@ class ProgressReporter:
 
         try:
             tmp_path = f"{self._path}.tmp"
-            with open(tmp_path, "w") as f:
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f)
             os.replace(tmp_path, self._path)
             self._last_write = now

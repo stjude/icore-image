@@ -90,7 +90,7 @@ class DeidRsPipeline:
             logging.info("=" * 80)
             logging.info("GENERATED RECIPE (via translate-ctp):")
             logging.info("=" * 80)
-            with open(recipe_path, "r") as f:
+            with open(recipe_path, "r", encoding="utf-8") as f:
                 logging.info(f.read())
             logging.info("=" * 80)
             if variables:
@@ -119,7 +119,7 @@ class DeidRsPipeline:
 
             if self.lookup_table:
                 lookup_file = tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".properties", delete=False
+                    mode="w", suffix=".properties", delete=False, encoding="utf-8"
                 )
                 lookup_file.write(self.lookup_table)
                 lookup_file.close()
@@ -137,6 +137,14 @@ class DeidRsPipeline:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                # The engine emits UTF-8. Without this, Windows decodes with
+                # cp1252 and a single non-ASCII PatientName raises inside the
+                # drain thread below — the thread dies, its pipe stops being
+                # read, and the child blocks on a full pipe, deadlocking
+                # process.wait(). errors="replace" keeps a bad byte from
+                # killing a de-identification run over a log line.
+                encoding="utf-8",
+                errors="replace",
             )
 
             # Drain stdout/stderr on separate threads. select()-based polling
@@ -192,7 +200,7 @@ class DeidRsPipeline:
             for d in candidate_dirs:
                 blacklist_report = os.path.join(d, "blacklisted_files.txt")
                 if os.path.exists(blacklist_report):
-                    with open(blacklist_report, "r") as f:
+                    with open(blacklist_report, "r", encoding="utf-8") as f:
                         content = f.read()
                     logging.info("=" * 80)
                     logging.info("BLACKLISTED FILES (rejected by filter):")
@@ -249,13 +257,17 @@ class DeidRsPipeline:
         Returns (recipe_path, variables, remove_private_tags, remove_unspecified_elements).
         """
         # Write anonymizer script to temp file
-        anon_file = tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False)
+        anon_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".xml", delete=False, encoding="utf-8"
+        )
         anon_file.write(self.anonymizer_script or "<script></script>")
         anon_file.close()
         temp_files.append(anon_file.name)
 
         # Recipe output file
-        recipe_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        recipe_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        )
         recipe_file.close()
         temp_files.append(recipe_file.name)
 
@@ -281,7 +293,7 @@ class DeidRsPipeline:
         # Add filter script
         if self.filter_script:
             filter_file = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".script", delete=False
+                mode="w", suffix=".script", delete=False, encoding="utf-8"
             )
             filter_file.write(self.filter_script)
             filter_file.close()
@@ -291,7 +303,7 @@ class DeidRsPipeline:
         # Add blacklist script (e.g. SC/PDF exclusion)
         if self.sc_pdf_blacklist:
             blacklist_file = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".script", delete=False
+                mode="w", suffix=".script", delete=False, encoding="utf-8"
             )
             blacklist_file.write(self.sc_pdf_blacklist)
             blacklist_file.close()
@@ -304,6 +316,8 @@ class DeidRsPipeline:
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
 
         if result.returncode != 0:

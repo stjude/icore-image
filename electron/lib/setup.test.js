@@ -176,7 +176,11 @@ describe('runMigration', () => {
 
     await runMigration(managePath, dbPath, mockSpawn);
     
-    expect(mockSpawn).toHaveBeenCalledWith(managePath, ['migrate']);
+    expect(mockSpawn).toHaveBeenCalledWith(
+      managePath,
+      ['migrate'],
+      expect.objectContaining({ windowsHide: true })
+    );
   });
 
   it('resolves when migration succeeds', async () => {
@@ -191,6 +195,25 @@ describe('runMigration', () => {
     }));
 
     await expect(runMigration(managePath, dbPath, mockSpawn)).resolves.toBeUndefined();
+  });
+
+  it('rejects when the manage binary cannot be launched at all', async () => {
+    // No 'close' event ever fires in this case. Without an 'error' listener the
+    // promise never settles and the app hangs on the loading screen — the
+    // likeliest Windows failure mode (missing VC++ runtime, AV block).
+    const mockSpawn = jest.fn(() => ({
+      stdout: { on: jest.fn() },
+      stderr: { on: jest.fn() },
+      on: jest.fn((event, callback) => {
+        if (event === 'error') {
+          callback(new Error('spawn ENOENT'));
+        }
+      })
+    }));
+
+    await expect(
+      runMigration('/path/to/manage', '/path/to/db.sqlite3', mockSpawn)
+    ).rejects.toThrow('Could not start migration process');
   });
 
   it('rejects when migration fails', async () => {
@@ -300,7 +323,11 @@ describe('initializeApp', () => {
     expect(fs.existsSync(path.join(baseDir, 'logs', 'system'))).toBe(true);
     expect(fs.existsSync(dbPath)).toBe(true);
     expect(fs.existsSync(settingsPath)).toBe(true);
-    expect(mockSpawn).toHaveBeenCalledWith(managePath, ['migrate']);
+    expect(mockSpawn).toHaveBeenCalledWith(
+      managePath,
+      ['migrate'],
+      expect.objectContaining({ windowsHide: true })
+    );
   });
 
   it('creates all necessary directories for logs including authentication.log location', async () => {

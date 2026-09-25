@@ -2,9 +2,11 @@ import csv
 import io
 import logging
 import os
+import re
+import shutil
+import stat
 import sys
 import time
-import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -14,6 +16,7 @@ import pandas as pd
 from openpyxl import Workbook
 
 from dcmtk import find_studies, move_study, start_storescp, stop_storescp, echo_pacs
+from icore_paths import icore_base_dir
 
 
 @dataclass
@@ -243,7 +246,7 @@ def save_failed_queries_csv(
 
         rows.append(csv_row)
 
-    with open(csv_path, "w", newline="") as f:
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(headers)
         writer.writerows(rows)
@@ -808,6 +811,37 @@ def query_and_retrieve_studies(
     return study_pacs_map, failed_query_indices, failure_details
 
 
+def remove_tree(path: str) -> bool:
+    """Delete a directory tree, retrying briefly on Windows.
+
+    Windows refuses to unlink a file that another handle still has open, and a
+    just-terminated storescp (or an antivirus scanner mid-scan) can hold one for
+    a moment. For a de-identification tool a failed cleanup means PHI is left on
+    disk, so retry rather than give up on the first error. Read-only files are
+    cleared as they are met, which Windows also needs.
+
+    Returns True when the tree is gone.
+    """
+
+    if not os.path.exists(path):
+        return True
+
+    def _clear_readonly(func, failed_path, _exc):
+        os.chmod(failed_path, stat.S_IWRITE)
+        func(failed_path)
+
+    for attempt in range(4):
+        try:
+            shutil.rmtree(path, onexc=_clear_readonly)
+            return True
+        except OSError:
+            if attempt == 3:
+                logging.warning("Could not remove '%s'; it may still contain PHI", path)
+                return False
+            time.sleep(0.5)
+    return False
+
+
 def sanitize_filename(filename: str) -> str:
     """Sanitize a filename by replacing invalid characters with underscores."""
     valid_chars_re = re.compile(r"[A-Za-z0-9._-]")
@@ -821,7 +855,7 @@ def appdata_dir_path(project_name: str | None, timestamp: str) -> str:
     Named ``PHI_<name>_<timestamp>`` when a project name is given, and
     ``PHI_<timestamp>`` (name segment omitted) otherwise.
     """
-    icore_base = os.path.expanduser("~/Documents/iCore")
+    icore_base = icore_base_dir()
     name = (
         f"PHI_{sanitize_filename(project_name)}_{timestamp}"
         if project_name
@@ -841,7 +875,7 @@ def setup_run_directories(
 ) -> RunDirs:
     log_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    icore_base = os.path.expanduser("~/Documents/iCore")
+    icore_base = icore_base_dir()
     log_dir = os.path.join(icore_base, "logs", log_timestamp)
     # Namespace appdata per run via appdata_dir_path. ``timestamp`` lets a
     # caller key the appdata name to a stable value (e.g. a project's creation
@@ -862,17 +896,46 @@ def setup_run_directories(
     }
 
 
+# Handler for the active run's log file, so it can be closed when the run ends.
+_run_log_handler: logging.FileHandler | None = None
+
+
 def configure_run_logging(log_file_path, log_level=logging.INFO):
+    # encoding/errors are explicit because the default is the locale encoding —
+    # cp1252 on Windows. A log record carrying a non-ASCII DICOM value would
+    # otherwise raise inside logging, which swallows it and drops the record.
+    global _run_log_handler
+    _run_log_handler = logging.FileHandler(
+        log_file_path, mode="a", encoding="utf-8", errors="replace"
+    )
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
-            logging.FileHandler(log_file_path, mode="a"),
+            _run_log_handler,
             logging.StreamHandler(sys.stdout),
         ],
         force=True,
     )
+
+
+def teardown_run_logging():
+    """Detach and close the current run's log file handler.
+
+    Under Celery's prefork pool the pool child exits after each task and takes
+    its handlers with it. Under the solo pool (Windows) the worker process is
+    long-lived, so without this the finished run's handler stays attached —
+    idle worker output keeps appending to a completed project's run.txt, and
+    Windows refuses to delete or rename a log directory whose file is still
+    open.
+    """
+    global _run_log_handler
+    if _run_log_handler is None:
+        return
+    logging.getLogger().removeHandler(_run_log_handler)
+    _run_log_handler.close()
+    _run_log_handler = None
 
 
 def format_number_with_commas(num):

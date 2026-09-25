@@ -6,27 +6,30 @@ name: Build Windows
 #
 # Windows builds are currently unsigned (no Authenticode certificate). Users
 # will see a SmartScreen warning on first run.
+#
+# x64 only. There is no arm64 leg because uv.lock has no win_arm64 wheels for
+# numpy, pandas, cryptography, blis or sqlalchemy, so `uv sync` would fall back
+# to sdists needing an MSVC ARM64 toolchain and BLAS. Windows 11 on ARM runs the
+# x64 build under emulation, which is what the bundled x64 DCMTK already relies
+# on (see scripts/build-windows.ps1).
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: windows-latest
-            arch: x64
-          - runner: windows-11-arm
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          # Not "recursive": dicom-deid-rs's own reference submodules are large
+          # and unnecessary for a build (matches test-suite.yml).
+          submodules: true
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
@@ -45,10 +48,13 @@ jobs:
         run: rustup toolchain install stable
 
       - name: Build NSIS installer
-        run: pwsh scripts/build-windows.ps1 -Arch ${{ matrix.arch }}
+        run: pwsh scripts/build-windows.ps1
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: icore-${{ matrix.arch }}-setup
-          path: electron/dist/*.exe
+          name: icore-x64-setup
+          # Narrow glob: electron-builder also drops elevate.exe and uninstaller
+          # stubs into dist/.
+          path: electron/dist/*Setup*.exe
+          if-no-files-found: error

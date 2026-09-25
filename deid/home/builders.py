@@ -20,6 +20,7 @@ from grammar import (
     generate_hipaa_safe_harbor_script,
 )
 import tasks as icore_tasks
+from icore_paths import icore_base_dir
 from tasks import (
     HeaderExtractLocalArgs,
     ImageDeidLocalArgs,
@@ -37,13 +38,12 @@ from utils import sanitize_filename
 CMOVE_BATCH_SIZE = 50
 STORESCP_PORT = 50001
 
-HOME_DIR = os.path.expanduser("~")
-ICORE_BASE_DIR = os.path.join(HOME_DIR, "Documents", "iCore")
+ICORE_BASE_DIR = icore_base_dir()
 SETTINGS_PATH = os.path.join(ICORE_BASE_DIR, "config", "settings.json")
 
 
 def load_settings():
-    with open(SETTINGS_PATH) as f:
+    with open(SETTINGS_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 

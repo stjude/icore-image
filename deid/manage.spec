@@ -6,6 +6,11 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_sub
 
 block_cipher = None
 
+# UPX is not installed by the build scripts, so this is normally a no-op — but
+# if it ever is present, UPX-packed Windows binaries are a reliable SmartScreen
+# and antivirus false-positive trigger, and these builds are unsigned.
+_UPX = sys.platform != 'win32'
+
 # Get the current working directory (where the spec file is executed)
 project_path = os.getcwd()
 target_arch = os.environ.get('PYINSTALLER_TARGET_ARCH', None)
@@ -92,6 +97,9 @@ a = Analysis(
         'tasks',
         'config.celery',
         'home.tasks',
+        # Reached from config/settings.py, which Django imports by name at
+        # runtime, so static analysis alone would not guarantee it.
+        'icore_paths',
         'sqlalchemy.dialects.sqlite',  # kombu sqla broker / db results backend
         # Presidio / spacy stack used by the text deid pipeline stage
         'presidio_analyzer',
@@ -152,7 +160,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=_UPX,
     console=True,
     disable_windowed_traceback=False,
     target_arch=target_arch,
@@ -164,7 +172,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=_UPX,
     upx_exclude=[],
     name='manage'
 )

@@ -68,28 +68,28 @@ jobs:
       - name: Save per-arch update metadata for merge
         uses: actions/upload-artifact@v4
         with:
-          name: update-metadata-${{ matrix.arch }}
+          name: update-metadata-mac-${{ matrix.arch }}
           path: electron/dist/*-mac.yml
           if-no-files-found: error
 
+  # x64 only: uv.lock has no win_arm64 wheels for numpy, pandas, cryptography,
+  # blis or sqlalchemy, so `uv sync` on windows-11-arm falls back to sdists that
+  # need an MSVC ARM64 toolchain and BLAS. Windows 11 on ARM runs the x64 build
+  # under emulation, which the bundled x64 DCMTK already relies on. Being single
+  # -arch, electron-builder's latest.yml needs no merging -- `--publish always`
+  # uploads a correct one directly.
   build-and-publish-windows:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: windows-latest
-            arch: x64
-          - runner: windows-11-arm
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          # Not "recursive": dicom-deid-rs's reference submodules are large and
+          # unnecessary for a build (matches test-suite.yml).
+          submodules: true
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
@@ -111,18 +111,7 @@ jobs:
       - name: Build and publish NSIS installer
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pwsh scripts/build-windows.ps1 -Arch ${{ matrix.arch }} -Publish always
-
-      - name: Save per-arch update metadata for merge
-        uses: actions/upload-artifact@v4
-        with:
-          # electron-builder writes latest.yml (stable) / beta.yml (prerelease).
-          name: update-metadata-win-${{ matrix.arch }}
-          path: |
-            electron/dist/latest.yml
-            electron/dist/beta.yml
-            electron/dist/alpha.yml
-          if-no-files-found: warn
+        run: pwsh scripts/build-windows.ps1 -Publish always
 
   merge-update-metadata:
     needs: build-and-publish
@@ -134,9 +123,7 @@ jobs:
       - name: Download per-arch update metadata artifacts
         uses: actions/download-artifact@v4
         with:
-          # Windows metadata (update-metadata-win-*) is merged in its own job;
-          # this job's internal *-mac.yml glob ignores anything non-mac anyway.
-          pattern: update-metadata-*
+          pattern: update-metadata-mac-*
           path: yml-artifacts
 
       - name: Install PyYAML
@@ -186,69 +173,3 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${GITHUB_REF_NAME}" *-mac.yml --clobber --repo "${GITHUB_REPOSITORY}"
-
-  merge-update-metadata-windows:
-    needs: build-and-publish-windows
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download per-arch Windows update metadata artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: update-metadata-win-*
-          path: yml-artifacts
-
-      - name: Install PyYAML
-        run: pip install pyyaml
-
-      - name: Merge Windows update metadata yml files
-        run: |
-          python3 <<'EOF'
-          import collections
-          import glob
-          import os
-          import yaml
-
-          # electron-builder writes latest.yml (stable) / beta.yml / alpha.yml
-          # (prerelease) on Windows. Each arch runner emits its own copy; group
-          # by basename so each release channel merges independently.
-          groups = collections.defaultdict(list)
-          for path in glob.glob("yml-artifacts/**/*.yml", recursive=True):
-              if path.endswith("-mac.yml"):
-                  continue
-              groups[os.path.basename(path)].append(path)
-
-          if not groups:
-              raise SystemExit("no Windows *.yml artifacts found")
-
-          for basename, paths in groups.items():
-              merged = None
-              seen_urls = set()
-              merged_files = []
-              # Process x64 first: its top-level fields (path/sha512) become the
-              # defaults, so legacy clients and arm64 machines (which run x64 via
-              # emulation) fall back to the broadly compatible x64 installer.
-              for path in sorted(paths, key=lambda p: 0 if "win-x64" in p else 1):
-                  with open(path) as f:
-                      data = yaml.safe_load(f)
-                  if merged is None:
-                      merged = dict(data)
-                  for entry in data.get("files", []):
-                      if entry["url"] not in seen_urls:
-                          seen_urls.add(entry["url"])
-                          merged_files.append(entry)
-              merged["files"] = merged_files
-              with open(basename, "w") as f:
-                  yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False)
-              with open(basename) as f:
-                  print(f"merged {basename}:\n{f.read()}")
-          EOF
-
-      - name: Upload merged Windows update metadata to draft release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Only the active channel's yml exists (latest.yml for stable, beta.yml
-        # for prereleases), so upload whichever files are present.
-        run: gh release upload "${GITHUB_REF_NAME}" $(ls latest.yml beta.yml alpha.yml 2>/dev/null) --clobber --repo "${GITHUB_REPOSITORY}"

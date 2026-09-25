@@ -217,7 +217,14 @@ def find_studies(
         logging.debug(f"Running findscu: {' '.join(cmd)}")
 
         env = _build_dcmtk_env()
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
 
         if result.returncode != 0:
             raise DCMTKCommandError(
@@ -225,7 +232,7 @@ def find_studies(
             )
 
         try:
-            with open(xml_path, "r") as f:
+            with open(xml_path, "r", encoding="utf-8") as f:
                 xml_content = f.read()
         except FileNotFoundError:
             raise DCMTKCommandError("findscu did not produce XML output file")
@@ -301,7 +308,9 @@ def move_study(
     logging.debug(f"Running movescu: {' '.join(cmd)}")
 
     env = _build_dcmtk_env()
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env
+    )
 
     parsed_result = _parse_move_output(result.stderr, result.returncode)
 
@@ -394,6 +403,8 @@ def echo_pacs(host, port, calling_aet, called_aet):
     logging.debug(f"Running echoscu: {' '.join(cmd)}")
 
     env = _build_dcmtk_env()
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env
+    )
 
     return {"success": result.returncode == 0, "message": result.stderr}

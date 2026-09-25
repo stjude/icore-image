@@ -4,29 +4,27 @@
 
 .DESCRIPTION
     Windows counterpart to the macOS Makefile. PyInstaller cannot cross-compile,
-    so this must run on a real Windows machine (or a Windows CI runner) of the
-    target architecture. Native cargo / PyInstaller builds land in their default
-    output dirs, which the spec and electron config already expect.
+    so this must run on an x64 Windows machine (or CI runner). Native cargo /
+    PyInstaller builds land in their default output dirs, which the spec and
+    electron config already expect.
+
+    x64 only: uv.lock has no win_arm64 wheels for numpy, pandas, cryptography,
+    blis or sqlalchemy. Windows 11 on ARM runs the x64 build under emulation.
 
     Steps mirror `make all`:
-      deps -> external-deps (dcmtk, rclone) -> dicom-deid-rs -> build-django-app
-      -> prepare-assets -> package (electron-builder --win)
-
-.PARAMETER Arch
-    Target architecture: x64 (default) or arm64. Affects the rclone download and
-    the electron-builder flag only. The Rust engine and manage.exe are built
-    natively for whatever architecture this host is.
+      deps -> external-deps (dcmtk, rclone) -> dicom-deid-rs -> build-frontend
+      -> build-django-app -> prepare-assets -> package (electron-builder --win)
 
 .PARAMETER Publish
-    electron-builder --publish value (never | onTag | always). Default: never.
+    electron-builder --publish value (never | onTag | onTagOrDraft | always).
+    Default: never.
 
 .EXAMPLE
-    pwsh scripts/build-windows.ps1 -Arch x64
+    pwsh scripts/build-windows.ps1
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('x64', 'arm64')]
-    [string]$Arch = 'x64',
+    [ValidateSet('never', 'onTag', 'onTagOrDraft', 'always')]
     [string]$Publish = 'never'
 )
 
@@ -37,13 +35,25 @@ Set-StrictMode -Version Latest
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $RepoRoot
 
+# Set-StrictMode errors on $LASTEXITCODE before any native command has run.
+$global:LASTEXITCODE = 0
+
 $DcmtkVersion = '3.6.9'
 $RcloneVersion = 'v1.68.2'
-# DCMTK ships a prebuilt win64 (x64) dynamic build only; on arm64 it runs under
-# Windows' x64 emulation. The Rust engine and rclone have native arm64 builds.
-$RcloneArch = if ($Arch -eq 'arm64') { 'arm64' } else { 'amd64' }
 
 function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
+
+# Run a command in a subdirectory and fail loudly. Preferred over npm's
+# --prefix, which has cwd/lifecycle-script quirks on Windows.
+function Invoke-In($dir, [scriptblock]$block) {
+    Push-Location $dir
+    try {
+        & $block
+        if ($LASTEXITCODE -ne 0) { throw "'$block' failed in $dir (exit $LASTEXITCODE)" }
+    } finally {
+        Pop-Location
+    }
+}
 
 # --- Dependencies -----------------------------------------------------------
 function Install-Deps {
@@ -52,12 +62,22 @@ function Install-Deps {
     if ($LASTEXITCODE -ne 0) { throw 'uv sync failed' }
 
     Write-Step 'Installing deid npm dependencies'
-    npm install --prefix deid
-    if ($LASTEXITCODE -ne 0) { throw 'npm install (deid) failed' }
+    Invoke-In 'deid' { npm install }
+
+    Write-Step 'Installing QC viewer npm dependencies'
+    Invoke-In 'deid/frontend' { npm install }
 
     Write-Step 'Installing electron npm dependencies'
-    npm install --prefix electron
-    if ($LASTEXITCODE -ne 0) { throw 'npm install (electron) failed' }
+    Invoke-In 'electron' { npm install }
+}
+
+# --- React QC viewer -------------------------------------------------------
+function Build-Frontend {
+    # Bundles the viewer into deid/static/qc-viewer/, which manage.spec ships as
+    # part of `static`. Must run before Build-DjangoApp. Skipping it produces a
+    # working installer whose QC page 404s on qc-viewer.js -- no build error.
+    Write-Step 'Building React QC viewer'
+    Invoke-In 'deid/frontend' { npm run build }
 }
 
 # --- DCMTK ------------------------------------------------------------------
@@ -72,6 +92,9 @@ function Install-Dcmtk {
     Invoke-WebRequest -Uri $url -OutFile 'dcmtk.zip'
     Expand-Archive -Path 'dcmtk.zip' -DestinationPath '.' -Force
     Remove-Item 'dcmtk.zip'
+    if (-not (Test-Path $name)) {
+        throw "Expected '$name/' inside dcmtk.zip; got: $((Get-ChildItem -Directory).Name -join ', ')"
+    }
     if (Test-Path 'dcmtk') { Remove-Item 'dcmtk' -Recurse -Force }
     Rename-Item $name 'dcmtk'
 
@@ -81,6 +104,33 @@ function Install-Dcmtk {
     Get-ChildItem 'dcmtk/bin' -Filter '*.exe' |
         Where-Object { $keepExe -notcontains $_.Name } |
         Remove-Item -Force
+
+    # Headers and import libraries are build-time only; PyInstaller would
+    # otherwise bundle them into every installer.
+    foreach ($d in @('dcmtk/include', 'dcmtk/lib')) {
+        if (Test-Path $d) { Remove-Item $d -Recurse -Force }
+    }
+
+    # dcmtk.py points DCMDICTPATH here. Unlike the macOS build (which compiles
+    # the dictionary in and ships an empty share/), the Windows dynamic build
+    # needs the file on disk or every findscu/movescu call fails with
+    # "no data dictionary loaded".
+    $dict = "dcmtk/share/dcmtk-$DcmtkVersion/dicom.dic"
+    if (-not (Test-Path $dict)) {
+        $found = (Get-ChildItem 'dcmtk/share' -Recurse -Filter 'dicom.dic' -ErrorAction SilentlyContinue).FullName
+        throw "DCMTK data dictionary not at '$dict' (dcmtk.py expects it there). Found instead: $($found -join ', ')"
+    }
+
+    # The win64-dynamic build links against the MSVC runtime. If the zip does
+    # not carry it, findscu.exe will not start on a clean machine that lacks the
+    # VC++ redistributable, and the installer would need to chain vc_redist.
+    $dlls = (Get-ChildItem 'dcmtk/bin' -Filter '*.dll').Name
+    Write-Step "DCMTK bundled DLLs: $($dlls -join ', ')"
+    foreach ($rt in @('vcruntime140.dll', 'msvcp140.dll')) {
+        if ($dlls -notcontains $rt) {
+            Write-Warning "DCMTK does not bundle $rt; it must come from the VC++ redistributable on the target machine."
+        }
+    }
 }
 
 # --- rclone -----------------------------------------------------------------
@@ -89,8 +139,8 @@ function Install-Rclone {
         Write-Step 'rclone already present, skipping'
         return
     }
-    Write-Step "Downloading rclone (windows-$RcloneArch)"
-    $name = "rclone-$RcloneVersion-windows-$RcloneArch"
+    Write-Step 'Downloading rclone (windows-amd64)'
+    $name = "rclone-$RcloneVersion-windows-amd64"
     $url = "https://github.com/rclone/rclone/releases/download/$RcloneVersion/$name.zip"
     Invoke-WebRequest -Uri $url -OutFile 'rclone.zip'
     Expand-Archive -Path 'rclone.zip' -DestinationPath '.' -Force
@@ -103,27 +153,14 @@ function Install-Rclone {
 # --- dicom-deid-rs ----------------------------------------------------------
 function Build-DeidRs {
     Write-Step 'Building dicom-deid-rs (cargo build --release)'
-    Push-Location 'dicom-deid-rs'
-    try {
-        cargo build --release
-        if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
-    } finally {
-        Pop-Location
-    }
+    Invoke-In 'dicom-deid-rs' { cargo build --release }
 }
 
 # --- Django app (PyInstaller) ----------------------------------------------
 function Build-DjangoApp {
     Write-Step 'Freezing Django app with PyInstaller'
-    Push-Location 'deid'
-    try {
-        uv run pyinstaller --clean -y manage.spec
-        if ($LASTEXITCODE -ne 0) { throw 'pyinstaller (manage) failed' }
-        uv run pyinstaller --clean -y initialize_admin_password.spec
-        if ($LASTEXITCODE -ne 0) { throw 'pyinstaller (admin_password) failed' }
-    } finally {
-        Pop-Location
-    }
+    Invoke-In 'deid' { uv run pyinstaller --clean -y manage.spec }
+    Invoke-In 'deid' { uv run pyinstaller --clean -y initialize_admin_password.spec }
 }
 
 # --- Stage assets for electron ---------------------------------------------
@@ -137,21 +174,15 @@ function Initialize-Assets {
 
 # --- Package ----------------------------------------------------------------
 function Build-Installer {
-    Write-Step "Packaging NSIS installer ($Arch)"
-    Push-Location 'electron'
-    try {
-        $flag = if ($Arch -eq 'arm64') { '--arm64' } else { '--x64' }
-        npx electron-builder --win $flag --publish $Publish
-        if ($LASTEXITCODE -ne 0) { throw 'electron-builder failed' }
-    } finally {
-        Pop-Location
-    }
+    Write-Step 'Packaging NSIS installer (x64)'
+    Invoke-In 'electron' { npx electron-builder --win --x64 --publish $Publish }
 }
 
 Install-Deps
 Install-Dcmtk
 Install-Rclone
 Build-DeidRs
+Build-Frontend
 Build-DjangoApp
 Initialize-Assets
 Build-Installer

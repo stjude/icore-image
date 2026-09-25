@@ -5,7 +5,8 @@ const os = require('os');
 const mockApp = {
   on: jest.fn(),
   isPackaged: false,
-  quit: jest.fn()
+  quit: jest.fn(),
+  requestSingleInstanceLock: jest.fn().mockReturnValue(true)
 };
 
 const mockDialog = {
@@ -14,6 +15,10 @@ const mockDialog = {
 
 const mockIpcMain = {
   handle: jest.fn()
+};
+
+const mockShell = {
+  openPath: jest.fn().mockResolvedValue('')
 };
 
 let mockWindowInstance;
@@ -56,7 +61,8 @@ jest.mock('electron', () => ({
   app: mockApp,
   BrowserWindow: mockBrowserWindow,
   dialog: mockDialog,
-  ipcMain: mockIpcMain
+  ipcMain: mockIpcMain,
+  shell: mockShell
 }));
 
 jest.mock('child_process', () => ({
@@ -178,14 +184,18 @@ describe('main.js', () => {
     
     await readyHandler();
     
+    // windowsHide keeps manage.exe (console=True) from flashing a console
+    // window on Windows; cwd pins the frozen binary's working directory.
     expect(mockSpawn).toHaveBeenCalledWith(
       expect.stringContaining('manage'),
-      ['runserver', '--noreload']
+      ['runserver', '--noreload'],
+      expect.objectContaining({ windowsHide: true })
     );
-    
+
     expect(mockSpawn).toHaveBeenCalledWith(
       expect.stringContaining('manage'),
-      ['worker']
+      ['worker'],
+      expect.objectContaining({ windowsHide: true })
     );
     
     jest.restoreAllMocks();

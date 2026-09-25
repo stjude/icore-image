@@ -95,7 +95,7 @@ def _create_rclone_config(sas_url: str, config_path: str) -> None:
             sas_url = {sas_url}
         """
 
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         f.write(config_content)
 
 
@@ -201,6 +201,8 @@ class AzureBlobExport(ExportStage):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
         )
         tail: collections.deque[str] = collections.deque(maxlen=50)

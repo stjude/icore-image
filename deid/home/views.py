@@ -31,10 +31,11 @@ from tasks import ImageExportArgs
 
 from . import builders
 from .models import Project
-from .tasks import enqueue_project
+from .tasks import enqueue_project, worker_runs_tasks_inline
 from grammar import get_hipaa_safe_harbor_config
 from pathutils import is_path_within_directory
 from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
+from icore_paths import icore_base_dir
 from utils import appdata_dir_path, sanitize_filename
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ GENERIC_ERROR_MESSAGE = (
     "An unexpected error occurred. Please check the system logs for details."
 )
 
-ICORE_BASE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "iCore")
+ICORE_BASE_DIR = icore_base_dir()
 SETTINGS_DIR = os.path.join(ICORE_BASE_DIR, "config")
 AUTHENTICATION_LOG_PATH = os.path.join(
     ICORE_BASE_DIR, "logs", "system", "authentication.log"
@@ -144,7 +145,9 @@ os.makedirs(os.path.dirname(AUTHENTICATION_LOG_PATH), exist_ok=True)
 AUTH_LOGGER = logging.getLogger("authentication")
 AUTH_LOGGER.setLevel(logging.INFO)
 
-auth_handler = logging.FileHandler(AUTHENTICATION_LOG_PATH)
+auth_handler = logging.FileHandler(
+    AUTHENTICATION_LOG_PATH, encoding="utf-8", errors="replace"
+)
 auth_handler.setLevel(logging.INFO)
 auth_formatter = logging.Formatter(
     "%(asctime)s %(levelname)-5s %(message)s", datefmt="%H:%M:%S"
@@ -173,14 +176,14 @@ if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
     logger.addHandler(system_handler)
 
 settings_path = os.path.join(SETTINGS_DIR, "settings.json")
-with open(settings_path, "r") as f:
+with open(settings_path, "r", encoding="utf-8") as f:
     settings = json.load(f)
 
 if not settings.get("default_output_folder", "").strip():
     settings["default_output_folder"] = os.path.join(
         os.path.expanduser("~"), "Downloads"
     )
-    with open(settings_path, "w") as f:
+    with open(settings_path, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=4)
 
 
@@ -387,7 +390,7 @@ def get_log_content(request):
             return HttpResponseNotFound("Loading. Please wait...")
 
         # Read the log file content
-        with open(log_path, "r") as f:
+        with open(log_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         return HttpResponse(content, content_type="text/plain")
@@ -407,7 +410,7 @@ def _read_progress(logs_folder):
     if not is_path_within_directory(progress_path, LOGS_DIR):
         return None
     try:
-        with open(progress_path, "r") as f:
+        with open(progress_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (OSError, ValueError):
         return None
@@ -890,7 +893,7 @@ def _remember_column_actions(column_actions):
     try:
         settings_path = os.path.join(SETTINGS_DIR, "settings.json")
         try:
-            with open(settings_path, "r") as f:
+            with open(settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
         except FileNotFoundError:
             settings = {}
@@ -899,7 +902,7 @@ def _remember_column_actions(column_actions):
         remembered.update(column_actions)
         settings["column_actions"] = remembered
 
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=4)
     except Exception:
         # Remembering is best-effort; never block a run on it.
@@ -1054,7 +1057,7 @@ def save_settings(request):
         settings_path = os.path.join(SETTINGS_DIR, "settings.json")
 
         try:
-            with open(settings_path, "r") as f:
+            with open(settings_path, "r", encoding="utf-8") as f:
                 existing_settings = json.load(f)
         except FileNotFoundError:
             existing_settings = {}
@@ -1064,7 +1067,7 @@ def save_settings(request):
         if "timezone" in new_settings:
             request.session["django_timezone"] = new_settings["timezone"]
 
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(existing_settings, f, indent=4)
 
         return JsonResponse({"status": "success"})
@@ -1088,7 +1091,7 @@ def _apply_default_headers(settings):
 def load_settings(request):
     try:
         settings_path = os.path.join(SETTINGS_DIR, "settings.json")
-        with open(settings_path, "r") as f:
+        with open(settings_path, "r", encoding="utf-8") as f:
             settings = json.load(f)
         _apply_default_headers(settings)
         return JsonResponse(settings)
@@ -1286,7 +1289,7 @@ def load_admin_settings(request):
         settings_path = os.path.join(SETTINGS_DIR, "settings.json")
 
         try:
-            with open(settings_path, "r") as f:
+            with open(settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
         except FileNotFoundError:
             settings = {}
@@ -1311,7 +1314,7 @@ def save_admin_settings(request):
 
     try:
         # Load existing settings
-        with open(settings_path, "r") as f:
+        with open(settings_path, "r", encoding="utf-8") as f:
             existing_settings = json.load(f)
     except FileNotFoundError:
         existing_settings = {}
@@ -1341,7 +1344,7 @@ def save_admin_settings(request):
         existing_settings["beta_updates_enabled"] = beta_value.lower() == "true"
 
     # Save updated settings
-    with open(settings_path, "w") as f:
+    with open(settings_path, "w", encoding="utf-8") as f:
         json.dump(existing_settings, f, indent=4)
 
     return JsonResponse({"status": "success"})
@@ -1489,7 +1492,7 @@ def check_admin_password(password):
 @require_http_methods(["POST"])
 def verify_admin_password(request):
     settings_path = os.path.join(SETTINGS_DIR, "settings.json")
-    with open(settings_path, "r") as f:
+    with open(settings_path, "r", encoding="utf-8") as f:
         settings = json.load(f)
     aet = settings.get("application_aet")
     try:
@@ -1524,7 +1527,16 @@ def delete_task(request, task_id):
         )
 
 
-def kill_process_tree(pid):
+def kill_process_tree(pid, include_parent=True):
+    """Terminate ``pid``'s descendants, and ``pid`` itself unless told not to.
+
+    ``include_parent=False`` is what cancellation needs under Celery's solo
+    pool: there the task runs in the worker's own process, so ``process_pid``
+    *is* the worker and killing it would take down task processing entirely
+    (nothing restarts it). The heavy lifting all happens in child processes —
+    dicom-deid-rs, storescp, rclone — so killing just those aborts the task and
+    lets it fail out, while the worker survives to run the next one.
+    """
     try:
         parent = psutil.Process(pid)
         children = parent.children(recursive=True)
@@ -1533,8 +1545,11 @@ def kill_process_tree(pid):
                 child.terminate()
             except psutil.NoSuchProcess:
                 pass
-        parent.terminate()
-        gone, alive = psutil.wait_procs(children + [parent], timeout=5)
+        targets = list(children)
+        if include_parent:
+            parent.terminate()
+            targets.append(parent)
+        gone, alive = psutil.wait_procs(targets, timeout=5)
         for p in alive:
             try:
                 p.kill()
@@ -1559,7 +1574,11 @@ def cancel_task(request, task_id):
             )
 
         if task.status == Project.TaskStatus.RUNNING and task.process_pid:
-            kill_process_tree(task.process_pid)
+            # Under the solo pool (Windows) process_pid is the worker itself,
+            # so only its children may be killed. See kill_process_tree.
+            kill_process_tree(
+                task.process_pid, include_parent=not worker_runs_tasks_inline()
+            )
 
         # No celery revoke: the sqlite broker transport doesn't support
         # control commands. Setting CANCELLED is enough — run_project's
@@ -1624,12 +1643,12 @@ def reset_deid_settings(request):
                 status=404,
             )
 
-        with open(default_settings_path, "r") as f:
+        with open(default_settings_path, "r", encoding="utf-8") as f:
             default_settings = json.load(f)
 
         settings_path = os.path.join(SETTINGS_DIR, "settings.json")
 
-        with open(settings_path, "r") as f:
+        with open(settings_path, "r", encoding="utf-8") as f:
             current_settings = json.load(f)
 
         if settings_type == "image_deid":
@@ -1665,7 +1684,7 @@ def reset_deid_settings(request):
             if key in default_settings:
                 current_settings[key] = default_settings[key]
 
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(current_settings, f, indent=4)
 
         return JsonResponse({"status": "success"})

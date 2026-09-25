@@ -40,7 +40,7 @@ def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
     ]:
         csv_path = os.path.join(output_dir, csv_name)
         if os.path.exists(csv_path):
-            with open(csv_path, "r") as f:
+            with open(csv_path, "r", encoding="utf-8") as f:
                 csv_string_to_xlsx(f.read(), os.path.join(appdata_dir, xlsx_name))
             os.remove(csv_path)
             logging.info(f"Converted {csv_name} -> {xlsx_name}")
@@ -227,7 +227,7 @@ def _apply_default_filter_script(
         "stanford-filter.script",
     )
     if os.path.exists(stanford_filter_path):
-        with open(stanford_filter_path, "r") as f:
+        with open(stanford_filter_path, "r", encoding="utf-8") as f:
             stanford_filter_content = f.read()
         result = combine_filters(result, stanford_filter_content)
     else:
@@ -557,7 +557,7 @@ class ImageDeidExecutor(ImageDeidStage):
             "DicomAnonymizer.script",
         )
         if os.path.exists(default_script_path):
-            with open(default_script_path, "r") as f:
+            with open(default_script_path, "r", encoding="utf-8") as f:
                 return f.read()
         raise ValueError(
             f"Default anonymizer script not found at {default_script_path}"

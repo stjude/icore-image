@@ -13,6 +13,7 @@ queued message a no-op when it arrives.
 
 import logging
 import os
+import sys
 
 import psutil
 import tasks as icore_tasks
@@ -22,7 +23,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from home.models import Project
-from utils import setup_run_directories
+from utils import setup_run_directories, teardown_run_logging
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,18 @@ QC_GATED_TASK_TYPES = frozenset(
         Project.TaskType.SINGLE_CLICK_ICORE,
     }
 )
+
+
+def worker_runs_tasks_inline() -> bool:
+    """True when tasks execute in the worker's own process rather than a fork.
+
+    The default prefork pool relies on ``fork()``, which Windows lacks, so the
+    worker command runs the solo pool there. Solo executes tasks in the main
+    process, which is fine at concurrency 1 — but it means the ``os.getpid()``
+    recorded by ``run_project`` is the *worker's* pid, so ``cancel_task`` must
+    not kill it.
+    """
+    return sys.platform == "win32"
 
 
 def _terminal_status(project, task_name):
@@ -106,6 +119,10 @@ def run_project(project_id, task_name, args):
             updated_at=timezone.now(),
         )
         raise
+    finally:
+        # The solo pool (Windows) reuses this process for the next task, so the
+        # run's log file must be released here rather than at process exit.
+        teardown_run_logging()
 
 
 @worker_ready.connect

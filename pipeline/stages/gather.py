@@ -1,6 +1,5 @@
 import logging
 import os
-import shutil
 from abc import ABC
 
 from pipeline.base import PipelineStage
@@ -13,6 +12,7 @@ from utils import (
     format_number_with_commas,
     generate_queries_and_filter,
     query_and_retrieve_studies,
+    remove_tree,
     save_failed_queries_csv,
     validate_date_window_days,
 )
@@ -132,11 +132,4 @@ class PacsQueryGather(GatherStage):
     def cleanup(self, ctx: PipelineContext) -> None:
         if self._retrieval_dir is None:
             return
-        try:
-            shutil.rmtree(self._retrieval_dir)
-        except OSError as e:
-            logging.warning(
-                "Failed to remove temporary retrieval directory '%s': %s",
-                self._retrieval_dir,
-                e,
-            )
+        remove_tree(self._retrieval_dir)

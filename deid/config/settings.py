@@ -14,10 +14,12 @@ import os
 
 from pathlib import Path
 
+from icore_paths import icore_base_dir
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-HOME_DIR = os.path.join(os.path.expanduser("~"), "Documents", "iCore", "config")
+HOME_DIR = os.path.join(icore_base_dir(), "config")
 
 if not os.path.exists(HOME_DIR):
     os.makedirs(HOME_DIR)
@@ -89,6 +91,13 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": SQLITE_DB_PATH,
+        # The Django server and the Celery worker write concurrently. Windows'
+        # coarser file locking makes "database is locked" far likelier than on
+        # macOS, so wait rather than fail; WAL lets reads proceed during writes.
+        "OPTIONS": {
+            "timeout": 20,
+            "init_command": "PRAGMA journal_mode=WAL;",
+        },
     }
 }
 

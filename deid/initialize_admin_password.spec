@@ -4,6 +4,11 @@ from PyInstaller.utils.hooks import collect_dynamic_libs
 
 block_cipher = None
 
+# UPX is not installed by the build scripts, so this is normally a no-op — but
+# if it ever is present, UPX-packed Windows binaries are a reliable SmartScreen
+# and antivirus false-positive trigger, and these builds are unsigned.
+_UPX = sys.platform != 'win32'
+
 project_path = os.getcwd()
 target_arch = os.environ.get('PYINSTALLER_TARGET_ARCH', None)
 
@@ -45,7 +50,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=_UPX,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
