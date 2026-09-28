@@ -259,6 +259,9 @@ def create_analyzer_engine() -> AnalyzerEngine:
                 regex=r"(?<=is\s)(9[0-9]|[1-9]\d{2,})(?=\s*years?\s*old)",
                 score=1.0,
             ),
+            Pattern(name="a7", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*y/o\b)", score=1.0),
+            Pattern(name="a8", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*y\.o\.)", score=1.0),
+            Pattern(name="a9", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*yo\b)", score=1.0),
         ],
     )
 
@@ -284,6 +287,7 @@ def create_analyzer_engine() -> AnalyzerEngine:
     name_extras_recognizer = PatternRecognizer(
         supported_entity="NAMEPERSON",
         name="names",
+        global_regex_flags=re.DOTALL | re.MULTILINE,
         patterns=[
             Pattern(name="n1", regex=r"\b[A-Z]\.[A-Z]\.\b", score=0.85),
             Pattern(name="n2", regex=r"\b[A-Z]\.\s[A-Z]\.\s[A-Z][a-z]+\b", score=0.9),
@@ -295,6 +299,11 @@ def create_analyzer_engine() -> AnalyzerEngine:
             Pattern(name="n4", regex=r"\bPine\b", score=0.8),
             Pattern(name="n5", regex=r"\bPatient\s+[A-Z]\.[A-Z]\.", score=0.9),
             Pattern(name="n6", regex=r"\bThe(?=\s+MD\b)", score=0.75),
+            Pattern(
+                name="n7",
+                regex=r"(?<=(?i:dr\.\s))([A-Z][A-Z\-]{2,}(?:\s[A-Z][A-Z\-]{2,})?)\b",
+                score=0.85,
+            ),
         ],
     )
 
@@ -459,6 +468,10 @@ def scrub(
     blood_pressure = re.compile(r"\b\d{2,3}/\d{2,3}\b")
     year_only = re.compile(r"\b(19|20)\d{2}\b")
     relative_date = re.compile(r"\b(yesterday|today|tomorrow)\b", re.I)
+    date_adjective = re.compile(
+        r"\b(daily|weekly|monthly|annually|annual|nightly|biweekly|overnight)\b",
+        re.I,
+    )
     all_zeros = re.compile(r"\b0{7,}\b")
     hospital = re.compile(
         r"\b(Hospital|Medical Center|Clinic|Healthcare|Health System)\b", re.I
@@ -532,12 +545,10 @@ def scrub(
 
             if all_zeros.match(detected):
                 continue
-
-            if result.entity_type == "ALPHANUMERICID":
-                if re.match(r"^(\d)\1{6,}$", detected):
-                    continue
-                if re.search(r"(\d)\1{3,}$", detected) and len(detected) == 7:
-                    continue
+            if re.match(r"^(\d)\1{6,}$", detected):
+                continue
+            if re.search(r"(\d)\1{3,}$", detected) and len(detected) == 7:
+                continue
 
             if result.entity_type == "LOCATION" and hospital.search(detected):
                 continue
@@ -561,6 +572,8 @@ def scrub(
                 if relative_date.search(detected):
                     continue
                 if gestational.match(detected):
+                    continue
+                if date_adjective.search(detected):
                     continue
 
             if blood_pressure.fullmatch(detected):
