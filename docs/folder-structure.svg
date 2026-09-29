@@ -1,0 +1,308 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 940" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+    </filter>
+    <linearGradient id="headerLeft" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+    <linearGradient id="headerRight" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="940" rx="16" fill="#F8FAFC"/>
+
+  <!-- Title -->
+  <text x="550" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#0F172A">iCore Image — Where Your Files Live</text>
+  <text x="550" y="58" text-anchor="middle" font-size="13" fill="#64748B">Two locations work together to keep your data organized</text>
+
+  <!-- ==================== LEFT PANEL: Output Directory ==================== -->
+  <g filter="url(#shadow)">
+    <rect x="24" y="80" width="520" height="840" rx="12" fill="white" stroke="#E2E8F0" stroke-width="1"/>
+  </g>
+  <!-- Header -->
+  <rect x="24" y="80" width="520" height="52" rx="12" fill="url(#headerLeft)"/>
+  <rect x="24" y="108" width="520" height="24" fill="url(#headerLeft)"/>
+  <text x="44" y="112" font-size="16" font-weight="700" fill="white">Your Output Folder</text>
+  <text x="44" y="128" font-size="11" fill="#BFDBFE">Default set in Settings, can be overridden per project</text>
+
+  <!-- Output folder root -->
+  <g transform="translate(40, 152)">
+    <!-- Root folder -->
+    <rect x="0" y="0" width="488" height="32" rx="6" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+    <text x="10" y="21" font-size="20">📂</text>
+    <text x="36" y="21" font-weight="600" fill="#1E40AF">Output Folder/</text>
+    <text x="488" y="21" text-anchor="end" font-size="11" fill="#64748B" font-style="italic">e.g. ~/Downloads</text>
+
+    <!-- Project subdirectory -->
+    <line x1="20" y1="32" x2="20" y2="54" stroke="#CBD5E1" stroke-width="1.5"/>
+    <line x1="20" y1="54" x2="36" y2="54" stroke="#CBD5E1" stroke-width="1.5"/>
+    <rect x="36" y="42" width="444" height="32" rx="5" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+    <text x="48" y="63" font-size="14">📁</text>
+    <text x="68" y="58" font-size="12" font-weight="700" fill="#1E3A8A">DeID_MyStudy_20240215143025/</text>
+    <text x="68" y="70" font-size="9" fill="#3B82F6">{Prefix}_{ProjectName}_{Timestamp}</text>
+
+    <!-- Study 1 -->
+    <line x1="56" y1="74" x2="56" y2="96" stroke="#93C5FD" stroke-width="1"/>
+    <line x1="56" y1="96" x2="72" y2="96" stroke="#93C5FD" stroke-width="1"/>
+    <rect x="72" y="84" width="400" height="28" rx="5" fill="#DBEAFE"/>
+    <text x="82" y="103" font-size="14">🗃️</text>
+    <text x="104" y="103" font-size="12" font-weight="600" fill="#1E3A8A">DATE-20240115--CT--PID-00123/</text>
+
+    <!-- Series under Study 1 -->
+    <line x1="56" y1="96" x2="56" y2="142" stroke="#93C5FD" stroke-width="1"/>
+    <line x1="92" y1="112" x2="92" y2="132" stroke="#93C5FD" stroke-width="1"/>
+    <line x1="92" y1="132" x2="108" y2="132" stroke="#93C5FD" stroke-width="1"/>
+    <rect x="108" y="120" width="150" height="24" rx="4" fill="#EFF6FF"/>
+    <text x="118" y="137" font-size="12">📁 SER-1/</text>
+
+    <!-- DICOM files -->
+    <g fill="#64748B" font-size="11">
+      <rect x="268" y="120" width="56" height="24" rx="4" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="0.5"/>
+      <text x="278" y="137" fill="#166534">1.dcm</text>
+      <rect x="330" y="120" width="56" height="24" rx="4" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="0.5"/>
+      <text x="340" y="137" fill="#166534">2.dcm</text>
+      <rect x="392" y="120" width="56" height="24" rx="4" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="0.5"/>
+      <text x="402" y="137" fill="#166534">3.dcm</text>
+    </g>
+
+    <!-- Series 2 under Study 1 -->
+    <line x1="92" y1="132" x2="92" y2="162" stroke="#93C5FD" stroke-width="1"/>
+    <line x1="92" y1="162" x2="108" y2="162" stroke="#93C5FD" stroke-width="1"/>
+    <rect x="108" y="150" width="150" height="24" rx="4" fill="#EFF6FF"/>
+    <text x="118" y="167" font-size="12">📁 SER-2/</text>
+    <rect x="268" y="150" width="56" height="24" rx="4" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="0.5"/>
+    <text x="278" y="167" font-size="11" fill="#166534">1.dcm</text>
+
+    <!-- Study 2 -->
+    <line x1="56" y1="142" x2="56" y2="196" stroke="#93C5FD" stroke-width="1"/>
+    <line x1="56" y1="196" x2="72" y2="196" stroke="#93C5FD" stroke-width="1"/>
+    <rect x="72" y="184" width="400" height="28" rx="5" fill="#DBEAFE"/>
+    <text x="82" y="203" font-size="14">🗃️</text>
+    <text x="104" y="203" font-size="12" font-weight="600" fill="#1E3A8A">DATE-20240220--MR--PID-00456/</text>
+
+    <!-- Series under Study 2 -->
+    <line x1="92" y1="212" x2="92" y2="232" stroke="#93C5FD" stroke-width="1"/>
+    <line x1="92" y1="232" x2="108" y2="232" stroke="#93C5FD" stroke-width="1"/>
+    <rect x="108" y="220" width="150" height="24" rx="4" fill="#EFF6FF"/>
+    <text x="118" y="237" font-size="12">📁 SER-1/</text>
+    <rect x="268" y="220" width="56" height="24" rx="4" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="0.5"/>
+    <text x="278" y="237" font-size="11" fill="#166534">1.dcm</text>
+    <rect x="330" y="220" width="56" height="24" rx="4" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="0.5"/>
+    <text x="340" y="237" font-size="11" fill="#166534">2.dcm</text>
+
+    <!-- Second project -->
+    <line x1="20" y1="54" x2="20" y2="270" stroke="#CBD5E1" stroke-width="1.5"/>
+    <line x1="20" y1="270" x2="36" y2="270" stroke="#CBD5E1" stroke-width="1.5"/>
+    <rect x="36" y="258" width="444" height="32" rx="5" fill="#E0E7FF" stroke="#A5B4FC" stroke-width="1"/>
+    <text x="48" y="279" font-size="14">📁</text>
+    <text x="68" y="274" font-size="12" font-weight="700" fill="#3730A3">PHI_MyQuery_20240301091500/</text>
+    <text x="68" y="286" font-size="9" fill="#6366F1">Query &amp; retrieve project (no de-id)</text>
+
+    <!-- ... under second project -->
+    <line x1="56" y1="290" x2="56" y2="308" stroke="#A5B4FC" stroke-width="1"/>
+    <line x1="56" y1="308" x2="72" y2="308" stroke="#A5B4FC" stroke-width="1"/>
+    <rect x="72" y="298" width="120" height="22" rx="4" fill="#EEF2FF"/>
+    <text x="82" y="314" font-size="11" fill="#4338CA">📂 images/ → ...</text>
+    <text x="200" y="314" font-size="10" fill="#6366F1">same study/series layout</text>
+  </g>
+
+  <!-- Prefix legend -->
+  <g transform="translate(40, 490)">
+    <rect x="0" y="0" width="488" height="80" rx="8" fill="#FFF7ED" stroke="#FED7AA" stroke-width="1"/>
+    <text x="16" y="20" font-size="12" font-weight="700" fill="#9A3412">Project Folder Naming</text>
+
+    <g font-size="11">
+      <circle cx="26" cy="40" r="3" fill="#F59E0B"/>
+      <text x="36" y="44" fill="#92400E"><tspan font-weight="600">DeID_</tspan> prefix — de-identification workflows (Image De-id, Text De-id, Export)</text>
+      <circle cx="26" cy="58" r="3" fill="#F59E0B"/>
+      <text x="36" y="62" fill="#92400E"><tspan font-weight="600">PHI_</tspan> prefix — original-data workflows (Query &amp; Retrieve, Header Extract)</text>
+    </g>
+  </g>
+
+  <!-- Study folder naming legend -->
+  <g transform="translate(40, 584)">
+    <rect x="0" y="0" width="488" height="80" rx="8" fill="#FFF7ED" stroke="#FED7AA" stroke-width="1"/>
+    <text x="16" y="20" font-size="12" font-weight="700" fill="#9A3412">Study Folder Naming</text>
+
+    <text x="16" y="40" font-size="12" fill="#78350F" font-family="monospace">DATE-{StudyDate}--{Modality}--PID-{PatientID}</text>
+
+    <g font-size="11" fill="#92400E">
+      <circle cx="26" cy="58" r="3" fill="#F59E0B"/>
+      <text x="36" y="62">StudyDate (YYYYMMDD), Modality (CT, MR, ...), PatientID (de-identified)</text>
+    </g>
+  </g>
+
+  <!-- Other workflow types -->
+  <g transform="translate(40, 680)">
+    <text x="0" y="0" font-size="13" font-weight="700" fill="#334155">Other Workflow Output Types</text>
+
+    <!-- Text De-id -->
+    <rect x="0" y="14" width="236" height="70" rx="8" fill="#FDF4FF" stroke="#E9D5FF" stroke-width="1"/>
+    <text x="14" y="38" font-size="13" font-weight="600" fill="#7E22CE">Text De-identification</text>
+    <text x="14" y="56" font-size="12" fill="#6B21A8" font-family="monospace">📄 output.xlsx</text>
+    <text x="14" y="72" font-size="10" fill="#A855F7">De-identified spreadsheet</text>
+
+    <!-- Header Extract -->
+    <rect x="252" y="14" width="236" height="70" rx="8" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1"/>
+    <text x="266" y="38" font-size="13" font-weight="600" fill="#065F46">Header Extraction</text>
+    <text x="266" y="56" font-size="12" fill="#047857" font-family="monospace">📄 header_extraction.xlsx</text>
+    <text x="266" y="72" font-size="10" fill="#10B981">Extracted DICOM metadata</text>
+
+    <!-- Export -->
+    <rect x="0" y="96" width="488" height="54" rx="8" fill="#FFF1F2" stroke="#FECDD3" stroke-width="1"/>
+    <text x="14" y="118" font-size="13" font-weight="600" fill="#9F1239">De-id + Export</text>
+    <text x="14" y="136" font-size="12" fill="#BE123C">Same as Image De-id, plus files uploaded to Azure Blob Storage</text>
+  </g>
+
+  <!-- ==================== RIGHT PANEL: App Data ==================== -->
+  <g filter="url(#shadow)">
+    <rect x="564" y="80" width="520" height="840" rx="12" fill="white" stroke="#E2E8F0" stroke-width="1"/>
+  </g>
+  <!-- Header -->
+  <rect x="564" y="80" width="520" height="52" rx="12" fill="url(#headerRight)"/>
+  <rect x="564" y="108" width="520" height="24" fill="url(#headerRight)"/>
+  <text x="584" y="112" font-size="16" font-weight="700" fill="white">~/Documents/iCore/</text>
+  <text x="584" y="128" font-size="11" fill="#DDD6FE">Application data — created automatically</text>
+
+  <g transform="translate(580, 150)">
+
+    <!-- ===== CONFIG SECTION ===== -->
+    <rect x="0" y="0" width="488" height="90" rx="8" fill="#FEF3C7" stroke="#FDE68A" stroke-width="1"/>
+    <text x="12" y="22" font-size="15">⚙️</text>
+    <text x="34" y="22" font-size="14" font-weight="700" fill="#92400E">config/</text>
+
+    <g transform="translate(40, 34)">
+      <rect x="0" y="0" width="200" height="22" rx="4" fill="white" stroke="#FDE68A" stroke-width="0.5"/>
+      <text x="8" y="15" font-size="11" font-family="monospace" fill="#78350F">db.sqlite3</text>
+      <text x="210" y="15" font-size="10" fill="#92400E">Projects &amp; job history</text>
+
+      <rect x="0" y="26" width="200" height="22" rx="4" fill="white" stroke="#FDE68A" stroke-width="0.5"/>
+      <text x="8" y="41" font-size="11" font-family="monospace" fill="#78350F">settings.json</text>
+      <text x="210" y="41" font-size="10" fill="#92400E">App preferences</text>
+    </g>
+
+    <!-- ===== LOGS SECTION ===== -->
+    <rect x="0" y="104" width="488" height="240" rx="8" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+    <text x="12" y="126" font-size="15">📋</text>
+    <text x="34" y="126" font-size="14" font-weight="700" fill="#1E3A8A">logs/</text>
+
+    <!-- System logs -->
+    <g transform="translate(20, 138)">
+      <rect x="0" y="0" width="452" height="64" rx="6" fill="#DBEAFE" stroke="#93C5FD" stroke-width="0.5"/>
+      <text x="12" y="16" font-size="12" font-weight="600" fill="#1E3A8A">system/</text>
+
+      <rect x="16" y="24" width="180" height="18" rx="3" fill="white"/>
+      <text x="24" y="37" font-size="11" font-family="monospace" fill="#1E40AF">log.txt</text>
+      <text x="204" y="37" font-size="10" fill="#3B82F6">Main application log</text>
+
+      <rect x="16" y="46" width="180" height="18" rx="3" fill="white"/>
+      <text x="24" y="59" font-size="11" font-family="monospace" fill="#1E40AF">authentication.log</text>
+      <text x="204" y="59" font-size="10" fill="#3B82F6">Auth attempt log</text>
+    </g>
+
+    <!-- Run log 1 -->
+    <g transform="translate(20, 212)">
+      <rect x="0" y="0" width="452" height="52" rx="6" fill="white" stroke="#93C5FD" stroke-width="0.5"/>
+      <rect x="0" y="0" width="452" height="20" rx="6" fill="#DBEAFE"/>
+      <rect x="0" y="10" width="452" height="10" fill="#DBEAFE"/>
+      <text x="12" y="14" font-size="11" font-weight="600" fill="#1E3A8A">2024-01-15_10-30-00/</text>
+      <text x="452" y="14" text-anchor="end" font-size="9" fill="#3B82F6">← timestamp links to appdata</text>
+
+      <rect x="16" y="26" width="100" height="20" rx="3" fill="#EFF6FF"/>
+      <text x="26" y="40" font-size="11" font-family="monospace" fill="#1E40AF">run.txt</text>
+      <text x="124" y="40" font-size="10" fill="#64748B">Processing log</text>
+
+      <rect x="260" y="26" width="100" height="20" rx="3" fill="#EFF6FF"/>
+      <text x="270" y="40" font-size="11" font-family="monospace" fill="#1E40AF">ctp.txt</text>
+      <text x="368" y="40" font-size="10" fill="#64748B">Pipeline log</text>
+    </g>
+
+    <!-- Run log 2 -->
+    <g transform="translate(20, 272)">
+      <rect x="0" y="0" width="452" height="52" rx="6" fill="white" stroke="#93C5FD" stroke-width="0.5"/>
+      <rect x="0" y="0" width="452" height="20" rx="6" fill="#DBEAFE"/>
+      <rect x="0" y="10" width="452" height="10" fill="#DBEAFE"/>
+      <text x="12" y="14" font-size="11" font-weight="600" fill="#1E3A8A">2024-01-16_14-22-11/</text>
+
+      <rect x="16" y="26" width="100" height="20" rx="3" fill="#EFF6FF"/>
+      <text x="26" y="40" font-size="11" font-family="monospace" fill="#1E40AF">run.txt</text>
+
+      <rect x="260" y="26" width="100" height="20" rx="3" fill="#EFF6FF"/>
+      <text x="270" y="40" font-size="11" font-family="monospace" fill="#1E40AF">ctp.txt</text>
+    </g>
+
+    <!-- ===== APPDATA SECTION ===== -->
+    <rect x="0" y="358" width="488" height="330" rx="8" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1"/>
+    <text x="12" y="380" font-size="15">📦</text>
+    <text x="34" y="380" font-size="14" font-weight="700" fill="#5B21B6">appdata/</text>
+    <text x="488" y="380" text-anchor="end" font-size="10" fill="#7C3AED" font-style="italic">one folder per job run</text>
+
+    <!-- Run appdata 1 -->
+    <g transform="translate(20, 392)">
+      <rect x="0" y="0" width="452" height="198" rx="6" fill="white" stroke="#C4B5FD" stroke-width="0.5"/>
+      <rect x="0" y="0" width="452" height="20" rx="6" fill="#EDE9FE"/>
+      <rect x="0" y="10" width="452" height="10" fill="#EDE9FE"/>
+      <text x="12" y="14" font-size="11" font-weight="600" fill="#5B21B6">2024-01-15_10-30-00/</text>
+      <text x="452" y="14" text-anchor="end" font-size="9" fill="#7C3AED">← same timestamp as logs</text>
+
+      <!-- metadata.xlsx -->
+      <g transform="translate(16, 28)">
+        <rect x="0" y="0" width="420" height="26" rx="4" fill="#F5F3FF"/>
+        <text x="8" y="17" font-size="11" font-family="monospace" fill="#5B21B6">📊 metadata.xlsx</text>
+        <text x="180" y="17" font-size="10" fill="#6D28D9">Original DICOM info (before de-identification)</text>
+      </g>
+
+      <!-- deid_metadata.xlsx -->
+      <g transform="translate(16, 58)">
+        <rect x="0" y="0" width="420" height="26" rx="4" fill="#F5F3FF"/>
+        <text x="8" y="17" font-size="11" font-family="monospace" fill="#5B21B6">📊 deid_metadata.xlsx</text>
+        <text x="180" y="17" font-size="10" fill="#6D28D9">DICOM info after de-identification</text>
+      </g>
+
+      <!-- linker.xlsx -->
+      <g transform="translate(16, 88)">
+        <rect x="0" y="0" width="420" height="26" rx="4" fill="#F5F3FF"/>
+        <text x="8" y="17" font-size="11" font-family="monospace" fill="#5B21B6">🔗 linker.xlsx</text>
+        <text x="180" y="17" font-size="10" fill="#6D28D9">Original ID → De-identified ID mapping</text>
+      </g>
+
+      <!-- failed_queries.csv -->
+      <g transform="translate(16, 118)">
+        <rect x="0" y="0" width="420" height="26" rx="4" fill="#FEF2F2"/>
+        <text x="8" y="17" font-size="11" font-family="monospace" fill="#991B1B">⚠️ failed_queries.csv</text>
+        <text x="180" y="17" font-size="10" fill="#B91C1C">Queries that couldn't find results</text>
+      </g>
+
+      <!-- quarantine -->
+      <g transform="translate(16, 148)">
+        <rect x="0" y="0" width="420" height="40" rx="4" fill="#FFF1F2" stroke="#FECDD3" stroke-width="0.5"/>
+        <text x="8" y="17" font-size="11" font-family="monospace" fill="#9F1239">🚫 quarantine/</text>
+        <text x="180" y="17" font-size="10" fill="#BE123C">Files rejected by filters</text>
+        <text x="22" y="33" font-size="9" fill="#9F1239">(e.g., non-image DICOMs like PDFs or Secondary Captures)</text>
+      </g>
+    </g>
+
+    <!-- Run appdata 2 (collapsed) -->
+    <g transform="translate(20, 598)">
+      <rect x="0" y="0" width="452" height="34" rx="6" fill="white" stroke="#C4B5FD" stroke-width="0.5"/>
+      <rect x="0" y="0" width="452" height="20" rx="6" fill="#EDE9FE"/>
+      <rect x="0" y="10" width="452" height="10" fill="#EDE9FE"/>
+      <text x="12" y="14" font-size="11" font-weight="600" fill="#5B21B6">2024-01-16_14-22-11/</text>
+      <text x="340" y="28" font-size="10" fill="#7C3AED" font-style="italic">...same structure</text>
+    </g>
+
+    <!-- ===== TIMESTAMP CALLOUT ===== -->
+    <g transform="translate(0, 710)">
+      <rect x="0" y="0" width="488" height="56" rx="8" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1"/>
+      <text x="12" y="20" font-size="15">🔑</text>
+      <text x="34" y="20" font-size="12" font-weight="700" fill="#065F46">Timestamp Linking</text>
+      <text x="20" y="38" font-size="11" fill="#047857">Each job gets a timestamp shared between logs/ and appdata/</text>
+      <text x="20" y="52" font-size="11" fill="#047857">so all artifacts from the same run stay connected.</text>
+    </g>
+  </g>
+</svg>
