@@ -4,6 +4,7 @@ import re
 import string
 import sys
 from abc import ABC
+from datetime import date, datetime, timedelta
 from typing import Any, cast
 
 import pandas as pd
@@ -204,6 +205,303 @@ NLM_PRESERVE_MEDICAL = {
 }
 
 NLM_REDACT_NAMES = {"pine"}
+
+# preserving the DICOM naming
+LINKER_KEYS = (
+    (
+        ("AccessionNumber", "Accession Number", "Accession #", "Accession No"),
+        "Original AccessionNumber",
+    ),
+    (("StudyInstanceUID", "Study Instance UID"), "Original StudyInstanceUID"),
+)
+REPORT_PATIENT_ID_COLUMNS = (
+    "PatientID",
+    "Patient ID",
+    "MRN",
+    "MedicalRecordNumber",
+    "Medical Record Number",
+    "Patient MRN",
+)
+IDENTIFIER_COLUMNS = frozenset(
+    {
+        "PatientName",
+        "Patient Name",
+        *REPORT_PATIENT_ID_COLUMNS,
+        "AccessionNumber",
+        "Accession Number",
+        "Accession #",
+        "Accession No",
+    }
+)
+
+LINKER_VALUE_PAIRS = (
+    ("Original PatientName", "Deidentified PatientName"),
+    ("Original PatientID", "Deidentified PatientID"),
+    ("Original AccessionNumber", "Deidentified AccessionNumber"),
+)
+
+_NUMERIC_DATE_RE = re.compile(
+    r"(?<!\d)(?:(?P<year_first>\d{4})(?P<yf_sep>[-/.])"
+    r"(?P<yf_month>\d{1,2})(?P=yf_sep)(?P<yf_day>\d{1,2})|"
+    r"(?P<month_first>\d{1,2})(?P<mf_sep>[-/.])"
+    r"(?P<mf_day>\d{1,2})(?P=mf_sep)(?P<mf_year>\d{2,4})|"
+    r"(?P<compact>\d{8}))(?!\d)"
+)
+_TEXT_DATE_RE = re.compile(
+    r"(?i)(?<![A-Za-z])(?P<month>January|February|March|April|May|June|"
+    r"July|August|September|October|November|December|Jan|Feb|Mar|Apr|"
+    r"Jun|Jul|Aug|Sept?|Oct|Nov|Dec)(?P<month_period>\.?)"
+    r"(?P<space1>\s+)(?P<day>\d{1,2})(?P<ordinal>st|nd|rd|th)?(?P<comma>,?)"
+    r"(?P<space2>\s+)(?P<year>\d{4})(?!\d)"
+)
+_DAY_FIRST_TEXT_DATE_RE = re.compile(
+    r"(?i)(?<!\d)(?P<day>\d{1,2})(?P<sep1>[\s,./-]+)"
+    r"(?P<month>January|February|March|April|May|June|July|August|"
+    r"September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|"
+    r"Aug|Sept?|Oct|Nov|Dec)(?P<month_period>\.?)"
+    r"(?P<sep2>[\s,./-]+)(?P<year>\d{4})(?!\d)"
+)
+_MONTH_FORMATS = {
+    "january": (1, "%B"), "jan": (1, "%b"),
+    "february": (2, "%B"), "feb": (2, "%b"),
+    "march": (3, "%B"), "mar": (3, "%b"),
+    "april": (4, "%B"), "apr": (4, "%b"),
+    "may": (5, "%B"), "june": (6, "%B"), "jun": (6, "%b"),
+    "july": (7, "%B"), "jul": (7, "%b"),
+    "august": (8, "%B"), "aug": (8, "%b"),
+    "september": (9, "%B"), "sept": (9, "%b"), "sep": (9, "%b"),
+    "october": (10, "%B"), "oct": (10, "%b"),
+    "november": (11, "%B"), "nov": (11, "%b"),
+    "december": (12, "%B"), "dec": (12, "%b"),
+}
+
+
+def _clean(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def _normalize_identifier(value: Any) -> str:
+    """Normalize case and common separators for linker-key comparisons."""
+    cleaned = _clean(value).casefold()
+    if re.fullmatch(r"\d+\.0+", cleaned):
+        cleaned = cleaned.split(".", maxsplit=1)[0]
+    return "".join(char for char in cleaned if char.isalnum())
+
+
+def _identifier_pattern(value: str) -> str:
+    """Match an identifier despite common spaces/punctuation between chars."""
+    chars = [char for char in value if char.isalnum()]
+    if not chars:
+        return r"(?!)"
+    body = r"[\s._/-]*".join(re.escape(char) for char in chars)
+    # Excel may stringify an integer identifier as e.g. 12345.0.
+    return rf"(?<![A-Za-z0-9]){body}(?:\.0+)?(?![A-Za-z0-9])"
+
+
+def _patient_name_variants(value: str) -> list[str]:
+    """Return full-name orderings commonly used for DICOM PN in report text."""
+    variants = [value.strip()]
+    parts = [part.strip() for part in re.split(r"[\^,]+", value) if part.strip()]
+    if len(parts) >= 2:
+        family, given, *middle = parts
+        given_middle = " ".join([given, *middle]).strip()
+        variants.extend([f"{family} {given_middle}", f"{given_middle} {family}"])
+        if middle:
+            variants.extend([f"{family} {given}", f"{given} {family}"])
+        variants.append(f"{family}, {given_middle}")
+    return list(dict.fromkeys(item for item in variants if item))
+
+
+def _replacement_patterns(value: str) -> list[str]:
+    """Build conservative text patterns for an identifier or DICOM PN."""
+    variants = _patient_name_variants(value) if ("^" in value or "," in value) else [value]
+    patterns = []
+    for variant in variants:
+        if "^" in value or "," in value:
+            words = [word for word in re.split(r"[\s,^]+", variant.strip()) if word]
+            if not words:
+                continue
+            body = r"[\s,^\.]+".join(re.escape(word) for word in words)
+            patterns.append(rf"(?<!\w){body}(?!\w)")
+        else:
+            patterns.append(_identifier_pattern(variant))
+    return patterns
+
+
+def _shift_report_dates(
+    text: str, shift_days: int, row_index: int
+) -> tuple[str, dict[str, str]]:
+    """Protect recognized report dates after shifting them by the DICOM DATEINC."""
+    restore: dict[str, str] = {}
+    token_index = 0
+
+    def ordinal_suffix(day_number: int) -> str:
+        if 11 <= day_number % 100 <= 13:
+            return "th"
+        return {1: "st", 2: "nd", 3: "rd"}.get(day_number % 10, "th")
+
+    def protect(shifted_text: str) -> str:
+        nonlocal token_index
+        token = f"ICOREDATEDTOKEN{row_index}_{token_index}END"
+        token_index += 1
+        restore[token] = shifted_text
+        return token
+
+    def shift_numeric(match: re.Match[str]) -> str:
+        groups = match.groupdict()
+        try:
+            if groups["compact"]:
+                original = datetime.strptime(groups["compact"], "%Y%m%d").date()
+                shifted = original + timedelta(days=shift_days)
+                replacement = shifted.strftime("%Y%m%d")
+            elif groups["year_first"]:
+                original = date(
+                    int(groups["year_first"]),
+                    int(groups["yf_month"]),
+                    int(groups["yf_day"]),
+                )
+                shifted = original + timedelta(days=shift_days)
+                replacement = (
+                    f"{shifted.year:04d}{groups['yf_sep']}"
+                    f"{shifted.month:0{len(groups['yf_month'])}d}{groups['yf_sep']}"
+                    f"{shifted.day:0{len(groups['yf_day'])}d}"
+                )
+            else:
+                year_text = groups["mf_year"]
+                year = (
+                    datetime.strptime(year_text, "%y").year
+                    if len(year_text) == 2
+                    else int(year_text)
+                )
+                original = date(year, int(groups["month_first"]), int(groups["mf_day"]))
+                shifted = original + timedelta(days=shift_days)
+                shifted_year = (
+                    shifted.strftime("%y") if len(year_text) == 2 else f"{shifted.year:04d}"
+                )
+                replacement = (
+                    f"{shifted.month:0{len(groups['month_first'])}d}{groups['mf_sep']}"
+                    f"{shifted.day:0{len(groups['mf_day'])}d}{groups['mf_sep']}"
+                    f"{shifted_year}"
+                )
+        except ValueError:
+            return match.group(0)
+        return protect(replacement)
+
+    text = _NUMERIC_DATE_RE.sub(shift_numeric, text)
+
+    def shift_textual(match: re.Match[str]) -> str:
+        month_text = match.group("month")
+        month_key = month_text.rstrip(".").casefold()
+        month, month_format = _MONTH_FORMATS[month_key]
+        try:
+            original = date(int(match.group("year")), month, int(match.group("day")))
+        except ValueError:
+            return match.group(0)
+        shifted = original + timedelta(days=shift_days)
+        ordinal = (
+            ordinal_suffix(shifted.day) if match.group("ordinal") else ""
+        )
+        replacement = (
+            f"{shifted.strftime(month_format)}{match.group('month_period')}"
+            f"{match.group('space1')}"
+            f"{shifted.day:0{len(match.group('day'))}d}"
+            f"{ordinal}"
+            f"{match.group('comma')}{match.group('space2')}{shifted.year:04d}"
+        )
+        return protect(replacement)
+
+    text = _TEXT_DATE_RE.sub(shift_textual, text)
+
+    def shift_day_first_textual(match: re.Match[str]) -> str:
+        month_text = match.group("month")
+        month_key = month_text.casefold()
+        month, month_format = _MONTH_FORMATS[month_key]
+        try:
+            original = date(int(match.group("year")), month, int(match.group("day")))
+        except ValueError:
+            return match.group(0)
+        shifted = original + timedelta(days=shift_days)
+        replacement = (
+            f"{shifted.day:0{len(match.group('day'))}d}"
+            f"{match.group('sep1')}{shifted.strftime(month_format)}"
+            f"{match.group('month_period')}"
+            f"{match.group('sep2')}{shifted.year:04d}"
+        )
+        return protect(replacement)
+
+    text = _DAY_FIRST_TEXT_DATE_RE.sub(shift_day_first_textual, text)
+
+    return text, restore
+
+
+def load_dicom_linker(path: str) -> pd.DataFrame:
+    linker = pd.read_excel(path, dtype=str).fillna("")
+    required = {
+        "Original PatientID",
+        "Original PatientName",
+        "Original AccessionNumber",
+        "Original StudyInstanceUID",
+        "Deidentified PatientID",
+        "Deidentified PatientName",
+        "Deidentified AccessionNumber",
+    }
+    missing = required - set(linker.columns)
+    if missing:
+        raise ValueError(f"linker.xlsx is missing columns: {sorted(missing)}")
+    return linker
+
+
+def _row_replacements(match: pd.Series) -> dict[str, str]:
+    replacements = {}
+    for old_column, new_column in LINKER_VALUE_PAIRS:
+        old = _clean(match[old_column])
+        new = _clean(match[new_column])
+        if old and new and old != new:
+            replacements[old] = new
+    return replacements
+
+
+def replacements_for_report(
+    row: pd.Series,
+    linker: pd.DataFrame,
+) -> dict[str, str]:
+    # Prefer study-specific keys.
+    for report_columns, linker_key in LINKER_KEYS:
+        for report_key in report_columns:
+            if report_key not in row.index:
+                continue
+
+            original = _clean(row.get(report_key))
+            if not original:
+                continue
+
+            normalized = _normalize_identifier(original)
+            if not normalized:
+                continue
+            matches = linker[
+                linker[linker_key].map(_normalize_identifier) == normalized
+            ]
+            if len(matches) == 1:
+                return _row_replacements(matches.iloc[0])
+
+    # PatientID is only safe when it identifies exactly one linker row.
+    for report_key in REPORT_PATIENT_ID_COLUMNS:
+        if report_key not in row.index:
+            continue
+        original = _clean(row.get(report_key))
+        if original:
+            normalized = _normalize_identifier(original)
+            if not normalized:
+                continue
+            matches = linker[
+                linker["Original PatientID"].map(_normalize_identifier) == normalized
+            ]
+            if len(matches) == 1:
+                return _row_replacements(matches.iloc[0])
+
+    return {}
 
 
 def create_nlp_engine() -> NlpEngine:
@@ -418,6 +716,8 @@ def scrub(
     anonymizer: AnonymizerEngine,
     medical_preserve: set[str],
     progress_callback=None,
+    row_replacements: list[dict[str, str]] | None = None,
+    date_shift_days: int | None = None,
 ) -> list[str]:
     entities = [
         "PERSON",
@@ -478,19 +778,59 @@ def scrub(
     )
     url = re.compile(r"\bhttps?://[^\s]+\b")
 
+
+    if row_replacements is None:
+        row_replacements = [{} for _ in data]
+    elif len(row_replacements) != len(data):
+        raise ValueError("row_replacements must have one mapping per report")
     results = []
-    for _, text_item in enumerate(data):
+    for index, text_item in enumerate(data):
         if progress_callback:
             progress_callback()
         text = str(text_item) if text_item is not None else ""
+        restore_tokens: dict[str, str] = {}
+        replacements = row_replacements[index]
+
+        for token_index, old in enumerate(
+            sorted(replacements, key=len, reverse=True)
+        ):
+            token = f"ICOREPHIPROTECTEDTOKEN{index}_{token_index}END"
+            matched = False
+            for pattern in _replacement_patterns(old):
+                text, count = re.subn(pattern, token, text, flags=re.IGNORECASE)
+                matched = matched or count > 0
+            if matched:
+                restore_tokens[token] = replacements[old]
+
+        # Preserve legacy cleanup after matching so Unicode names can still
+        # match the source value stored in DICOM.
         text = "".join(c for c in text if c in string.printable)
+
+        if date_shift_days is not None:
+            text, shifted_dates = _shift_report_dates(text, date_shift_days, index)
+            restore_tokens.update(shifted_dates)
 
         results_analysis = analyzer.analyze(
             text=text, entities=entities, language="en", score_threshold=0.5
         )
 
+        protected_spans = [
+            (match.start(), match.end())
+            for token in restore_tokens
+            for match in re.finditer(re.escape(token), text)
+        ]
         filtered = []
         for result in results_analysis:
+            # Linker replacements and shifted dates are already de-identified.
+            # Presidio can misclassify their temporary tokens as names, dates,
+            # or addresses; preserve any result that overlaps one of them so
+            # the exact DICOM-linked value can be restored below.
+            if any(
+                result.start < protected_end and protected_start < result.end
+                for protected_start, protected_end in protected_spans
+            ):
+                continue
+
             detected = text[result.start : result.end]
             lower = detected.lower()
 
@@ -600,7 +940,10 @@ def scrub(
             analyzer_results=cast(list[RecognizerResult], filtered),
             operators=operators,
         )
-        results.append(anonymized.text)
+        result = anonymized.text
+        for token, dicom_value in restore_tokens.items():
+            result = result.replace(token, dicom_value)
+        results.append(result)
 
     return results
 
@@ -638,6 +981,39 @@ class PresidioTextDeid(TextDeidStage):
 
         df = pd.read_excel(input_file, header=0)
 
+        linker = None
+        if ctx.images_saved and not ctx.deid_linker_path:
+            raise RuntimeError(
+                "DICOM files were de-identified, but no DICOM linker was "
+                "available for consistent report identifier replacement."
+            )
+        if ctx.deid_linker_path:
+            if not os.path.isfile(ctx.deid_linker_path):
+                raise FileNotFoundError(
+                    f"DICOM linker file not found: {ctx.deid_linker_path}"
+                )
+            linker = load_dicom_linker(ctx.deid_linker_path)
+
+        row_replacements = (
+            [replacements_for_report(row, linker) for _, row in df.iterrows()]
+            if linker is not None
+            else [{} for _ in range(len(df))]
+        )
+        if linker is not None:
+            unmatched_rows = sum(not replacements for replacements in row_replacements)
+            if unmatched_rows:
+                logging.warning(
+                    "DICOM linker did not match %d of %d report rows; "
+                    "those rows will receive generic text de-identification only.",
+                    unmatched_rows,
+                    len(df),
+                )
+        if ctx.images_saved and ctx.date_shift_days is None:
+            raise RuntimeError(
+                "DICOM files were de-identified, but their DATEINC offset "
+                "could not be read for consistent report date shifting."
+            )
+
         if self.columns_to_drop:
             df = df.drop(columns=self.columns_to_drop, errors="ignore")
 
@@ -672,6 +1048,28 @@ class PresidioTextDeid(TextDeidStage):
                 )
 
         result_df = df.copy()
+        # Identifier columns may be excluded from the user-selected free-text
+        # columns. Replace those cells directly so the workbook itself keeps
+        # the same DICOM pseudonyms.
+        for column in IDENTIFIER_COLUMNS.intersection(result_df.columns):
+            if column in columns_to_process:
+                continue
+            for row_index, replacements in enumerate(row_replacements):
+                current = _normalize_identifier(result_df.at[row_index, column])
+                if not current:
+                    continue
+                targets = set()
+                for original, target in replacements.items():
+                    variants = (
+                        _patient_name_variants(original)
+                        if column in {"PatientName", "Patient Name"}
+                        else [original]
+                    )
+                    if any(_normalize_identifier(variant) == current for variant in variants):
+                        targets.add(target)
+                if len(targets) == 1:
+                    result_df.at[row_index, column] = targets.pop()
+
         for column in columns_to_process:
             logging.info(f"Processing: {column}")
             result_df[column] = scrub(
@@ -680,6 +1078,8 @@ class PresidioTextDeid(TextDeidStage):
                 anonymizer,
                 medical_preserve,
                 progress_callback=on_cell,
+                row_replacements=row_replacements,
+                date_shift_days=ctx.date_shift_days,
             )
 
         os.makedirs(ctx.output_dir, exist_ok=True)

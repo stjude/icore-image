@@ -30,3 +30,6 @@ eval/baseline_results.json
 eval/final_textdeid_test/results/
 eval/final_textdeid_test/_workdir/
 eval/final_textdeid_test/baseline_results.json
+
+# Test folder for image-text deid
+tmp_dicom_text_linkage_test/

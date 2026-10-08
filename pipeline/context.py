@@ -39,6 +39,8 @@ class PipelineContext:
     # Stage-2 (Image de-id) outputs
     images_saved: int = 0
     images_quarantined: int = 0
+    deid_linker_path: str | None = None
+    date_shift_days: int | None = None
 
     # Stage-3 (Text de-id) input + outputs
     text_input_file: str | None = None
