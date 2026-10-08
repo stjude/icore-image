@@ -46,6 +46,25 @@ def _collect_engine_audit_files(output_dir: str, appdata_dir: str) -> None:
             logging.info(f"Converted {csv_name} -> {xlsx_name}")
 
 
+def _extract_date_shift_days(anonymizer_script: str | None) -> int | None:
+    """Read the DATEINC parameter that the DICOM anonymizer will use."""
+    if not anonymizer_script:
+        return None
+    try:
+        root = ET.fromstring(anonymizer_script)
+    except ET.ParseError as exc:
+        raise ValueError("Could not parse the DICOM anonymizer script") from exc
+
+    for parameter in root.iter("p"):
+        if parameter.get("t") == "DATEINC":
+            value = (parameter.text or "").strip()
+            try:
+                return int(value)
+            except ValueError as exc:
+                raise ValueError(f"Invalid DICOM DATEINC value: {value!r}") from exc
+    return None
+
+
 # ---------------------------------------------------------------------------
 # QC thumbnail generation
 # ---------------------------------------------------------------------------
@@ -485,6 +504,7 @@ class ImageDeidExecutor(ImageDeidStage):
         )
         if processed_anonymizer_script is not None:
             anonymizer_script = processed_anonymizer_script
+        ctx.date_shift_days = _extract_date_shift_days(anonymizer_script)
 
         # If a gather stage merged a query-derived filter into ``ctx``, use
         # that as the base filter instead of the one passed at construction.
@@ -531,7 +551,9 @@ class ImageDeidExecutor(ImageDeidStage):
         result = rs_pipeline.run()
 
         _collect_engine_audit_files(ctx.output_dir, ctx.appdata_dir)
-
+        linker_path = os.path.join(ctx.appdata_dir, "linker.xlsx")
+        if os.path.exists(linker_path):
+            ctx.deid_linker_path = linker_path
         # Render per-series QC preview thumbnails from the de-identified output.
         _generate_series_thumbnails(ctx.output_dir, ctx.appdata_dir)
 
