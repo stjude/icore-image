@@ -30,7 +30,7 @@ import tasks as icore_tasks
 from tasks import ImageExportArgs
 
 from . import builders
-from .models import AppState, Project
+from .models import ADMIN_PASSWORD_FILE, AppState, Project
 from .tasks import enqueue_project
 from grammar import UnknownTagError, get_hipaa_safe_harbor_config
 from initialize_admin_password import check_password_strength
@@ -57,7 +57,6 @@ SETTINGS_DIR = os.path.join(ICORE_BASE_DIR, "config")
 AUTHENTICATION_LOG_PATH = os.path.join(
     ICORE_BASE_DIR, "logs", "system", "authentication.log"
 )
-SECURE_DIR = os.path.join(os.path.expanduser("~"), ".secure", ".config", ".sysdata")
 LOGS_DIR = os.path.join(ICORE_BASE_DIR, "logs")
 
 
@@ -1482,14 +1481,10 @@ def generate_action_string(action):
     return action
 
 
-def get_password_file_path():
-    return os.path.join(SECURE_DIR, "icapf.txt")
-
-
 def check_admin_password(password):
     """Check if the provided password matches the stored hash"""
     try:
-        with open(get_password_file_path(), "rb") as f:
+        with open(ADMIN_PASSWORD_FILE, "rb") as f:
             stored_hash = f.read()
         return bcrypt.checkpw(password.encode("utf-8"), stored_hash)
     except FileNotFoundError:
@@ -1524,8 +1519,9 @@ def verify_admin_password(request):
 def set_admin_password(request):
     """Set the admin password from the blocking first-run modal.
 
-    Only allowed while ``AppState.admin_password_reset_required`` is set, so it
-    can't be used to overwrite an existing password without knowing it.
+    Only allowed while no password has been set (see
+    ``AppState.admin_password_setup_required``), so it can't be used to
+    overwrite an existing password without knowing it.
     """
     try:
         password = json.loads(request.body).get("password", "")
@@ -1535,13 +1531,13 @@ def set_admin_password(request):
             )
         with transaction.atomic():
             state = AppState.load()
-            if not state.admin_password_reset_required:
+            if not state.admin_password_setup_required:
                 return JsonResponse(
                     {"status": "error", "message": "Admin password is already set."},
                     status=409,
                 )
-            os.makedirs(SECURE_DIR, exist_ok=True)
-            with open(get_password_file_path(), "wb") as f:
+            os.makedirs(os.path.dirname(ADMIN_PASSWORD_FILE), exist_ok=True)
+            with open(ADMIN_PASSWORD_FILE, "xb") as f:
                 f.write(bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()))
             state.admin_password_reset_required = False
             state.save()

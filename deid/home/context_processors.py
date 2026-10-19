@@ -14,7 +14,7 @@ def icore_dev(request):
 def admin_password_reset(request):
     """Flag base.html uses to show the blocking set-admin-password modal."""
     return {
-        "admin_password_reset_required": AppState.load().admin_password_reset_required
+        "admin_password_setup_required": AppState.load().admin_password_setup_required
     }
 
 

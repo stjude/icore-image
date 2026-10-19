@@ -1,4 +1,10 @@
+import os
+
 from django.db import models
+
+ADMIN_PASSWORD_FILE = os.path.join(
+    os.path.expanduser("~"), ".secure", ".config", ".sysdata", "icapf.txt"
+)
 
 
 class Project(models.Model):
@@ -63,3 +69,10 @@ class AppState(models.Model):
     @classmethod
     def load(cls) -> "AppState":
         return cls.objects.get_or_create(pk=1)[0]
+
+    @property
+    def admin_password_setup_required(self) -> bool:
+        # A password set before this flag existed (e.g. via the CLI) still counts.
+        return self.admin_password_reset_required and not os.path.exists(
+            ADMIN_PASSWORD_FILE
+        )
