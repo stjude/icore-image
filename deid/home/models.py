@@ -51,3 +51,15 @@ class Project(models.Model):
 
     class Meta:
         db_table = "deid_tasks"
+
+
+class AppState(models.Model):
+    """Singleton row of app-wide flags. Read it with ``AppState.load()``."""
+
+    # True until the operator sets an admin password through the blocking
+    # first-run modal, which clears it.
+    admin_password_reset_required = models.BooleanField(default=True)
+
+    @classmethod
+    def load(cls) -> "AppState":
+        return cls.objects.get_or_create(pk=1)[0]

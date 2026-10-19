@@ -30,9 +30,10 @@ import tasks as icore_tasks
 from tasks import ImageExportArgs
 
 from . import builders
-from .models import Project
+from .models import AppState, Project
 from .tasks import enqueue_project
 from grammar import UnknownTagError, get_hipaa_safe_harbor_config
+from initialize_admin_password import check_password_strength
 from pathutils import is_path_within_directory
 from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
 from utils import appdata_dir_path, sanitize_filename
@@ -44,6 +45,11 @@ logger = logging.getLogger(__name__)
 # logger.exception() instead.
 GENERIC_ERROR_MESSAGE = (
     "An unexpected error occurred. Please check the system logs for details."
+)
+
+PASSWORD_REQUIREMENTS = (
+    "Password must be at least 20 characters and include an uppercase letter, "
+    "a lowercase letter, a number, and a symbol."
 )
 
 ICORE_BASE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "iCore")
@@ -1512,6 +1518,42 @@ def verify_admin_password(request):
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+@require_http_methods(["POST"])
+def set_admin_password(request):
+    """Set the admin password from the blocking first-run modal.
+
+    Only allowed while ``AppState.admin_password_reset_required`` is set, so it
+    can't be used to overwrite an existing password without knowing it.
+    """
+    try:
+        password = json.loads(request.body).get("password", "")
+        if check_password_strength(password) != 0:
+            return JsonResponse(
+                {"status": "error", "message": PASSWORD_REQUIREMENTS}, status=400
+            )
+        with transaction.atomic():
+            state = AppState.load()
+            if not state.admin_password_reset_required:
+                return JsonResponse(
+                    {"status": "error", "message": "Admin password is already set."},
+                    status=409,
+                )
+            os.makedirs(SECURE_DIR, exist_ok=True)
+            with open(get_password_file_path(), "wb") as f:
+                f.write(bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()))
+            state.admin_password_reset_required = False
+            state.save()
+        AUTH_LOGGER.info(
+            f"Admin password set from hostname: {request.META.get('REMOTE_ADDR')}"
+        )
+        return JsonResponse({"status": "success"})
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=500
+        )
 
 
 @require_http_methods(["POST"])
