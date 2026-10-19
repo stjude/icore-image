@@ -32,7 +32,7 @@ from tasks import ImageExportArgs
 from . import builders
 from .models import Project
 from .tasks import enqueue_project
-from grammar import get_hipaa_safe_harbor_config
+from grammar import UnknownTagError, get_hipaa_safe_harbor_config
 from pathutils import is_path_within_directory
 from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
 from utils import appdata_dir_path, sanitize_filename
@@ -841,6 +841,8 @@ def run_deid(request):
         )
         task, args = builders.build_image_deid(data, project, settings)
         return _save_and_enqueue(project, task, args)
+    except UnknownTagError as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -986,6 +988,8 @@ def run_imagedeidexport(request):
         # approves the output in the QC viewer (see qc_approve).
         task, args, export = builders.build_image_deid_export(data, project, settings)
         return _save_and_enqueue(project, task, args, export=export)
+    except UnknownTagError as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(

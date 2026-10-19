@@ -1011,13 +1011,12 @@ def test_sc_pdf_routed_to_quarantine_by_default(input_dir, output_dir, appdata_d
     )
 
 
-@pytest.mark.skip(
-    reason="SC/PDF diversion to custom output dir is no longer supported after "
-    "the dedicated ScPdfFilter stage was removed. SC/PDF files now flow through "
-    "the single quarantine directory."
-)
 def test_sc_pdf_routed_to_custom_path(input_dir, output_dir, appdata_dir, tmp_path):
-    """SC and PDF files go to custom path when sc_pdf_output_dir is provided."""
+    """SC and PDF files go to custom path when sc_pdf_output_dir is provided.
+
+    The generic CT fixture fails the Stanford device filter, so it also checks
+    that device-filter rejections stay in the regular quarantine.
+    """
 
     custom_sc_dir = tmp_path / "custom_sc_pdf"
 
@@ -1047,24 +1046,13 @@ def test_sc_pdf_routed_to_custom_path(input_dir, output_dir, appdata_dir, tmp_pa
         sc_pdf_output_dir=str(custom_sc_dir),
     ).run()
 
-    output_files = list(output_dir.rglob("*.dcm"))
-    assert len(output_files) == 1, (
-        f"Expected 1 CT file in output, found {len(output_files)}"
-    )
+    assert list(output_dir.rglob("*.dcm")) == []
 
-    custom_files = list(custom_sc_dir.rglob("*.dcm"))
-    assert len(custom_files) >= 1, (
-        f"Expected SC file in custom dir, found {len(custom_files)}"
-    )
+    custom_files = [p.name for p in custom_sc_dir.rglob("*.dcm")]
+    assert custom_files == ["sc.dcm"]
 
-    quarantine_dir = appdata_dir / "quarantine"
-    if quarantine_dir.exists():
-        quarantine_files = list(quarantine_dir.rglob("*.dcm"))
-        for f in quarantine_files:
-            ds = pydicom.dcmread(f)
-            assert not ds.SOPClassUID.startswith("1.2.840.10008.5.1.4.1.1.7"), (
-                "SC file should be in custom dir, not regular quarantine"
-            )
+    quarantine_files = [p.name for p in (appdata_dir / "quarantine").rglob("*.dcm")]
+    assert quarantine_files == ["ct.dcm"]
 
 
 def test_sc_pdf_normal_images_not_affected(input_dir, output_dir, appdata_dir):

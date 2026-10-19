@@ -4,6 +4,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
+class UnknownTagError(ValueError):
+    """A tag list names something that is not a DICOM keyword."""
+
+
 # Hash method mapping using tag names as keys
 HASH_METHODS = {
     # Simple hash with length
@@ -176,7 +180,7 @@ def generate_anonymizer_script(
         try:
             tag = tag_dict[tag_name].replace("(", "").replace(",", "").replace(")", "")
         except KeyError:
-            return f"Tag {tag_name} not found in DICOM dictionary."
+            raise UnknownTagError(f"Tag {tag_name} not found in DICOM dictionary.")
 
         if tag_name in tags_to_keep:
             script.append(f'   <e en="T" t="{tag}" n="{name}">@keep()</e>')
