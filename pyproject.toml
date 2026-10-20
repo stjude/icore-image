@@ -56,5 +56,10 @@ dev = [
 [tool.ruff]
 exclude = ["dicom-deid-rs/"]
 
+[tool.ruff.lint]
+# Ruff 0.16 expanded its default rule set; pin the rules this codebase is
+# written against so upgrading ruff doesn't change what CI enforces.
+select = ["E4", "E7", "E9", "F"]
+
 [tool.ty.src]
 exclude = ["dicom-deid-rs/"]

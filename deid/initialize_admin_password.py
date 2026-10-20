@@ -1,7 +1,8 @@
-import os
-import bcrypt
 import argparse
+import os
 import sys
+
+import bcrypt
 
 
 def get_password_file_path():
@@ -39,7 +40,7 @@ def initialize_admin_password(password):
             hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
             dst.write(hashed_password)
     except Exception as e:
-        print(f"Error initializing admin password: {str(e)}")
+        print(f"Error initializing admin password: {e!s}")
 
 
 def main():

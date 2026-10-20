@@ -1,7 +1,8 @@
 import sys
-import pandas as pd
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import pandas as pd
 
 
 class UnknownTagError(ValueError):
@@ -63,7 +64,7 @@ def build_tag_dict():
     """
     if getattr(sys, "frozen", False):
         # Running in a PyInstaller bundle
-        bundle_dir = getattr(sys, "_MEIPASS")
+        bundle_dir = sys._MEIPASS
         dict_path = Path(bundle_dir) / "resources" / "dictionary.xml"
         mapping_path = Path(bundle_dir) / "resources" / "pydicom_ctp_tag_dictionary.xml"
     else:

@@ -3,8 +3,8 @@ import time
 
 import numpy as np
 import pandas as pd
-import pytest
 import pydicom
+import pytest
 
 from pipeline import ImageDeidLocalPipeline
 from pipeline.stages.image_deid import (
@@ -13,12 +13,11 @@ from pipeline.stages.image_deid import (
     _get_sc_pdf_blacklist,
 )
 from test_utils import (
-    _create_test_dicom,
-    _create_secondary_capture_dicom,
-    _create_encapsulated_pdf_dicom,
     Fixtures,
+    _create_encapsulated_pdf_dicom,
+    _create_secondary_capture_dicom,
+    _create_test_dicom,
 )
-
 
 logging.basicConfig(level=logging.INFO)
 

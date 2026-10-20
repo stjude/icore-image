@@ -10,15 +10,14 @@ from pydicom.filebase import DicomBytesIO
 
 from pipeline import ImageDeidExportPipeline
 from test_utils import (
-    _create_test_dicom,
-    _upload_dicom_to_orthanc,
+    CMOVE_BATCH_SIZE,
     AzuriteServer,
     OrthancServer,
+    _create_test_dicom,
+    _upload_dicom_to_orthanc,
     get_free_port,
-    CMOVE_BATCH_SIZE,
 )
 from utils import PacsConfiguration, Spreadsheet
-
 
 logging.basicConfig(level=logging.INFO)
 

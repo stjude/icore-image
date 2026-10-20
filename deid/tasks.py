@@ -1,16 +1,15 @@
-from pydantic import BaseModel
-
 from celery import shared_task
+from pydantic import BaseModel
 
 import pipeline
 from utils import (
     DeidExportResult,
     HeaderExtractResult,
     ImageDeidLocalResult,
+    ImagineWorkflowResult,
     PacsConfiguration,
     PacsQueryResult,
     RunDirs,
-    ImagineWorkflowResult,
     Spreadsheet,
     TextDeidResult,
 )

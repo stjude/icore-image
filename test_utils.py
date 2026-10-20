@@ -5,32 +5,33 @@ import socket
 import subprocess
 import tempfile
 import time
-from typing import Generator
 import uuid
+from collections.abc import Generator
+from datetime import UTC
 
 import numpy as np
 import pandas as pd
 import requests
-from pydicom.dataset import FileDataset, FileMetaDataset, Dataset
+from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.uid import (
-    generate_uid,
-    SecondaryCaptureImageStorage,
-    ExplicitVRLittleEndian,
     PYDICOM_IMPLEMENTATION_UID,
-    EncapsulatedPDFStorage,
     UID,
+    EncapsulatedPDFStorage,
+    ExplicitVRLittleEndian,
+    SecondaryCaptureImageStorage,
+    generate_uid,
 )
 
 from utils import (
-    csv_string_to_xlsx,
+    PacsConfiguration,
     Spreadsheet,
     appdata_dir_path,
+    csv_string_to_xlsx,
+    find_studies_from_pacs_list,
     generate_queries_and_filter,
+    move_studies_from_study_pacs_map,
     save_failed_queries_csv,
     setup_run_directories,
-    find_studies_from_pacs_list,
-    move_studies_from_study_pacs_map,
-    PacsConfiguration,
 )
 
 CMOVE_BATCH_SIZE = 50
@@ -740,12 +741,13 @@ class AzuriteServer:
 
     def get_sas_url(self, container_name):
         """Generate a SAS URL for a container"""
+        from datetime import datetime, timedelta
+
         from azure.storage.blob import (
             BlobServiceClient,
-            generate_container_sas,
             ContainerSasPermissions,
+            generate_container_sas,
         )
-        from datetime import datetime, timedelta, timezone
 
         # Create container if it doesn't exist
         client = BlobServiceClient.from_connection_string(self.connection_string)
@@ -762,7 +764,7 @@ class AzuriteServer:
             permission=ContainerSasPermissions(
                 read=True, write=True, delete=True, list=True
             ),
-            expiry=datetime.now(timezone.utc) + timedelta(hours=1),
+            expiry=datetime.now(UTC) + timedelta(hours=1),
         )
 
         # Return the container URL (not including container name in path, it's implicit)
@@ -1115,7 +1117,7 @@ def test_find_studies_returns_failure_details(tmp_path, orthanc):
 
 def test_get_studies_returns_failure_details(tmp_path):
     """Test that move_studies_from_study_pacs_map returns failure details as 3rd value"""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0), "study_uid_2": (pacs, 1)}
@@ -1168,7 +1170,7 @@ def test_get_studies_returns_failure_details(tmp_path):
 
 def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
     """Test that zero file retrievals are logged and treated as failures."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     output_dir = str(tmp_path / "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -1232,7 +1234,7 @@ def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
 
 def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
     """Test that exceptions during move_study don't crash the entire job."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     output_dir = str(tmp_path / "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -1300,7 +1302,7 @@ def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
 
 def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
     """Test that deferred delivery polls until expected file count is reached."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {
@@ -1354,7 +1356,7 @@ def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
 
 def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
     """Test that deferred delivery terminates on absolute timeout."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0)}
@@ -1396,7 +1398,7 @@ def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
 
 def test_deferred_delivery_storescp_dies(tmp_path, caplog):
     """Test that deferred delivery handles storescp process dying."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0)}
@@ -1438,7 +1440,7 @@ def test_deferred_delivery_storescp_dies(tmp_path, caplog):
 
 def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
     """Test that when C-FIND fails for all studies, deferred delivery falls back to idle timeout."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0)}

@@ -1,6 +1,8 @@
 import os
 import tempfile
+
 import pandas as pd
+
 from pipeline import TextDeidPipeline
 
 

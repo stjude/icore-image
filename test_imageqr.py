@@ -4,26 +4,25 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 import pydicom
+import pytest
 
 from pipeline import ImageQueryPipeline
 from test_utils import (
+    CMOVE_BATCH_SIZE,
+    Fixtures,
     OrthancServer,
     _create_test_dicom,
     _upload_dicom_to_orthanc,
-    Fixtures,
     get_free_port,
-    CMOVE_BATCH_SIZE,
 )
 from utils import (
-    Spreadsheet,
     PacsConfiguration,
-    generate_queries_and_filter,
+    Spreadsheet,
     find_studies_from_pacs_list,
+    generate_queries_and_filter,
     save_failed_queries_csv,
 )
-
 
 logging.basicConfig(level=logging.INFO)
 

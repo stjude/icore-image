@@ -1,16 +1,17 @@
-import logging
 import json
+import logging
 import os
 import re
 import sys
-from datetime import datetime, timezone as dt_timezone
-from urllib.parse import urlparse, parse_qs, quote
+from datetime import UTC, datetime
+from urllib.parse import parse_qs, quote, urlparse
 
 import bcrypt
 import pandas as pd
 import psutil
 import pydicom
 import pytz
+import tasks as icore_tasks
 from django.db import transaction
 from django.http import (
     FileResponse,
@@ -25,18 +26,17 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
-
-import tasks as icore_tasks
+from grammar import UnknownTagError, get_hipaa_safe_harbor_config
+from initialize_admin_password import check_password_strength
+from pathutils import is_path_within_directory
 from tasks import ImageExportArgs
+
+from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
+from utils import appdata_dir_path, sanitize_filename
 
 from . import builders
 from .models import ADMIN_PASSWORD_FILE, AppState, Project
 from .tasks import enqueue_project
-from grammar import UnknownTagError, get_hipaa_safe_harbor_config
-from initialize_admin_password import check_password_strength
-from pathutils import is_path_within_directory
-from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
-from utils import appdata_dir_path, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -118,8 +118,8 @@ def _validate_sas_url(sas_url):
                 # TypeError, which escapes this handler as a generic failure).
                 expiry_time = datetime.strptime(
                     expiry_str, "%Y-%m-%dT%H:%M:%SZ"
-                ).replace(tzinfo=dt_timezone.utc)
-                current_time = datetime.now(dt_timezone.utc)
+                ).replace(tzinfo=UTC)
+                current_time = datetime.now(UTC)
 
                 if current_time >= expiry_time:
                     return {"valid": False, "error": "SAS token has expired"}
@@ -1330,8 +1330,7 @@ def save_admin_settings(request):
         protocol_file = request.FILES["protocol_file"]
         file_path = os.path.join(SETTINGS_DIR, "protocol.xlsx")
         with open(file_path, "wb+") as destination:
-            for chunk in protocol_file.chunks():
-                destination.write(chunk)
+            destination.writelines(protocol_file.chunks())
 
         existing_settings["protocol_file"] = os.path.abspath(file_path)
 

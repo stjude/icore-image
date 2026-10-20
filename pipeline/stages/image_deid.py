@@ -21,7 +21,6 @@ from utils import (
     validate_dicom_tags,
 )
 
-
 # ---------------------------------------------------------------------------
 # Metadata save helpers
 # ---------------------------------------------------------------------------
@@ -400,7 +399,7 @@ def _merge_mapping_with_script(mapping_file_path: str, anonymizer_script: str) -
     except ET.ParseError:
         root = ET.Element("script")
 
-    for tag_name in tag_mappings.keys():
+    for tag_name in tag_mappings:
         tag_hex = _get_tag_hex_from_keyword(tag_name)
 
         existing_elem = None
