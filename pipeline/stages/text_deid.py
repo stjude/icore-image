@@ -190,16 +190,8 @@ NLM_PRESERVE_MEDICAL = {
     "muscles",
     "tendons",
     "ligaments",
-    "parenchyma",
     "gray-white",
     "grey-white",
-    "gray",
-    "grey",
-    "white",
-    "paranasal",
-    "sinuses",
-    "maxillary",
-    "frontal",
     "ethmoid",
 }
 
@@ -446,22 +438,25 @@ def scrub(
         "BLACKLIST": OperatorConfig("replace", {"new_value": "[REDACTED]"}),
     }
 
-    age_under_90 = re.compile(r"\b([1-8]?\d)\s*[-\s]*(year|yr)s?[-\s]*old\b", re.I)
-    duration = re.compile(
-        r"\b\d+\s+(weeks?|months?|days?|hours?|minutes?|seconds?)\b", re.I
+    age_under_90 = re.compile(
+        r"\b([1-8]?\d)\s*[-\s]*(year|yr)s?[-\s]*old\b", re.IGNORECASE
     )
-    time_12h = re.compile(r"\b\d{1,2}(am|pm)\b", re.I)
-    time_colon = re.compile(r"\b\d{1,2}:\d{2}(\s*[AP]M)?\b", re.I)
-    gestational = re.compile(r"\b\d{1,2}\s*weeks?\s*\d*\s*days?\b", re.I)
+    duration = re.compile(
+        r"\b\d+\s+(weeks?|months?|days?|hours?|minutes?|seconds?)\b", re.IGNORECASE
+    )
+    time_12h = re.compile(r"\b\d{1,2}(am|pm)\b", re.IGNORECASE)
+    time_colon = re.compile(r"\b\d{1,2}:\d{2}(\s*[AP]M)?\b", re.IGNORECASE)
+    gestational = re.compile(r"\b\d{1,2}\s*weeks?\s*\d*\s*days?\b", re.IGNORECASE)
     measurement = re.compile(
-        r"\b\d+(?:\.\d+)?\s*(cm|mm|ml|mg|kg|lb|oz|degrees?|dl|percent|%)\b", re.I
+        r"\b\d+(?:\.\d+)?\s*(cm|mm|ml|mg|kg|lb|oz|degrees?|dl|percent|%)\b",
+        re.IGNORECASE,
     )
     blood_pressure = re.compile(r"\b\d{2,3}/\d{2,3}\b")
     year_only = re.compile(r"\b(19|20)\d{2}\b")
-    relative_date = re.compile(r"\b(yesterday|today|tomorrow)\b", re.I)
+    relative_date = re.compile(r"\b(yesterday|today|tomorrow)\b", re.IGNORECASE)
     all_zeros = re.compile(r"\b0{7,}\b")
     hospital = re.compile(
-        r"\b(Hospital|Medical Center|Clinic|Healthcare|Health System)\b", re.I
+        r"\b(Hospital|Medical Center|Clinic|Healthcare|Health System)\b", re.IGNORECASE
     )
     url = re.compile(r"\bhttps?://[^\s]+\b")
 

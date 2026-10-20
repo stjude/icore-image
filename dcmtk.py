@@ -8,13 +8,13 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 from tenacity import (
+    RetryCallState,
     retry,
+    retry_if_exception_type,
+    retry_if_result,
     stop_after_attempt,
     wait_chain,
     wait_fixed,
-    retry_if_exception_type,
-    retry_if_result,
-    RetryCallState,
 )
 
 

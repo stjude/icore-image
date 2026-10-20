@@ -89,6 +89,9 @@
                 {% block content %}{% endblock %}
             </div>
         </section>
+        {% if admin_password_setup_required %}
+            {% include 'modals/set_admin_password.html' %}
+        {% endif %}
 
         <script>
             document.addEventListener('DOMContentLoaded', () => {

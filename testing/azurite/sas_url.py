@@ -13,7 +13,7 @@ secret) — the same ones the pytest ``AzuriteServer`` fixture uses.
 """
 
 import argparse
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from azure.storage.blob import (
     BlobServiceClient,
@@ -85,7 +85,7 @@ def main() -> None:
         permission=ContainerSasPermissions(
             read=True, write=True, delete=True, list=True
         ),
-        expiry=datetime.now(timezone.utc) + timedelta(hours=args.hours),
+        expiry=datetime.now(UTC) + timedelta(hours=args.hours),
     )
     print(f"http://127.0.0.1:{args.port}/{ACCOUNT_NAME}/{args.container}?{sas_token}")
 

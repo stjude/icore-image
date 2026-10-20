@@ -6,17 +6,16 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from deid.grammar import generate_hipaa_safe_harbor_script
 from pipeline import ImagineWorkflowPipeline
+from pipeline.stages.image_deid import generate_sc_pdf_filter
 from test_utils import (
+    CMOVE_BATCH_SIZE,
     _create_test_dicom,
     _upload_dicom_to_orthanc,
     get_free_port,
-    CMOVE_BATCH_SIZE,
 )
 from utils import PacsConfiguration, Spreadsheet
-from deid.grammar import generate_hipaa_safe_harbor_script
-from pipeline.stages.image_deid import generate_sc_pdf_filter
-
 
 logging.basicConfig(level=logging.INFO)
 

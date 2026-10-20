@@ -1,13 +1,12 @@
 import logging
 
-import pytest
 import pydicom
+import pytest
 from pydicom.filebase import DicomBytesIO
 
 from pipeline import ImageExportPipeline
 from pipeline.stages.export import _parse_rclone_percent
 from test_utils import _create_test_dicom
-
 
 logging.basicConfig(level=logging.INFO)
 

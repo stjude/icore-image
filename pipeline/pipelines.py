@@ -17,10 +17,10 @@ from pipeline.stages.text_deid import PresidioTextDeid
 from utils import (
     DeidExportResult,
     ImageDeidLocalResult,
+    ImagineWorkflowResult,
     PacsConfiguration,
     PacsQueryResult,
     RunDirs,
-    ImagineWorkflowResult,
     Spreadsheet,
     TextDeidResult,
     configure_run_logging,

@@ -2,9 +2,9 @@ import csv
 import io
 import logging
 import os
+import re
 import sys
 import time
-import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -13,7 +13,7 @@ from typing import TypedDict
 import pandas as pd
 from openpyxl import Workbook
 
-from dcmtk import find_studies, move_study, start_storescp, stop_storescp, echo_pacs
+from dcmtk import echo_pacs, find_studies, move_study, start_storescp, stop_storescp
 
 
 @dataclass
@@ -351,11 +351,11 @@ def find_studies_from_pacs_list(
                     )
             except Exception as e:
                 logging.exception(
-                    f"Failed to find studies for query {i + 1}: {str(e)}. Moving on."
+                    f"Failed to find studies for query {i + 1}: {e!s}. Moving on."
                 )
                 if i not in failed_query_indices:
                     failed_query_indices.append(i)
-                    failure_details[i] = f"Failed to find images: {str(e)}"
+                    failure_details[i] = f"Failed to find images: {e!s}"
 
         logging.info(
             f"Queried {total_queries} / {total_queries} rows for PACS {pacs.host}:{pacs.port}"
@@ -705,13 +705,13 @@ def move_studies_from_study_pacs_map(
                 except Exception as e:
                     logging.exception(
                         f"Exception while retrieving study for query {query_index + 1} "
-                        f"(study {study_uid}): {str(e)}. Moving on."
+                        f"(study {study_uid}): {e!s}. Moving on."
                     )
                     processed += 1
                     if query_index not in failed_query_indices:
                         failed_query_indices.append(query_index)
                         failure_details[query_index] = (
-                            f"Exception during retrieval: {str(e)}"
+                            f"Exception during retrieval: {e!s}"
                         )
 
             if deferred_delivery:
@@ -889,7 +889,7 @@ def count_dicom_files(directory):
                     f.seek(128)
                     if f.read(4) == b"DICM":
                         count += 1
-            except (OSError, IOError) as e:
+            except OSError as e:
                 logging.warning(
                     "Failed to read file '%s' while counting DICOM files: %s",
                     file_path,
@@ -1043,9 +1043,7 @@ def detect_and_validate_dates(df, tag_name):
 
 
 def format_dicom_date(date_value):
-    if isinstance(date_value, pd.Timestamp):
-        return date_value.strftime("%Y%m%d")
-    elif isinstance(date_value, datetime):
+    if isinstance(date_value, pd.Timestamp) or isinstance(date_value, datetime):
         return date_value.strftime("%Y%m%d")
     else:
         raise ValueError(

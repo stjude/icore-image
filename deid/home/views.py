@@ -1,16 +1,17 @@
-import logging
 import json
+import logging
 import os
 import re
 import sys
-from datetime import datetime, timezone as dt_timezone
-from urllib.parse import urlparse, parse_qs, quote
+from datetime import UTC, datetime
+from urllib.parse import parse_qs, quote, urlparse
 
 import bcrypt
 import pandas as pd
 import psutil
 import pydicom
 import pytz
+import tasks as icore_tasks
 from django.db import transaction
 from django.http import (
     FileResponse,
@@ -25,17 +26,17 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, TemplateView
 from django.views.generic.edit import CreateView
-
-import tasks as icore_tasks
+from grammar import UnknownTagError, get_hipaa_safe_harbor_config
+from initialize_admin_password import check_password_strength
+from pathutils import is_path_within_directory
 from tasks import ImageExportArgs
 
-from . import builders
-from .models import Project
-from .tasks import enqueue_project
-from grammar import get_hipaa_safe_harbor_config
-from pathutils import is_path_within_directory
 from pipeline.header_extract import DEFAULT_HEADERS_TO_EXTRACT
 from utils import appdata_dir_path, sanitize_filename
+
+from . import builders
+from .models import ADMIN_PASSWORD_FILE, AppState, Project
+from .tasks import enqueue_project
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +47,16 @@ GENERIC_ERROR_MESSAGE = (
     "An unexpected error occurred. Please check the system logs for details."
 )
 
+PASSWORD_REQUIREMENTS = (
+    "Password must be at least 20 characters and include an uppercase letter, "
+    "a lowercase letter, a number, and a symbol."
+)
+
 ICORE_BASE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "iCore")
 SETTINGS_DIR = os.path.join(ICORE_BASE_DIR, "config")
 AUTHENTICATION_LOG_PATH = os.path.join(
     ICORE_BASE_DIR, "logs", "system", "authentication.log"
 )
-SECURE_DIR = os.path.join(os.path.expanduser("~"), ".secure", ".config", ".sysdata")
 LOGS_DIR = os.path.join(ICORE_BASE_DIR, "logs")
 
 
@@ -113,8 +118,8 @@ def _validate_sas_url(sas_url):
                 # TypeError, which escapes this handler as a generic failure).
                 expiry_time = datetime.strptime(
                     expiry_str, "%Y-%m-%dT%H:%M:%SZ"
-                ).replace(tzinfo=dt_timezone.utc)
-                current_time = datetime.now(dt_timezone.utc)
+                ).replace(tzinfo=UTC)
+                current_time = datetime.now(UTC)
 
                 if current_time >= expiry_time:
                     return {"valid": False, "error": "SAS token has expired"}
@@ -841,6 +846,8 @@ def run_deid(request):
         )
         task, args = builders.build_image_deid(data, project, settings)
         return _save_and_enqueue(project, task, args)
+    except UnknownTagError as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -986,6 +993,8 @@ def run_imagedeidexport(request):
         # approves the output in the QC viewer (see qc_approve).
         task, args, export = builders.build_image_deid_export(data, project, settings)
         return _save_and_enqueue(project, task, args, export=export)
+    except UnknownTagError as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=400)
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse(
@@ -1321,8 +1330,7 @@ def save_admin_settings(request):
         protocol_file = request.FILES["protocol_file"]
         file_path = os.path.join(SETTINGS_DIR, "protocol.xlsx")
         with open(file_path, "wb+") as destination:
-            for chunk in protocol_file.chunks():
-                destination.write(chunk)
+            destination.writelines(protocol_file.chunks())
 
         existing_settings["protocol_file"] = os.path.abspath(file_path)
 
@@ -1472,14 +1480,10 @@ def generate_action_string(action):
     return action
 
 
-def get_password_file_path():
-    return os.path.join(SECURE_DIR, "icapf.txt")
-
-
 def check_admin_password(password):
     """Check if the provided password matches the stored hash"""
     try:
-        with open(get_password_file_path(), "rb") as f:
+        with open(ADMIN_PASSWORD_FILE, "rb") as f:
             stored_hash = f.read()
         return bcrypt.checkpw(password.encode("utf-8"), stored_hash)
     except FileNotFoundError:
@@ -1508,6 +1512,43 @@ def verify_admin_password(request):
     except Exception:
         logger.exception("Error processing request")
         return JsonResponse({"error": GENERIC_ERROR_MESSAGE}, status=500)
+
+
+@require_http_methods(["POST"])
+def set_admin_password(request):
+    """Set the admin password from the blocking first-run modal.
+
+    Only allowed while no password has been set (see
+    ``AppState.admin_password_setup_required``), so it can't be used to
+    overwrite an existing password without knowing it.
+    """
+    try:
+        password = json.loads(request.body).get("password", "")
+        if check_password_strength(password) != 0:
+            return JsonResponse(
+                {"status": "error", "message": PASSWORD_REQUIREMENTS}, status=400
+            )
+        with transaction.atomic():
+            state = AppState.load()
+            if not state.admin_password_setup_required:
+                return JsonResponse(
+                    {"status": "error", "message": "Admin password is already set."},
+                    status=409,
+                )
+            os.makedirs(os.path.dirname(ADMIN_PASSWORD_FILE), exist_ok=True)
+            with open(ADMIN_PASSWORD_FILE, "xb") as f:
+                f.write(bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()))
+            state.admin_password_reset_required = False
+            state.save()
+        AUTH_LOGGER.info(
+            f"Admin password set from hostname: {request.META.get('REMOTE_ADDR')}"
+        )
+        return JsonResponse({"status": "success"})
+    except Exception:
+        logger.exception("Error processing request")
+        return JsonResponse(
+            {"status": "error", "message": GENERIC_ERROR_MESSAGE}, status=500
+        )
 
 
 @require_http_methods(["POST"])

@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import xml.etree.ElementTree as ET
 from abc import ABC
 
@@ -19,7 +20,6 @@ from utils import (
     format_number_with_commas,
     validate_dicom_tags,
 )
-
 
 # ---------------------------------------------------------------------------
 # Metadata save helpers
@@ -243,6 +243,33 @@ def _get_sc_pdf_blacklist(apply_default_filter_script: bool) -> str | None:
     return generate_sc_pdf_filter()
 
 
+def _move_sc_pdf_out_of_quarantine(quarantine_dir: str, sc_pdf_output_dir: str) -> None:
+    """Move SC/PDF-blacklisted files from the quarantine to ``sc_pdf_output_dir``.
+
+    The engine copies every rejected file into the quarantine and records why
+    in ``blacklisted_files.txt``. Device-filter rejections carry the reason
+    ``whitelist_rejected``; any other reason comes from the SC/PDF blacklist,
+    the only blacklist section iCore gives the engine.
+    """
+    report_path = os.path.join(quarantine_dir, "blacklisted_files.txt")
+    if not os.path.exists(report_path):
+        return
+    with open(report_path) as f:
+        entries = [line.rstrip("\n").split("\t", 1) for line in f if "\t" in line]
+    moved = 0
+    for relative_path, reason in entries:
+        if reason == "whitelist_rejected":
+            continue
+        src = os.path.join(quarantine_dir, relative_path)
+        if not os.path.exists(src):
+            continue
+        dest = os.path.join(sc_pdf_output_dir, relative_path)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.move(src, dest)
+        moved += 1
+    logging.info(f"Moved {moved} SC/PDF files to {sc_pdf_output_dir}")
+
+
 # ---------------------------------------------------------------------------
 # Mapping-file + anonymizer-script merge helpers
 # ---------------------------------------------------------------------------
@@ -372,7 +399,7 @@ def _merge_mapping_with_script(mapping_file_path: str, anonymizer_script: str) -
     except ET.ParseError:
         root = ET.Element("script")
 
-    for tag_name in tag_mappings.keys():
+    for tag_name in tag_mappings:
         tag_hex = _get_tag_hex_from_keyword(tag_name)
 
         existing_elem = None
@@ -527,6 +554,9 @@ class ImageDeidExecutor(ImageDeidStage):
             progress_callback=on_progress,
         )
         result = rs_pipeline.run()
+
+        if self.sc_pdf_output_dir:
+            _move_sc_pdf_out_of_quarantine(quarantine_dir, self.sc_pdf_output_dir)
 
         _collect_engine_audit_files(ctx.output_dir, ctx.appdata_dir)
 
