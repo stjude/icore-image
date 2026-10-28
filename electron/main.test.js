@@ -257,6 +257,76 @@ describe('main.js', () => {
     });
 });
 
+describe('app outside Applications folder', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockInitializeApp.mockResolvedValue(undefined);
+        mockApp.isPackaged = true;
+        mockApp.isInApplicationsFolder = jest.fn().mockReturnValue(false);
+        mockApp.moveToApplicationsFolder = jest.fn().mockReturnValue(true);
+        process.resourcesPath = '/Resources';
+        jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+            cb();
+            return null;
+        });
+    });
+
+    afterEach(() => {
+        mockApp.isPackaged = false;
+        delete mockApp.isInApplicationsFolder;
+        delete mockApp.moveToApplicationsFolder;
+        delete process.resourcesPath;
+        jest.restoreAllMocks();
+    });
+
+    async function runReadyHandler() {
+        let readyHandler;
+        jest.isolateModules(() => {
+            mockApp.on.mockImplementation((event, handler) => {
+                if (event === 'ready') {
+                    readyHandler = handler;
+                }
+            });
+            require('./main');
+        });
+        await readyHandler();
+    }
+
+    it('moves to Applications and skips startup when the user accepts', async () => {
+        mockDialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+
+        await runReadyHandler();
+
+        expect(mockDialog.showMessageBox).toHaveBeenCalledWith(
+            mockWindowInstance,
+            expect.objectContaining({ title: 'Move iCore to Applications' })
+        );
+        expect(mockApp.moveToApplicationsFolder).toHaveBeenCalled();
+        expect(mockSpawn).not.toHaveBeenCalledWith(expect.anything(), ['worker']);
+    });
+
+    it('does not prompt when already in Applications', async () => {
+        mockApp.isInApplicationsFolder.mockReturnValue(true);
+
+        await runReadyHandler();
+
+        expect(mockDialog.showMessageBox).not.toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ title: 'Move iCore to Applications' })
+        );
+        expect(mockSpawn).toHaveBeenCalledWith(expect.stringContaining('manage'), ['worker']);
+    });
+
+    it('starts normally when the user declines', async () => {
+        mockDialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+
+        await runReadyHandler();
+
+        expect(mockApp.moveToApplicationsFolder).not.toHaveBeenCalled();
+        expect(mockSpawn).toHaveBeenCalledWith(expect.stringContaining('manage'), ['worker']);
+    });
+});
+
 describe('logging functionality', () => {
     let tempDir;
 

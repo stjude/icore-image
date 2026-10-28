@@ -114,6 +114,44 @@ function instrumentAutoUpdater() {
   });
 }
 
+// Squirrel.Mac can't install updates over an app running from a mounted DMG,
+// or from the read-only copy Gatekeeper translocates a quarantined app to (e.g.
+// one opened from Downloads). Offer to move it into /Applications; on success
+// Electron relaunches the app from there, so the caller should stop starting
+// this instance.
+async function offerMoveToApplications() {
+  if (!app.isPackaged || app.isInApplicationsFolder()) {
+    return false;
+  }
+
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Move to Applications', 'Not Now'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Move iCore to Applications',
+    message: 'iCore must be in your Applications folder to install updates.',
+    detail: 'iCore will be moved to Applications and restart. Any older copy ' +
+      'of iCore already in Applications will be moved to the Trash.'
+  });
+  if (response !== 0) {
+    logWithTimestamp('main', 'User declined moving app to Applications');
+    return false;
+  }
+
+  try {
+    return app.moveToApplicationsFolder();
+  } catch (error) {
+    logWithTimestamp('main', `Failed to move app to Applications: ${error}`);
+    dialog.showErrorBox(
+      'Could Not Move iCore',
+      'Please quit iCore, drag it into your Applications folder in Finder, ' +
+      'and open it from there.'
+    );
+    return false;
+  }
+}
+
 // Squirrel.Mac installs by replacing the whole .app bundle in place, so an
 // update downloads fine but silently never installs when the bundle is not
 // writable by the current user, is still running from a mounted DMG, or was
@@ -256,6 +294,11 @@ app.on('ready', async () => {
     }).then(() => {
       app.quit();
     });
+    return;
+  }
+
+  // Before the server and worker start, since a successful move relaunches.
+  if (await offerMoveToApplications()) {
     return;
   }
   
