@@ -6,7 +6,31 @@ on:
       - 'v*.*.*'
 
 jobs:
+  # electron-builder looks up the tag's draft release and creates one if it
+  # finds none. Since 26.15, artifacts finishing together (within one build or
+  # across the arch builds) can each miss the others' draft and create their
+  # own, scattering assets across several drafts. Creating the draft up front
+  # means every upload finds and uses this one.
+  create-draft-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Re-runs of this workflow reuse the draft from the first attempt.
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            echo "release ${GITHUB_REF_NAME} already exists"
+          else
+            gh release create "${GITHUB_REF_NAME}" --draft --verify-tag \
+              --title "${GITHUB_REF_NAME#v}" --notes "" --repo "${GITHUB_REPOSITORY}"
+          fi
+
   build-and-publish:
+    needs: create-draft-release
     permissions:
       contents: write
     strategy:
