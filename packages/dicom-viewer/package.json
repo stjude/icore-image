@@ -37,9 +37,9 @@
         "react-resize-detector": "^12.1.0"
     },
     "devDependencies": {
-        "@cornerstonejs/core": "^4.15.24",
-        "@cornerstonejs/dicom-image-loader": "^4.15.24",
-        "@cornerstonejs/tools": "^4.15.24",
+        "@cornerstonejs/core": "^5.6.8",
+        "@cornerstonejs/dicom-image-loader": "^5.6.8",
+        "@cornerstonejs/tools": "^5.6.8",
         "@mantine/core": "^7.15.3",
         "@tabler/icons-react": "^3.22.0",
         "@types/react": "^18",
