@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import TypedDict
 
 import pandas as pd
+import pydicom
 from openpyxl import Workbook
 
 from dcmtk import echo_pacs, find_studies, move_study, start_storescp, stop_storescp
@@ -504,19 +505,41 @@ def _attempt_fallback_queries(
     return study_pacs_map, final_failed, final_details
 
 
-def _count_received_by_study(output_dir):
-    """Count received files per study folder (storescp ``--sort-on-study-uid ""``).
+def _count_received_by_study(output_dir, received_files):
+    """Count unique received instances per StudyInstanceUID.
 
-    Dotfiles are skipped: on exFAT/FAT volumes macOS writes a ``._<name>``
-    AppleDouble sidecar beside every file, which would double the count.
+    ``received_files`` maps each file path to ``(size, (study, series, sop))``,
+    or ``(size, None)`` for files that did not parse as DICOM (e.g. the ``._``
+    AppleDouble sidecars macOS writes on exFAT/FAT volumes). It persists across
+    polls so each file is parsed once; a file that failed to parse is retried
+    only if its size changes, since storescp may still have been writing it.
     """
-    counts = {}
     for root, _dirs, files in os.walk(output_dir):
-        n = sum(1 for f in files if not f.startswith("."))
-        if n:
-            study_uid = os.path.basename(root)
-            counts[study_uid] = counts.get(study_uid, 0) + n
-    return counts
+        for name in files:
+            path = os.path.join(root, name)
+            try:
+                size = os.path.getsize(path)
+            except OSError:
+                continue
+            cached = received_files.get(path)
+            if cached and (cached[1] is not None or cached[0] == size):
+                continue
+            try:
+                ds = pydicom.dcmread(
+                    path,
+                    stop_before_pixels=True,
+                    specific_tags=["StudyInstanceUID", "SeriesInstanceUID", "SOPInstanceUID"],
+                )
+                triplet = (ds.StudyInstanceUID, ds.SeriesInstanceUID, ds.SOPInstanceUID)
+            except Exception:
+                triplet = None
+            received_files[path] = (size, triplet)
+
+    instances_by_study = {}
+    for _size, triplet in received_files.values():
+        if triplet:
+            instances_by_study.setdefault(triplet[0], set()).add(triplet)
+    return {uid: len(instances) for uid, instances in instances_by_study.items()}
 
 
 def _count_expected_instances(study_pacs_map, application_aet):
@@ -548,7 +571,7 @@ def _count_expected_instances(study_pacs_map, application_aet):
 
 
 def _wait_for_deferred_delivery(
-    output_dir, expected_by_study, timeout, storescp_process
+    output_dir, expected_by_study, timeout, storescp_process, received_files
 ):
     """Poll storescp output until every study has its expected files, or timeout.
 
@@ -576,7 +599,7 @@ def _wait_for_deferred_delivery(
 
     while True:
         elapsed = time.time() - start_time
-        received = _count_received_by_study(output_dir)
+        received = _count_received_by_study(output_dir, received_files)
         actual = sum(received.get(uid, 0) for uid in expected_by_study)
         incomplete = {
             uid: (received.get(uid, 0), n)
@@ -663,6 +686,7 @@ def move_studies_from_study_pacs_map(
         total_batches = (total_studies + cmove_batch_size - 1) // cmove_batch_size
         processed = 0
         expected_by_study = {}
+        received_files = {}  # path -> (size, triplet), shared across batches
 
         studies = list(study_pacs_map.items())
         for batch_start in range(0, total_studies, cmove_batch_size):
@@ -753,6 +777,7 @@ def move_studies_from_study_pacs_map(
                     expected_by_study,
                     deferred_delivery_timeout,
                     storescp_process,
+                    received_files,
                 )
             else:
                 # Allow time for final files to be received by storescp
