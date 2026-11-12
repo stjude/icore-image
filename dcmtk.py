@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -332,10 +333,15 @@ def start_storescp(port, output_dir, calling_aet=None):
         output_dir: Directory where received DICOM files will be written
         calling_aet: Optional AE title for the SCP
 
+    On POSIX, storescp forks a child per association so concurrent PACS
+    deliveries are not serialized, and runs in its own process group so
+    :func:`stop_storescp` can stop those children too.
+
     Returns:
         subprocess.Popen process handle
     """
     os.makedirs(output_dir, exist_ok=True)
+    posix = os.name == "posix"
 
     dcmtk_home = _get_default_dcmtk_home()
     storescp_binary = os.path.join(dcmtk_home, "bin", "storescp")
@@ -348,6 +354,8 @@ def start_storescp(port, output_dir, calling_aet=None):
         "--sort-on-study-uid",
         "",
     ]
+    if posix:
+        cmd.append("--fork")
     if calling_aet:
         cmd.extend(["-aet", calling_aet])
     cmd.append(str(port))
@@ -356,20 +364,40 @@ def start_storescp(port, output_dir, calling_aet=None):
 
     env = _build_dcmtk_env()
     process = subprocess.Popen(
-        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=env,
+        start_new_session=posix,
     )
     return process
 
 
+def _signal_storescp(process, sig):
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, sig)  # listener + per-association children
+        else:
+            process.send_signal(sig)
+    except ProcessLookupError:
+        pass
+
+
 def stop_storescp(process):
-    """Gracefully terminate a running storescp process."""
-    if process and process.poll() is None:
-        process.terminate()
-        try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
+    """Terminate storescp and any association children it forked.
+
+    Signals the whole process group even if the listener already exited, since
+    forked children outlive it and may still be writing files.
+    """
+    if not process:
+        return
+    _signal_storescp(process, signal.SIGTERM)
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+    _signal_storescp(process, getattr(signal, "SIGKILL", signal.SIGTERM))
+    process.wait()
 
 
 def echo_pacs(host, port, calling_aet, called_aet):

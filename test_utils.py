@@ -1313,18 +1313,18 @@ def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
     output_dir = str(tmp_path / "output")
     call_count = {"n": 0}
 
-    def mock_count_files(_dir):
+    def mock_count_files(_dir, _received_files):
         call_count["n"] += 1
         if call_count["n"] >= 2:
-            return 10  # All files arrived on second poll
-        return 5
+            return {"study_uid_1": 5, "study_uid_2": 5}  # All arrived on second poll
+        return {"study_uid_1": 5}
 
     with (
         patch("utils.move_study") as mock_move,
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
         patch("utils.find_studies") as mock_find,
-        patch("utils._count_files_in_dir", side_effect=mock_count_files),
+        patch("utils._count_received_by_study", side_effect=mock_count_files),
         patch("time.sleep"),
     ):
         mock_start.return_value = Mock(poll=Mock(return_value=None))
@@ -1368,7 +1368,7 @@ def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
         patch("utils.find_studies") as mock_find,
-        patch("utils._count_files_in_dir", return_value=0),
+        patch("utils._count_received_by_study", return_value={}),
         patch("time.sleep"),
     ):
         mock_start.return_value = Mock(poll=Mock(return_value=None))
@@ -1410,7 +1410,7 @@ def test_deferred_delivery_storescp_dies(tmp_path, caplog):
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
         patch("utils.find_studies") as mock_find,
-        patch("utils._count_files_in_dir", return_value=0),
+        patch("utils._count_received_by_study", return_value={}),
         patch("time.sleep"),
     ):
         # storescp process dies (poll returns exit code)
@@ -1449,17 +1449,17 @@ def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
 
     call_count = {"n": 0}
 
-    def mock_count_files(_dir):
+    def mock_count_files(_dir, _received_files):
         call_count["n"] += 1
         # Return 1 file on first call (triggers idle tracking), then same on subsequent calls
-        return 1
+        return {"study_uid_1": 1}
 
     with (
         patch("utils.move_study") as mock_move,
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
         patch("utils.find_studies", side_effect=Exception("PACS unreachable")),
-        patch("utils._count_files_in_dir", side_effect=mock_count_files),
+        patch("utils._count_received_by_study", side_effect=mock_count_files),
         patch("time.sleep"),
     ):
         mock_start.return_value = Mock(poll=Mock(return_value=None))
@@ -1487,6 +1487,139 @@ def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
     assert any("Failed to count instances" in r.message for r in caplog.records)
     # Timeout should fire since expected_count is 0 and timeout is 0
     assert any("timeout" in r.message.lower() for r in caplog.records)
+
+
+def _write_instance(path, study_uid, series_uid="1.9", sop_uid=None):
+    """Write a minimal Part 10 file the way storescp would."""
+    meta = FileMetaDataset()
+    meta.MediaStorageSOPClassUID = SecondaryCaptureImageStorage
+    meta.MediaStorageSOPInstanceUID = sop_uid or generate_uid()
+    meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    ds = FileDataset(str(path), {}, file_meta=meta, preamble=b"\0" * 128)
+    ds.SOPClassUID = meta.MediaStorageSOPClassUID
+    ds.SOPInstanceUID = meta.MediaStorageSOPInstanceUID
+    ds.StudyInstanceUID = study_uid
+    ds.SeriesInstanceUID = series_uid
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ds.save_as(str(path), enforce_file_format=True)
+
+
+def test_count_received_by_study_counts_unique_dicom_instances(tmp_path):
+    """Only files that parse as DICOM count, and each UID triplet counts once.
+    AppleDouble ._ sidecars (exFAT on macOS) and .DS_Store are not instances."""
+    from utils import _count_received_by_study
+
+    for i in range(3):
+        _write_instance(tmp_path / "1.2.3" / f"CT.{i}", "1.2.3", sop_uid=f"1.2.3.{i}")
+        (tmp_path / "1.2.3" / f"._CT.{i}").write_bytes(b"\0" * 4096)
+    # Same instance delivered again under a different name: not a new instance.
+    _write_instance(tmp_path / "1.2.3" / "CT.0.dup", "1.2.3", sop_uid="1.2.3.0")
+    # Grouping comes from the dataset's StudyInstanceUID, not the folder name.
+    _write_instance(tmp_path / "misc" / "CT.x", "4.5.6")
+    (tmp_path / ".DS_Store").write_bytes(b"finder")
+
+    assert _count_received_by_study(str(tmp_path), {}) == {"1.2.3": 3, "4.5.6": 1}
+
+
+def test_count_received_by_study_parses_each_file_once(tmp_path):
+    """Valid files are never re-parsed; unparseable ones only when their size changes."""
+    from unittest.mock import patch
+
+    import utils
+
+    _write_instance(tmp_path / "s" / "CT.1", "s")
+    (tmp_path / "s" / "._CT.1").write_bytes(b"\0" * 4096)
+    partial = tmp_path / "s" / "CT.2"
+    partial.write_bytes(b"\0" * 10)  # storescp still writing
+
+    received_files = {}
+    real_dcmread = utils.pydicom.dcmread
+    with patch("utils.pydicom.dcmread", side_effect=real_dcmread) as spy:
+        assert utils._count_received_by_study(str(tmp_path), received_files) == {"s": 1}
+        assert spy.call_count == 3
+        assert utils._count_received_by_study(str(tmp_path), received_files) == {"s": 1}
+        assert spy.call_count == 3
+
+        partial.unlink()
+        _write_instance(partial, "s")  # write finishes: size changed, parse again
+        assert utils._count_received_by_study(str(tmp_path), received_files) == {"s": 2}
+        assert spy.call_count == 4
+
+
+def test_deferred_delivery_not_satisfied_by_sidecars_or_other_studies(tmp_path):
+    """Sidecar files and surplus instances in one study must not end the wait early."""
+    from unittest.mock import Mock, patch
+
+    from utils import _wait_for_deferred_delivery
+
+    def deliver(study_uid, start, stop):
+        for i in range(start, stop):
+            _write_instance(tmp_path / study_uid / f"CT.{i}", study_uid)
+            (tmp_path / study_uid / f"._CT.{i}").write_bytes(b"\0" * 4096)
+
+    # Half of study A has arrived plus 4 extra instances in study B. The old
+    # total-file count (2*2 + 4*2 = 12 >= 8) would have stopped here.
+    deliver("A", 0, 2)
+    deliver("B", 0, 4)
+    polls = {"n": 0}
+
+    def fake_sleep(_seconds):
+        polls["n"] += 1
+        deliver("A", 2, 4)  # the rest of study A arrives
+
+    with patch("utils.time.sleep", side_effect=fake_sleep):
+        _wait_for_deferred_delivery(
+            str(tmp_path),
+            {"A": 4, "B": 4},
+            timeout=3600,
+            storescp_process=Mock(poll=Mock(return_value=None)),
+            received_files={},
+        )
+
+    assert polls["n"] == 1, "wait must continue until study A is actually complete"
+
+
+def test_deferred_delivery_final_wait_covers_earlier_batches(tmp_path):
+    """Each batch's wait includes studies from earlier batches, so storescp is
+    not stopped while an earlier batch is still being delivered."""
+    from unittest.mock import Mock, patch
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {"s1": (pacs, 0), "s2": (pacs, 1)}
+    waited_on = []
+
+    def record_wait(_dir, expected_by_study, _timeout, _proc, _received_files):
+        waited_on.append(dict(expected_by_study))
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch(
+            "utils.find_studies", return_value=[{"NumberOfStudyRelatedInstances": "3"}]
+        ),
+        patch("utils._wait_for_deferred_delivery", side_effect=record_wait),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock(poll=Mock(return_value=None))
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+        move_studies_from_study_pacs_map(
+            study_pacs_map,
+            "TEST_AET",
+            str(tmp_path),
+            storescp_port=0,
+            cmove_batch_size=1,
+            deferred_delivery=True,
+            deferred_delivery_timeout=300,
+        )
+
+    assert waited_on == [{"s1": 3}, {"s1": 3, "s2": 3}]
 
 
 def test_find_studies_from_pacs_list_exception_handling(tmp_path, caplog):

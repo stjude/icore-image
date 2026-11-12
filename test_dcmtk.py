@@ -1,3 +1,4 @@
+import signal
 from unittest import mock
 
 import pytest
@@ -483,7 +484,7 @@ I: Releasing Association"""
 
 def test_start_stop_storescp():
     """Test storescp lifecycle: start and stop via mocked subprocess.Popen."""
-    mock_process = mock.Mock()
+    mock_process = mock.Mock(pid=4321)
     mock_process.poll.return_value = None
 
     with mock.patch("subprocess.Popen", return_value=mock_process) as mock_popen:
@@ -493,10 +494,66 @@ def test_start_stop_storescp():
         cmd = mock_popen.call_args[0][0]
         assert "storescp" in cmd[0] or "storescp" in str(cmd)
         assert "50001" in [str(a) for a in cmd]
+        assert "--fork" in cmd
+        assert mock_popen.call_args.kwargs["start_new_session"] is True
 
-    mock_process.poll.return_value = None
-    stop_storescp(mock_process)
-    mock_process.terminate.assert_called_once()
+    with mock.patch("os.killpg") as mock_killpg:
+        stop_storescp(mock_process)
+    assert [c.args for c in mock_killpg.call_args_list] == [
+        (4321, signal.SIGTERM),
+        (4321, signal.SIGKILL),
+    ]
+
+
+def test_stop_storescp_stops_forked_association_children(tmp_path):
+    """A forked child serving an open association must not outlive stop_storescp."""
+    import socket
+    import subprocess
+    import time
+
+    from pynetdicom import AE
+
+    verification_sop_class = "1.2.840.10008.1.1"
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+
+    process = start_storescp(port, str(tmp_path), calling_aet="TEST_AET")
+    ae = AE(ae_title="TEST_SCU")
+    ae.add_requested_context(verification_sop_class)
+    assoc = None
+    try:
+        for _ in range(50):
+            assoc = ae.associate("127.0.0.1", port, ae_title="TEST_AET")
+            if assoc.is_established:
+                break
+            time.sleep(0.1)
+        assert assoc.is_established
+
+        def group_members():
+            out = subprocess.run(
+                ["pgrep", "-g", str(process.pid)], capture_output=True, text=True
+            ).stdout
+            return out.split()
+
+        for _ in range(50):
+            if len(group_members()) >= 2:
+                break
+            time.sleep(0.1)
+        assert len(group_members()) >= 2, "expected listener plus a forked child"
+
+        stop_storescp(process)
+
+        for _ in range(50):
+            if not group_members():
+                break
+            time.sleep(0.1)
+        assert group_members() == []
+    finally:
+        if assoc is not None:
+            assoc.abort()
+        stop_storescp(process)
 
 
 def _findscu_run_capturing(captured, xml_to_write):
