@@ -12,8 +12,7 @@ ports with no cross-worker conflicts.
 
 import pytest
 
-from test_utils import OrthancServer, AzuriteServer
-
+from test_utils import AzuriteServer, OrthancServer
 
 # ---------------------------------------------------------------------------
 # Session-scoped containers (started once per test runner)

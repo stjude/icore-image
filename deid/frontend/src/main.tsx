@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import {
@@ -194,8 +194,25 @@ function buildDataSource(projectId: string): DicomDataSource {
 function QcViewerApp({ projectId }: { projectId: string }) {
     const [studies, setStudies] = useState<ViewerStudy[] | null>(null);
     const [error, setError] = useState<string | null>(null);
-    // Build the data source once so its identity is stable across renders.
-    const [dataSource] = useState(() => buildDataSource(projectId));
+    // The viewer can mount before per-series preview thumbnails have finished
+    // generating. The host page (task_progress.html) fires
+    // `qc-thumbnails-ready` once the thumbnails marker appears; bumping this
+    // epoch rebuilds the data source, whose new identity makes the viewer
+    // re-run its thumbnail fetch and backfill the previews. The marker is
+    // written only after *all* thumbnails complete, so one re-fetch fills them
+    // in together.
+    const [thumbnailEpoch, setThumbnailEpoch] = useState(0);
+    useEffect(() => {
+        const onReady = () => setThumbnailEpoch((n) => n + 1);
+        window.addEventListener('qc-thumbnails-ready', onReady);
+        return () => window.removeEventListener('qc-thumbnails-ready', onReady);
+    }, []);
+    // Rebuilt only when the thumbnail epoch changes; its identity is otherwise
+    // stable, so nothing but the thumbnail fetch reacts to it.
+    const dataSource = useMemo(
+        () => buildDataSource(projectId),
+        [projectId, thumbnailEpoch],
+    );
 
     // Track which series the operator has reviewed. A series counts once its
     // images have been displayed AND its Metadata tab opened. We report the

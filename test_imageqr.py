@@ -4,26 +4,25 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 import pydicom
+import pytest
 
-from pipeline.imageqr import imageqr
+from pipeline import ImageQueryPipeline
 from test_utils import (
+    CMOVE_BATCH_SIZE,
+    Fixtures,
     OrthancServer,
     _create_test_dicom,
     _upload_dicom_to_orthanc,
-    Fixtures,
     get_free_port,
-    CMOVE_BATCH_SIZE,
 )
 from utils import (
-    Spreadsheet,
     PacsConfiguration,
-    generate_queries_and_filter,
+    Spreadsheet,
     find_studies_from_pacs_list,
+    generate_queries_and_filter,
     save_failed_queries_csv,
 )
-
 
 logging.basicConfig(level=logging.INFO)
 
@@ -66,7 +65,7 @@ def test_imageqr_pacs_retrieves_all_queried_studies(output_dir, appdata_dir, ort
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imageqr(
+    result = ImageQueryPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -74,7 +73,7 @@ def test_imageqr_pacs_retrieves_all_queried_studies(output_dir, appdata_dir, ort
         appdata_dir=str(appdata_dir),
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     # All 9 queried studies are retrieved unchanged — no filtering happens here.
     output_files = [p for p in output_dir.rglob("*") if p.is_file()]
@@ -102,7 +101,7 @@ def test_imageqr_failures_reported(output_dir, appdata_dir):
     )
 
     with get_free_port() as storescp_port:
-        result = imageqr(
+        result = ImageQueryPipeline(
             pacs_list=[invalid_pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -110,7 +109,7 @@ def test_imageqr_failures_reported(output_dir, appdata_dir):
             appdata_dir=str(appdata_dir),
             storescp_port=storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
     assert len(result["failed_query_indices"]) == 3, "All 3 queries should have failed"
     assert result["failed_query_indices"] == [0, 1, 2], (
@@ -155,7 +154,7 @@ def test_imageqr_multiple_pacs(output_dir, appdata_dir):
 
         pacs_configs = [orthanc1.get_pacs_config(), orthanc2.get_pacs_config()]
 
-        result = imageqr(
+        result = ImageQueryPipeline(
             pacs_list=pacs_configs,
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -163,7 +162,7 @@ def test_imageqr_multiple_pacs(output_dir, appdata_dir):
             appdata_dir=str(appdata_dir),
             storescp_port=storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
         assert result["num_studies_found"] == 4, (
             f"Should find 4 studies (2 from each PACS), found {result['num_studies_found']}"
@@ -222,7 +221,7 @@ def test_imageqr_pacs_mrn_study_date_fallback(output_dir, appdata_dir, orthanc):
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imageqr(
+    result = ImageQueryPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -230,7 +229,7 @@ def test_imageqr_pacs_mrn_study_date_fallback(output_dir, appdata_dir, orthanc):
         appdata_dir=str(appdata_dir),
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 3, (
         f"Should find 3 studies, found {result['num_studies_found']}"
@@ -256,22 +255,12 @@ def test_imageqr_pacs_mrn_study_date_fallback(output_dir, appdata_dir, orthanc):
     query_df_invalid = pd.DataFrame(query_data_invalid)
     query_df_invalid.to_excel(query_file_invalid, index=False)
 
-    query_spreadsheet_invalid = Spreadsheet.from_file(
-        str(query_file_invalid),
-        acc_col="AccessionNumber",
-        mrn_col="PatientID",
-        date_col="StudyDate",
-    )
-
-    with pytest.raises(ValueError, match="StudyDate must be in Excel date format"):
-        imageqr(
-            pacs_list=[pacs_config],
-            query_spreadsheet=query_spreadsheet_invalid,
-            application_aet="TEST_AET",
-            output_dir=str(output_dir),
-            appdata_dir=str(appdata_dir),
-            storescp_port=orthanc.storescp_port,
-            cmove_batch_size=CMOVE_BATCH_SIZE,
+    with pytest.raises(ValueError, match="time data.*doesn't match format"):
+        Spreadsheet.from_file(
+            str(query_file_invalid),
+            acc_col="AccessionNumber",
+            mrn_col="PatientID",
+            date_col="StudyDate",
         )
 
 
@@ -362,7 +351,7 @@ def test_imageqr_pacs_date_window(output_dir, appdata_dir, orthanc):
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imageqr(
+    result = ImageQueryPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -371,7 +360,7 @@ def test_imageqr_pacs_date_window(output_dir, appdata_dir, orthanc):
         date_window_days=2,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = [p for p in output_dir.rglob("*") if p.is_file()]
 
@@ -426,7 +415,7 @@ def test_imageqr_accession_wildcard_filtering(output_dir, appdata_dir, orthanc):
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imageqr(
+    result = ImageQueryPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -434,7 +423,7 @@ def test_imageqr_accession_wildcard_filtering(output_dir, appdata_dir, orthanc):
         appdata_dir=str(appdata_dir),
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     output_files = [p for p in output_dir.rglob("*") if p.is_file()]
 
@@ -475,7 +464,7 @@ def test_imageqr_saves_failed_queries_csv_on_find_failure(
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imageqr(
+    result = ImageQueryPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -483,7 +472,7 @@ def test_imageqr_saves_failed_queries_csv_on_find_failure(
         appdata_dir=str(appdata_dir),
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1
     assert len(result["failed_query_indices"]) == 2
@@ -545,7 +534,7 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imageqr(
+    result = ImageQueryPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -553,7 +542,7 @@ def test_imageqr_saves_failed_queries_csv_with_mrn_date(
         appdata_dir=str(appdata_dir),
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1
     assert len(result["failed_query_indices"]) == 1
@@ -622,7 +611,7 @@ def test_imageqr_continues_despite_move_failures(
             }
 
     with patch("utils.move_study", side_effect=mock_move_study):
-        result = imageqr(
+        result = ImageQueryPipeline(
             pacs_list=[pacs_config],
             query_spreadsheet=query_spreadsheet,
             application_aet="TEST_AET",
@@ -630,7 +619,7 @@ def test_imageqr_continues_despite_move_failures(
             appdata_dir=str(appdata_dir),
             storescp_port=orthanc.storescp_port,
             cmove_batch_size=CMOVE_BATCH_SIZE,
-        )
+        ).run()
 
     assert result is not None, "imageqr should return a result"
 
@@ -923,7 +912,7 @@ def test_imageqr_with_fallback_query(output_dir, appdata_dir, orthanc):
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imageqr(
+    result = ImageQueryPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -932,7 +921,7 @@ def test_imageqr_with_fallback_query(output_dir, appdata_dir, orthanc):
         use_fallback_query=True,
         storescp_port=orthanc.storescp_port,
         cmove_batch_size=CMOVE_BATCH_SIZE,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 2, (
         f"Should find 2 studies (1 by accession, 1 by fallback), found {result['num_studies_found']}"
@@ -976,7 +965,7 @@ def test_imageqr_deferred_delivery_retrieves_all_files(
         host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
     )
 
-    result = imageqr(
+    result = ImageQueryPipeline(
         pacs_list=[pacs_config],
         query_spreadsheet=query_spreadsheet,
         application_aet="TEST_AET",
@@ -986,9 +975,58 @@ def test_imageqr_deferred_delivery_retrieves_all_files(
         cmove_batch_size=CMOVE_BATCH_SIZE,
         deferred_delivery=True,
         deferred_delivery_timeout=120,
-    )
+    ).run()
 
     assert result["num_studies_found"] == 1
     # All 7 instances should be saved
     output_files = [p for p in output_dir.rglob("*") if p.is_file()]
     assert len(output_files) == 7, f"Expected 7 files, found {len(output_files)}"
+
+
+def test_imageqr_modality_filter_quarantines_other_modalities(
+    output_dir, appdata_dir, orthanc
+):
+    """The Image Query filter stage keeps only files matching the selected
+    modalities; everything else is moved to appdata/quarantine untouched."""
+    os.environ["DCMTK_HOME"] = str(Path(__file__).parent / "dcmtk")
+
+    for i, modality in enumerate(["CT", "CT", "MR", "US"]):
+        ds = _create_test_dicom(f"ACC{i:03d}", f"MRN{i:04d}", "Pt", modality, "1.0")
+        ds.InstanceNumber = i + 1
+        _upload_dicom_to_orthanc(ds, orthanc)
+
+    query_file = appdata_dir / "query.xlsx"
+    pd.DataFrame({"AccessionNumber": [f"ACC{i:03d}" for i in range(4)]}).to_excel(
+        query_file, index=False
+    )
+    query_spreadsheet = Spreadsheet.from_file(
+        str(query_file), acc_col="AccessionNumber"
+    )
+    pacs_config = PacsConfiguration(
+        host="localhost", port=orthanc.dicom_port, aet=orthanc.aet
+    )
+
+    result = ImageQueryPipeline(
+        pacs_list=[pacs_config],
+        query_spreadsheet=query_spreadsheet,
+        application_aet="TEST_AET",
+        output_dir=str(output_dir),
+        appdata_dir=str(appdata_dir),
+        storescp_port=orthanc.storescp_port,
+        cmove_batch_size=CMOVE_BATCH_SIZE,
+        modality_filters={
+            "CT": [{"tag": "Modality", "action": "equals", "value": "CT"}],
+            "MR": [{"tag": "Modality", "action": "equals", "value": "MR"}],
+        },
+    ).run()
+
+    assert result["num_studies_found"] == 4
+    assert result["num_images_saved"] == 3
+    assert result["num_images_quarantined"] == 1
+
+    kept = sorted(
+        pydicom.dcmread(p).Modality for p in output_dir.rglob("*") if p.is_file()
+    )
+    assert kept == ["CT", "CT", "MR"]
+    quarantined = [p for p in (appdata_dir / "quarantine").rglob("*") if p.is_file()]
+    assert [pydicom.dcmread(p).Modality for p in quarantined] == ["US"]

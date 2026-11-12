@@ -1,15 +1,16 @@
 from unittest import mock
+
 import pytest
 
 from dcmtk import (
+    DCMTKCommandError,
+    DCMTKParseError,
+    _parse_move_output,
+    echo_pacs,
     find_studies,
     move_study,
     start_storescp,
     stop_storescp,
-    _parse_move_output,
-    echo_pacs,
-    DCMTKCommandError,
-    DCMTKParseError,
 )
 
 FINDSCU_SINGLE_ACCESSION_XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -527,20 +528,22 @@ def test_return_tag_cannot_wipe_query_constraint():
     captured = {}
     study_uid = "1.2.826.0.1.3680043.8.498.19219017759098709637263425563099910928"
 
-    with mock.patch(
-        "subprocess.run",
-        side_effect=_findscu_run_capturing(captured, FINDSCU_SINGLE_ACCESSION_XML),
+    with (
+        mock.patch(
+            "subprocess.run",
+            side_effect=_findscu_run_capturing(captured, FINDSCU_SINGLE_ACCESSION_XML),
+        ),
+        mock.patch("time.sleep"),
     ):
-        with mock.patch("time.sleep"):
-            find_studies(
-                host="localhost",
-                port=11112,
-                calling_aet="TEST_SCU",
-                called_aet="ORTHANC_TEST",
-                query_params={"StudyInstanceUID": study_uid},
-                # StudyInstanceUID also requested as a return tag -> must not duplicate
-                return_tags=["StudyInstanceUID", "NumberOfStudyRelatedInstances"],
-            )
+        find_studies(
+            host="localhost",
+            port=11112,
+            calling_aet="TEST_SCU",
+            called_aet="ORTHANC_TEST",
+            query_params={"StudyInstanceUID": study_uid},
+            # StudyInstanceUID also requested as a return tag -> must not duplicate
+            return_tags=["StudyInstanceUID", "NumberOfStudyRelatedInstances"],
+        )
 
     keys = _query_keys(captured["cmd"])
 
@@ -559,19 +562,21 @@ def test_return_tag_present_when_not_a_query_constraint():
     valueless key so the field comes back in the response."""
     captured = {}
 
-    with mock.patch(
-        "subprocess.run",
-        side_effect=_findscu_run_capturing(captured, FINDSCU_SINGLE_ACCESSION_XML),
+    with (
+        mock.patch(
+            "subprocess.run",
+            side_effect=_findscu_run_capturing(captured, FINDSCU_SINGLE_ACCESSION_XML),
+        ),
+        mock.patch("time.sleep"),
     ):
-        with mock.patch("time.sleep"):
-            find_studies(
-                host="localhost",
-                port=11112,
-                calling_aet="TEST_SCU",
-                called_aet="ORTHANC_TEST",
-                query_params={"AccessionNumber": "ACC12345"},
-                return_tags=["StudyInstanceUID"],
-            )
+        find_studies(
+            host="localhost",
+            port=11112,
+            calling_aet="TEST_SCU",
+            called_aet="ORTHANC_TEST",
+            query_params={"AccessionNumber": "ACC12345"},
+            return_tags=["StudyInstanceUID"],
+        )
 
     keys = _query_keys(captured["cmd"])
     assert "AccessionNumber=ACC12345" in keys

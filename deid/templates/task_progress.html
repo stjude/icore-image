@@ -110,6 +110,9 @@
                 <button id="startQcBtn" class="hidden px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
                     Start QC
                 </button>
+                <p id="qcThumbnailsHint" class="hidden text-xs text-gray-400">
+                    Preview thumbnails are still generating — you can start QC now; they'll appear as they finish.
+                </p>
             </div>
         </section>
 
@@ -188,6 +191,7 @@
     let activeTab = 'progress';
     let qcMounted = false;
     let latestTaskData = null;
+    let qcThumbnailsReadyNotified = false; // fired the one-time thumbnails-ready event
 
     // Cached bar "shape" so we only rebuild the DOM when it actually changes.
     // Rebuilding on every poll would restart the CSS animations each second
@@ -201,13 +205,24 @@
 
     function isTabUnlocked(name) {
         if (name === 'progress') return true;
-        if (name === 'qc') return deidDone && !!latestTaskData && !!latestTaskData.qc_ready;
+        if (name === 'qc') return deidDone && !!latestTaskData;
         if (name === 'export') return hasExport && exportStarted;
         return false;
     }
 
     function setActiveTab(name) {
-        if (!isTabUnlocked(name)) return;
+        if (!isTabUnlocked(name)) {
+            console.warn('[qc] tab switch rejected', {
+                requested: name,
+                deidDone,
+                thumbnails_ready: latestTaskData && latestTaskData.thumbnails_ready,
+                status: latestTaskData && latestTaskData.status,
+                task_type: latestTaskData && latestTaskData.task_type,
+                hasExport,
+                exportStarted,
+            });
+            return;
+        }
         activeTab = name;
         for (const [tab, panelId] of Object.entries(PANELS)) {
             document.getElementById(panelId).classList.toggle('hidden', tab !== name);
@@ -257,8 +272,15 @@
         const startBtn = document.getElementById('startQcBtn');
 
         // Ready for QC: fill the whole bar and swap the caption for the CTA.
+        // The button stays enabled once de-identification is done — QC doesn't
+        // wait on thumbnails. When previews are still generating (thumbnails_ready
+        // false), we surface a muted note under the button rather than blocking
+        // the operator; the note clears once the thumbnails marker appears.
+        const thumbnailsReady = !!(latestTaskData && latestTaskData.thumbnails_ready);
+        const thumbnailsHint = document.getElementById('qcThumbnailsHint');
         startBtn.classList.toggle('hidden', !completed);
         caption.classList.toggle('hidden', completed);
+        thumbnailsHint.classList.toggle('hidden', !(completed && !thumbnailsReady));
 
         const stages = (progress && progress.stages) || [];
         if (stages.length === 0 && !completed) {
@@ -370,6 +392,15 @@
             latestTaskData = data;
             taskStatus = data.status;
 
+            // Tell the (possibly already-mounted) QC viewer to backfill preview
+            // thumbnails the moment they finish generating. Fire once, on the
+            // first poll that sees them ready; a viewer mounted after this point
+            // picks them up on its initial fetch instead.
+            if (data.thumbnails_ready && !qcThumbnailsReadyNotified) {
+                qcThumbnailsReadyNotified = true;
+                window.dispatchEvent(new Event('qc-thumbnails-ready'));
+            }
+
             if (data.logs_folder) logsFolder = data.logs_folder;
             if (data.output_folder) outputFolder = data.output_folder;
             if (data.appdata_folder) appdataFolder = data.appdata_folder;
@@ -450,14 +481,13 @@
         else setActiveTab('progress');
     }
 
-    // Mount the React QC viewer once the de-identified images AND their preview
-    // thumbnails are ready (qc_ready). Deferred until the QC tab is shown so the
-    // Cornerstone canvas sizes against a visible container. window.mountQcViewer
-    // is defined by the viewer bundle; guard in case it hasn't loaded yet.
+    // Mount the React QC viewer against the de-identified output. Deferred until
+    // the QC tab is shown so the Cornerstone canvas sizes against a visible
+    // container. window.mountQcViewer is defined by the viewer bundle; guard in
+    // case it hasn't loaded yet.
     function maybeMountQcViewer(data) {
         if (qcMounted || !data) return;
         if (!QC_VIEWER_TASK_TYPES.includes(data.task_type)) return;
-        if (!data.qc_ready) return;
         if (activeTab !== 'qc') return;
         if (typeof window.mountQcViewer !== 'function') return;
         qcMounted = true;
@@ -599,6 +629,13 @@
     document.getElementById('reviewSpreadsheetBtn').addEventListener('click', reviewSpreadsheet);
 
     document.getElementById('startQcBtn').addEventListener('click', () => {
+        console.info('[qc] Start QC clicked', {
+            deidDone,
+            thumbnails_ready: latestTaskData && latestTaskData.thumbnails_ready,
+            status: latestTaskData && latestTaskData.status,
+            task_type: latestTaskData && latestTaskData.task_type,
+            unlocked: isTabUnlocked('qc'),
+        });
         userSelectedTab = true;
         setActiveTab('qc');
     });

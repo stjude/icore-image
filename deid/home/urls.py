@@ -108,6 +108,7 @@ urlpatterns = [
         views.verify_admin_password,
         name="verify_admin_password",
     ),
+    path("set_admin_password/", views.set_admin_password, name="set_admin_password"),
     path("task_list/", views.TaskListView.as_view(), name="task_list"),
     path("delete_task/<int:task_id>/", views.delete_task, name="delete_task"),
     path("cancel_task/<int:task_id>/", views.cancel_task, name="cancel_task"),

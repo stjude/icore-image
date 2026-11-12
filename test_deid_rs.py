@@ -1,11 +1,11 @@
 """Tests for deid_rs.py -- Rust engine wrapper."""
 
 import os
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch, MagicMock
 
-from deid_rs import _parse_report, DeidRsPipeline
+from deid_rs import DeidRsPipeline, _parse_report
 
 
 def _make_readable_pipe(content: str):

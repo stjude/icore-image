@@ -1,4 +1,10 @@
+import os
+
 from django.db import models
+
+ADMIN_PASSWORD_FILE = os.path.join(
+    os.path.expanduser("~"), ".secure", ".config", ".sysdata", "icapf.txt"
+)
 
 
 class Project(models.Model):
@@ -51,3 +57,22 @@ class Project(models.Model):
 
     class Meta:
         db_table = "deid_tasks"
+
+
+class AppState(models.Model):
+    """Singleton row of app-wide flags. Read it with ``AppState.load()``."""
+
+    # True until the operator sets an admin password through the blocking
+    # first-run modal, which clears it.
+    admin_password_reset_required = models.BooleanField(default=True)
+
+    @classmethod
+    def load(cls) -> "AppState":
+        return cls.objects.get_or_create(pk=1)[0]
+
+    @property
+    def admin_password_setup_required(self) -> bool:
+        # A password set before this flag existed (e.g. via the CLI) still counts.
+        return self.admin_password_reset_required and not os.path.exists(
+            ADMIN_PASSWORD_FILE
+        )

@@ -10,7 +10,6 @@ from pipeline.stages.header_extract import HeaderExtractStage
 from test_utils import _create_test_dicom
 from utils import RunDirs
 
-
 logging.basicConfig(level=logging.INFO)
 
 
