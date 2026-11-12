@@ -9,15 +9,12 @@ from __future__ import annotations
 import difflib
 import json
 import re
-import sys
 from collections import Counter, defaultdict
+from collections.abc import Iterator
 from pathlib import Path
 
 import pandas as pd
 import pytest
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT))
 
 from pipeline.pipelines import TextDeidPipeline
 from utils import RunDirs
@@ -45,7 +42,9 @@ def load_cases() -> list[dict]:
                     raise ValueError(f"{path}:{line_no}: invalid JSON: {e}") from e
                 missing = {"id", "report_input", "expected_output"} - case.keys()
                 if missing:
-                    raise ValueError(f"{path}:{line_no}: missing keys {sorted(missing)}")
+                    raise ValueError(
+                        f"{path}:{line_no}: missing keys {sorted(missing)}"
+                    )
                 cases.append(case)
     ids = [c["id"] for c in cases]
     duplicates = {i for i in ids if ids.count(i) > 1}
@@ -96,7 +95,9 @@ def run_text_deid(
     out = pd.read_excel(output_dir / "output.xlsx", keep_default_na=False, dtype=str)
     return dict(zip(out["Acc"], out["Report"]))
 
+
 PLACEHOLDER_RE = re.compile(r"\[[A-Z0-9+]+\]")
+
 
 def _word_diff(expected: str, actual: str) -> tuple[list, list, list]:
     """Word-level diff -> (leaks, unexpected redactions, other differences)."""
@@ -140,7 +141,9 @@ def _comprehensive_report(
         by_prefix[c["id"].split("-")[0]].append(c)
     for prefix, group in sorted(by_prefix.items()):
         n_ok = sum(map(passed, group))
-        lines.append(f"  {prefix:<12}{n_ok:>4}/{len(group):<4}{pct(n_ok, len(group)):>8}")
+        lines.append(
+            f"  {prefix:<12}{n_ok:>4}/{len(group):<4}{pct(n_ok, len(group)):>8}"
+        )
     exp_count, act_count, matched = Counter(), Counter(), Counter()
     for c in cases:
         e = Counter(PLACEHOLDER_RE.findall(c["expected_output"]))
@@ -148,7 +151,10 @@ def _comprehensive_report(
         exp_count.update(e)
         act_count.update(a)
         matched.update(e & a)
-    lines += ["", f"{'placeholder':<20}{'expected':>9}{'produced':>9}{'recall':>9}{'precision':>11}"]
+    lines += [
+        "",
+        f"{'placeholder':<20}{'expected':>9}{'produced':>9}{'recall':>9}{'precision':>11}",
+    ]
     for ph in sorted(set(exp_count) | set(act_count)):
         lines.append(
             f"{ph:<20}{exp_count[ph]:>9}{act_count[ph]:>9}"
@@ -158,7 +164,10 @@ def _comprehensive_report(
 
     # Word-level diff of expected vs. actual output.
     total_words = sum(
-        1 for c in cases for w in c["expected_output"].split() if not PLACEHOLDER_RE.search(w)
+        1
+        for c in cases
+        for w in c["expected_output"].split()
+        if not PLACEHOLDER_RE.search(w)
     )
     mismatches = []
     for c in cases:
@@ -197,8 +206,9 @@ def _comprehensive_report(
                 lines += [f"  {label}:"] + [f"    | {row}" for row in text.split("\n")]
     return lines
 
+
 @pytest.fixture(scope="module")
-def deid_outputs(tmp_path_factory, request) -> dict[str, str]:
+def deid_outputs(tmp_path_factory, request) -> Iterator[dict[str, str]]:
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for case in load_cases():
         key = (
