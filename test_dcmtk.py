@@ -512,7 +512,8 @@ def test_stop_storescp_stops_forked_association_children(tmp_path):
     import time
 
     from pynetdicom import AE
-    from pynetdicom.sop_class import Verification
+
+    verification_sop_class = "1.2.840.10008.1.1"
 
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -520,7 +521,7 @@ def test_stop_storescp_stops_forked_association_children(tmp_path):
 
     process = start_storescp(port, str(tmp_path), calling_aet="TEST_AET")
     ae = AE(ae_title="TEST_SCU")
-    ae.add_requested_context(Verification)
+    ae.add_requested_context(verification_sop_class)
     assoc = None
     try:
         for _ in range(50):
