@@ -1595,7 +1595,9 @@ def test_deferred_delivery_final_wait_covers_earlier_batches(tmp_path):
         patch("utils.move_study") as mock_move,
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
-        patch("utils.find_studies", return_value=[{"NumberOfStudyRelatedInstances": "3"}]),
+        patch(
+            "utils.find_studies", return_value=[{"NumberOfStudyRelatedInstances": "3"}]
+        ),
         patch("utils._wait_for_deferred_delivery", side_effect=record_wait),
         patch("time.sleep"),
     ):

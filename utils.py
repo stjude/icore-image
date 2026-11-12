@@ -528,7 +528,11 @@ def _count_received_by_study(output_dir, received_files):
                 ds = pydicom.dcmread(
                     path,
                     stop_before_pixels=True,
-                    specific_tags=["StudyInstanceUID", "SeriesInstanceUID", "SOPInstanceUID"],
+                    specific_tags=[
+                        "StudyInstanceUID",
+                        "SeriesInstanceUID",
+                        "SOPInstanceUID",
+                    ],
                 )
                 triplet = (ds.StudyInstanceUID, ds.SeriesInstanceUID, ds.SOPInstanceUID)
             except Exception:
