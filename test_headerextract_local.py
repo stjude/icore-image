@@ -4,9 +4,8 @@ import logging
 import pandas as pd
 from pydicom.uid import generate_uid
 
-from test_utils import _create_test_dicom
 from pipeline.header_extract import headerextract_local
-
+from test_utils import _create_test_dicom
 
 logging.basicConfig(level=logging.INFO)
 

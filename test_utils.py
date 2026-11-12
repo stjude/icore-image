@@ -5,32 +5,33 @@ import socket
 import subprocess
 import tempfile
 import time
-from typing import Generator
 import uuid
+from collections.abc import Generator
+from datetime import UTC
 
 import numpy as np
 import pandas as pd
 import requests
-from pydicom.dataset import FileDataset, FileMetaDataset, Dataset
+from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.uid import (
-    generate_uid,
-    SecondaryCaptureImageStorage,
-    ExplicitVRLittleEndian,
     PYDICOM_IMPLEMENTATION_UID,
-    EncapsulatedPDFStorage,
     UID,
+    EncapsulatedPDFStorage,
+    ExplicitVRLittleEndian,
+    SecondaryCaptureImageStorage,
+    generate_uid,
 )
 
 from utils import (
-    csv_string_to_xlsx,
+    PacsConfiguration,
     Spreadsheet,
     appdata_dir_path,
+    csv_string_to_xlsx,
+    find_studies_from_pacs_list,
     generate_queries_and_filter,
+    move_studies_from_study_pacs_map,
     save_failed_queries_csv,
     setup_run_directories,
-    find_studies_from_pacs_list,
-    move_studies_from_study_pacs_map,
-    PacsConfiguration,
 )
 
 CMOVE_BATCH_SIZE = 50
@@ -740,12 +741,13 @@ class AzuriteServer:
 
     def get_sas_url(self, container_name):
         """Generate a SAS URL for a container"""
+        from datetime import datetime, timedelta
+
         from azure.storage.blob import (
             BlobServiceClient,
-            generate_container_sas,
             ContainerSasPermissions,
+            generate_container_sas,
         )
-        from datetime import datetime, timedelta, timezone
 
         # Create container if it doesn't exist
         client = BlobServiceClient.from_connection_string(self.connection_string)
@@ -762,7 +764,7 @@ class AzuriteServer:
             permission=ContainerSasPermissions(
                 read=True, write=True, delete=True, list=True
             ),
-            expiry=datetime.now(timezone.utc) + timedelta(hours=1),
+            expiry=datetime.now(UTC) + timedelta(hours=1),
         )
 
         # Return the container URL (not including container name in path, it's implicit)
@@ -802,6 +804,68 @@ class AzuriteServer:
         if self.container:
             subprocess.run(["docker", "stop", self.container], capture_output=True)
             subprocess.run(["docker", "rm", self.container], capture_output=True)
+
+
+def test_from_file_parses_dicom_dates_from_csv(tmp_path):
+    # Without explicit parsing, pandas reads YYYYMMDD as an int64 column.
+    query_file = tmp_path / "query.csv"
+    query_file.write_text("PatientID,StudyDate\nMRN001,20250115\n")
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file), mrn_col="PatientID", date_col="StudyDate"
+    )
+
+    assert spreadsheet.dataframe.loc[0, "StudyDate"] == pd.Timestamp("2025-01-15")
+
+
+def test_from_file_parses_dicom_dates_from_xlsx(tmp_path):
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame({"PatientID": ["MRN001"], "StudyDate": ["20250115"]})
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file), mrn_col="PatientID", date_col="StudyDate"
+    )
+
+    assert spreadsheet.dataframe.loc[0, "StudyDate"] == pd.Timestamp("2025-01-15")
+
+
+def test_from_file_preserves_real_excel_dates(tmp_path):
+    # Excel date cells already arrive as datetimes; parsing must not disturb them.
+    query_file = tmp_path / "query.xlsx"
+    query_df = pd.DataFrame(
+        {"PatientID": ["MRN001"], "StudyDate": [pd.Timestamp("2025-01-15")]}
+    )
+    query_df.to_excel(query_file, index=False)
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file), mrn_col="PatientID", date_col="StudyDate"
+    )
+
+    assert spreadsheet.dataframe.loc[0, "StudyDate"] == pd.Timestamp("2025-01-15")
+
+
+def test_from_file_without_date_col_skips_date_parsing(tmp_path):
+    query_file = tmp_path / "query.csv"
+    query_file.write_text("AccessionNumber\nACC001\n")
+
+    spreadsheet = Spreadsheet.from_file(str(query_file), acc_col="AccessionNumber")
+
+    assert list(spreadsheet.dataframe.columns) == ["AccessionNumber"]
+
+
+def test_generate_queries_accepts_dicom_dates(tmp_path):
+    query_file = tmp_path / "query.csv"
+    query_file.write_text("PatientID,StudyDate\nMRN001,20250115\n")
+
+    spreadsheet = Spreadsheet.from_file(
+        str(query_file), mrn_col="PatientID", date_col="StudyDate"
+    )
+    query_params_list, _, _ = generate_queries_and_filter(spreadsheet)
+
+    assert query_params_list == [
+        {"PatientID": "MRN001", "StudyDate": "20250115-20250115"}
+    ]
 
 
 def test_generate_queries_trims_accession_numbers(tmp_path):
@@ -1053,7 +1117,7 @@ def test_find_studies_returns_failure_details(tmp_path, orthanc):
 
 def test_get_studies_returns_failure_details(tmp_path):
     """Test that move_studies_from_study_pacs_map returns failure details as 3rd value"""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0), "study_uid_2": (pacs, 1)}
@@ -1106,7 +1170,7 @@ def test_get_studies_returns_failure_details(tmp_path):
 
 def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
     """Test that zero file retrievals are logged and treated as failures."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     output_dir = str(tmp_path / "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -1170,7 +1234,7 @@ def test_move_studies_from_study_pacs_map_zero_files_retrieved(tmp_path):
 
 def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
     """Test that exceptions during move_study don't crash the entire job."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     output_dir = str(tmp_path / "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -1238,7 +1302,7 @@ def test_move_studies_from_study_pacs_map_exception_handling(tmp_path, caplog):
 
 def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
     """Test that deferred delivery polls until expected file count is reached."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {
@@ -1292,7 +1356,7 @@ def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
 
 def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
     """Test that deferred delivery terminates on absolute timeout."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0)}
@@ -1334,7 +1398,7 @@ def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
 
 def test_deferred_delivery_storescp_dies(tmp_path, caplog):
     """Test that deferred delivery handles storescp process dying."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0)}
@@ -1376,7 +1440,7 @@ def test_deferred_delivery_storescp_dies(tmp_path, caplog):
 
 def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
     """Test that when C-FIND fails for all studies, deferred delivery falls back to idle timeout."""
-    from unittest.mock import patch, Mock
+    from unittest.mock import Mock, patch
 
     pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
     study_pacs_map = {"study_uid_1": (pacs, 0)}

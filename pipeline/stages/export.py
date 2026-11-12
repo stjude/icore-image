@@ -184,7 +184,7 @@ class AzureBlobExport(ExportStage):
                 if os.path.exists(rclone_config_path):
                     os.remove(rclone_config_path)
         except Exception as e:
-            error_msg = f"Error during export: {str(e)}"
+            error_msg = f"Error during export: {e!s}"
             logging.error(error_msg)
             raise
 

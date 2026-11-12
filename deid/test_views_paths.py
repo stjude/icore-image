@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "deid"))
 
-from pathutils import is_path_within_directory  # noqa: E402
+from pathutils import is_path_within_directory
 
 
 def test_file_directly_inside_directory(tmp_path):

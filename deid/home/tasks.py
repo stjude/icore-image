@@ -8,16 +8,21 @@ actual processing task to keep the Project row's status lifecycle
 Cancellation is status-based: the kombu SQLAlchemy transport does not support
 remote control commands, so ``revoke()`` would be a no-op. ``cancel_task``
 just sets CANCELLED, and the atomic PENDING -> RUNNING claim below makes the
-queued message a no-op when it arrives.
+queued message a no-op when it arrives. A running project executes in a child
+process (the ``run_task`` command) whose pid is recorded on the row, so
+``cancel_task`` can kill it while the worker keeps serving the queue.
 """
 
+import json
 import logging
-import os
+import subprocess
+import sys
 
 import psutil
 import tasks as icore_tasks
-from celery import current_app, shared_task
+from celery import shared_task
 from celery.signals import worker_ready
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -63,14 +68,23 @@ def enqueue_project(project, task, args):
     )
 
 
+def _run_task_command(task_name):
+    """Command line for the ``run_task`` management command.
+
+    In the PyInstaller build ``sys.executable`` is the ``manage`` binary itself.
+    """
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "run_task", task_name]
+    return [sys.executable, str(settings.BASE_DIR / "manage.py"), "run_task", task_name]
+
+
 @shared_task
 def run_project(project_id, task_name, args):
-    """Run a project's processing task in-process, tracking status on the row."""
+    """Run a project's processing task in a child process, tracking status on the row."""
     claimed = Project.objects.filter(
         pk=project_id, status=Project.TaskStatus.PENDING
     ).update(
         status=Project.TaskStatus.RUNNING,
-        process_pid=os.getpid(),
         updated_at=timezone.now(),
     )
     if not claimed:
@@ -84,19 +98,30 @@ def run_project(project_id, task_name, args):
         project.log_path = run_dirs["run_log_path"]
         project.save(update_fields=["log_path", "updated_at"])
 
-        task = current_app.tasks[task_name]
         logger.info(
             "Processing project %s (%s) with %s", project.pk, project.name, task_name
         )
-        result = task({**args, "run_dirs": run_dirs})
+        child = subprocess.Popen(_run_task_command(task_name), stdin=subprocess.PIPE)
+        # Guarded on RUNNING: if the project was cancelled before the pid was
+        # recorded, cancel_task had nothing to kill, so stop the child here.
+        recorded = Project.objects.filter(
+            pk=project_id, status=Project.TaskStatus.RUNNING
+        ).update(process_pid=child.pid)
+        if not recorded:
+            child.kill()
+            child.wait()
+            logger.info("Project %s cancelled before it started", project_id)
+            return None
+        child.communicate(json.dumps({**args, "run_dirs": run_dirs}).encode())
+        if child.returncode != 0:
+            raise RuntimeError(f"{task_name} exited with code {child.returncode}")
 
         Project.objects.filter(pk=project_id, status=Project.TaskStatus.RUNNING).update(
             status=_terminal_status(project, task_name),
             process_pid=None,
             updated_at=timezone.now(),
         )
-        logger.info("Project %s finished: %s", project_id, result)
-        return result
+        logger.info("Project %s finished", project_id)
     except Exception:
         logger.exception("Error processing project %s", project_id)
         # Guarded on RUNNING so a concurrent cancellation is not overwritten.
@@ -113,8 +138,8 @@ def _recover_projects(**kwargs):
     """Reconcile project state with reality when the worker starts.
 
     RUNNING projects whose recorded process is gone died with a previous
-    worker, so mark them FAILED (a live pid means a pool process is already
-    executing the task — leave it alone). PENDING projects are recoverable:
+    worker, so mark them FAILED (a live pid means a task process is still
+    executing — leave it alone). PENDING projects are recoverable:
     scheduled (eta) messages are held unacked in worker memory and a hard
     crash drops them, so re-enqueue from the args snapshot saved on the row
     at submission. Duplicates after a graceful restart are harmless: the

@@ -18,9 +18,13 @@ def run_worker():
         [
             "worker",
             "--loglevel=INFO",
-            # One task at a time: pipelines bind fixed ports (e.g. storescp)
-            # and are resource-heavy, so they must not run concurrently.
-            "--concurrency=1",
+            # One task at a time, in this process: pipelines bind fixed ports
+            # (e.g. storescp) and are resource-heavy, so they must not run
+            # concurrently. A child pool would add nothing, and on macOS
+            # billiard spawns children by re-executing sys.executable, which
+            # in the PyInstaller build is the `manage` binary and rejects
+            # billiard's arguments, so no task would ever run.
+            "--pool=solo",
         ]
     )
 
