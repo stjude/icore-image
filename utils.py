@@ -504,18 +504,26 @@ def _attempt_fallback_queries(
     return study_pacs_map, final_failed, final_details
 
 
-def _count_files_in_dir(directory):
-    """Count all files recursively in a directory."""
-    count = 0
-    for _root, _dirs, files in os.walk(directory):
-        count += len(files)
-    return count
+def _count_received_by_study(output_dir):
+    """Count received files per study folder (storescp ``--sort-on-study-uid ""``).
+
+    Dotfiles are skipped: on exFAT/FAT volumes macOS writes a ``._<name>``
+    AppleDouble sidecar beside every file, which would double the count.
+    """
+    counts = {}
+    for root, _dirs, files in os.walk(output_dir):
+        n = sum(1 for f in files if not f.startswith("."))
+        if n:
+            study_uid = os.path.basename(root)
+            counts[study_uid] = counts.get(study_uid, 0) + n
+    return counts
 
 
 def _count_expected_instances(study_pacs_map, application_aet):
-    """Query PACS for the expected number of instances across all studies using C-FIND."""
-    total = 0
+    """C-FIND each study's NumberOfStudyRelatedInstances. 0 means unknown."""
+    expected = {}
     for study_uid, (pacs, _query_index) in study_pacs_map.items():
+        expected[study_uid] = 0
         try:
             results = find_studies(
                 host=pacs.host,
@@ -529,41 +537,61 @@ def _count_expected_instances(study_pacs_map, application_aet):
             for result in results:
                 if instances := result.get("NumberOfStudyRelatedInstances", 0):
                     try:
-                        total += int(instances)
+                        expected[study_uid] += int(instances)
                     except ValueError:
                         logging.warning(
                             f"Encountered non-integer NumberOfStudyRelatedInstances '{instances}'. Skipping count for study."
                         )
         except Exception as e:
             logging.warning(f"Failed to count instances for study {study_uid}: {e}")
-    return total
+    return expected
 
 
-def _wait_for_deferred_delivery(output_dir, expected_count, timeout, storescp_process):
-    """Poll storescp output directory until all expected files arrive or timeout."""
+def _wait_for_deferred_delivery(
+    output_dir, expected_by_study, timeout, storescp_process
+):
+    """Poll storescp output until every study has its expected files, or timeout.
+
+    Studies whose expected count is unknown (0) are considered done once no
+    new files have arrived for IDLE_TIMEOUT.
+    """
     POLL_INTERVAL = 30
     LOG_INTERVAL = 300  # 5 minutes
-    IDLE_TIMEOUT = 1800  # 30 minutes (fallback when expected_count == 0)
+    IDLE_TIMEOUT = (
+        48 * 60 * 60
+    )  # 48 hours, the max time most PACS will hold a retrieve request before dropping it
+
+    expected_count = sum(expected_by_study.values())
+    has_unknown = any(n == 0 for n in expected_by_study.values())
 
     start_time = time.time()
     last_log_time = start_time
-    last_file_count = 0
+    last_total = 0
     last_new_file_time = start_time
 
     logging.info(
-        f"Deferred delivery: waiting for {expected_count} files (timeout: {timeout}s)"
+        f"Deferred delivery: waiting for {expected_count} files across "
+        f"{len(expected_by_study)} studies (timeout: {timeout}s)"
     )
 
     while True:
         elapsed = time.time() - start_time
-
-        actual = _count_files_in_dir(output_dir)
+        received = _count_received_by_study(output_dir)
+        actual = sum(received.get(uid, 0) for uid in expected_by_study)
+        incomplete = {
+            uid: (received.get(uid, 0), n)
+            for uid, n in expected_by_study.items()
+            if received.get(uid, 0) < n
+        }
 
         if elapsed >= timeout:
             logging.warning(
                 f"Deferred delivery timeout reached after {elapsed:.0f}s. "
-                f"Received {actual}/{expected_count} files."
+                f"Received {actual}/{expected_count} files; "
+                f"{len(incomplete)} studies incomplete."
             )
+            for uid, (got, want) in incomplete.items():
+                logging.warning(f"Study {uid} incomplete: {got}/{want} files")
             break
 
         if storescp_process.poll() is not None:
@@ -573,21 +601,18 @@ def _wait_for_deferred_delivery(output_dir, expected_count, timeout, storescp_pr
             )
             break
 
-        if actual != last_file_count:
+        if actual != last_total:
             last_new_file_time = time.time()
-            last_file_count = actual
+            last_total = actual
 
-        # Terminate if we have all expected files
-        if expected_count > 0 and actual >= expected_count:
-            logging.info(
-                f"Deferred delivery complete: received {actual}/{expected_count} files "
-                f"in {elapsed:.0f}s."
-            )
-            break
-
-        # Fallback: if expected_count is 0 (C-FIND failed), use idle timeout
-        if expected_count == 0:
+        if not incomplete:
             idle_time = time.time() - last_new_file_time
+            if not has_unknown:
+                logging.info(
+                    f"Deferred delivery complete: received {actual}/{expected_count} "
+                    f"files in {elapsed:.0f}s."
+                )
+                break
             if idle_time >= IDLE_TIMEOUT and actual > 0:
                 logging.info(
                     f"Deferred delivery: no new files for {idle_time:.0f}s. "
@@ -598,8 +623,8 @@ def _wait_for_deferred_delivery(output_dir, expected_count, timeout, storescp_pr
         now = time.time()
         if now - last_log_time >= LOG_INTERVAL:
             logging.info(
-                f"Deferred delivery: {actual}/{expected_count} files received "
-                f"({elapsed:.0f}s elapsed)"
+                f"Deferred delivery: {actual}/{expected_count} files received, "
+                f"{len(incomplete)} studies incomplete ({elapsed:.0f}s elapsed)"
             )
             last_log_time = now
 
@@ -637,7 +662,7 @@ def move_studies_from_study_pacs_map(
         total_studies = len(study_pacs_map)
         total_batches = (total_studies + cmove_batch_size - 1) // cmove_batch_size
         processed = 0
-        cumulative_expected = 0
+        expected_by_study = {}
 
         studies = list(study_pacs_map.items())
         for batch_start in range(0, total_studies, cmove_batch_size):
@@ -715,16 +740,17 @@ def move_studies_from_study_pacs_map(
                         )
 
             if deferred_delivery:
-                batch_map = dict(batch)
-                batch_expected = _count_expected_instances(batch_map, application_aet)
-                cumulative_expected += batch_expected
+                # Wait on every study retrieved so far, not just this batch, so
+                # the final wait covers the whole run before storescp stops.
+                batch_expected = _count_expected_instances(dict(batch), application_aet)
+                expected_by_study.update(batch_expected)
                 logging.info(
-                    f"Deferred delivery: expecting {batch_expected} instances for batch {batch_num} "
-                    f"({cumulative_expected} cumulative)"
+                    f"Deferred delivery: expecting {sum(batch_expected.values())} instances "
+                    f"for batch {batch_num + 1} ({sum(expected_by_study.values())} cumulative)"
                 )
                 _wait_for_deferred_delivery(
                     output_dir,
-                    cumulative_expected,
+                    expected_by_study,
                     deferred_delivery_timeout,
                     storescp_process,
                 )

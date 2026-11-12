@@ -1316,15 +1316,15 @@ def test_deferred_delivery_waits_for_expected_file_count(tmp_path):
     def mock_count_files(_dir):
         call_count["n"] += 1
         if call_count["n"] >= 2:
-            return 10  # All files arrived on second poll
-        return 5
+            return {"study_uid_1": 5, "study_uid_2": 5}  # All arrived on second poll
+        return {"study_uid_1": 5}
 
     with (
         patch("utils.move_study") as mock_move,
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
         patch("utils.find_studies") as mock_find,
-        patch("utils._count_files_in_dir", side_effect=mock_count_files),
+        patch("utils._count_received_by_study", side_effect=mock_count_files),
         patch("time.sleep"),
     ):
         mock_start.return_value = Mock(poll=Mock(return_value=None))
@@ -1368,7 +1368,7 @@ def test_deferred_delivery_absolute_timeout(tmp_path, caplog):
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
         patch("utils.find_studies") as mock_find,
-        patch("utils._count_files_in_dir", return_value=0),
+        patch("utils._count_received_by_study", return_value={}),
         patch("time.sleep"),
     ):
         mock_start.return_value = Mock(poll=Mock(return_value=None))
@@ -1410,7 +1410,7 @@ def test_deferred_delivery_storescp_dies(tmp_path, caplog):
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
         patch("utils.find_studies") as mock_find,
-        patch("utils._count_files_in_dir", return_value=0),
+        patch("utils._count_received_by_study", return_value={}),
         patch("time.sleep"),
     ):
         # storescp process dies (poll returns exit code)
@@ -1452,14 +1452,14 @@ def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
     def mock_count_files(_dir):
         call_count["n"] += 1
         # Return 1 file on first call (triggers idle tracking), then same on subsequent calls
-        return 1
+        return {"study_uid_1": 1}
 
     with (
         patch("utils.move_study") as mock_move,
         patch("utils.start_storescp") as mock_start,
         patch("utils.stop_storescp"),
         patch("utils.find_studies", side_effect=Exception("PACS unreachable")),
-        patch("utils._count_files_in_dir", side_effect=mock_count_files),
+        patch("utils._count_received_by_study", side_effect=mock_count_files),
         patch("time.sleep"),
     ):
         mock_start.return_value = Mock(poll=Mock(return_value=None))
@@ -1487,6 +1487,97 @@ def test_deferred_delivery_cfind_failure_falls_back_to_idle(tmp_path, caplog):
     assert any("Failed to count instances" in r.message for r in caplog.records)
     # Timeout should fire since expected_count is 0 and timeout is 0
     assert any("timeout" in r.message.lower() for r in caplog.records)
+
+
+def test_count_received_by_study_ignores_appledouble_sidecars(tmp_path):
+    """exFAT volumes on macOS get a ._ sidecar per file; those are not images."""
+    from utils import _count_received_by_study
+
+    study_dir = tmp_path / "1.2.3"
+    study_dir.mkdir()
+    for i in range(3):
+        (study_dir / f"CT.1.2.3.{i}").write_bytes(b"dicom")
+        (study_dir / f"._CT.1.2.3.{i}").write_bytes(b"sidecar")
+    (tmp_path / "._1.2.3").write_bytes(b"sidecar")
+    (tmp_path / ".DS_Store").write_bytes(b"finder")
+
+    assert _count_received_by_study(str(tmp_path)) == {"1.2.3": 3}
+
+
+def test_deferred_delivery_not_satisfied_by_sidecars_or_other_studies(tmp_path):
+    """Sidecar files and surplus files in one study must not end the wait early."""
+    from unittest.mock import Mock, patch
+
+    from utils import _wait_for_deferred_delivery
+
+    def write(study_uid, n, sidecars=True):
+        d = tmp_path / study_uid
+        d.mkdir(exist_ok=True)
+        for i in range(n):
+            (d / f"CT.{study_uid}.{i}").write_bytes(b"dicom")
+            if sidecars:
+                (d / f"._CT.{study_uid}.{i}").write_bytes(b"sidecar")
+
+    # Half of study A has arrived (doubled by sidecars), plus 4 extra files in
+    # study B. The old total-file count (2*2 + 4*2 = 12 >= 8) would stop here.
+    write("A", 2)
+    write("B", 4)
+    polls = {"n": 0}
+
+    def fake_sleep(_seconds):
+        polls["n"] += 1
+        write("A", 4)  # the rest of study A arrives
+
+    with patch("utils.time.sleep", side_effect=fake_sleep):
+        _wait_for_deferred_delivery(
+            str(tmp_path),
+            {"A": 4, "B": 4},
+            timeout=3600,
+            storescp_process=Mock(poll=Mock(return_value=None)),
+        )
+
+    assert polls["n"] == 1, "wait must continue until study A is actually complete"
+
+
+def test_deferred_delivery_final_wait_covers_earlier_batches(tmp_path):
+    """Each batch's wait includes studies from earlier batches, so storescp is
+    not stopped while an earlier batch is still being delivered."""
+    from unittest.mock import Mock, patch
+
+    pacs = PacsConfiguration(host="localhost", port=4242, aet="TEST_PACS")
+    study_pacs_map = {"s1": (pacs, 0), "s2": (pacs, 1)}
+    waited_on = []
+
+    def record_wait(_dir, expected_by_study, _timeout, _proc):
+        waited_on.append(dict(expected_by_study))
+
+    with (
+        patch("utils.move_study") as mock_move,
+        patch("utils.start_storescp") as mock_start,
+        patch("utils.stop_storescp"),
+        patch("utils.find_studies", return_value=[{"NumberOfStudyRelatedInstances": "3"}]),
+        patch("utils._wait_for_deferred_delivery", side_effect=record_wait),
+        patch("time.sleep"),
+    ):
+        mock_start.return_value = Mock(poll=Mock(return_value=None))
+        mock_move.return_value = {
+            "success": True,
+            "num_completed": -1,
+            "num_failed": 0,
+            "num_warning": 0,
+            "message": "Move completed",
+        }
+        move_studies_from_study_pacs_map(
+            study_pacs_map,
+            "TEST_AET",
+            str(tmp_path),
+            storescp_port=0,
+            cmove_batch_size=1,
+            deferred_delivery=True,
+            deferred_delivery_timeout=300,
+        )
+
+    assert waited_on == [{"s1": 3}, {"s1": 3, "s2": 3}]
 
 
 def test_find_studies_from_pacs_list_exception_handling(tmp_path, caplog):
