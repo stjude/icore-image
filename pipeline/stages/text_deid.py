@@ -463,6 +463,10 @@ def scrub(
     blood_pressure = re.compile(r"\b\d{2,3}/\d{2,3}\b")
     year_only = re.compile(r"\b(19|20)\d{2}\b")
     relative_date = re.compile(r"\b(yesterday|today|tomorrow)\b", re.IGNORECASE)
+    date_adjective = re.compile(
+        r"\b(daily|weekly|monthly|annually|annual|nightly|biweekly|overnight)\b",
+        re.IGNORECASE,
+    )
     all_zeros = re.compile(r"\b0{7,}\b")
     hospital = re.compile(
         r"\b(Hospital|Medical Center|Clinic|Healthcare|Health System)\b", re.IGNORECASE
