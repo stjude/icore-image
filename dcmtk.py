@@ -8,13 +8,13 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 from tenacity import (
+    RetryCallState,
     retry,
+    retry_if_exception_type,
+    retry_if_result,
     stop_after_attempt,
     wait_chain,
     wait_fixed,
-    retry_if_exception_type,
-    retry_if_result,
-    RetryCallState,
 )
 
 
@@ -107,9 +107,9 @@ def _parse_move_output(stderr, returncode):
                 "Move completed successfully (sub-operation counts not reported)"
             )
         elif (
-                result["num_completed"] == 0
-                and result["num_failed"] == 0
-                and result["num_warning"] == 0
+            result["num_completed"] == 0
+            and result["num_failed"] == 0
+            and result["num_warning"] == 0
         ):
             result["message"] = (
                 "Move completed with no sub-operations (no files retrieved)"
@@ -140,20 +140,20 @@ def _log_find_retry(retry_state: RetryCallState):
     stop=stop_after_attempt(4),
     wait=wait_chain(wait_fixed(4), wait_fixed(16), wait_fixed(32)),
     retry=(
-            retry_if_exception_type(DCMTKCommandError)
-            | retry_if_exception_type(DCMTKParseError)
+        retry_if_exception_type(DCMTKCommandError)
+        | retry_if_exception_type(DCMTKParseError)
     ),
     before_sleep=_log_find_retry,
     reraise=True,
 )
 def find_studies(
-        host,
-        port,
-        calling_aet,
-        called_aet,
-        query_params,
-        query_level="STUDY",
-        return_tags=None,
+    host,
+    port,
+    calling_aet,
+    called_aet,
+    query_params,
+    query_level="STUDY",
+    return_tags=None,
 ):
     """
     Query PACS for studies using findscu.
@@ -250,7 +250,7 @@ def _log_move_retry(retry_state: RetryCallState):
     retry_error_callback=_return_last_result,
 )
 def move_study(
-        host, port, calling_aet, called_aet, move_dest_aet, study_uid, query_level="STUDY"
+    host, port, calling_aet, called_aet, move_dest_aet, study_uid, query_level="STUDY"
 ):
     """
     Retrieve a study from PACS using movescu (C-MOVE).

@@ -180,3 +180,4 @@ clean:
 all: deps external-deps build-frontend build-binaries prepare-assets build-dmg
 
 signed: deps external-deps build-frontend build-binaries prepare-assets build-dmg-signed
+
