@@ -291,11 +291,7 @@ def create_analyzer_engine() -> AnalyzerEngine:
             Pattern(name="n4", regex=r"\bPine\b", score=0.8),
             Pattern(name="n5", regex=r"\bPatient\s+[A-Z]\.[A-Z]\.", score=0.9),
             Pattern(name="n6", regex=r"\bThe(?=\s+MD\b)", score=0.75),
-            Pattern(
-                name="n7",
-                regex=r"(?<=(?i:dr\.\s))([A-Z][A-Z\-]{2,}(?:\s[A-Z][A-Z\-]{2,})?)\b",
-                score=0.85,
-            ),
+            Pattern(name="n7",regex=r"(?<=(?i:dr\.\s))([A-Z][A-Z\-]{2,}(?:\s[A-Z][A-Z\-]{2,})?)\b", score=0.85,),
         ],
     )
 
@@ -342,6 +338,23 @@ def create_analyzer_engine() -> AnalyzerEngine:
         ],
     )
 
+    facility_recognizer = PatternRecognizer(
+        supported_entity="FACILITYNAME",
+        name="facility",
+        patterns=[
+            Pattern(
+                name="fac1",
+                regex=r"\b(?:St\.?\s)?(?!(?:At|Of|The|For|And|In|On|A|An|To)\b)[A-Z][a-z]+(?:[\s-](?!(?:At|Of|The|For|And|In|On|A|An|To)\b)[A-Z][a-z]+){0,2}\s(?:Medical\s+Center|Regional\s+Medical\s+Center|General\s+Hospital|Memorial\s+Hospital|Hospital|Health(?:care)?\s+Center|Clinic|Health\s+System)\b",
+                score=0.9,
+            ),
+            Pattern(
+                name="fac2",
+                regex=r"\b(?:ST\.?\s)?(?!(?:AT|OF|THE|FOR|AND|IN|ON|A|AN|TO)\b)[A-Z]+(?:[\s-](?!(?:AT|OF|THE|FOR|AND|IN|ON|A|AN|TO)\b)[A-Z]+){0,2}\s(?:MEDICAL\s+CENTER|REGIONAL\s+MEDICAL\s+CENTER|GENERAL\s+HOSPITAL|MEMORIAL\s+HOSPITAL|HOSPITAL|HEALTH(?:CARE)?\s+CENTER|CLINIC|HEALTH\s+SYSTEM)\b",
+                score=0.9,
+            ),
+        ],
+    )
+
     ssn = PatternRecognizer(
         supported_entity="SSNUMBER",
         name="ssn",
@@ -378,6 +391,7 @@ def create_analyzer_engine() -> AnalyzerEngine:
     analyzer.registry.add_recognizer(medical_record_number_recognizer)
     analyzer.registry.add_recognizer(phone_number_recognizer)
     analyzer.registry.add_recognizer(address_recognizer)
+    analyzer.registry.add_recognizer(facility_recognizer)
     analyzer.registry.add_recognizer(ssn)
     analyzer.registry.add_recognizer(email)
     analyzer.registry.add_recognizer(ip_addr)
@@ -427,6 +441,7 @@ def scrub(
         "EMAILADDR",
         "IPADDR",
         "BLACKLIST",
+        "FACILITYNAME",
     ]
 
     operators = {
@@ -445,6 +460,7 @@ def scrub(
         "EMAILADDR": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
         "IPADDR": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
         "BLACKLIST": OperatorConfig("replace", {"new_value": "[REDACTED]"}),
+        "FACILITYNAME": OperatorConfig("replace", {"new_value": "[FACILITY]"}),
     }
 
     age_under_90 = re.compile(
@@ -546,6 +562,8 @@ def scrub(
                 continue
 
             if result.entity_type == "LOCATION" and hospital.search(detected):
+                continue
+            if result.entity_type == "LOCATION" and detected[:1].islower():
                 continue
 
             if url.match(detected):

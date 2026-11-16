@@ -2,6 +2,11 @@
     uv run pytest -m textdeid_eval text-deid_eval -n0 --type basic
     uv run pytest -m textdeid_eval text-deid_eval -n0 --type comp
 comp also prints a detailed accuracy report after the run (basic is the default).
+
+Cases are grouped by PHI category via the id convention
+"sh-NN_<category>-NN" (e.g. "sh-01_names-03"). Pass --category <name> to
+run only one category's cases, e.g.:
+    uv run pytest -m textdeid_eval text-deid_eval -n0 --category names
 """
 
 from __future__ import annotations
@@ -28,22 +33,43 @@ DEID_COLUMNS = [c for c, a in COLUMN_ACTIONS.items() if a == "deid"]
 PLACEHOLDER_MRN = "4521873"
 PLACEHOLDER_DATE = "01/05/2024"
 
+CASE_ID_RE = re.compile(r"^sh-\d+_(?P<category>[a-z_]+)-\d+$")
+
+
+def case_category(case_id: str) -> str | None:
+    """Pull the PHI category out of a "sh-NN_<category>-NN" case id."""
+    m = CASE_ID_RE.match(case_id)
+    return m.group("category") if m else None
+
+
+def select_cases(cases: list[dict], category: str | None) -> list[dict]:
+    if not category:
+        return cases
+    selected = [c for c in cases if case_category(c["id"]) == category]
+    if not selected:
+        known = sorted({cat for c in cases if (cat := case_category(c["id"]))})
+        raise pytest.UsageError(
+            f"--category {category!r} matched no cases. Known categories: "
+            f"{', '.join(known)}"
+        )
+    return selected
+
 
 def load_cases() -> list[dict]:
     cases: list[dict] = []
-    for path in sorted(CASES_DIR.glob("*.jsonl")):
+    for path in sorted(CASES_DIR.glob("*.json")):
         with path.open() as f:
-            for line_no, line in enumerate(f, start=1):
-                if not line.strip():
-                    continue
-                try:
-                    case = json.loads(line)
-                except json.JSONDecodeError as e:
-                    raise ValueError(f"{path}:{line_no}: invalid JSON: {e}") from e
+            try:
+                case_list = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{path}: invalid JSON: {e}") from e
+            if not isinstance(case_list, list):
+                raise ValueError(f"{path}: expected a JSON array of cases")
+            for i, case in enumerate(case_list):
                 missing = {"id", "report_input", "expected_output"} - case.keys()
                 if missing:
                     raise ValueError(
-                        f"{path}:{line_no}: missing keys {sorted(missing)}"
+                        f"{path}: case {i}: missing keys {sorted(missing)}"
                     )
                 cases.append(case)
     ids = [c["id"] for c in cases]
@@ -209,8 +235,10 @@ def _comprehensive_report(
 
 @pytest.fixture(scope="module")
 def deid_outputs(tmp_path_factory, request) -> Iterator[dict[str, str]]:
+    cases = select_cases(load_cases(), request.config.getoption("deid_category"))
+
     groups: dict[tuple, list[dict]] = defaultdict(list)
-    for case in load_cases():
+    for case in cases:
         key = (
             tuple(case.get("to_keep_list", [])),
             tuple(case.get("to_remove_list", [])),
@@ -226,9 +254,9 @@ def deid_outputs(tmp_path_factory, request) -> Iterator[dict[str, str]]:
     if request.config.getoption("deid_type") == "comp":
         reporter = request.config.pluginmanager.get_plugin("terminalreporter")
         reporter.write_sep("=", "text-deid comprehensive report")
-        for line in _comprehensive_report(load_cases(), outputs):
+        for line in _comprehensive_report(cases, outputs):
             reporter.write_line(line)
-        full_report = _comprehensive_report(load_cases(), outputs, detail=True)
+        full_report = _comprehensive_report(cases, outputs, detail=True)
         report_path = Path(__file__).resolve().parent / "comprehensive_report.md"
         report_path.write_text(
             "# Text de-id comprehensive report\n\n```\n"
@@ -245,6 +273,12 @@ def _as_param(case: dict):
     return pytest.param(case, id=case["id"], marks=marks)
 
 
-@pytest.mark.parametrize("case", [_as_param(c) for c in load_cases()])
+def pytest_generate_tests(metafunc):
+    if "case" not in metafunc.fixturenames:
+        return
+    cases = select_cases(load_cases(), metafunc.config.getoption("deid_category"))
+    metafunc.parametrize("case", [_as_param(c) for c in cases])
+
+
 def test_report_deid(case: dict, deid_outputs: dict[str, str]) -> None:
     assert deid_outputs[case["id"]] == case["expected_output"]
