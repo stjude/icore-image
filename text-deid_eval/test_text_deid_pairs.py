@@ -5,22 +5,19 @@ comp also prints a detailed accuracy report after the run (basic is the default)
 
 Cases are grouped by PHI category via the id convention
 "sh-NN_<category>-NN" (e.g. "sh-01_names-03"). Pass --category <name> to
-run only one category's cases, e.g.:
-    uv run pytest -m textdeid_eval text-deid_eval -n0 --category names
+    uv run pytest -m textdeid_eval text-deid_eval -n0 --category <category>
 """
 
 from __future__ import annotations
-
 import difflib
 import json
 import re
 from collections import Counter, defaultdict
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
-
 import pandas as pd
 import pytest
-
 from pipeline.pipelines import TextDeidPipeline
 from utils import RunDirs
 
@@ -32,12 +29,24 @@ COLUMN_ACTIONS = {"Acc": "keep", "MRN": "deid", "Study Date": "keep", "Report": 
 DEID_COLUMNS = [c for c, a in COLUMN_ACTIONS.items() if a == "deid"]
 PLACEHOLDER_MRN = "4521873"
 PLACEHOLDER_DATE = "01/05/2024"
-
 CASE_ID_RE = re.compile(r"^sh-\d+_(?P<category>[a-z_]+)-\d+$")
+
+# test_full_report joins every selected case into one radiology report, placing
+# each case's line under its "section" header in this order.
+FULL_REPORT_ID = "full_report"
+SECTION_ORDER = [
+    "PATIENT INFORMATION",
+    "CLINICAL HISTORY",
+    "TECHNIQUE",
+    "COMPARISON",
+    "FINDINGS",
+    "IMPRESSION",
+    "ADDENDUM",
+    "SIGNATURE",
+]
 
 
 def case_category(case_id: str) -> str | None:
-    """Pull the PHI category out of a "sh-NN_<category>-NN" case id."""
     m = CASE_ID_RE.match(case_id)
     return m.group("category") if m else None
 
@@ -123,106 +132,255 @@ def run_text_deid(
 
 
 PLACEHOLDER_RE = re.compile(r"\[[A-Z0-9+]+\]")
+TOKEN_RE = re.compile(r"\[[A-Z0-9+]+\]|[^\W_]+(?:[-'/.][^\W_]+)*")
 
 
-def _word_diff(expected: str, actual: str) -> tuple[list, list, list]:
-    """Word-level diff -> (leaks, unexpected redactions, other differences)."""
-    exp, act = expected.split(), actual.split()
-    leaks, over, other = [], [], []
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, exp, act).get_opcodes():
-        if tag == "equal":
+@dataclass
+class CaseScore:
+    expected_redactions: int = 0
+    missed_redactions: int = 0
+    non_phi_words: int = 0
+    leaks: list[tuple[str, str]] = field(default_factory=list)
+    over_redacted: list[tuple[str, str]] = field(default_factory=list)
+    over_redacted_words: int = 0
+    label_mismatches: list[tuple[str, str]] = field(default_factory=list)
+    other: list[tuple[str, str]] = field(default_factory=list)
+    missed_by_label: Counter = field(default_factory=Counter)
+    # Input-token positions of every leaked PHI word and over-redacted word;
+    # test_full_report maps these back to the case each token came from.
+    problem_idx: set[int] = field(default_factory=set)
+
+
+def phi_token_map(
+    report_input: str, expected: str
+) -> tuple[dict[int, list[int]], dict[int, set[str]]]:
+    inp, exp = TOKEN_RE.findall(report_input), TOKEN_RE.findall(expected)
+    phi: dict[int, list[int]] = {}
+    kept: dict[int, set[str]] = {}
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+        None, inp, exp, autojunk=False
+    ).get_opcodes():
+        ph = [j for j in range(j1, j2) if PLACEHOLDER_RE.fullmatch(exp[j])]
+        if tag == "equal" or not ph:
             continue
-        e, a = " ".join(exp[i1:i2]), " ".join(act[j1:j2])
-        e_ph, a_ph = bool(PLACEHOLDER_RE.search(e)), bool(PLACEHOLDER_RE.search(a))
-        if e_ph and not a_ph:
-            leaks.append((e, a))
-        elif a_ph and not e_ph:
-            over.append((e, a))
-        else:
-            other.append((e, a))
-    return leaks, over, other
+        words = {exp[j] for j in range(j1, j2) if j not in ph}
+        for k, i in enumerate(range(i1, i2)):
+            phi[i] = [ph[k]] if len(ph) == i2 - i1 else ph
+            kept[i] = words
+    return phi, kept
+
+
+def score_case(report_input: str, expected: str, actual: str) -> CaseScore:
+    inp, exp, act = (TOKEN_RE.findall(t) for t in (report_input, expected, actual))
+    is_ph = PLACEHOLDER_RE.fullmatch
+    phi, kept = phi_token_map(report_input, expected)
+    s = CaseScore(
+        expected_redactions=sum(1 for t in exp if is_ph(t)),
+        non_phi_words=len(inp) - len(phi),
+    )
+    leaked_ph: set[int] = set()
+
+    def exp_context(ph_idx: set[int]) -> str:
+        return " ".join(exp[max(min(ph_idx) - 1, 0) : max(ph_idx) + 2])
+
+    def add_leak(input_idx: list[int], act_lo: int, act_hi: int) -> None:
+        ph_idx = {j for i in input_idx for j in phi[i]}
+        leaked_ph.update(ph_idx)
+        s.problem_idx.update(input_idx)
+        s.leaks.append(
+            (exp_context(ph_idx), " ".join(act[max(act_lo - 1, 0) : act_hi + 1]))
+        )
+
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+        None, inp, act, autojunk=False
+    ).get_opcodes():
+        if tag == "equal":
+            run: list[int] = []
+            for i in [*range(i1, i2), None]:
+                if i is not None and i in phi:
+                    run.append(i)
+                elif run:
+                    lo, hi = j1 + run[0] - i1, j1 + run[-1] - i1
+                    add_leak(run, lo, hi + 1)
+                    run = []
+            continue
+        removed_phi = [i for i in range(i1, i2) if i in phi]
+        lost = [i for i in range(i1, i2) if i not in phi]
+        a_ph = [t for t in act[j1:j2] if is_ph(t)]
+        a_words = [t for t in act[j1:j2] if not is_ph(t)]
+        leaked = [
+            w
+            for w in a_words
+            if any(w in inp[i] and w not in kept[i] for i in removed_phi)
+        ]
+        pair = (
+            " ".join(inp[max(i1 - 1, 0) : i2 + 1]),
+            " ".join(act[max(j1 - 1, 0) : j2 + 1]),
+        )
+        if leaked:
+            add_leak(removed_phi, j1, j2)
+        elif removed_phi:
+            ph_idx = {j for i in removed_phi for j in phi[i]}
+            if Counter(exp[j] for j in ph_idx) != Counter(a_ph):
+                s.label_mismatches.append((exp_context(ph_idx), pair[1]))
+        if lost:
+            s.over_redacted_words += len(lost)
+            s.over_redacted.append(pair)
+            s.problem_idx.update(lost)
+        elif a_words and not leaked:
+            s.other.append(pair)
+    s.missed_redactions = len(leaked_ph)
+    s.missed_by_label.update(exp[j] for j in leaked_ph)
+    return s
+
+
+def score_output(case: dict, outputs: dict[str, str]) -> CaseScore:
+    return score_case(
+        case["report_input"], case["expected_output"], outputs[case["id"]]
+    )
+
+
+def build_full_report(cases: list[dict]) -> tuple[str, str, list[str | None]]:
+    by_section: dict[str, list[dict]] = defaultdict(list)
+    for c in cases:
+        by_section[c.get("section", "FINDINGS")].append(c)
+    extra = sorted(set(by_section) - set(SECTION_ORDER))
+    inputs: list[str] = []
+    expected: list[str] = []
+    owners: list[str | None] = []
+    for section in [s for s in SECTION_ORDER + extra if s in by_section]:
+        inputs.append(f"{section}:")
+        expected.append(f"{section}:")
+        owners.append(None)
+        for c in by_section[section]:
+            in_lines = c["report_input"].split("\n")
+            inputs += in_lines
+            expected += c["expected_output"].split("\n")
+            owners += [c["id"]] * len(in_lines)
+    return "\n".join(inputs), "\n".join(expected), owners
+
+
+def score_full_report(
+    cases: list[dict], outputs: dict[str, str]
+) -> tuple[CaseScore, list[str]]:
+    report_input, expected, line_owners = build_full_report(cases)
+    score = score_case(report_input, expected, outputs[FULL_REPORT_ID])
+    token_owners = [
+        owner
+        for owner, line in zip(line_owners, report_input.split("\n"))
+        for _ in TOKEN_RE.findall(line)
+    ]
+    failing = {o for i in score.problem_idx if (o := token_owners[i])}
+    by_id = {c["id"]: c for c in cases}
+    only_in_full = [
+        cid
+        for cid in sorted(failing)
+        if not ((s := score_output(by_id[cid], outputs)).leaks or s.over_redacted)
+    ]
+    return score, only_in_full
 
 
 def _comprehensive_report(
     cases: list[dict], outputs: dict[str, str], detail: bool = False
 ) -> list[str]:
-    def passed(c):
-        return outputs[c["id"]] == c["expected_output"]
-
     def pct(n, d):
         return f"{n / d:.1%}" if d else "n/a"
 
-    lines = [f"Pairs: {len(cases)}"]
-    settled = [c for c in cases if "review" not in c]
-    review = [c for c in cases if "review" in c]
-    lines += [
-        f"Settled pairs passing: {sum(map(passed, settled))}/{len(settled)} "
-        f"({pct(sum(map(passed, settled)), len(settled))})",
-        f"Needs-review pairs matching expected: {sum(map(passed, review))}/{len(review)}",
-        "",
-        "By id prefix (all pairs, exact match):",
-    ]
-    by_prefix = defaultdict(list)
-    for c in cases:
-        by_prefix[c["id"].split("-")[0]].append(c)
-    for prefix, group in sorted(by_prefix.items()):
-        n_ok = sum(map(passed, group))
-        lines.append(
-            f"  {prefix:<12}{n_ok:>4}/{len(group):<4}{pct(n_ok, len(group)):>8}"
-        )
-    exp_count, act_count, matched = Counter(), Counter(), Counter()
-    for c in cases:
-        e = Counter(PLACEHOLDER_RE.findall(c["expected_output"]))
-        a = Counter(PLACEHOLDER_RE.findall(outputs[c["id"]]))
-        exp_count.update(e)
-        act_count.update(a)
-        matched.update(e & a)
-    lines += [
-        "",
-        f"{'placeholder':<20}{'expected':>9}{'produced':>9}{'recall':>9}{'precision':>11}",
-    ]
-    for ph in sorted(set(exp_count) | set(act_count)):
-        lines.append(
-            f"{ph:<20}{exp_count[ph]:>9}{act_count[ph]:>9}"
-            f"{pct(matched[ph], exp_count[ph]):>9}{pct(matched[ph], act_count[ph]):>11}"
-        )
-    lines.append("(counts per pair, so a redaction in the wrong place can still count)")
+    scores = {c["id"]: score_output(c, outputs) for c in cases}
+    total = CaseScore()
+    for s in scores.values():
+        total.expected_redactions += s.expected_redactions
+        total.missed_redactions += s.missed_redactions
+        total.non_phi_words += s.non_phi_words
+        total.over_redacted_words += s.over_redacted_words
+        total.missed_by_label.update(s.missed_by_label)
+    correct = total.expected_redactions - total.missed_redactions
+    leak_free = sum(1 for s in scores.values() if not s.leaks)
+    over_free = sum(1 for s in scores.values() if not s.over_redacted)
+    n_labels = sum(len(s.label_mismatches) for s in scores.values())
+    exact = sum(1 for c in cases if outputs[c["id"]] == c["expected_output"])
+    n = len(cases)
 
-    # Word-level diff of expected vs. actual output.
-    total_words = sum(
-        1
-        for c in cases
-        for w in c["expected_output"].split()
-        if not PLACEHOLDER_RE.search(w)
-    )
-    mismatches = []
+    lines = [
+        f"Pairs: {n}",
+        "",
+        f"1. Redactions: {correct}/{total.expected_redactions} correct "
+        f"({pct(correct, total.expected_redactions)}); "
+        f"cases with every redaction correct: {leak_free}/{n} ({pct(leak_free, n)})",
+        f"   Different placeholder label (PHI still removed): {n_labels}",
+        f"2. Over-redaction: {total.over_redacted_words} of {total.non_phi_words} "
+        f"non-PHI words redacted ({pct(total.over_redacted_words, total.non_phi_words)}); "
+        f"cases with no over-redaction: {over_free}/{n} ({pct(over_free, n)})",
+        f"Exact matches: {exact}/{n}",
+        "",
+    ]
+    full_cases = full_report_cases(cases)
+    full, only_in_full = score_full_report(full_cases, outputs)
+    full_correct = full.expected_redactions - full.missed_redactions
+    lines += [
+        f"3. Full report ({len(full_cases)} cases joined): "
+        f"{full_correct}/{full.expected_redactions} redactions correct, "
+        f"{full.over_redacted_words} of {full.non_phi_words} non-PHI words over-redacted",
+        "   Cases that pass alone but fail in the full report: "
+        + (", ".join(only_in_full) or "none"),
+        "",
+        f"{'category':<14}{'cases':>6}{'redactions ok':>15}{'over-redacted words':>21}",
+    ]
+    by_category: dict[str, list[str]] = defaultdict(list)
     for c in cases:
-        if not passed(c):
-            mismatches.append((c, *_word_diff(c["expected_output"], outputs[c["id"]])))
-    n_leak = sum(len(m[1]) for m in mismatches)
-    n_over = sum(len(m[2]) for m in mismatches)
-    n_other = sum(len(m[3]) for m in mismatches)
+        by_category[case_category(c["id"]) or c["id"].split("-")[0]].append(c["id"])
+    for category, ids in sorted(by_category.items()):
+        ok = sum(1 for i in ids if not scores[i].leaks)
+        over = sum(scores[i].over_redacted_words for i in ids)
+        lines.append(f"{category:<14}{len(ids):>6}{f'{ok}/{len(ids)}':>15}{over:>21}")
+
+    lines += ["", f"{'placeholder':<20}{'expected':>9}{'missed':>8}{'recall':>9}"]
+    expected_by_label = Counter(
+        p for c in cases for p in PLACEHOLDER_RE.findall(c["expected_output"])
+    )
+    for ph, count in sorted(expected_by_label.items()):
+        missed = total.missed_by_label[ph]
+        lines.append(f"{ph:<20}{count:>9}{missed:>8}{pct(count - missed, count):>9}")
+
+    flagged = [
+        c for c in cases if scores[c["id"]].leaks or scores[c["id"]].over_redacted
+    ]
+    flagged.sort(
+        key=lambda c: (
+            "review" in c,
+            not scores[c["id"]].leaks,
+            -scores[c["id"]].over_redacted_words,
+            c["id"],
+        )
+    )
     lines += [
         "",
-        f"Word-level: {n_over} unexpected redactions in {total_words} "
-        f"non-redacted words ({pct(n_over, total_words)}), "
-        f"{n_leak} leaks, {n_other} other differences",
-        "",
-        f"Mismatched cases: {len(mismatches)} of {len(cases)} "
-        "(FAIL first, then review cases with leaks, then the rest)",
+        f"Cases with leaks or over-redaction: {len(flagged)} of {n} "
+        "(leaks first, then most over-redacted words)",
     ]
-    mismatches.sort(key=lambda m: ("review" in m[0], not m[1], not m[2], m[0]["id"]))
-    for c, leaks, over, other in mismatches:
-        status = f"review: {c['review']}" if "review" in c else "FAIL"
+    for c in flagged:
+        s = scores[c["id"]]
+        status = (
+            f"review: {c['review']}"
+            if "review" in c
+            else ("LEAK" if s.leaks else "OVER-REDACTED")
+        )
         lines += ["", f"{c['id']}  [{status}]"]
-        for label, items in (
-            ("LEAK (expected redacted, output kept it)", leaks),
-            ("UNEXPECTED REDACTION (output redacted, expected kept it)", over),
-            ("OTHER", other),
+        for label, src, items in (
+            ("LEAK (PHI left in output)", "expected", s.leaks),
+            (
+                "OVER-REDACTED (non-PHI text removed or changed)",
+                "input",
+                s.over_redacted,
+            ),
+            (
+                "LABEL (redacted with a different placeholder)",
+                "expected",
+                s.label_mismatches,
+            ),
+            ("OTHER (text added to output)", "input", s.other),
         ):
-            lines += [f"  {label}: expected {e!r} -> got {a!r}" for e, a in items]
-        if not (leaks or over or other):
-            lines.append("  differs only in whitespace or line breaks")
+            lines += [f"  {label}: {src} {e!r} -> got {a!r}" for e, a in items]
         if detail:
             for label, text in (
                 ("Input", c["report_input"]),
@@ -230,7 +388,26 @@ def _comprehensive_report(
                 ("Actual", outputs[c["id"]]),
             ):
                 lines += [f"  {label}:"] + [f"    | {row}" for row in text.split("\n")]
+    if detail:
+        full_input, full_expected, _ = build_full_report(full_cases)
+        lines += ["", "FULL REPORT"]
+        lines += [f"  LEAK: expected {e!r} -> got {a!r}" for e, a in full.leaks]
+        lines += [
+            f"  OVER-REDACTED: input {e!r} -> got {a!r}" for e, a in full.over_redacted
+        ]
+        for label, text in (
+            ("Input", full_input),
+            ("Expected", full_expected),
+            ("Actual", outputs[FULL_REPORT_ID]),
+        ):
+            lines += [f"  {label}:"] + [f"    | {row}" for row in text.split("\n")]
     return lines
+
+
+def full_report_cases(cases: list[dict]) -> list[dict]:
+    return [
+        c for c in cases if not c.get("to_keep_list") and not c.get("to_remove_list")
+    ]
 
 
 @pytest.fixture(scope="module")
@@ -244,6 +421,8 @@ def deid_outputs(tmp_path_factory, request) -> Iterator[dict[str, str]]:
             tuple(case.get("to_remove_list", [])),
         )
         groups[key].append(case)
+    full_input, _, _ = build_full_report(full_report_cases(cases))
+    groups[((), ())].append({"id": FULL_REPORT_ID, "report_input": full_input})
 
     outputs: dict[str, str] = {}
     for n, ((keep, remove), group) in enumerate(sorted(groups.items(), key=str)):
@@ -280,5 +459,29 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("case", [_as_param(c) for c in cases])
 
 
-def test_report_deid(case: dict, deid_outputs: dict[str, str]) -> None:
-    assert deid_outputs[case["id"]] == case["expected_output"]
+def test_redactions(case: dict, deid_outputs: dict[str, str]) -> None:
+    s = score_output(case, deid_outputs)
+    assert not s.leaks, "\n".join(f"expected {e!r} -> got {a!r}" for e, a in s.leaks)
+
+
+def test_over_redaction(case: dict, deid_outputs: dict[str, str]) -> None:
+    s = score_output(case, deid_outputs)
+    assert not s.over_redacted, f"{s.over_redacted_words} words over-redacted:\n" + (
+        "\n".join(f"input {e!r} -> got {a!r}" for e, a in s.over_redacted)
+    )
+
+
+def test_full_report(request, deid_outputs: dict[str, str]) -> None:
+    cases = select_cases(load_cases(), request.config.getoption("deid_category"))
+    s, only_in_full = score_full_report(full_report_cases(cases), deid_outputs)
+    problems = [f"LEAK: expected {e!r} -> got {a!r}" for e, a in s.leaks] + [
+        f"OVER-REDACTED: input {e!r} -> got {a!r}" for e, a in s.over_redacted
+    ]
+    if only_in_full:
+        problems.insert(
+            0, "Pass alone but fail in the full report: " + ", ".join(only_in_full)
+        )
+    assert not problems, (
+        f"{s.missed_redactions} of {s.expected_redactions} redactions missed, "
+        f"{s.over_redacted_words} words over-redacted:\n" + "\n".join(problems)
+    )

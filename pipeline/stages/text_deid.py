@@ -197,6 +197,23 @@ NLM_PRESERVE_MEDICAL = {
 
 NLM_REDACT_NAMES = {"pine"}
 
+US_STATE_ABBREVIATIONS = (
+    "AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|"
+    "MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|PR"
+)
+
+US_STATES_TO_KEEP = {
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+    "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine",
+    "maryland", "massachusetts", "michigan", "minnesota", "mississippi",
+    "missouri", "montana", "nebraska", "nevada", "new hampshire", "new jersey",
+    "new mexico", "north carolina", "north dakota", "ohio", "oklahoma",
+    "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota",
+    "tennessee", "texas", "utah", "vermont", "virginia", "west virginia",
+    "wisconsin", "wyoming",
+} | {s.lower() for s in US_STATE_ABBREVIATIONS.split("|")} - {"dc", "pr"}
+
 
 def create_nlp_engine() -> NlpEngine:
     if getattr(sys, "frozen", False):
@@ -246,11 +263,7 @@ def create_analyzer_engine() -> AnalyzerEngine:
             Pattern(name="a3", regex=r"(9[0-9]|[1-9]\d{2,})(?=\-year\-old)", score=1.0),
             Pattern(name="a4", regex=r"(?<=age:\s)(9[0-9]|[1-9]\d{2,})\b", score=1.0),
             Pattern(name="a5", regex=r"(?<=Age:\s)(9[0-9]|[1-9]\d{2,})\b", score=1.0),
-            Pattern(
-                name="a6",
-                regex=r"(?<=is\s)(9[0-9]|[1-9]\d{2,})(?=\s*years?\s*old)",
-                score=1.0,
-            ),
+            Pattern(name="a6", regex=r"(?<=is\s)(9[0-9]|[1-9]\d{2,})(?=\s*years?\s*old)",score=1.0,),
             Pattern(name="a7", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*y/o\b)", score=1.0),
             Pattern(name="a8", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*y\.o\.)", score=1.0),
             Pattern(name="a9", regex=r"(9[0-9]|[1-9]\d{2,})(?=\s*yo\b)", score=1.0),
@@ -291,11 +304,6 @@ def create_analyzer_engine() -> AnalyzerEngine:
             Pattern(name="n4", regex=r"\bPine\b", score=0.8),
             Pattern(name="n5", regex=r"\bPatient\s+[A-Z]\.[A-Z]\.", score=0.9),
             Pattern(name="n6", regex=r"\bThe(?=\s+MD\b)", score=0.75),
-            Pattern(
-                name="n7",
-                regex=r"(?<=(?i:dr\.\s))([A-Z][A-Z\-]{2,}(?:\s[A-Z][A-Z\-]{2,})?)\b",
-                score=0.85,
-            ),
         ],
     )
 
@@ -342,19 +350,53 @@ def create_analyzer_engine() -> AnalyzerEngine:
         ],
     )
 
-    facility_recognizer = PatternRecognizer(
-        supported_entity="FACILITYNAME",
-        name="facility",
+    zip_recognizer = PatternRecognizer(
+        supported_entity="ZIPCODE",
+        name="zip",
+        global_regex_flags=re.DOTALL | re.MULTILINE,
         patterns=[
+            ## detects 5 digit zip code, following a state abb
             Pattern(
-                name="fac1",
-                regex=r"\b(?:St\.?\s)?(?!(?:At|Of|The|For|And|In|On|A|An|To)\b)[A-Z][a-z]+(?:[\s-](?!(?:At|Of|The|For|And|In|On|A|An|To)\b)[A-Z][a-z]+){0,2}\s(?:Medical\s+Center|Regional\s+Medical\s+Center|General\s+Hospital|Memorial\s+Hospital|Hospital|Health(?:care)?\s+Center|Clinic|Health\s+System)\b",
-                score=0.9,
+                name="z1",
+                regex=rf"(?<=,\s*(?:{US_STATE_ABBREVIATIONS}),?\s+)\d{{5}}(?:-\d{{4}})?\b",
+                score=1.0,
             ),
             Pattern(
-                name="fac2",
-                regex=r"\b(?:ST\.?\s)?(?!(?:AT|OF|THE|FOR|AND|IN|ON|A|AN|TO)\b)[A-Z]+(?:[\s-](?!(?:AT|OF|THE|FOR|AND|IN|ON|A|AN|TO)\b)[A-Z]+){0,2}\s(?:MEDICAL\s+CENTER|REGIONAL\s+MEDICAL\s+CENTER|GENERAL\s+HOSPITAL|MEMORIAL\s+HOSPITAL|HOSPITAL|HEALTH(?:CARE)?\s+CENTER|CLINIC|HEALTH\s+SYSTEM)\b",
-                score=0.9,
+                ## detects a zip code following a label, such as: ZIP: 02193 ZIP CODE: 80011
+                name="z2",
+                regex=r"(?<=(?i:\bzip(?:\s*code)?(?:\s+prefix)?|\bpostal\s+code)\s*:?\s*)\d{3}(?:\d{2})?(?:-\d{4})?\b",
+                score=1.0,
+            ),
+        ],
+    )
+
+    street_suffix = r"(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Court|Ct|Way|Circle|Cir|Place|Pl|Terrace|Ter|Parkway|Pkwy|Highway|Hwy)\.?"
+    unit = r"(?:Apt|Apartment|Unit|Suite|Ste|#)\.? ?[A-Z0-9-]+"
+    city_state_zip = rf"(?:, [A-Z][a-z]+(?: [A-Z][a-z]+)*)?(?:,? (?:{US_STATE_ABBREVIATIONS}))?(?:,? \d{{5}}(?:-\d{{4}})?)?\b"
+    geography_recognizer = PatternRecognizer(
+        supported_entity="LOCATION",
+        name="geography",
+        global_regex_flags=re.DOTALL | re.MULTILINE,
+        patterns=[
+            Pattern(
+                name="g1",
+                regex=rf"\b(?:{unit},? )?\d+ (?:[A-Z][a-z]+ ){{1,3}}{street_suffix}(?:,? {unit})?{city_state_zip}",
+                score=1.0,
+            ),
+            Pattern(
+                name="g2",
+                regex=rf"\bP\.? ?O\.? ?Box \d+{city_state_zip}",
+                score=1.0,
+            ),
+            Pattern(
+                name="g3",
+                regex=r"(?<![\d.])-?\d{1,2}\.\d{4,},\s*-?\d{1,3}\.\d{4,}\b(?!\s*(?:mm|cm|ml|mg|kg|%))",
+                score=1.0,
+            ),
+            Pattern(
+                name="g4",
+                regex=r"\b(?:the )?(?:(?:[A-Z][a-z]+ ){2,3}neighborhood|[A-Z][a-z]+ neighborhood(?= of [A-Z]))(?: of [A-Z][a-z]+(?: [A-Z][a-z]+)*)?",
+                score=1.0,
             ),
         ],
     )
@@ -395,7 +437,8 @@ def create_analyzer_engine() -> AnalyzerEngine:
     analyzer.registry.add_recognizer(medical_record_number_recognizer)
     analyzer.registry.add_recognizer(phone_number_recognizer)
     analyzer.registry.add_recognizer(address_recognizer)
-    analyzer.registry.add_recognizer(facility_recognizer)
+    analyzer.registry.add_recognizer(zip_recognizer)
+    analyzer.registry.add_recognizer(geography_recognizer)
     analyzer.registry.add_recognizer(ssn)
     analyzer.registry.add_recognizer(email)
     analyzer.registry.add_recognizer(ip_addr)
@@ -445,7 +488,8 @@ def scrub(
         "EMAILADDR",
         "IPADDR",
         "BLACKLIST",
-        "FACILITYNAME",
+        "ZIPCODE",
+        "URL",
     ]
 
     operators = {
@@ -464,7 +508,8 @@ def scrub(
         "EMAILADDR": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
         "IPADDR": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
         "BLACKLIST": OperatorConfig("replace", {"new_value": "[REDACTED]"}),
-        "FACILITYNAME": OperatorConfig("replace", {"new_value": "[FACILITY]"}),
+        "ZIPCODE": OperatorConfig("replace", {"new_value": "[ADDRESS]"}),
+        "URL": OperatorConfig("replace", {"new_value": "[ALPHANUMERICID]"}),
     }
 
     age_under_90 = re.compile(
@@ -491,7 +536,6 @@ def scrub(
     hospital = re.compile(
         r"\b(Hospital|Medical Center|Clinic|Healthcare|Health System)\b", re.IGNORECASE
     )
-    url = re.compile(r"\bhttps?://[^\s]+\b")
 
     results = []
     for _, text_item in enumerate(data):
@@ -560,17 +604,19 @@ def scrub(
 
             if all_zeros.match(detected):
                 continue
-            if re.match(r"^(\d)\1{6,}$", detected):
-                continue
-            if re.search(r"(\d)\1{3,}$", detected) and len(detected) == 7:
-                continue
+
+            if result.entity_type == "ALPHANUMERICID":
+                if re.match(r"^(\d)\1{6,}$", detected):
+                    continue
+                if re.search(r"(\d)\1{3,}$", detected) and len(detected) == 7:
+                    continue
 
             if result.entity_type == "LOCATION" and hospital.search(detected):
                 continue
-            if result.entity_type == "LOCATION" and detected[:1].islower():
-                continue
-
-            if url.match(detected):
+            if (
+                result.entity_type == "LOCATION"
+                and detected.strip(" .,").lower() in US_STATES_TO_KEEP
+            ):
                 continue
 
             if result.entity_type == "DATE_TIME":
