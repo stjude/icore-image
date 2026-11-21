@@ -3,7 +3,6 @@
     "id": "sh-01_names-01",
     "scenario": "patient_full_name_labeled",
     "test_objective": "Redact a patient first and last name in a labeled field.",
-    "target_entity": "Amira Garcia",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT: Amira Garcia",
     "expected_output": "PATIENT: [PERSONALNAME]"
@@ -12,7 +11,6 @@
     "id": "sh-01_names-02",
     "scenario": "patient_name_narrative",
     "test_objective": "Redact a patient name in a narrative history sentence.",
-    "target_entity": "Nadia Kimathi",
     "section": "CLINICAL HISTORY",
     "report_input": "Patient Nadia Kimathi presents for follow-up of a lung nodule.",
     "expected_output": "Patient [PERSONALNAME] presents for follow-up of a lung nodule."
@@ -21,7 +19,6 @@
     "id": "sh-01_names-03",
     "scenario": "last_first_all_caps",
     "test_objective": "Redact a patient name written LAST, FIRST in capitals.",
-    "target_entity": "GARCIA, AMIRA",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT NAME: GARCIA, AMIRA",
     "expected_output": "PATIENT NAME: [PERSONALNAME]"
@@ -30,7 +27,6 @@
     "id": "sh-01_names-04",
     "scenario": "relative_name",
     "test_objective": "Redact a relative's name in a results-communication sentence; keep the relationship word.",
-    "target_entity": "Maria Lopez",
     "section": "ADDENDUM",
     "report_input": "Results discussed with the patient's daughter, Maria Lopez, by telephone.",
     "expected_output": "Results discussed with the patient's daughter, [PERSONALNAME], by telephone."
@@ -39,7 +35,6 @@
     "id": "sh-01_names-05",
     "scenario": "patient_initials",
     "test_objective": "Redact patient initials when labeled as the patient's.",
-    "target_entity": "M.S.",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT INITIALS: M.S.",
     "expected_output": "PATIENT INITIALS: [PERSONALNAME]"
@@ -48,7 +43,6 @@
     "id": "sh-01_names-06",
     "scenario": "hyphenated_apostrophe_provider",
     "test_objective": "Redact a provider name containing an apostrophe and a hyphen.",
-    "target_entity": "Sean O'Brien-Walsh",
     "section": "CLINICAL HISTORY",
     "report_input": "Study ordered by Dr. Sean O'Brien-Walsh.",
     "expected_output": "Study ordered by Dr. [PERSONALNAME]."
@@ -57,7 +51,6 @@
     "id": "sh-01_names-07",
     "scenario": "radiologist_signature",
     "test_objective": "Redact the signing radiologist's name; keep the credential.",
-    "target_entity": "Elena Fischer",
     "section": "SIGNATURE",
     "report_input": "Electronically signed by: Elena Fischer, MD",
     "expected_output": "Electronically signed by: [PERSONALNAME], MD"
@@ -66,7 +59,6 @@
     "id": "sh-01_names-08",
     "scenario": "eponym_disease_negative_control",
     "test_objective": "Keep disease and anatomic eponyms that look like surnames.",
-    "target_entity": "Hodgkin; Baker",
     "section": "IMPRESSION",
     "report_input": "Findings consistent with Hodgkin lymphoma; no Baker cyst.",
     "expected_output": "Findings consistent with Hodgkin lymphoma; no Baker cyst."
@@ -75,7 +67,6 @@
     "id": "sh-01_names-09",
     "scenario": "eponym_malformation_negative_control",
     "test_objective": "Keep radiology eponyms that look like surnames.",
-    "target_entity": "Chiari; Schmorl",
     "section": "FINDINGS",
     "report_input": "Chiari I malformation with 6 mm tonsillar ectopia; Schmorl node at L2.",
     "expected_output": "Chiari I malformation with 6 mm tonsillar ectopia; Schmorl node at L2."
@@ -84,16 +75,22 @@
     "id": "sh-01_names-10",
     "scenario": "eponym_device_sign_negative_control",
     "test_objective": "Keep eponymous device and sign names.",
-    "target_entity": "Foley; Murphy",
     "section": "FINDINGS",
     "report_input": "Foley catheter in place; positive sonographic Murphy sign.",
     "expected_output": "Foley catheter in place; positive sonographic Murphy sign."
   },
   {
+    "id": "sh-01_names-11",
+    "scenario": "uppercase_doctor_name",
+    "test_objective": "Redact an uppercase doctor name while keeping the title.",
+    "section": "CLINICAL HISTORY",
+    "report_input": "Study ordered by Dr. JOHN SMITH.",
+    "expected_output": "Study ordered by Dr. [PERSONALNAME]."
+  },
+  {
     "id": "sh-02_geography-01",
     "scenario": "full_residential_address",
     "test_objective": "Redact a full street address with unit, city, state and ZIP; redacting the state with it is permitted.",
-    "target_entity": "14 Juniper Lane, Apt 3B, Flagstaff, AZ 86001",
     "section": "PATIENT INFORMATION",
     "report_input": "HOME ADDRESS: 14 Juniper Lane, Apt 3B, Flagstaff, AZ 86001",
     "expected_output": "HOME ADDRESS: [ADDRESS]"
@@ -102,7 +99,6 @@
     "id": "sh-02_geography-02",
     "scenario": "street_address_narrative",
     "test_objective": "Redact a street address in a narrative sentence, including the house number.",
-    "target_entity": "220 North Oak Street",
     "section": "CLINICAL HISTORY",
     "report_input": "Patient lives at 220 North Oak Street with her daughter.",
     "expected_output": "Patient lives at [ADDRESS] with her daughter."
@@ -111,7 +107,6 @@
     "id": "sh-02_geography-03",
     "scenario": "po_box_address",
     "test_objective": "Redact a P.O. Box mailing address; redacting the state with it is permitted.",
-    "target_entity": "P.O. Box 4471, Bend, OR 97701",
     "section": "PATIENT INFORMATION",
     "report_input": "MAILING ADDRESS: P.O. Box 4471, Bend, OR 97701",
     "expected_output": "MAILING ADDRESS: [ADDRESS]"
@@ -120,7 +115,6 @@
     "id": "sh-02_geography-04",
     "scenario": "city_state_zip4",
     "test_objective": "Redact a city and ZIP+4 while keeping the state abbreviation.",
-    "target_entity": "Durham; 27705-1234",
     "section": "PATIENT INFORMATION",
     "report_input": "PRIOR RESIDENCE: Durham, NC 27705-1234",
     "expected_output": "PRIOR RESIDENCE: [ADDRESS], NC [ADDRESS]"
@@ -129,7 +123,6 @@
     "id": "sh-02_geography-05",
     "scenario": "labeled_zip",
     "test_objective": "Fully redact a five-digit ZIP in a labeled field.",
-    "target_entity": "02139",
     "section": "PATIENT INFORMATION",
     "report_input": "ZIP CODE: 02139",
     "expected_output": "ZIP CODE: [ADDRESS]"
@@ -138,7 +131,6 @@
     "id": "sh-02_geography-06",
     "scenario": "labeled_zip3_prefix",
     "test_objective": "Fully redact a ZIP3 prefix; ZIP3 retention is not used.",
-    "target_entity": "036",
     "section": "PATIENT INFORMATION",
     "report_input": "HOME ZIP PREFIX: 036",
     "expected_output": "HOME ZIP PREFIX: [ADDRESS]"
@@ -147,7 +139,6 @@
     "id": "sh-02_geography-07",
     "scenario": "city_alone",
     "test_objective": "Redact a city named on its own in narrative text.",
-    "target_entity": "Flagstaff",
     "section": "CLINICAL HISTORY",
     "report_input": "Patient recently moved to Flagstaff.",
     "expected_output": "Patient recently moved to [ADDRESS]."
@@ -156,7 +147,6 @@
     "id": "sh-02_geography-08",
     "scenario": "city_with_state_name",
     "test_objective": "Redact the city and keep the spelled-out state.",
-    "target_entity": "Tulsa",
     "section": "CLINICAL HISTORY",
     "report_input": "Relocated from Tulsa, Oklahoma to be closer to family.",
     "expected_output": "Relocated from [ADDRESS], Oklahoma to be closer to family."
@@ -165,7 +155,6 @@
     "id": "sh-02_geography-09",
     "scenario": "county",
     "test_objective": "Redact a county name.",
-    "target_entity": "Marin County",
     "section": "CLINICAL HISTORY",
     "report_input": "Resides in Marin County.",
     "expected_output": "Resides in [ADDRESS]."
@@ -174,7 +163,6 @@
     "id": "sh-02_geography-10",
     "scenario": "latitude_longitude",
     "test_objective": "Redact GPS latitude/longitude coordinates.",
-    "target_entity": "35.19821, -111.65127",
     "section": "CLINICAL HISTORY",
     "report_input": "GPS 35.19821, -111.65127 recorded at EMS pickup.",
     "expected_output": "GPS [ADDRESS] recorded at EMS pickup."
@@ -183,7 +171,6 @@
     "id": "sh-02_geography-11",
     "scenario": "neighborhood_and_city",
     "test_objective": "Redact a named neighborhood and its city; one placeholder for the phrase is fine.",
-    "target_entity": "the Capitol Hill neighborhood of Seattle",
     "section": "CLINICAL HISTORY",
     "report_input": "Lives in the Capitol Hill neighborhood of Seattle.",
     "expected_output": "Lives in [ADDRESS]."
@@ -192,7 +179,6 @@
     "id": "sh-02_geography-12",
     "scenario": "state_name_negative_control",
     "test_objective": "Keep a state name; geography no smaller than a state is allowed.",
-    "target_entity": "Colorado",
     "section": "PATIENT INFORMATION",
     "report_input": "STATE OF RESIDENCE: Colorado",
     "expected_output": "STATE OF RESIDENCE: Colorado"
@@ -201,7 +187,6 @@
     "id": "sh-02_geography-13",
     "scenario": "state_abbreviation_negative_control",
     "test_objective": "Keep a state abbreviation.",
-    "target_entity": "TX",
     "section": "CLINICAL HISTORY",
     "report_input": "Transferred from an outside facility in TX.",
     "expected_output": "Transferred from an outside facility in TX."
@@ -210,7 +195,6 @@
     "id": "sh-02_geography-14",
     "scenario": "facility_negative_control",
     "test_objective": "Keep a named provider facility.",
-    "target_entity": "Boston General Hospital",
     "section": "COMPARISON",
     "report_input": "Prior imaging performed at Boston General Hospital.",
     "expected_output": "Prior imaging performed at Boston General Hospital."
@@ -219,7 +203,6 @@
     "id": "sh-02_geography-15",
     "scenario": "coordinate_like_measurement_negative_control",
     "test_objective": "Keep decimal measurements that resemble coordinates.",
-    "target_entity": "12.3456, 6.7891 mm",
     "section": "TECHNIQUE",
     "report_input": "Fiducial offsets 12.3456, 6.7891 mm from isocenter.",
     "expected_output": "Fiducial offsets 12.3456, 6.7891 mm from isocenter."
@@ -228,7 +211,6 @@
     "id": "sh-02_geography-16",
     "scenario": "generic_neighborhood_negative_control",
     "test_objective": "Keep an unnamed neighborhood description.",
-    "target_entity": "Safe neighborhood",
     "section": "CLINICAL HISTORY",
     "report_input": "Safe neighborhood reported; no housing concerns.",
     "expected_output": "Safe neighborhood reported; no housing concerns."
@@ -237,7 +219,6 @@
     "id": "sh-03_dates_age-01",
     "scenario": "dob_mm_dd_yyyy",
     "test_objective": "Redact a labeled date of birth.",
-    "target_entity": "08/17/1976",
     "section": "PATIENT INFORMATION",
     "report_input": "DATE OF BIRTH: 08/17/1976",
     "expected_output": "DATE OF BIRTH: [DATE]"
@@ -246,7 +227,6 @@
     "id": "sh-03_dates_age-02",
     "scenario": "exam_date_iso",
     "test_objective": "Redact an ISO-format exam date.",
-    "target_entity": "2024-01-21",
     "section": "PATIENT INFORMATION",
     "report_input": "EXAM DATE: 2024-01-21",
     "expected_output": "EXAM DATE: [DATE]"
@@ -255,7 +235,6 @@
     "id": "sh-03_dates_age-03",
     "scenario": "long_month_date",
     "test_objective": "Redact a date with a spelled-out month.",
-    "target_entity": "March 3, 2024",
     "section": "CLINICAL HISTORY",
     "report_input": "Symptoms began on March 3, 2024.",
     "expected_output": "Symptoms began on [DATE]."
@@ -264,7 +243,6 @@
     "id": "sh-03_dates_age-04",
     "scenario": "day_month_abbrev_date",
     "test_objective": "Redact a day-month-year date with an abbreviated month.",
-    "target_entity": "3 Mar 2024",
     "section": "COMPARISON",
     "report_input": "Outside MRI dated 3 Mar 2024 was reviewed.",
     "expected_output": "Outside MRI dated [DATE] was reviewed."
@@ -273,7 +251,6 @@
     "id": "sh-03_dates_age-05",
     "scenario": "comparison_study_date",
     "test_objective": "Redact the date of a comparison study.",
-    "target_entity": "01/02/2023",
     "section": "COMPARISON",
     "report_input": "CT chest 01/02/2023.",
     "expected_output": "CT chest [DATE]."
@@ -282,7 +259,6 @@
     "id": "sh-03_dates_age-06",
     "scenario": "month_year",
     "test_objective": "Redact a month-year date; the month is a date element.",
-    "target_entity": "03/2019",
     "section": "CLINICAL HISTORY",
     "report_input": "Prior appendectomy in 03/2019.",
     "expected_output": "Prior appendectomy in [DATE]."
@@ -291,7 +267,6 @@
     "id": "sh-03_dates_age-07",
     "scenario": "year_only_negative_control",
     "test_objective": "Keep a year on its own.",
-    "target_entity": "2019",
     "section": "CLINICAL HISTORY",
     "report_input": "Remote fracture of the left wrist in 2019, healed.",
     "expected_output": "Remote fracture of the left wrist in 2019, healed."
@@ -300,7 +275,6 @@
     "id": "sh-03_dates_age-08",
     "scenario": "duration_negative_control",
     "test_objective": "Keep durations and follow-up intervals.",
-    "target_entity": "three weeks; 3 months",
     "section": "IMPRESSION",
     "report_input": "Headaches for three weeks. Recommend follow-up CT in 3 months.",
     "expected_output": "Headaches for three weeks. Recommend follow-up CT in 3 months."
@@ -309,7 +283,6 @@
     "id": "sh-03_dates_age-09",
     "scenario": "age_over_89_labeled",
     "test_objective": "Generalize a labeled age over 89.",
-    "target_entity": "94",
     "section": "PATIENT INFORMATION",
     "report_input": "AGE: 94",
     "expected_output": "AGE: [AGE90+]"
@@ -318,7 +291,6 @@
     "id": "sh-03_dates_age-10",
     "scenario": "age_over_89_y_o",
     "test_objective": "Generalize an age over 89 written with y/o.",
-    "target_entity": "96 y/o",
     "section": "CLINICAL HISTORY",
     "report_input": "96 y/o female with a fall.",
     "expected_output": "[AGE90+] y/o female with a fall."
@@ -327,7 +299,6 @@
     "id": "sh-03_dates_age-11",
     "scenario": "age_over_89_years",
     "test_objective": "Generalize an age over 89 written as N years.",
-    "target_entity": "94 years",
     "section": "PATIENT INFORMATION",
     "report_input": "AGE AT PRIOR VISIT: 94 years",
     "expected_output": "AGE AT PRIOR VISIT: [AGE90+] years"
@@ -336,7 +307,6 @@
     "id": "sh-03_dates_age-12",
     "scenario": "age_over_89_year_old",
     "test_objective": "Generalize an age over 89 written as N-year-old.",
-    "target_entity": "92-year-old",
     "section": "CLINICAL HISTORY",
     "report_input": "92-year-old man with hip pain.",
     "expected_output": "[AGE90+]-year-old man with hip pain."
@@ -345,7 +315,6 @@
     "id": "sh-03_dates_age-13",
     "scenario": "age_89_negative_control",
     "test_objective": "Keep an age of 89.",
-    "target_entity": "89-year-old",
     "section": "CLINICAL HISTORY",
     "report_input": "89-year-old man with cough.",
     "expected_output": "89-year-old man with cough."
@@ -354,7 +323,6 @@
     "id": "sh-03_dates_age-14",
     "scenario": "pediatric_age_negative_control",
     "test_objective": "Keep a pediatric age in months.",
-    "target_entity": "3-month-old",
     "section": "CLINICAL HISTORY",
     "report_input": "3-month-old infant with bilious emesis.",
     "expected_output": "3-month-old infant with bilious emesis."
@@ -363,7 +331,6 @@
     "id": "sh-03_dates_age-15",
     "scenario": "measurement_over_90_negative_control",
     "test_objective": "Keep a measurement above 90 that is not an age.",
-    "target_entity": "92 mm",
     "section": "FINDINGS",
     "report_input": "Mass measures 92 mm in greatest dimension.",
     "expected_output": "Mass measures 92 mm in greatest dimension."
@@ -372,7 +339,6 @@
     "id": "sh-04_telephone-01",
     "scenario": "mobile_parenthesized",
     "test_objective": "Redact a patient mobile number with a parenthesized area code.",
-    "target_entity": "(303) 555-0124",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT MOBILE: (303) 555-0124",
     "expected_output": "PATIENT MOBILE: [ALPHANUMERICID]"
@@ -381,7 +347,6 @@
     "id": "sh-04_telephone-02",
     "scenario": "work_phone_extension",
     "test_objective": "Redact a patient work number together with its extension.",
-    "target_entity": "303-555-0168 ext 204",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT WORK PHONE: 303-555-0168 ext 204",
     "expected_output": "PATIENT WORK PHONE: [ALPHANUMERICID]"
@@ -390,7 +355,6 @@
     "id": "sh-04_telephone-03",
     "scenario": "dotted_phone",
     "test_objective": "Redact a patient phone number separated by dots.",
-    "target_entity": "303.555.0124",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT PHONE: 303.555.0124",
     "expected_output": "PATIENT PHONE: [ALPHANUMERICID]"
@@ -399,7 +363,6 @@
     "id": "sh-04_telephone-04",
     "scenario": "international_format",
     "test_objective": "Redact a patient phone number in +1 international format.",
-    "target_entity": "+1 303 555 0187",
     "section": "ADDENDUM",
     "report_input": "Patient can be reached at +1 303 555 0187.",
     "expected_output": "Patient can be reached at [ALPHANUMERICID]."
@@ -408,7 +371,6 @@
     "id": "sh-04_telephone-05",
     "scenario": "critical_result_callback",
     "test_objective": "Redact a relative's callback number in a critical-result sentence.",
-    "target_entity": "720-555-0142",
     "section": "ADDENDUM",
     "report_input": "Critical result called to the patient's mother at 720-555-0142.",
     "expected_output": "Critical result called to the patient's mother at [ALPHANUMERICID]."
@@ -417,7 +379,6 @@
     "id": "sh-04_telephone-06",
     "scenario": "public_department_line_negative_control",
     "test_objective": "Keep a public department phone line.",
-    "target_entity": "1-800-555-0138",
     "section": "ADDENDUM",
     "report_input": "Questions: radiology reading room 1-800-555-0138 (public department line).",
     "expected_output": "Questions: radiology reading room 1-800-555-0138 (public department line)."
@@ -426,7 +387,6 @@
     "id": "sh-05_fax-01",
     "scenario": "home_fax_parenthesized",
     "test_objective": "Redact a patient home fax number.",
-    "target_entity": "(303) 555-0181",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT HOME FAX: (303) 555-0181",
     "expected_output": "PATIENT HOME FAX: [ALPHANUMERICID]"
@@ -435,7 +395,6 @@
     "id": "sh-05_fax-02",
     "scenario": "slash_separated_fax",
     "test_objective": "Redact a patient fax number separated by slashes.",
-    "target_entity": "303/555/0129",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT FAX: 303/555/0129",
     "expected_output": "PATIENT FAX: [ALPHANUMERICID]"
@@ -444,7 +403,6 @@
     "id": "sh-05_fax-03",
     "scenario": "fax_narrative",
     "test_objective": "Redact a patient fax number in a narrative sentence.",
-    "target_entity": "303-555-0199",
     "section": "ADDENDUM",
     "report_input": "Report faxed to the patient at 303-555-0199 per request.",
     "expected_output": "Report faxed to the patient at [ALPHANUMERICID] per request."
@@ -453,7 +411,6 @@
     "id": "sh-05_fax-04",
     "scenario": "public_department_fax_negative_control",
     "test_objective": "Keep a public department fax number.",
-    "target_entity": "970-555-0168",
     "section": "ADDENDUM",
     "report_input": "Radiology department fax: 970-555-0168 (public facility line).",
     "expected_output": "Radiology department fax: 970-555-0168 (public facility line)."
@@ -462,7 +419,6 @@
     "id": "sh-06_email-01",
     "scenario": "standard_email",
     "test_objective": "Redact a patient email address.",
-    "target_entity": "luis.okonkwo@example.org",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT EMAIL: luis.okonkwo@example.org",
     "expected_output": "PATIENT EMAIL: [ALPHANUMERICID]"
@@ -471,7 +427,6 @@
     "id": "sh-06_email-02",
     "scenario": "multi_level_domain",
     "test_objective": "Redact a patient email at a multi-level domain.",
-    "target_entity": "amira.kimathi@records.portal.example.org",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT EMAIL: amira.kimathi@records.portal.example.org",
     "expected_output": "PATIENT EMAIL: [ALPHANUMERICID]"
@@ -480,7 +435,6 @@
     "id": "sh-06_email-03",
     "scenario": "plus_addressing",
     "test_objective": "Redact a patient email that uses plus addressing.",
-    "target_entity": "amira+imaging@example.com",
     "section": "PATIENT INFORMATION",
     "report_input": "ALTERNATE EMAIL: amira+imaging@example.com",
     "expected_output": "ALTERNATE EMAIL: [ALPHANUMERICID]"
@@ -489,7 +443,6 @@
     "id": "sh-06_email-04",
     "scenario": "uppercase_narrative",
     "test_objective": "Redact an uppercase patient email in a narrative sentence.",
-    "target_entity": "J.DOE@EXAMPLE.NET",
     "section": "ADDENDUM",
     "report_input": "Patient requested results be sent to J.DOE@EXAMPLE.NET.",
     "expected_output": "Patient requested results be sent to [ALPHANUMERICID]."
@@ -498,7 +451,6 @@
     "id": "sh-06_email-05",
     "scenario": "public_mailbox_negative_control",
     "test_objective": "Keep a public department mailbox.",
-    "target_entity": "scheduling@lakeside.example.org",
     "section": "ADDENDUM",
     "report_input": "Scheduling questions: scheduling@lakeside.example.org (public department mailbox).",
     "expected_output": "Scheduling questions: scheduling@lakeside.example.org (public department mailbox)."
@@ -507,7 +459,6 @@
     "id": "sh-07_ssn-01",
     "scenario": "hyphenated_ssn",
     "test_objective": "Redact a hyphenated SSN.",
-    "target_entity": "618-42-7531",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT SSN: 618-42-7531",
     "expected_output": "PATIENT SSN: [ALPHANUMERICID]"
@@ -516,7 +467,6 @@
     "id": "sh-07_ssn-02",
     "scenario": "space_separated_ssn",
     "test_objective": "Redact an SSN separated by spaces.",
-    "target_entity": "618 42 7531",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT SSN: 618 42 7531",
     "expected_output": "PATIENT SSN: [ALPHANUMERICID]"
@@ -525,7 +475,6 @@
     "id": "sh-07_ssn-03",
     "scenario": "unseparated_ssn",
     "test_objective": "Redact a nine-digit SSN with no separators.",
-    "target_entity": "618427531",
     "section": "PATIENT INFORMATION",
     "report_input": "SSN: 618427531",
     "expected_output": "SSN: [ALPHANUMERICID]"
@@ -534,7 +483,6 @@
     "id": "sh-07_ssn-04",
     "scenario": "ssn_last_four",
     "test_objective": "Redact the SSN last four.",
-    "target_entity": "6789",
     "section": "PATIENT INFORMATION",
     "report_input": "SSN LAST FOUR: 6789",
     "expected_output": "SSN LAST FOUR: [ALPHANUMERICID]"
@@ -543,7 +491,6 @@
     "id": "sh-07_ssn-05",
     "scenario": "masked_ssn",
     "test_objective": "Redact a masked SSN that still shows the last four.",
-    "target_entity": "XXX-XX-6789",
     "section": "PATIENT INFORMATION",
     "report_input": "SSN ON FILE: XXX-XX-6789",
     "expected_output": "SSN ON FILE: [ALPHANUMERICID]"
@@ -552,7 +499,6 @@
     "id": "sh-07_ssn-06",
     "scenario": "contrast_lot_negative_control",
     "test_objective": "Keep a contrast lot number shaped like an SSN.",
-    "target_entity": "771-45-8206",
     "section": "TECHNIQUE",
     "report_input": "Contrast agent lot number 771-45-8206.",
     "expected_output": "Contrast agent lot number 771-45-8206."
@@ -561,7 +507,6 @@
     "id": "sh-08_mrn-01",
     "scenario": "numeric_mrn",
     "test_objective": "Redact a labeled numeric MRN.",
-    "target_entity": "708014891",
     "section": "PATIENT INFORMATION",
     "report_input": "MRN: 708014891",
     "expected_output": "MRN: [ALPHANUMERICID]"
@@ -570,7 +515,6 @@
     "id": "sh-08_mrn-02",
     "scenario": "alphanumeric_mrn",
     "test_objective": "Redact a labeled alphanumeric MRN.",
-    "target_entity": "SJ00482917",
     "section": "PATIENT INFORMATION",
     "report_input": "MRN: SJ00482917",
     "expected_output": "MRN: [ALPHANUMERICID]"
@@ -579,7 +523,6 @@
     "id": "sh-08_mrn-03",
     "scenario": "legacy_mrn_trailing_zeros",
     "test_objective": "Redact an MRN ending in zeros in a narrative sentence.",
-    "target_entity": "1230000",
     "section": "ADDENDUM",
     "report_input": "Legacy chart MRN 1230000 predates the current numbering scheme.",
     "expected_output": "Legacy chart MRN [ALPHANUMERICID] predates the current numbering scheme."
@@ -588,7 +531,6 @@
     "id": "sh-08_mrn-04",
     "scenario": "mrn_spelled_out_label",
     "test_objective": "Redact an MRN introduced by the words medical record number.",
-    "target_entity": "55021987",
     "section": "COMPARISON",
     "report_input": "Prior records filed under medical record number 55021987.",
     "expected_output": "Prior records filed under medical record number [ALPHANUMERICID]."
@@ -597,7 +539,6 @@
     "id": "sh-08_mrn-05",
     "scenario": "catalog_number_negative_control",
     "test_objective": "Keep a supply catalog number.",
-    "target_entity": "4550000",
     "section": "TECHNIQUE",
     "report_input": "Biopsy needle catalog number 4550000.",
     "expected_output": "Biopsy needle catalog number 4550000."
@@ -606,7 +547,6 @@
     "id": "sh-08_mrn-06",
     "scenario": "cpt_code_negative_control",
     "test_objective": "Keep a procedure billing code.",
-    "target_entity": "71260",
     "section": "TECHNIQUE",
     "report_input": "Procedure code CPT 71260.",
     "expected_output": "Procedure code CPT 71260."
@@ -615,7 +555,6 @@
     "id": "sh-09_healthplan-01",
     "scenario": "commercial_member_id",
     "test_objective": "Redact an insurance member ID.",
-    "target_entity": "HPB48201937",
     "section": "PATIENT INFORMATION",
     "report_input": "INSURANCE MEMBER ID: HPB48201937",
     "expected_output": "INSURANCE MEMBER ID: [ALPHANUMERICID]"
@@ -624,7 +563,6 @@
     "id": "sh-09_healthplan-02",
     "scenario": "medicare_mbi",
     "test_objective": "Redact a Medicare Beneficiary Identifier.",
-    "target_entity": "1EG4-TE5-MK73",
     "section": "PATIENT INFORMATION",
     "report_input": "MEDICARE BENEFICIARY ID: 1EG4-TE5-MK73",
     "expected_output": "MEDICARE BENEFICIARY ID: [ALPHANUMERICID]"
@@ -633,7 +571,6 @@
     "id": "sh-09_healthplan-03",
     "scenario": "medicaid_id",
     "test_objective": "Redact a Medicaid ID.",
-    "target_entity": "912345678A",
     "section": "PATIENT INFORMATION",
     "report_input": "MEDICAID ID: 912345678A",
     "expected_output": "MEDICAID ID: [ALPHANUMERICID]"
@@ -642,7 +579,6 @@
     "id": "sh-09_healthplan-04",
     "scenario": "member_id_narrative",
     "test_objective": "Redact a member number in a prior-authorization sentence.",
-    "target_entity": "W123456789",
     "section": "ADDENDUM",
     "report_input": "Prior authorization requested for member W123456789.",
     "expected_output": "Prior authorization requested for member [ALPHANUMERICID]."
@@ -651,7 +587,6 @@
     "id": "sh-09_healthplan-05",
     "scenario": "plan_type_negative_control",
     "test_objective": "Keep a generic plan type and copay.",
-    "target_entity": "Standard PPO",
     "section": "PATIENT INFORMATION",
     "report_input": "PLAN: Standard PPO; $35 specialist copay.",
     "expected_output": "PLAN: Standard PPO; $35 specialist copay."
@@ -660,7 +595,6 @@
     "id": "sh-10_account-01",
     "scenario": "prefixed_billing_account",
     "test_objective": "Redact a billing account with an ACCT prefix.",
-    "target_entity": "ACCT-00812934",
     "section": "PATIENT INFORMATION",
     "report_input": "BILLING ACCOUNT: ACCT-00812934",
     "expected_output": "BILLING ACCOUNT: [ALPHANUMERICID]"
@@ -669,7 +603,6 @@
     "id": "sh-10_account-02",
     "scenario": "outside_account_narrative",
     "test_objective": "Redact an outside hospital account number in a sentence.",
-    "target_entity": "0048217",
     "section": "ADDENDUM",
     "report_input": "Previous hospital account number 0048217 listed on transfer paperwork.",
     "expected_output": "Previous hospital account number [ALPHANUMERICID] listed on transfer paperwork."
@@ -678,7 +611,6 @@
     "id": "sh-10_account-03",
     "scenario": "visit_account_number",
     "test_objective": "Redact a ten-digit visit account number.",
-    "target_entity": "4000912873",
     "section": "PATIENT INFORMATION",
     "report_input": "VISIT ACCOUNT NO: 4000912873",
     "expected_output": "VISIT ACCOUNT NO: [ALPHANUMERICID]"
@@ -687,7 +619,6 @@
     "id": "sh-10_account-04",
     "scenario": "ledger_code_negative_control",
     "test_objective": "Keep a department ledger code.",
-    "target_entity": "GL-6001",
     "section": "ADDENDUM",
     "report_input": "Charge class GL-6001 (department expense code).",
     "expected_output": "Charge class GL-6001 (department expense code)."
@@ -696,7 +627,6 @@
     "id": "sh-11_license-01",
     "scenario": "drivers_license",
     "test_objective": "Redact a patient driver license number.",
-    "target_entity": "D58320419",
     "section": "PATIENT INFORMATION",
     "report_input": "DRIVER LICENSE: D58320419",
     "expected_output": "DRIVER LICENSE: [ALPHANUMERICID]"
@@ -705,7 +635,6 @@
     "id": "sh-11_license-02",
     "scenario": "birth_certificate",
     "test_objective": "Redact a birth certificate number in a sentence.",
-    "target_entity": "0017-839204",
     "section": "ADDENDUM",
     "report_input": "Birth certificate number 0017-839204 noted on transfer paperwork.",
     "expected_output": "Birth certificate number [ALPHANUMERICID] noted on transfer paperwork."
@@ -714,7 +643,6 @@
     "id": "sh-11_license-03",
     "scenario": "passport_number",
     "test_objective": "Redact a patient passport number.",
-    "target_entity": "X12345678",
     "section": "PATIENT INFORMATION",
     "report_input": "PASSPORT NUMBER: X12345678",
     "expected_output": "PASSPORT NUMBER: [ALPHANUMERICID]"
@@ -723,7 +651,6 @@
     "id": "sh-11_license-04",
     "scenario": "clia_number_negative_control",
     "test_objective": "Keep a laboratory CLIA certificate number.",
-    "target_entity": "06D1234567",
     "section": "TECHNIQUE",
     "report_input": "Performing laboratory CLIA number 06D1234567.",
     "expected_output": "Performing laboratory CLIA number 06D1234567."
@@ -732,7 +659,6 @@
     "id": "sh-12_vehicle-01",
     "scenario": "license_plate_labeled",
     "test_objective": "Redact a patient license plate.",
-    "target_entity": "CO ABC-1274",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT VEHICLE PLATE: CO ABC-1274",
     "expected_output": "PATIENT VEHICLE PLATE: [ALPHANUMERICID]"
@@ -741,7 +667,6 @@
     "id": "sh-12_vehicle-02",
     "scenario": "vin",
     "test_objective": "Redact a patient vehicle VIN.",
-    "target_entity": "1HGCM82633A004352",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT VEHICLE VIN: 1HGCM82633A004352",
     "expected_output": "PATIENT VEHICLE VIN: [ALPHANUMERICID]"
@@ -750,7 +675,6 @@
     "id": "sh-12_vehicle-03",
     "scenario": "boat_hull_id",
     "test_objective": "Redact a boat hull identification number.",
-    "target_entity": "ABC12345A525",
     "section": "PATIENT INFORMATION",
     "report_input": "BOAT HULL ID: ABC12345A525",
     "expected_output": "BOAT HULL ID: [ALPHANUMERICID]"
@@ -759,7 +683,6 @@
     "id": "sh-12_vehicle-04",
     "scenario": "license_plate_narrative",
     "test_objective": "Redact a license plate in a trauma history sentence.",
-    "target_entity": "7XYZ123",
     "section": "CLINICAL HISTORY",
     "report_input": "Restrained driver; vehicle plate 7XYZ123 recorded by EMS.",
     "expected_output": "Restrained driver; vehicle plate [ALPHANUMERICID] recorded by EMS."
@@ -768,7 +691,6 @@
     "id": "sh-12_vehicle-05",
     "scenario": "vehicle_description_negative_control",
     "test_objective": "Keep a generic vehicle description with a model year.",
-    "target_entity": "2018 sedan",
     "section": "CLINICAL HISTORY",
     "report_input": "Restrained driver of a 2018 sedan in a low-speed collision.",
     "expected_output": "Restrained driver of a 2018 sedan in a low-speed collision."
@@ -777,7 +699,6 @@
     "id": "sh-13_device-01",
     "scenario": "pacemaker_serial",
     "test_objective": "Redact a pacemaker serial number.",
-    "target_entity": "PM-8802149",
     "section": "PATIENT INFORMATION",
     "report_input": "PACEMAKER SERIAL NUMBER: PM-8802149",
     "expected_output": "PACEMAKER SERIAL NUMBER: [ALPHANUMERICID]"
@@ -786,7 +707,6 @@
     "id": "sh-13_device-02",
     "scenario": "udi_with_serial",
     "test_objective": "Redact a device UDI that includes a serial number.",
-    "target_entity": "(01)00887414000120(21)SN88201",
     "section": "PATIENT INFORMATION",
     "report_input": "IMPLANTED DEVICE UDI: (01)00887414000120(21)SN88201",
     "expected_output": "IMPLANTED DEVICE UDI: [ALPHANUMERICID]"
@@ -795,7 +715,6 @@
     "id": "sh-13_device-03",
     "scenario": "hearing_aid_serial",
     "test_objective": "Redact a hearing-aid serial number.",
-    "target_entity": "HA-191087",
     "section": "PATIENT INFORMATION",
     "report_input": "HEARING AID SERIAL: HA-191087",
     "expected_output": "HEARING AID SERIAL: [ALPHANUMERICID]"
@@ -804,7 +723,6 @@
     "id": "sh-13_device-04",
     "scenario": "port_serial_narrative",
     "test_objective": "Redact a port catheter serial number in a findings sentence.",
-    "target_entity": "SN-4410293",
     "section": "FINDINGS",
     "report_input": "Right chest port, serial SN-4410293, tip at the cavoatrial junction.",
     "expected_output": "Right chest port, serial [ALPHANUMERICID], tip at the cavoatrial junction."
@@ -813,7 +731,6 @@
     "id": "sh-13_device-05",
     "scenario": "device_model_negative_control",
     "test_objective": "Keep a device manufacturer and model name.",
-    "target_entity": "Medtronic Azure XT DR",
     "section": "TECHNIQUE",
     "report_input": "MRI-conditional Medtronic Azure XT DR pacemaker; scanned per protocol.",
     "expected_output": "MRI-conditional Medtronic Azure XT DR pacemaker; scanned per protocol."
@@ -822,7 +739,6 @@
     "id": "sh-13_device-06",
     "scenario": "lead_model_negative_control",
     "test_objective": "Keep a lead model number.",
-    "target_entity": "5076",
     "section": "FINDINGS",
     "report_input": "Model 5076 lead terminates in the right ventricle.",
     "expected_output": "Model 5076 lead terminates in the right ventricle."
@@ -831,7 +747,6 @@
     "id": "sh-14_url-01",
     "scenario": "portal_url",
     "test_objective": "Redact a patient portal URL.",
-    "target_entity": "https://portal.example.org/patient/PM-10182",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT PORTAL LINK: https://portal.example.org/patient/PM-10182",
     "expected_output": "PATIENT PORTAL LINK: [ALPHANUMERICID]"
@@ -840,7 +755,6 @@
     "id": "sh-14_url-02",
     "scenario": "url_with_token",
     "test_objective": "Redact an appointment URL with a token.",
-    "target_entity": "https://visits.example.net/e/812940?token=a7b1",
     "section": "PATIENT INFORMATION",
     "report_input": "APPOINTMENT LINK: https://visits.example.net/e/812940?token=a7b1",
     "expected_output": "APPOINTMENT LINK: [ALPHANUMERICID]"
@@ -849,7 +763,6 @@
     "id": "sh-14_url-03",
     "scenario": "url_with_query_id",
     "test_objective": "Redact a profile URL with an ID in the query string.",
-    "target_entity": "https://patient.example.org/profile?uid=30182",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT PROFILE URL: https://patient.example.org/profile?uid=30182",
     "expected_output": "PATIENT PROFILE URL: [ALPHANUMERICID]"
@@ -858,25 +771,22 @@
     "id": "sh-14_url-04",
     "scenario": "image_share_url_narrative",
     "test_objective": "Redact an image-sharing URL in a sentence.",
-    "target_entity": "https://share.example.org/s/9f3k2",
     "section": "ADDENDUM",
     "report_input": "Images shared with the patient at https://share.example.org/s/9f3k2 today.",
     "expected_output": "Images shared with the patient at [ALPHANUMERICID] today."
   },
   {
     "id": "sh-14_url-05",
-    "scenario": "public_guideline_url_negative_control",
-    "test_objective": "Keep a public guideline URL that is not the patient's.",
-    "target_entity": "https://www.acr.org/Clinical-Resources",
+    "scenario": "public_guideline_url",
+    "test_objective": "Redact public guideline URLs as well as patient-specific URLs; keep sentence punctuation.",
     "section": "IMPRESSION",
     "report_input": "Follow-up per ACR guidance at https://www.acr.org/Clinical-Resources.",
-    "expected_output": "Follow-up per ACR guidance at https://www.acr.org/Clinical-Resources."
+    "expected_output": "Follow-up per ACR guidance at [ALPHANUMERICID]."
   },
   {
     "id": "sh-15_ip-01",
     "scenario": "public_ipv4",
     "test_objective": "Redact a patient public IPv4 address.",
-    "target_entity": "203.0.113.12",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT TELEHEALTH IP: 203.0.113.12",
     "expected_output": "PATIENT TELEHEALTH IP: [ALPHANUMERICID]"
@@ -885,7 +795,6 @@
     "id": "sh-15_ip-02",
     "scenario": "private_ipv4",
     "test_objective": "Redact a private IPv4 address tied to the patient's home monitor.",
-    "target_entity": "10.0.4.12",
     "section": "PATIENT INFORMATION",
     "report_input": "HOME MONITOR IP: 10.0.4.12",
     "expected_output": "HOME MONITOR IP: [ALPHANUMERICID]"
@@ -894,7 +803,6 @@
     "id": "sh-15_ip-03",
     "scenario": "ipv6",
     "test_objective": "Redact a patient IPv6 address.",
-    "target_entity": "2001:db8:1::12",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT SESSION IP: 2001:db8:1::12",
     "expected_output": "PATIENT SESSION IP: [ALPHANUMERICID]"
@@ -903,7 +811,6 @@
     "id": "sh-15_ip-04",
     "scenario": "software_version_negative_control",
     "test_objective": "Keep a dotted software version number.",
-    "target_entity": "4.2.1.15",
     "section": "TECHNIQUE",
     "report_input": "Reconstructed with software version 4.2.1.15.",
     "expected_output": "Reconstructed with software version 4.2.1.15."
@@ -912,7 +819,6 @@
     "id": "sh-16_biometrics-01",
     "scenario": "fingerprint_template",
     "test_objective": "Redact a fingerprint template token.",
-    "target_entity": "FMR-02A71892",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT FINGERPRINT TEMPLATE: FMR-02A71892",
     "expected_output": "PATIENT FINGERPRINT TEMPLATE: [BIOMETRIC]"
@@ -921,7 +827,6 @@
     "id": "sh-16_biometrics-02",
     "scenario": "voiceprint_template",
     "test_objective": "Redact a voiceprint template token.",
-    "target_entity": "VPR-728109AA",
     "section": "PATIENT INFORMATION",
     "report_input": "PATIENT VOICEPRINT TEMPLATE: VPR-728109AA",
     "expected_output": "PATIENT VOICEPRINT TEMPLATE: [BIOMETRIC]"
@@ -930,7 +835,6 @@
     "id": "sh-16_biometrics-03",
     "scenario": "iris_template",
     "test_objective": "Redact an iris template token.",
-    "target_entity": "IRIS-9021BA",
     "section": "PATIENT INFORMATION",
     "report_input": "IRIS MATCH TEMPLATE: IRIS-9021BA",
     "expected_output": "IRIS MATCH TEMPLATE: [BIOMETRIC]"
@@ -939,7 +843,6 @@
     "id": "sh-16_biometrics-04",
     "scenario": "retinal_template_narrative",
     "test_objective": "Redact a retinal scan template in a sentence.",
-    "target_entity": "RET-55A013",
     "section": "ADDENDUM",
     "report_input": "Retinal scan template RET-55A013 linked to patient identity.",
     "expected_output": "Retinal scan template [BIOMETRIC] linked to patient identity."
@@ -948,7 +851,6 @@
     "id": "sh-16_biometrics-05",
     "scenario": "anatomy_negative_control",
     "test_objective": "Keep anatomic terms for the iris and retina.",
-    "target_entity": "Iris; retina",
     "section": "FINDINGS",
     "report_input": "Iris and retina unremarkable on orbital CT.",
     "expected_output": "Iris and retina unremarkable on orbital CT."
@@ -957,7 +859,6 @@
     "id": "sh-17_photos-01",
     "scenario": "intake_headshot",
     "test_objective": "Redact a full-face photo marker.",
-    "target_entity": "<FULL_FACE_PHOTO IMG-001.jpg>",
     "section": "PATIENT INFORMATION",
     "report_input": "ATTACHED INTAKE HEADSHOT: <FULL_FACE_PHOTO IMG-001.jpg>",
     "expected_output": "ATTACHED INTAKE HEADSHOT: [FACEIMAGE]"
@@ -966,7 +867,6 @@
     "id": "sh-17_photos-02",
     "scenario": "wound_photo_with_face",
     "test_objective": "Redact a wound photo marker that includes the face.",
-    "target_entity": "<FULL_FACE_PHOTO IMG-003.jpg>",
     "section": "ADDENDUM",
     "report_input": "ATTACHED WOUND PHOTO WITH FACE: <FULL_FACE_PHOTO IMG-003.jpg>",
     "expected_output": "ATTACHED WOUND PHOTO WITH FACE: [FACEIMAGE]"
@@ -975,7 +875,6 @@
     "id": "sh-17_photos-03",
     "scenario": "portrait_image",
     "test_objective": "Redact a comparable portrait image marker.",
-    "target_entity": "<FULL_FACE_PHOTO IMG-007.jpg>",
     "section": "ADDENDUM",
     "report_input": "ATTACHED PORTRAIT: <FULL_FACE_PHOTO IMG-007.jpg>",
     "expected_output": "ATTACHED PORTRAIT: [FACEIMAGE]"
@@ -984,7 +883,6 @@
     "id": "sh-17_photos-04",
     "scenario": "non_face_photo_negative_control",
     "test_objective": "Keep a clinical photo reference that does not show the face.",
-    "target_entity": "IMG-010.jpg",
     "section": "ADDENDUM",
     "report_input": "Clinical photo of the left forearm wound attached (no face): IMG-010.jpg",
     "expected_output": "Clinical photo of the left forearm wound attached (no face): IMG-010.jpg"
@@ -993,7 +891,6 @@
     "id": "sh-18_other_unique-01",
     "scenario": "accession_number",
     "test_objective": "Redact a radiology accession number.",
-    "target_entity": "ACC-0028193",
     "section": "PATIENT INFORMATION",
     "report_input": "ACCESSION NUMBER: ACC-0028193",
     "expected_output": "ACCESSION NUMBER: [ALPHANUMERICID]"
@@ -1002,7 +899,6 @@
     "id": "sh-18_other_unique-02",
     "scenario": "accession_number_comparison",
     "test_objective": "Redact a comparison study's accession number.",
-    "target_entity": "20240117-0042",
     "section": "COMPARISON",
     "report_input": "Prior CT, accession 20240117-0042.",
     "expected_output": "Prior CT, accession [ALPHANUMERICID]."
@@ -1011,7 +907,6 @@
     "id": "sh-18_other_unique-03",
     "scenario": "encounter_uuid",
     "test_objective": "Redact an encounter UUID.",
-    "target_entity": "123e4567-e89b-42d3-a456-426614174001",
     "section": "PATIENT INFORMATION",
     "report_input": "ENCOUNTER UUID: 123e4567-e89b-42d3-a456-426614174001",
     "expected_output": "ENCOUNTER UUID: [ALPHANUMERICID]"
@@ -1020,7 +915,6 @@
     "id": "sh-18_other_unique-04",
     "scenario": "linkage_key",
     "test_objective": "Redact a research linkage key derived from patient identifiers.",
-    "target_entity": "LK-9812A8",
     "section": "ADDENDUM",
     "report_input": "RESEARCH LINKAGE KEY: LK-9812A8",
     "expected_output": "RESEARCH LINKAGE KEY: [ALPHANUMERICID]"
@@ -1029,7 +923,6 @@
     "id": "sh-18_other_unique-05",
     "scenario": "dicom_study_uid",
     "test_objective": "Redact a DICOM Study Instance UID.",
-    "target_entity": "1.2.840.113619.2.55.3.604688119.971.1700000000.123",
     "section": "PATIENT INFORMATION",
     "report_input": "STUDY INSTANCE UID: 1.2.840.113619.2.55.3.604688119.971.1700000000.123",
     "expected_output": "STUDY INSTANCE UID: [ALPHANUMERICID]"
@@ -1038,7 +931,6 @@
     "id": "sh-18_other_unique-06",
     "scenario": "series_image_negative_control",
     "test_objective": "Keep series and image numbers.",
-    "target_entity": "Series 4, image 112",
     "section": "FINDINGS",
     "report_input": "Series 4, image 112: 6 mm nodule in the right upper lobe.",
     "expected_output": "Series 4, image 112: 6 mm nodule in the right upper lobe."
@@ -1047,7 +939,6 @@
     "id": "sh-18_other_unique-07",
     "scenario": "spine_levels_sequences_negative_control",
     "test_objective": "Keep vertebral levels and MRI sequence names.",
-    "target_entity": "L4-L5; T2-weighted",
     "section": "FINDINGS",
     "report_input": "Disc bulge at L4-L5 on T2-weighted images.",
     "expected_output": "Disc bulge at L4-L5 on T2-weighted images."
@@ -1056,7 +947,6 @@
     "id": "sh-18_other_unique-08",
     "scenario": "assessment_category_negative_control",
     "test_objective": "Keep BI-RADS and Lung-RADS categories.",
-    "target_entity": "BI-RADS 4; Lung-RADS 2",
     "section": "IMPRESSION",
     "report_input": "BI-RADS 4: suspicious abnormality. Lung-RADS 2 for the chest CT.",
     "expected_output": "BI-RADS 4: suspicious abnormality. Lung-RADS 2 for the chest CT."

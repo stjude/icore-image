@@ -304,6 +304,11 @@ def create_analyzer_engine() -> AnalyzerEngine:
             Pattern(name="n4", regex=r"\bPine\b", score=0.8),
             Pattern(name="n5", regex=r"\bPatient\s+[A-Z]\.[A-Z]\.", score=0.9),
             Pattern(name="n6", regex=r"\bThe(?=\s+MD\b)", score=0.75),
+            Pattern(
+                name="n7",
+                regex=r"(?<=(?i:\bdr\.)[ \t])[A-Z][A-Z'-]{2,}(?:[ \t]+[A-Z][A-Z'-]{2,})?\b",
+                score=0.85,
+            ),
         ],
     )
 
@@ -550,6 +555,10 @@ def scrub(
 
         filtered = []
         for result in results_analysis:
+            if result.entity_type == "URL":
+                # Redact every detected URL, preserving sentence punctuation.
+                while result.end > result.start and text[result.end - 1] in ".,;!":
+                    result.end -= 1
             detected = text[result.start : result.end]
             lower = detected.lower()
 
