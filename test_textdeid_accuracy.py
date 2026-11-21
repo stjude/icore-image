@@ -92,6 +92,7 @@ KNOWN_FAILURES: dict[str, str] = {
     "sh-18_other_unique-08": "over-redaction: 'Lung-RADS 2' tagged as a name",
 }
 
+
 def case_category(case_id: str) -> str | None:
     m = CASE_ID_RE.match(case_id)
     return m.group("category") if m else None
